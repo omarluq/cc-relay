@@ -50,10 +50,11 @@ func (p *AnthropicProvider) ForwardHeaders(originalHeaders http.Header) http.Hea
 
 	// Copy all anthropic-* headers from the original request
 	for key, values := range originalHeaders {
-		if len(key) >= 10 && key[:10] == "anthropic-" {
-			for _, value := range values {
-				headers.Add(key, value)
-			}
+		// Check if key starts with "anthropic-" (case-insensitive)
+		// http.Header stores keys in canonical form (Title-Case)
+		canonicalKey := http.CanonicalHeaderKey(key)
+		if len(canonicalKey) >= 10 && canonicalKey[:10] == "Anthropic-" {
+			headers[canonicalKey] = append(headers[canonicalKey], values...)
 		}
 	}
 

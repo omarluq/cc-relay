@@ -23,6 +23,10 @@ issues:
         - dupl
         - gosec
         - goconst
+        - testpackage
+        - paralleltest
+        - thelper
+        - noctx
     - path: ".*\\.pb\\.go$"
       linters:
         - all
