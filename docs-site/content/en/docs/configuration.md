@@ -121,6 +121,33 @@ logging:
     log_response_headers: false
     log_tls_metrics: false
     max_body_log_size: 1000
+
+# ==========================================================================
+# Cache Configuration
+# ==========================================================================
+cache:
+  # Cache mode: single, ha, disabled
+  mode: single
+
+  # Single mode (Ristretto) configuration
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+
+  # HA mode (Olric) configuration
+  olric:
+    embedded: true                 # Run embedded Olric node
+    bind_addr: "0.0.0.0:3320"      # Olric client port
+    dmap_name: "cc-relay"          # Distributed map name
+    environment: lan               # local, lan, or wan
+    peers:                         # Memberlist addresses (bind_addr + 2)
+      - "other-node:3322"
+    replica_count: 2               # Copies per key
+    read_quorum: 1                 # Min reads for success
+    write_quorum: 1                # Min writes for success
+    member_count_quorum: 2         # Min cluster members
+    leave_timeout: 5s              # Leave broadcast duration
 ```
 
 ## Server Configuration
