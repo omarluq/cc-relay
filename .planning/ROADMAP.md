@@ -95,10 +95,15 @@ Plans:
   2. All other language translations updated (i18n)
   3. Cache documentation included in site docs
   4. Configuration examples updated for HA clustering
-**Plans**: TBD
+**Plans**: 6 plans in 2 waves
 
 Plans:
-- [ ] 01.3-01-PLAN.md - Update site docs in all languages
+- [ ] 01.3-01-PLAN.md - Update English caching.md with HA clustering guide
+- [ ] 01.3-02-PLAN.md - Add cache configuration section to English configuration.md
+- [ ] 01.3-03-PLAN.md - Translate caching.md updates to German and Spanish
+- [ ] 01.3-04-PLAN.md - Translate caching.md updates to Japanese, Chinese, and Korean
+- [ ] 01.3-05-PLAN.md - Translate configuration.md cache section to German and Spanish
+- [ ] 01.3-06-PLAN.md - Translate configuration.md cache section to Japanese, Chinese, and Korean
 
 ### Phase 2: Multi-Key Pooling
 **Goal**: Enable multiple API keys per provider with rate limit tracking (RPM/TPM) and intelligent key selection
@@ -277,7 +282,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1. Core Proxy (MVP) | 8/9 | In progress | - |
 | 1.1 Embedded HA Cache (INSERTED) | 4/4 | Complete | 2026-01-21 |
 | 1.2 Cache Documentation (INSERTED) | 1/1 | Complete | 2026-01-21 |
-| 1.3 Site Docs Update (INSERTED) | 0/1 | Not started | - |
+| 1.3 Site Docs Update (INSERTED) | 0/6 | Not started | - |
 | 2. Multi-Key Pooling | 0/TBD | Not started | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
