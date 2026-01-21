@@ -5,33 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 1 - Core Proxy (MVP)
+**Current focus:** Phase 1.1 - Embedded HA Cache Clustering
 
 ## Current Position
 
-Phase: 1 of 11 (Core Proxy)
-Plan: 8 of 9 in current phase (Wave 6 extension)
-Status: Phase complete (with extensions)
-Last activity: 2026-01-21 - Completed 01-08-PLAN.md (Subscription Token Support)
+Phase: 1.1 of 11 (Embedded HA Cache Clustering)
+Plan: 1 of 5 in current phase
+Status: In progress
+Last activity: 2026-01-21 - Completed 01.1-01-PLAN.md (HA Clustering Config)
 
-Progress: [██████░░░░] 73% (8/11 plans)
+Progress: [██████░░░░] 75% (9/12 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 10 min
-- Total execution time: 1.27 hours
+- Total plans completed: 9
+- Average duration: 9.6 min
+- Total execution time: 1.37 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 (Core Proxy) | 8 | 76 min | 9.5 min |
+| 01.1 (HA Cache) | 1 | 6 min | 6 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-04 (8min), 01-05 (15min), 01-06 (17min), 01-09 (8min), 01-08 (8min)
-- Trend: Consistent 8-10 min for focused tasks, 15+ min for integration tasks
+- Last 5 plans: 01-05 (15min), 01-06 (17min), 01-09 (8min), 01-08 (8min), 01.1-01 (6min)
+- Trend: Consistent 6-10 min for focused config tasks
 
 *Updated after each plan completion*
 
@@ -91,9 +92,21 @@ Recent decisions affecting current work:
 - Default MaxBodyLogSize: 1000 bytes to prevent log bloat
 - --debug flag enables all debug options + sets level to debug
 
+**From 01.1-01 (HA Clustering Config):**
+- Extracted OlricConfig.Validate() method to reduce cognitive complexity
+- Default Environment to "local" for development compatibility
+- Default quorum values to 1 for single-node operation
+
 ### Pending Todos
 
 None yet.
+
+### Roadmap Evolution
+
+- Phase 1.1 inserted after Phase 1: Embedded HA Cache Clustering (URGENT)
+  - cc-relay should support node discovery and HA clustering natively
+  - Embedded Olric mode needs extended config (replication, quorum, environment)
+  - Keep remote client mode for future Redis/external cache support
 
 ### Blockers/Concerns
 
@@ -102,14 +115,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01-08-PLAN.md (Subscription Token Support) - **PHASE 1 FULLY COMPLETE**
+Stopped at: Completed 01.1-01-PLAN.md (HA Clustering Config)
 Resume file: None
 
-**Phase 1 (Core Proxy) Milestone:**
-- All 8 plans completed successfully (5 core + 3 Wave 5/6 extensions)
-- Full end-to-end proxy working with real Anthropic API
-- Production-ready structured logging with zerolog
-- Request correlation and operational visibility
-- Enhanced debug logging with TLS metrics and --debug flag
-- Subscription token support for Claude Code Pro/Team users
-- Ready to begin Phase 2 (Multi-key pooling & rate limiting)
+**Phase 1.1 Progress:**
+- Plan 01 complete: OlricConfig extended with Environment, ReplicaCount, ReadQuorum, WriteQuorum, MemberCountQuorum, LeaveTimeout
+- Ready for Plan 02: Update Olric initialization to use new config fields
