@@ -688,3 +688,84 @@ func TestOlricCache_ClusterInfo_AfterClose(t *testing.T) {
 		t.Error("IsEmbedded should still return true after close")
 	}
 }
+
+func TestOlricCache_HAConfiguration(t *testing.T) {
+	port := getNextPort()
+	cfg := OlricConfig{
+		DMapName:          fmt.Sprintf("ha-test-dmap-%d", port),
+		Embedded:          true,
+		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
+		Environment:       EnvLocal,
+		ReplicaCount:      2,
+		ReadQuorum:        1,
+		WriteQuorum:       1,
+		MemberCountQuorum: 1,
+		LeaveTimeout:      3 * time.Second,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cache, err := newOlricCache(ctx, &cfg)
+	if err != nil {
+		t.Fatalf("failed to create olric cache with HA config: %v", err)
+	}
+	defer cache.Close()
+
+	// Verify cache is functional with HA settings
+	testKey := "ha-test-key"
+	testValue := []byte("ha-test-value")
+
+	err = cache.Set(ctx, testKey, testValue)
+	if err != nil {
+		t.Fatalf("Set with HA config failed: %v", err)
+	}
+
+	got, err := cache.Get(ctx, testKey)
+	if err != nil {
+		t.Fatalf("Get with HA config failed: %v", err)
+	}
+
+	if !bytes.Equal(got, testValue) {
+		t.Errorf("Get returned %q, want %q", got, testValue)
+	}
+}
+
+func TestOlricCache_EnvironmentPresets(t *testing.T) {
+	testCases := []struct {
+		name        string
+		environment string
+	}{
+		{"default (empty)", ""},
+		{"local", EnvLocal},
+		{"lan", EnvLAN},
+		// Note: "wan" has longer timeouts, may make test slower
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			port := getNextPort()
+			cfg := OlricConfig{
+				DMapName:    fmt.Sprintf("env-test-dmap-%d", port),
+				Embedded:    true,
+				BindAddr:    fmt.Sprintf("127.0.0.1:%d", port),
+				Environment: tc.environment,
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			cache, err := newOlricCache(ctx, &cfg)
+			if err != nil {
+				t.Fatalf("failed to create cache with environment %q: %v", tc.environment, err)
+			}
+			defer cache.Close()
+
+			// Basic functionality check
+			err = cache.Set(ctx, "key", []byte("value"))
+			if err != nil {
+				t.Fatalf("Set failed with environment %q: %v", tc.environment, err)
+			}
+		})
+	}
+}
