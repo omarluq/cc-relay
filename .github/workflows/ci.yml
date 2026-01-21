@@ -70,7 +70,7 @@ jobs:
           go build -v -o bin/cc-relay-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/cc-relay
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cc-relay-${{ matrix.goos }}-${{ matrix.goarch }}
           path: bin/
