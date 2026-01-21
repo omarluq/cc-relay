@@ -20,7 +20,12 @@ func IsStreamingRequest(body []byte) bool {
 	return ok && stream
 }
 
-// - Connection: keep-alive - maintain streaming connection.
+// SetSSEHeaders sets required headers for SSE streaming.
+// These headers MUST be set for proper streaming through nginx/CDN:
+//   - Content-Type: text/event-stream - SSE format
+//   - Cache-Control: no-cache, no-transform - prevent caching
+//   - X-Accel-Buffering: no - CRITICAL: disable nginx/Cloudflare buffering
+//   - Connection: keep-alive - maintain streaming connection
 func SetSSEHeaders(h http.Header) {
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache, no-transform")
