@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 1.2 Complete - Cache Documentation
+**Current focus:** Phase 1.3 In Progress - Site Documentation Update
 
 ## Current Position
 
-Phase: 1.2 of 11 (Cache Documentation)
-Plan: 1 of 1 in current phase (COMPLETE)
-Status: Phase 1.2 complete
-Last activity: 2026-01-21 - Completed 01.2-01-PLAN.md (Cache Documentation)
+Phase: 1.3 of 11 (Site Documentation Update)
+Plan: 2 of N in current phase (IN PROGRESS)
+Status: Plan 01.3-02 complete
+Last activity: 2026-01-21 - Completed 01.3-02-PLAN.md (English Configuration Cache Documentation)
 
-Progress: [████████░░] 100% (13/13 plans through Phase 1.2)
+Progress: [████████░░] (14 plans completed)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
-- Average duration: 9.1 min
-- Total execution time: 1.98 hours
+- Total plans completed: 14
+- Average duration: 8.8 min
+- Total execution time: 2.05 hours
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: [████████░░] 100% (13/13 plans through Phase 1.2)
 | 01 (Core Proxy) | 8 | 76 min | 9.5 min |
 | 01.1 (HA Cache) | 4 | 40 min | 10 min |
 | 01.2 (Cache Docs) | 1 | 3 min | 3 min |
+| 01.3 (Site Docs) | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 01.1-02 (11min), 01.1-03 (8min), 01.1-04 (15min), 01.2-01 (3min)
-- Trend: Documentation plan executed quickly (no code changes)
+- Last 5 plans: 01.1-03 (8min), 01.1-04 (15min), 01.2-01 (3min), 01.3-02 (4min)
+- Trend: Documentation plans continue executing quickly
 
 *Updated after each plan completion*
 
@@ -119,6 +120,11 @@ Recent decisions affecting current work:
 - Include Redis skeleton implementation example for extensibility
 - Document memberlist port calculation explicitly (bind_addr + 2)
 
+**From 01.3-02 (English Configuration Cache Documentation):**
+- Place cache section after logging, before example configurations
+- Include both detailed section and complete reference YAML block
+- Cross-reference to docs/cache/ for detailed documentation
+
 ### Pending Todos
 
 None.
@@ -139,9 +145,9 @@ None.
   - HA clustering configuration with docker-compose example
   - Troubleshooting guide for common issues
 
-- Phase 1.3 NEXT: Site Documentation Update
-  - Update all site docs in all supported languages
-  - Include cache documentation in site docs
+- Phase 1.3 IN PROGRESS: Site Documentation Update
+  - Plan 02 complete: English configuration.md updated with cache section
+  - Remaining: Translation updates for other languages (DE, ES, JA, ZH-CN, KO)
 
 ### Blockers/Concerns
 
@@ -150,19 +156,16 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Phase 1.2 execution complete, all verification passed
+Stopped at: Plan 01.3-02 complete, ready for next plan
 Resume file: None
 
-**Phase 1.2 Complete (VERIFIED):**
-- Plan 01 complete: Comprehensive cache documentation created
-- docs/cache.md: 1033 lines, 10 sections, 15 YAML examples, 16 Go examples
-- All 6 success criteria verified:
-  - Cache key naming conventions documented with examples
-  - Cache busting strategies documented (TTL, manual, cluster)
-  - Cache adapter interface documented with implementation guide
-  - How to extend with new backends (Redis skeleton)
-  - HA clustering configuration documented with examples
-  - Troubleshooting guide for common issues
+**Phase 1.3 Progress:**
+- Plan 01 (Research): Complete
+- Plan 02 (English Config): Complete
+  - Cache Configuration section added to configuration.md
+  - Complete Configuration Reference updated with cache block
+  - All three modes documented with YAML examples
+  - Hugo build verified
 
 **Next Steps:**
-- Phase 1.3: Site Documentation Update (all languages)
+- Continue Phase 1.3 with remaining plans (translations if any)
