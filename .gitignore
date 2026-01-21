@@ -31,3 +31,7 @@ tmp/
 
 .claude/cache/*
 .claude/tsc-cache/*
+
+# Git worktrees (Crystal)
+/worktrees/
+/worktree-*/
