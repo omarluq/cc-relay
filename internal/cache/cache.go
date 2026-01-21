@@ -152,3 +152,25 @@ type MultiSetter interface {
 	// SetMultiWithTTL stores multiple values with a common TTL.
 	SetMultiWithTTL(ctx context.Context, items map[string][]byte, ttl time.Duration) error
 }
+
+// ClusterInfo is an optional interface for distributed caches that support clustering.
+// Use type assertion to check if a cache implements this interface:
+//
+//	if ci, ok := c.(cache.ClusterInfo); ok {
+//		addr := ci.MemberlistAddr()
+//		members := ci.ClusterMembers()
+//	}
+type ClusterInfo interface {
+	// MemberlistAddr returns the memberlist address of this node.
+	// This is the address other nodes should use in their Peers list to join.
+	// Returns empty string if not in embedded mode or not yet started.
+	MemberlistAddr() string
+
+	// ClusterMembers returns the number of members in the cluster.
+	// Returns 0 if not in embedded mode or unable to get stats.
+	ClusterMembers() int
+
+	// IsEmbedded returns true if this cache is running an embedded Olric node.
+	// Client mode caches return false.
+	IsEmbedded() bool
+}
