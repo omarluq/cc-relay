@@ -81,10 +81,10 @@ Plans:
   4. How to extend cache with new backends (Redis, Memcached) documented
   5. HA clustering configuration documented with examples
   6. Troubleshooting guide for common cache issues
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 01.2-01-PLAN.md - Cache documentation (keys, strategies, adapters, extensibility)
+- [ ] 01.2-01-PLAN.md - Comprehensive cache documentation (keys, strategies, adapters, HA clustering, troubleshooting)
 
 ### Phase 1.3: Site Documentation Update (INSERTED)
 **Goal**: Update all site documentation in all supported languages to reflect current implementation
@@ -276,7 +276,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 3 -> 4 -> 5 -> 6
 |-------|----------------|--------|-----------|
 | 1. Core Proxy (MVP) | 8/9 | In progress | - |
 | 1.1 Embedded HA Cache (INSERTED) | 4/4 | Complete | 2026-01-21 |
-| 1.2 Cache Documentation (INSERTED) | 0/1 | Not started | - |
+| 1.2 Cache Documentation (INSERTED) | 0/1 | Planned | - |
 | 1.3 Site Docs Update (INSERTED) | 0/1 | Not started | - |
 | 2. Multi-Key Pooling | 0/TBD | Not started | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
