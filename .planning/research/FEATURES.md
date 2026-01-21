@@ -171,6 +171,7 @@ Features to defer until product-market fit is established.
 | WebUI | LOW | HIGH | P3 (v0.6.0) |
 
 **Priority key:**
+
 - **P1 (MVP):** Must have for launch — validates core value proposition
 - **P2 (Post-MVP):** Should have after validation — adds reliability and enterprise features
 - **P3 (Future):** Nice to have — optimization and management features for mature product
@@ -194,18 +195,21 @@ Features to defer until product-market fit is established.
 ### Our Competitive Positioning
 
 **vs LiteLLM:**
+
 - **Narrower scope:** Focus on Anthropic-compatible providers only (not 100+ LLMs)
 - **Simpler:** No virtual keys, no multi-tenancy, no guardrails — just routing
 - **Lower latency:** Go vs Python, less middleware overhead
 - **Better for Claude Code:** Purpose-built for Claude Code's specific API requirements (tool_use_id, extended thinking)
 
 **vs Portkey:**
+
 - **Self-hosted:** No cloud dependency, no SaaS lock-in
 - **Developer-focused:** TUI and CLI instead of web dashboards
 - **Lower complexity:** No prompt management, no compliance controls
 - **Open source:** No paid tier, no enterprise upsell
 
 **vs claude-code-router:**
+
 - **More providers:** Supports cloud providers (Bedrock, Azure, Vertex) not just Z.AI
 - **Smarter routing:** Multiple strategies (cost, latency, failover) not just URL-based
 - **Production-ready:** Circuit breaker, health checks, rate limit pooling
@@ -214,6 +218,7 @@ Features to defer until product-market fit is established.
 ## Sources
 
 **Competitive Analysis:**
+
 - [LiteLLM GitHub](https://github.com/BerriAI/litellm) - Multi-LLM proxy features and architecture
 - [Portkey Alternatives](https://portkey.ai/alternatives/litellm-alternatives) - Feature comparison
 - [TrueFoundry LLM Proxy Guide](https://www.truefoundry.com/blog/llm-proxy) - Gateway patterns and features
@@ -222,17 +227,20 @@ Features to defer until product-market fit is established.
 - [OpenRouter Review 2025](https://skywork.ai/blog/openrouter-review-2025-unified-ai-model-api-pricing-privacy/) - Routing and failover patterns
 
 **Security & Pitfalls:**
+
 - [BleepingComputer: Misconfigured Proxies](https://www.bleepingcomputer.com/news/security/hackers-target-misconfigured-proxies-to-access-paid-llm-services/) - Security vulnerabilities
 - [Datadog: Monitoring AI Proxies](https://www.datadoghq.com/blog/optimize-ai-proxies-with-datadog/) - Observability requirements
 - [Medium: AI Gateways Primer](https://medium.com/@adnanmasood/primer-on-ai-gateways-llm-proxies-routers-definition-usage-and-purpose-9b714d544f8c) - Architecture patterns
 
 **Observability & Caching:**
+
 - [Portkey: LLM Observability Guide](https://portkey.ai/blog/the-complete-guide-to-llm-observability/) - Observability requirements
 - [LakeFFS: LLM Observability Tools 2026](https://lakefs.io/blog/llm-observability-tools/) - Tool comparison
 - [ngrok: Prompt Caching](https://ngrok.com/blog/prompt-caching/) - Semantic caching patterns
 - [GitHub: prompt-cache](https://github.com/messkan/prompt-cache) - Go-based semantic caching implementation
 
 **Developer Tools:**
+
 - [Ollama Tutorial 2026](https://dev.to/proflead/complete-ollama-tutorial-2026-llms-via-cli-cloud-python-3m97) - Local model management
 - [Copilot Proxy](https://dev.to/hankchiutw/copilot-proxy-your-free-llm-api-for-local-development-3c07) - Developer proxy patterns
 

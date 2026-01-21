@@ -89,24 +89,28 @@ go install github.com/go-task/task/v3/cmd/task@latest
 ## Stack Patterns by Variant
 
 **If building for maximum throughput (1000+ req/s):**
+
 - Use zerolog instead of slog (zero allocations)
 - Custom http.Client with connection pooling tuned: MaxIdleConns, MaxIdleConnsPerHost
 - Consider connection reuse for provider backends
 - Because high-throughput scenarios benefit from allocation reduction
 
 **If prioritizing simplicity and stdlib-only:**
+
 - Use net/http/httputil.ReverseProxy with Rewrite function
 - Use log/slog for logging
 - Use encoding/json for config (skip viper)
 - Because fewer dependencies = easier deployment, smaller binary
 
 **If SSE streaming is critical:**
+
 - Use http.Flusher interface directly with stdlib
 - Set headers: Content-Type: text/event-stream, Cache-Control: no-cache, X-Accel-Buffering: no
 - Flush after each SSE event write
 - Because LLM proxies (Claude, ChatGPT) need exact SSE event ordering
 
 **If building TUI dashboard:**
+
 - Use Bubble Tea v1.3.10 (stable)
 - Use Bubbles for components (spinners, tables, viewports)
 - Use Lip Gloss for styling
@@ -199,12 +203,14 @@ func (p *Provider) Transform(ctx context.Context, req *http.Request) error {
 ## Sources
 
 ### Official Documentation
+
 - [net/http/httputil ReverseProxy](https://pkg.go.dev/net/http/httputil) - Verified Rewrite function pattern, Director deprecation context
 - [log/slog package](https://pkg.go.dev/log/slog) - Verified Go 1.21 introduction, TextHandler/JSONHandler
 - [gRPC Go v1.78.0](https://pkg.go.dev/google.golang.org/grpc) - Verified version, Go 1.23+ requirement
 - [Bubble Tea v1.3.10](https://pkg.go.dev/github.com/charmbracelet/bubbletea) - Verified version, v2 availability
 
 ### Web Search Sources (2025)
+
 - [Go HTTP reverse proxy best practices 2025](https://go.dev/src/net/http/httputil/reverseproxy.go) - Rewrite function recommendation
 - [Go SSE server-sent events streaming library 2025](https://github.com/tmaxmax/go-sse) - LLM streaming support confirmation
 - [Go gRPC protobuf service management 2025](https://grpc.io/docs/languages/go/quickstart/) - buf generate workflow

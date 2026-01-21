@@ -1,0 +1,216 @@
+# cc-relay Example Configuration
+# 
+# Copy this file to ~/.config/cc-relay/config.yaml and customize for your setup.
+# Environment variables can be used with ${VAR_NAME} syntax.
+
+# ============================================================================
+# Server Configuration
+# ============================================================================
+server:
+  # Address to listen on (Claude Code connects here)
+  listen: "127.0.0.1:8787"
+  
+  # Request timeout in milliseconds (10 minutes default for long operations)
+  timeout_ms: 600000
+  
+  # Maximum concurrent requests (0 = unlimited)
+  max_concurrent: 0
+
+# ============================================================================
+# Routing Configuration
+# ============================================================================
+routing:
+  # Available strategies:
+  #   - simple-shuffle: Weighted random selection based on available capacity (default)
+  #   - round-robin: Sequential distribution across backends
+  #   - least-busy: Route to backend with fewest in-flight requests
+  #   - cost-based: Prefer cheaper providers for simple tasks
+  #   - latency-based: Track response times, prefer faster backends
+  #   - failover: Primary → fallback chain with circuit breaker
+  #   - model-based: Route by model name prefix
+  strategy: "simple-shuffle"
+  
+  # Failover configuration (only used when strategy: failover)
+  failover:
+    primary: "anthropic-pool"
+    fallbacks:
+      - "zai"
+      - "ollama"
+    cooldown_seconds: 60
+    recovery_probe_interval: 30
+    
+  # Cost-based configuration (only used when strategy: cost-based)
+  # cost_based:
+  #   threshold_tokens: 1000  # Use cheap providers below this token count
+
+# ============================================================================
+# Provider Configurations
+# ============================================================================
+providers:
+  # --------------------------------------------------------------------------
+  # Anthropic Direct API (recommended primary)
+  # --------------------------------------------------------------------------
+  - name: "anthropic-pool"
+    type: "anthropic"
+    enabled: true
+    
+    # Multiple API keys for rate limit pooling
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        rpm_limit: 60          # Requests per minute
+        tpm_limit: 100000      # Tokens per minute
+      # Add more keys to increase throughput:
+      # - key: "${ANTHROPIC_API_KEY_2}"
+      #   rpm_limit: 60
+      #   tpm_limit: 100000
+
+  # --------------------------------------------------------------------------
+  # Z.AI / Zhipu GLM (Anthropic-compatible, ~1/7 cost)
+  # --------------------------------------------------------------------------
+  - name: "zai"
+    type: "zai"
+    enabled: true
+    base_url: "https://api.z.ai/api/anthropic"
+    
+    keys:
+      - key: "${ZAI_API_KEY}"
+    
+    # Map Anthropic model names to Z.AI models
+    model_mapping:
+      "claude-sonnet-4-5-20250929": "GLM-4.7"
+      "claude-sonnet-4-5": "GLM-4.7"
+      "claude-haiku-4-5-20251001": "GLM-4.5-Air"
+      "claude-haiku-4-5": "GLM-4.5-Air"
+
+  # --------------------------------------------------------------------------
+  # Ollama (Local models)
+  # Note: Limited feature support (no prompt caching, no extended thinking)
+  # --------------------------------------------------------------------------
+  - name: "ollama"
+    type: "ollama"
+    enabled: true
+    base_url: "http://localhost:11434"
+    
+    model_mapping:
+      "claude-sonnet-4-5-20250929": "qwen3:32b"
+      "claude-sonnet-4-5": "qwen3:32b"
+      "claude-haiku-4-5-20251001": "qwen3:8b"
+      "claude-haiku-4-5": "qwen3:8b"
+
+  # --------------------------------------------------------------------------
+  # AWS Bedrock
+  # --------------------------------------------------------------------------
+  - name: "bedrock"
+    type: "bedrock"
+    enabled: false
+    region: "us-east-1"
+    
+    auth:
+      # Options: "iam" (uses AWS credentials), "bearer_token"
+      method: "iam"
+      # For bearer_token method (new July 2025 feature):
+      # method: "bearer_token"
+      # token: "${AWS_BEARER_TOKEN_BEDROCK}"
+    
+    model_mapping:
+      "claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0"
+      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250929-v1:0"
+      "claude-haiku-4-5-20251001": "anthropic.claude-haiku-4-5-20251001-v1:0"
+
+  # --------------------------------------------------------------------------
+  # Azure AI Foundry
+  # --------------------------------------------------------------------------
+  - name: "azure"
+    type: "azure"
+    enabled: false
+    
+    # Your Azure resource name (appears before .services.ai.azure.com)
+    resource: "my-azure-resource"
+    
+    auth:
+      # Options: "api_key", "entra_id"
+      method: "api_key"
+      key: "${AZURE_API_KEY}"
+      # For Entra ID (Azure AD):
+      # method: "entra_id"
+      # tenant_id: "${AZURE_TENANT_ID}"
+      # client_id: "${AZURE_CLIENT_ID}"
+      # client_secret: "${AZURE_CLIENT_SECRET}"
+    
+    # Azure uses deployment names as model identifiers
+    model_mapping:
+      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5"  # Your deployment name
+      "claude-sonnet-4-5": "claude-sonnet-4-5"
+      "claude-haiku-4-5": "claude-haiku-4-5"
+
+  # --------------------------------------------------------------------------
+  # Google Vertex AI
+  # --------------------------------------------------------------------------
+  - name: "vertex"
+    type: "vertex"
+    enabled: false
+    
+    project_id: "${GOOGLE_CLOUD_PROJECT}"
+    region: "us-east5"  # or "global" for dynamic routing
+    
+    # Auth via GOOGLE_APPLICATION_CREDENTIALS env var or gcloud CLI
+    # No explicit auth config needed if using default credentials
+    
+    model_mapping:
+      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5@20250929"
+      "claude-sonnet-4-5": "claude-sonnet-4-5@20250929"
+      "claude-haiku-4-5-20251001": "claude-haiku-4-5@20251001"
+
+# ============================================================================
+# gRPC Management API
+# ============================================================================
+grpc:
+  # gRPC server for TUI/CLI management
+  listen: "127.0.0.1:9090"
+  
+  # Optional: grpc-web for browser-based WebUI
+  # web_listen: "127.0.0.1:9091"
+
+# ============================================================================
+# Logging
+# ============================================================================
+logging:
+  # Options: "debug", "info", "warn", "error"
+  level: "info"
+  
+  # Options: "json", "text"
+  format: "text"
+  
+  # Log file (optional, defaults to stdout)
+  # file: "/var/log/cc-relay/relay.log"
+
+# ============================================================================
+# Metrics
+# ============================================================================
+metrics:
+  enabled: true
+  
+  # Prometheus metrics endpoint
+  prometheus_endpoint: "/metrics"
+  prometheus_listen: "127.0.0.1:9100"
+
+# ============================================================================
+# Health Checking
+# ============================================================================
+health:
+  # How often to check provider health
+  check_interval_seconds: 30
+  
+  # Circuit breaker settings
+  circuit_breaker:
+    # Number of failures before opening circuit
+    failure_threshold: 5
+    
+    # Time to wait before trying again (half-open state)
+    recovery_timeout_seconds: 60
+    
+    # Triggers for circuit breaker
+    triggers:
+      rate_limit_errors: 3      # 429 responses
+      timeout_errors: 2          # Request timeouts
+      server_errors: 3           # 5xx responses

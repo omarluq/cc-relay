@@ -133,10 +133,12 @@ cc-relay/
 **When to use:** When backends are mostly HTTP-compatible but differ in auth, headers, or request body format.
 
 **Trade-offs:**
+
 - **Pros:** Leverages battle-tested proxy code, handles connection pooling, HTTP/2, etc.
 - **Cons:** Transformation overhead on hot path, streaming requires careful buffering configuration.
 
 **Example (Go):**
+
 ```go
 // Simplified provider transformer interface
 type ProviderTransformer interface {
@@ -170,10 +172,12 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 **When to use:** Always, for production LLM proxies. Prevents cascading failures when a provider goes down.
 
 **Trade-offs:**
+
 - **Pros:** Automatic failure isolation, fast fail during outages, controlled recovery probing.
 - **Cons:** Requires tuning thresholds (failure rate, timeout), adds latency on state checks.
 
 **Example (Go):**
+
 ```go
 type CircuitState int
 const (
@@ -219,10 +223,12 @@ func (cb *CircuitBreaker) Call(fn func() error) error {
 **When to use:** When rate limits are enforced per-key and you want to maximize throughput by distributing across multiple keys.
 
 **Trade-offs:**
+
 - **Pros:** Maximizes aggregate throughput, prevents hitting rate limits.
 - **Cons:** Requires accurate tracking, potential race conditions in concurrent routing, keys may desync if limits change.
 
 **Example (Go):**
+
 ```go
 type KeyPool struct {
     keys     []*APIKey
@@ -263,10 +269,12 @@ func (kp *KeyPool) SelectKey() (*APIKey, error) {
 **When to use:** Always for streaming LLM APIs. Buffering breaks the real-time user experience.
 
 **Trade-offs:**
+
 - **Pros:** Real-time event delivery, matches Anthropic API behavior exactly.
 - **Cons:** Higher syscall overhead (more flushes), requires HTTP/1.1 or HTTP/2.
 
 **Example (Go):**
+
 ```go
 // Use httputil.ReverseProxy with FlushInterval
 proxy := &httputil.ReverseProxy{
@@ -345,6 +353,7 @@ func (h *SSEHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 ```
 
 **Critical:** Event sequence must match Anthropic API exactly:
+
 1. `message_start`
 2. `content_block_start`
 3. `content_block_delta` (multiple)
@@ -395,6 +404,7 @@ func (h *SSEHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
    - **Fix:** Increase OS limits (`ulimit`), use connection pooling to backends
 
 **Performance Targets (from research):**
+
 - **LiteLLM:** 8ms P95 latency (Python)
 - **Bifrost:** 11μs overhead at 5,000 RPS (Go)
 - **Target for cc-relay:** <5ms overhead for non-streaming, <50ms P95 for streaming start
@@ -470,6 +480,7 @@ func (h *SSEHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 Recommended implementation order to maintain working system at each step:
 
 ### Phase 1: Core Proxy (MVP)
+
 1. **HTTP Server** (`internal/proxy/server.go`)
    - Basic `/v1/messages` endpoint
    - No routing yet, hardcode Anthropic provider
@@ -487,6 +498,7 @@ Recommended implementation order to maintain working system at each step:
 **Deliverable:** Working proxy for single Anthropic key
 
 ### Phase 2: Routing + Multi-Key
+
 1. **Router Interface** (`internal/router/router.go`)
 2. **Simple Shuffle Strategy** (`internal/router/strategies/shuffle.go`)
 3. **Key Pool Manager** (`internal/router/keypool.go`)
@@ -496,6 +508,7 @@ Recommended implementation order to maintain working system at each step:
 **Deliverable:** Multi-key pooling with random selection
 
 ### Phase 3: Health + Failover
+
 1. **Circuit Breaker** (`internal/health/circuit.go`)
 2. **Health Tracker** (`internal/health/tracker.go`)
 3. **Failover Strategy** (`internal/router/strategies/failover.go`)
@@ -504,6 +517,7 @@ Recommended implementation order to maintain working system at each step:
 **Deliverable:** Automatic failover when provider fails
 
 ### Phase 4: Additional Providers
+
 1. **Z.AI Provider** (`internal/providers/zai.go`)
    - Model mapping
 
@@ -514,6 +528,7 @@ Recommended implementation order to maintain working system at each step:
 **Deliverable:** Multi-provider support
 
 ### Phase 5: Advanced Routing
+
 1. **Cost-Based Strategy** (`internal/router/strategies/costbased.go`)
 2. **Latency-Based Strategy** (`internal/router/strategies/latency.go`)
 3. **Model-Based Strategy** (`internal/router/strategies/modelbased.go`)
@@ -522,6 +537,7 @@ Recommended implementation order to maintain working system at each step:
 **Deliverable:** Intelligent routing strategies
 
 ### Phase 6: Cloud Providers
+
 1. **AWS Bedrock** (`internal/providers/bedrock.go`)
    - SigV4 signing
 
@@ -533,6 +549,7 @@ Recommended implementation order to maintain working system at each step:
 **Deliverable:** Enterprise cloud provider support
 
 ### Phase 7: Management Interface
+
 1. **gRPC Server** (`internal/grpc/`)
    - Stats streaming, provider/key management
 
@@ -545,32 +562,39 @@ Recommended implementation order to maintain working system at each step:
 ## Sources
 
 **LLM Gateway Architecture:**
+
 - [How API Gateways Proxy LLM Requests - API7.ai](https://api7.ai/learning-center/api-gateway-guide/api-gateway-proxy-llm-requests)
 - [Multi-provider LLM orchestration in production: A 2026 Guide - DEV](https://dev.to/ash_dubai/multi-provider-llm-orchestration-in-production-a-2026-guide-1g10)
 - [Building the AI Control Plane - Medium](https://medium.com/@adnanmasood/primer-on-ai-gateways-llm-proxies-routers-definition-usage-and-purpose-9b714d544f8c)
 - [LLM Orchestration in 2026 - AIMultiple](https://research.aimultiple.com/llm-orchestration/)
 
 **Go Reverse Proxy & SSE:**
+
 - [Building an SSE Proxy in Go - Medium](https://medium.com/@sercan.celenk/building-an-sse-proxy-in-go-streaming-and-forwarding-server-sent-events-1c951d3acd70)
 - [Go httputil.ReverseProxy SSE issues - GitHub](https://github.com/golang/go/issues/27816)
 - [Server-Sent Events: A Comprehensive Guide - Medium](https://medium.com/@moali314/server-sent-events-a-comprehensive-guide-e4b15d147576)
 
 **Circuit Breaker Pattern:**
+
 - [Circuit Breaker Patterns in Go Microservices - DEV](https://dev.to/serifcolakel/circuit-breaker-patterns-in-go-microservices-n3)
 - [How to Implement Circuit Breakers in Go with sony/gobreaker - OneUptime](https://oneuptime.com/blog/post/2026-01-07-go-circuit-breaker/view)
 - [Circuit Breaker Pattern in Microservices - GeeksforGeeks](https://www.geeksforgeeks.org/system-design/what-is-circuit-breaker-pattern-in-microservices/)
 
 **Rate Limiting:**
+
 - [Building a Lightweight Go API Gateway - Leapcell](https://leapcell.io/blog/building-a-lightweight-go-api-gateway-for-authentication-rate-limiting-and-routing)
 - [How to Implement Rate Limiting in Go Without External Services - OneUptime](https://oneuptime.com/blog/post/2026-01-07-go-rate-limiting/view)
 
 **API Key Management:**
+
 - [Building a Resilient API Key Pool System - DEV](https://dev.to/diandiancya/building-a-resilient-api-key-pool-system-with-health-checks-and-multi-tier-degradation-3ba)
 
 **Anthropic API:**
+
 - [Streaming Messages - Claude Docs](https://docs.anthropic.com/en/api/messages-streaming)
 
 **Reference Implementations:**
+
 - [LiteLLM - GitHub](https://github.com/BerriAI/litellm) (Python, 8ms P95)
 - [Bifrost by Maxim AI](https://www.getmaxim.ai/blog/bifrost-a-drop-in-llm-proxy-40x-faster-than-litellm/) (Go, 11μs overhead)
 

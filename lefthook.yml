@@ -1,0 +1,43 @@
+# Lefthook Configuration for cc-relay
+
+pre-commit:
+  parallel: true
+  commands:
+    # golangci-lint handles all linting and formatting
+    golangci-lint:
+      glob: "*.go"
+      run: golangci-lint run --fix
+      stage_fixed: true
+
+    # Quick tests
+    go-test:
+      run: go test -short ./...
+
+  skip:
+    - merge
+    - rebase
+
+# Pre-push hooks
+pre-push:
+  commands:
+    # Full test suite
+    go-test:
+      run: go test -v -race ./...
+
+    # Build check
+    go-build:
+      run: go build ./...
+
+# Conventional Commits
+commit-msg:
+  commands:
+    conventional-commit:
+      run: |
+        MSG=$(cat {1})
+        if ! echo "$MSG" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .{1,}$"; then
+          echo "ERROR: Commit message must follow Conventional Commits format:"
+          echo "  type(scope?): subject"
+          echo ""
+          echo "Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build"
+          exit 1
+        fi

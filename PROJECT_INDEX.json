@@ -1,0 +1,424 @@
+{
+  "metadata": {
+    "project_name": "cc-relay",
+    "generated": "2026-01-20",
+    "status": "pre-implementation",
+    "phase": "specification",
+    "language": "Go",
+    "go_version": "1.24.7",
+    "type": "http_proxy_cli_tool",
+    "index_version": "1.0"
+  },
+  "overview": {
+    "description": "Multi-provider proxy for Claude Code enabling simultaneous use of multiple Anthropic-compatible API endpoints",
+    "key_features": [
+      "Rate limit pooling across multiple API keys",
+      "Cost optimization by routing to cheaper providers",
+      "Automatic failover between providers",
+      "Mix cloud providers with local models"
+    ],
+    "supported_providers": [
+      "Anthropic",
+      "Z.AI (Zhipu GLM)",
+      "Ollama",
+      "AWS Bedrock",
+      "Azure AI Foundry",
+      "Google Vertex AI"
+    ]
+  },
+  "structure": {
+    "documentation": [
+      {
+        "file": "README.md",
+        "lines": 173,
+        "purpose": "User-facing documentation, quick start, features"
+      },
+      {
+        "file": "SPEC.md",
+        "lines": 614,
+        "purpose": "Complete technical specification with architecture"
+      },
+      {
+        "file": "llms.txt",
+        "lines": 155,
+        "purpose": "LLM-optimized project context"
+      },
+      {
+        "file": ".claude/CLAUDE.md",
+        "purpose": "Claude Code development guide"
+      }
+    ],
+    "configuration": [
+      {
+        "file": "example.yaml",
+        "lines": 216,
+        "purpose": "Comprehensive configuration reference"
+      },
+      {
+        "file": "go.mod",
+        "lines": 3,
+        "purpose": "Go module definition"
+      }
+    ],
+    "api_definitions": [
+      {
+        "file": "relay.proto",
+        "lines": 355,
+        "purpose": "gRPC service definitions for management API"
+      }
+    ],
+    "ci_cd": [
+      {
+        "file": ".github/workflows/test.yml",
+        "purpose": "GitHub Actions CI/CD pipeline"
+      }
+    ]
+  },
+  "entry_points": {
+    "planned": true,
+    "cli": {
+      "file": "cmd/cc-relay/main.go",
+      "subcommands": ["serve", "tui", "status", "config", "provider", "key"]
+    },
+    "http_server": {
+      "file": "internal/proxy/server.go",
+      "endpoint": "POST /v1/messages",
+      "streaming": "internal/proxy/sse.go"
+    },
+    "grpc_server": {
+      "file": "internal/grpc/server.go",
+      "proto": "relay.proto"
+    },
+    "tui": {
+      "file": "ui/tui/app.go",
+      "framework": "Bubble Tea"
+    }
+  },
+  "modules": {
+    "proxy": {
+      "path": "internal/proxy/",
+      "purpose": "HTTP reverse proxy implementing Anthropic Messages API",
+      "components": {
+        "server.go": "Main HTTP server",
+        "sse.go": "Server-Sent Events streaming handler",
+        "middleware.go": "Logging, metrics, auth validation"
+      },
+      "critical_requirements": [
+        "Exact Anthropic API format compatibility",
+        "Preserve tool_use_id for parallel tool calls",
+        "Maintain SSE event sequence order",
+        "Support extended thinking blocks"
+      ]
+    },
+    "router": {
+      "path": "internal/router/",
+      "purpose": "Request routing and API key selection",
+      "strategies": [
+        "simple-shuffle",
+        "round-robin",
+        "least-busy",
+        "cost-based",
+        "latency-based",
+        "failover",
+        "model-based"
+      ],
+      "components": {
+        "router.go": "Routing interface",
+        "strategies/": "Strategy implementations",
+        "keypool.go": "API key pool with rate limit tracking"
+      }
+    },
+    "providers": {
+      "path": "internal/providers/",
+      "purpose": "Provider-specific API transformations",
+      "interface": "ProviderTransformer",
+      "implementations": {
+        "anthropic.go": "Direct Anthropic API (native)",
+        "zai.go": "Z.AI / Zhipu GLM (Anthropic-compatible)",
+        "ollama.go": "Local Ollama (limited features)",
+        "bedrock.go": "AWS Bedrock (model in URL, SigV4 auth)",
+        "azure.go": "Azure AI Foundry (x-api-key header)",
+        "vertex.go": "Google Vertex AI (model in URL, OAuth)"
+      }
+    },
+    "health": {
+      "path": "internal/health/",
+      "purpose": "Circuit breaker and provider health monitoring",
+      "components": {
+        "tracker.go": "Health tracking per backend",
+        "circuit.go": "Circuit breaker (CLOSED/OPEN/HALF-OPEN)"
+      },
+      "triggers": ["rate_limit_errors", "timeouts", "server_errors"]
+    },
+    "config": {
+      "path": "internal/config/",
+      "purpose": "YAML/TOML config loading and hot-reload",
+      "components": {
+        "config.go": "Configuration structs",
+        "loader.go": "Parse and validate config",
+        "watcher.go": "File watcher for hot-reload (fsnotify)"
+      }
+    },
+    "grpc": {
+      "path": "internal/grpc/",
+      "purpose": "Real-time stats and management interface",
+      "key_rpcs": [
+        "StreamStats",
+        "ListProviders",
+        "EnableProvider",
+        "DisableProvider",
+        "ListKeys",
+        "AddKey",
+        "RemoveKey",
+        "GetKeyUsage",
+        "GetConfig",
+        "UpdateConfig",
+        "ReloadConfig",
+        "GetRoutingStrategy",
+        "SetRoutingStrategy",
+        "StreamRequests"
+      ]
+    },
+    "tui": {
+      "path": "ui/tui/",
+      "purpose": "Terminal user interface for management",
+      "framework": "Bubble Tea (Elm architecture)",
+      "features": [
+        "Real-time provider stats",
+        "Per-key rate limit tracking",
+        "Request logs",
+        "Provider enable/disable",
+        "Health status visualization"
+      ]
+    }
+  },
+  "configuration": {
+    "default_location": "~/.config/cc-relay/config.yaml",
+    "formats": ["yaml", "toml"],
+    "sections": {
+      "server": "Listen address, timeout, max concurrent",
+      "routing": "Strategy selection, failover chain",
+      "providers": "Array of provider configs with keys, rate limits, model mappings",
+      "grpc": "Management API settings",
+      "logging": "Level, format (json/text), file output",
+      "metrics": "Prometheus endpoint config",
+      "health": "Check intervals, circuit breaker thresholds"
+    },
+    "environment_variables": [
+      "ANTHROPIC_API_KEY",
+      "ZAI_API_KEY",
+      "AWS_BEARER_TOKEN_BEDROCK",
+      "AZURE_API_KEY",
+      "GOOGLE_APPLICATION_CREDENTIALS"
+    ]
+  },
+  "development_phases": [
+    {
+      "phase": 1,
+      "version": "v0.1.0",
+      "name": "MVP",
+      "tasks": [
+        "Basic HTTP proxy server",
+        "Anthropic provider (single key)",
+        "Z.AI provider",
+        "Ollama provider",
+        "Simple-shuffle routing",
+        "YAML configuration",
+        "Basic CLI (cc-relay serve)"
+      ]
+    },
+    {
+      "phase": 2,
+      "version": "v0.2.0",
+      "name": "Multi-Key & Routing",
+      "tasks": [
+        "Multi-key pooling per provider",
+        "Rate limit tracking (RPM/TPM)",
+        "Round-robin strategy",
+        "Failover strategy with circuit breaker",
+        "Health checking",
+        "Hot-reload configuration"
+      ]
+    },
+    {
+      "phase": 3,
+      "version": "v0.3.0",
+      "name": "Cloud Providers",
+      "tasks": [
+        "AWS Bedrock provider",
+        "Azure Foundry provider",
+        "Vertex AI provider"
+      ]
+    },
+    {
+      "phase": 4,
+      "version": "v0.4.0",
+      "name": "Management Interface",
+      "tasks": [
+        "gRPC management API",
+        "Bubble Tea TUI",
+        "Real-time stats streaming",
+        "Key/provider management commands"
+      ]
+    },
+    {
+      "phase": 5,
+      "version": "v0.5.0",
+      "name": "Advanced Features",
+      "tasks": [
+        "Cost-based routing",
+        "Latency-based routing",
+        "Model-based routing",
+        "Prometheus metrics",
+        "Request logging/audit trail"
+      ]
+    },
+    {
+      "phase": 6,
+      "version": "v0.6.0",
+      "name": "WebUI",
+      "tasks": [
+        "grpc-web proxy",
+        "React/Svelte WebUI",
+        "Dashboard with live stats"
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "Go",
+      "version": "1.24.7",
+      "purpose": "Base language"
+    },
+    {
+      "name": "net/http, net/http/httputil",
+      "type": "stdlib",
+      "purpose": "HTTP proxy server"
+    },
+    {
+      "name": "google.golang.org/grpc",
+      "purpose": "gRPC management API"
+    },
+    {
+      "name": "github.com/charmbracelet/bubbletea",
+      "purpose": "TUI framework"
+    },
+    {
+      "name": "github.com/fsnotify/fsnotify",
+      "purpose": "Config file watching"
+    },
+    {
+      "name": "gopkg.in/yaml.v3",
+      "purpose": "YAML parsing"
+    },
+    {
+      "name": "AWS SDK",
+      "purpose": "Bedrock SigV4 signing"
+    },
+    {
+      "name": "Google Auth Library",
+      "purpose": "Vertex AI OAuth"
+    },
+    {
+      "name": "Prometheus client",
+      "purpose": "Metrics export"
+    }
+  ],
+  "testing": {
+    "planned": true,
+    "unit_tests": [
+      "Provider transformers (request/response)",
+      "Routing strategies",
+      "Key pool selection logic",
+      "Circuit breaker state transitions",
+      "Config parsing and validation"
+    ],
+    "integration_tests": [
+      "End-to-end proxy flow",
+      "SSE streaming correctness",
+      "Multi-provider failover",
+      "Rate limit enforcement",
+      "gRPC API functionality"
+    ],
+    "test_commands": {
+      "all": "go test ./...",
+      "verbose": "go test -v ./internal/proxy",
+      "race": "go test -race ./...",
+      "coverage": "go test -cover ./...",
+      "benchmark": "go test -bench=. ./internal/router"
+    }
+  },
+  "quick_start": {
+    "installation": "go install github.com/omarish/cc-relay@latest",
+    "configuration": [
+      "mkdir -p ~/.config/cc-relay",
+      "cp example.yaml ~/.config/cc-relay/config.yaml",
+      "Edit config.yaml with your API keys"
+    ],
+    "running": {
+      "daemon": "cc-relay serve",
+      "claude_code_setup": [
+        "export ANTHROPIC_BASE_URL=http://localhost:8787",
+        "export ANTHROPIC_API_KEY=managed-by-cc-relay",
+        "claude"
+      ],
+      "management": [
+        "cc-relay tui",
+        "cc-relay status",
+        "cc-relay config reload",
+        "cc-relay provider list"
+      ]
+    }
+  },
+  "critical_notes": {
+    "api_compatibility": [
+      "Must implement /v1/messages exactly matching Anthropic API",
+      "Must handle SSE with correct event sequence",
+      "Must preserve tool_use_id for Claude Code's parallel tool calls",
+      "Must support extended thinking blocks"
+    ],
+    "provider_transformations": {
+      "bedrock": "Model in URL, anthropic_version: bedrock-2023-05-31, SigV4",
+      "vertex": "Model in URL, anthropic_version: vertex-2023-10-16, OAuth",
+      "azure": "Use x-api-key header, deployment names as model IDs",
+      "ollama": "No prompt caching, no PDF support, base64 images only"
+    },
+    "sse_headers": [
+      "Content-Type: text/event-stream",
+      "Cache-Control: no-cache, no-transform",
+      "X-Accel-Buffering: no",
+      "Connection: keep-alive"
+    ]
+  },
+  "similar_projects": [
+    {
+      "name": "LiteLLM",
+      "language": "Python",
+      "notes": "Multi-LLM proxy, 8ms P95 latency"
+    },
+    {
+      "name": "claude-code-router",
+      "language": "TypeScript",
+      "notes": "Route-based provider selection"
+    },
+    {
+      "name": "Bifrost",
+      "language": "Go",
+      "notes": "High-performance LLM gateway, 11μs overhead"
+    },
+    {
+      "name": "OpenRouter",
+      "type": "Service",
+      "notes": "Cloud-scale routing"
+    }
+  ],
+  "metrics": {
+    "token_efficiency": {
+      "full_documentation_read": 3500,
+      "index_read": 1200,
+      "savings_per_session": 2300,
+      "savings_percentage": 66,
+      "savings_10_sessions": 23000
+    }
+  }
+}

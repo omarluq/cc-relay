@@ -1,0 +1,95 @@
+version: '3'
+
+# Taskfile for cc-relay - Simple task runner
+# Usage: task [task-name]
+
+vars:
+  BINARY_NAME: cc-relay
+  BUILD_DIR: ./bin
+  COVERAGE_FILE: coverage.out
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # Development
+  dev:
+    desc: Run with live reload
+    cmds:
+      - air
+
+  run:
+    desc: Build and run
+    deps: [build]
+    cmds:
+      - "{{.BUILD_DIR}}/{{.BINARY_NAME}}"
+
+  # Build
+  build:
+    desc: Build binary
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/cc-relay
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - rm -f {{.COVERAGE_FILE}}
+      - go clean -cache -testcache
+
+  # Testing
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v -race ./...
+
+  test-short:
+    desc: Run short tests
+    cmds:
+      - go test -v -race -short ./...
+
+  test-coverage:
+    desc: Run tests with coverage
+    cmds:
+      - go test -v -race -coverprofile={{.COVERAGE_FILE}} -covermode=atomic ./...
+      - go tool cover -html={{.COVERAGE_FILE}} -o coverage.html
+
+  # Code quality (golangci-lint handles everything)
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  fmt:
+    desc: Format and fix with golangci-lint
+    cmds:
+      - golangci-lint run --fix
+
+  # Dependencies
+  deps:
+    desc: Download dependencies
+    cmds:
+      - go mod download
+
+  tidy:
+    desc: Tidy dependencies
+    cmds:
+      - go mod tidy
+
+  # Git hooks
+  hooks-install:
+    desc: Install git hooks
+    cmds:
+      - lefthook install
+
+  # CI
+  ci:
+    desc: Run CI checks
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+      - task: build

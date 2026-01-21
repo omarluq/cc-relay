@@ -12,29 +12,36 @@
 Proxy buffers SSE events instead of flushing them immediately, causing Claude Code to hang waiting for responses. Chunks arrive all at once after completion instead of streaming incrementally, breaking the interactive experience.
 
 **Why it happens:**
+
 - Default HTTP proxies and reverse proxies (nginx, Cloudflare, Azure App Gateway) buffer responses
 - Go's `http.ResponseWriter` doesn't automatically flush after each write
 - Missing critical headers that disable buffering
 - Platform-specific behaviors (Vercel, Azure App Service) enable buffering by default
 
 **How to avoid:**
+
 1. Set required headers on SSE responses:
+
    ```go
    w.Header().Set("Content-Type", "text/event-stream")
    w.Header().Set("Cache-Control", "no-cache, no-transform")
    w.Header().Set("X-Accel-Buffering", "no")  // Critical for nginx/Cloudflare
    w.Header().Set("Connection", "keep-alive")
    ```
+
 2. Use `http.Flusher` interface to flush after each SSE event:
+
    ```go
    flusher, ok := w.(http.Flusher)
    if ok {
        flusher.Flush()
    }
    ```
+
 3. Test with real Claude Code, not just curl (curl may hide buffering issues)
 
 **Warning signs:**
+
 - Claude Code shows "waiting for response" spinner indefinitely
 - Responses arrive all at once after long delay
 - Works in local dev but fails when deployed behind nginx/CDN
@@ -51,13 +58,16 @@ Phase 1 (MVP) - Core proxy implementation must get streaming right from the star
 Proxy fails to preserve `tool_use_id` when handling parallel tool calls, causing Claude Code to reject responses with "orphan tool_result blocks" errors. This breaks agent workflows that spawn multiple concurrent operations.
 
 **Why it happens:**
+
 - Naive proxy implementations transform requests/responses without preserving all fields
 - JSON marshaling/unmarshaling drops unknown fields if not using `map[string]interface{}`
 - Tool use blocks are treated individually instead of atomically
 - Provider API differences cause field mappings to lose IDs during transformation
 
 **How to avoid:**
+
 1. Preserve ALL fields when transforming requests:
+
    ```go
    // BAD: Struct marshaling drops unknown fields
    type Message struct {
@@ -69,11 +79,13 @@ Proxy fails to preserve `tool_use_id` when handling parallel tool calls, causing
    var message map[string]interface{}
    json.Unmarshal(body, &message)
    ```
+
 2. Handle multiple `tool_use` blocks atomically in a single message
 3. Validate tool IDs match between request and response in integration tests
 4. Test specifically with parallel tool calls (Read + Bash + Grep simultaneously)
 
 **Warning signs:**
+
 - "API Error: 400 - orphan tool_result blocks" in Claude Code
 - Parallel tool operations fail while sequential operations work
 - Errors only occur with 3+ simultaneous tools, not simple cases
@@ -90,14 +102,17 @@ Phase 1 (MVP) - Must be correct from the start. This is a hard API compatibility
 Proxy deployed without robust authentication becomes an access broker for attackers to consume your paid API credits. Between Oct 2025 and Jan 2026, over 91,000 attack sessions targeted misconfigured LLM proxies.
 
 **Why it happens:**
+
 - Developers test with `SKIP_AUTH=true` and forget to disable in production
 - Assuming network-level security is sufficient (it's not - proxies get discovered)
 - Using weak API keys or relying solely on IP allowlisting
 - Forgetting that attackers now scan for LLM endpoints like any other infrastructure
 
 **How to avoid:**
+
 1. Never deploy with authentication disabled, even "temporarily"
 2. Implement proper API key validation:
+
    ```go
    // Validate incoming key against allowed keys
    if !isValidAPIKey(req.Header.Get("x-api-key")) {
@@ -105,12 +120,14 @@ Proxy deployed without robust authentication becomes an access broker for attack
        return
    }
    ```
+
 3. Add rate limiting per API key (not just per IP)
 4. Log all authentication failures and alert on suspicious patterns
 5. Use separate API keys for the proxy (not the same keys as backend providers)
 6. Consider mutual TLS for internal deployments
 
 **Warning signs:**
+
 - Unexpected spike in API usage/costs
 - High rate of 401/403 errors in logs
 - Traffic from unexpected geographic regions
@@ -127,25 +144,30 @@ Phase 1 (MVP) - Authentication must be present from day one. Add advanced featur
 Rate limiting implementation can be bypassed because the proxy identifies requests by IP instead of by API key, or fails to track limits correctly across multiple backend keys in the pool.
 
 **Why it happens:**
+
 - Using IP-based rate limiting when clients can use proxies/VPNs
 - Not tracking per-key limits separately for each backend provider key
 - Sharing rate limit counters across unrelated API keys
 - Forgetting that provider rate limits are per-key, not per-proxy
 
 **How to avoid:**
+
 1. Track rate limits per incoming API key AND per backend provider key:
+
    ```go
    type RateLimiter struct {
        incomingKeyLimits map[string]*TokenBucket  // Proxy API key
        providerKeyLimits map[string]*TokenBucket  // Backend API key
    }
    ```
+
 2. Don't use IP address as the primary rate limit key
 3. Respect provider-specific rate limits (RPM, TPM, RPD)
 4. Implement token bucket or sliding window (not fixed window) for burst handling
 5. Return proper `Retry-After` headers when rate limited
 
 **Warning signs:**
+
 - Clients bypass rate limits by rotating IPs
 - Backend providers return 429 despite proxy "enforcing" limits
 - Rate limits fail to prevent abuse during traffic spikes
@@ -162,13 +184,16 @@ Phase 2 (Multi-key pooling) - Implement comprehensive rate tracking. Phase 1 can
 Circuit breaker implementation treats all failures equally, opening the circuit for recoverable errors (like 400 Bad Request), or uses original expensive requests for health probing instead of dedicated health checks.
 
 **Why it happens:**
+
 - Not distinguishing between client errors (4xx) and server errors (5xx)
 - Using the half-open state to retry the same failed operation
 - Treating partial failures as complete system failure
 - Cascading failures when circuit breaker logic itself becomes a bottleneck
 
 **How to avoid:**
+
 1. Only count server errors (5xx, timeouts, connection failures) as circuit breaker failures:
+
    ```go
    func shouldCountAsFailure(statusCode int, err error) bool {
        if err != nil && (isTimeout(err) || isConnectionError(err)) {
@@ -177,12 +202,14 @@ Circuit breaker implementation treats all failures equally, opening the circuit 
        return statusCode >= 500
    }
    ```
+
 2. Use dedicated health check endpoints in half-open state, not original requests
 3. Implement per-provider circuit breakers (don't share state across providers)
 4. Set appropriate thresholds (e.g., 5 consecutive failures, not 1)
 5. Add alerting when circuit opens to enable manual intervention
 
 **Warning signs:**
+
 - Circuit opens on client errors (400, 404) that shouldn't affect health
 - Health probes trigger expensive operations (inference requests as health checks)
 - All providers marked unhealthy when only one actually failed
@@ -199,13 +226,16 @@ Phase 2 (Health tracking and failover) - Circuit breakers are complex, don't rus
 Proxy obscures which models, users, or projects are driving API costs. You discover a $10,000 bill but can't determine who or what caused it. Teams unknowingly route to expensive models.
 
 **Why it happens:**
+
 - Not capturing metadata (user, project, environment) at request time
 - Relying on user-provided metadata that can be spoofed
 - Logging requests without tokenization costs
 - No breakdown by model, provider, or routing strategy
 
 **How to avoid:**
+
 1. Capture cost attribution metadata on every request:
+
    ```go
    type RequestMetadata struct {
        APIKey      string  // Who made the request
@@ -217,12 +247,14 @@ Proxy obscures which models, users, or projects are driving API costs. You disco
        Timestamp   time.Time
    }
    ```
+
 2. Log to structured format (JSON) for later analysis
 3. Export metrics to Prometheus/Datadog with labels (model, provider, key)
 4. Implement cost budgets per API key with alerts
 5. Don't trust user-provided `user` parameter for billing (validate against API key)
 
 **Warning signs:**
+
 - Can't explain cost increases
 - No visibility into which models are being used
 - Can't allocate costs to teams or projects
@@ -239,12 +271,14 @@ Phase 2 (Metrics and monitoring) - Basic logging in Phase 1, comprehensive cost 
 Assuming all providers are "Anthropic-compatible" leads to subtle bugs. Bedrock requires inference profiles, Ollama doesn't support prompt caching, Azure uses different auth headers.
 
 **Why it happens:**
+
 - Reading marketing materials ("OpenAI-compatible!") instead of actual API docs
 - Testing only with Anthropic provider
 - Copy-pasting provider implementations without understanding differences
 - Not validating provider-specific constraints
 
 **How to avoid:**
+
 1. Create comprehensive provider compatibility matrix:
    - Bedrock: Requires inference profiles, not direct model IDs
    - Vertex: Model in URL path, `anthropic_version: "vertex-2023-10-16"`
@@ -256,6 +290,7 @@ Assuming all providers are "Anthropic-compatible" leads to subtle bugs. Bedrock 
 5. Return clear error messages for unsupported features
 
 **Warning signs:**
+
 - Works with Anthropic but fails with Bedrock/Vertex
 - Prompt caching silently not working on some providers
 - Authentication fails intermittently based on provider
@@ -272,13 +307,16 @@ Phase 3 (Cloud providers) - Each provider needs dedicated implementation and tes
 Proxy doesn't forward critical headers like `anthropic-beta`, `anthropic-version`, or new feature flags, silently disabling features like extended thinking, prompt caching, or programmatic tool calling.
 
 **Why it happens:**
+
 - Hardcoding which headers to forward instead of allowlisting
 - Not staying current with API updates
 - Testing with basic requests that don't use advanced features
 - Assuming all important data is in the request body
 
 **How to avoid:**
+
 1. Forward ALL `anthropic-*` headers by default:
+
    ```go
    for key, values := range req.Header {
        if strings.HasPrefix(key, "Anthropic-") {
@@ -286,11 +324,13 @@ Proxy doesn't forward critical headers like `anthropic-beta`, `anthropic-version
        }
    }
    ```
+
 2. Subscribe to Anthropic API changelog and test new features
 3. Test with beta features enabled (extended thinking, programmatic tools)
 4. Log when unknown headers are encountered (helps catch new features)
 
 **Warning signs:**
+
 - Prompt caching not working despite correct request format
 - Extended thinking blocks missing in responses
 - Beta features work with direct API but not through proxy
@@ -307,19 +347,23 @@ Phase 1 (MVP) - Header forwarding is simple and critical for compatibility.
 Rotating API keys causes request failures during the rotation window. Config reloads don't handle graceful transition, causing 401 errors for in-flight requests.
 
 **Why it happens:**
+
 - Revoking old keys before new keys are active in the proxy
 - Config reload replaces keys atomically instead of gracefully
 - No overlap period for key transitions
 - Not testing rotation procedures before production
 
 **How to avoid:**
+
 1. Support multiple active keys per provider during rotation:
+
    ```go
    type ProviderConfig struct {
        ActiveKeys     []string  // Currently valid keys
        DeprecatedKeys []string  // Valid for 24h during rotation
    }
    ```
+
 2. Implement graceful config reload (don't drop in-flight requests)
 3. Follow zero-downtime rotation procedure:
    - Add new key to config
@@ -331,6 +375,7 @@ Rotating API keys causes request failures during the rotation window. Config rel
 4. Use secrets manager (AWS Secrets Manager, Vault) for rotation automation
 
 **Warning signs:**
+
 - 401 errors during scheduled maintenance windows
 - Requests fail immediately after config reload
 - No way to test key validity before deploying
@@ -347,13 +392,16 @@ Phase 2 (Multi-key pooling) - Proper key management needs multi-key support. Pha
 Using direct model IDs (e.g., `anthropic.claude-sonnet-4-5-20250929-v1:0`) with Bedrock causes "on-demand throughput not supported" errors. Teams waste time debugging before discovering inference profiles are required.
 
 **Why it happens:**
+
 - Bedrock's requirement for inference profiles is non-obvious
 - Marketing materials show model IDs without explaining inference profiles
 - Error messages are cryptic
 - Other providers don't have this concept
 
 **How to avoid:**
+
 1. Document Bedrock-specific setup prominently:
+
    ```yaml
    providers:
      - type: bedrock
@@ -363,11 +411,13 @@ Using direct model IDs (e.g., `anthropic.claude-sonnet-4-5-20250929-v1:0`) with 
          - id: "us.anthropic.claude-sonnet-4-5-v2:0"  # Inference profile
            name: "claude-sonnet-4.5"
    ```
+
 2. Validate Bedrock model IDs against expected pattern (inference profiles start with region)
 3. Provide clear error messages: "Bedrock requires inference profiles. See docs/bedrock.md"
 4. Include working examples in config templates
 
 **Warning signs:**
+
 - Bedrock requests fail with "on-demand not supported"
 - Works in AWS console but not through proxy
 - Model ID validation doesn't catch invalid IDs
@@ -508,38 +558,46 @@ How roadmap phases should address these pitfalls.
 ## Sources
 
 **SSE Streaming & Buffering:**
+
 - [Fixing Slow SSE (Server-Sent Events) Streaming in Next.js and Vercel](https://medium.com/@oyetoketoby80/fixing-slow-sse-server-sent-events-streaming-in-next-js-and-vercel-99f42fbdb996)
 - [Issues with SSE (server side events) on Azure App Service](https://learn.microsoft.com/en-us/answers/questions/5573038/issues-with-sse-(server-side-events)-on-azure-app)
 - [Using Server Sent Events (SSE) with Cloudflare Proxy](https://community.cloudflare.com/t/using-server-sent-events-sse-with-cloudflare-proxy/656279)
 
 **Tool Use & Parallel Calls:**
+
 - [API Error: 400 due to tool use concurrency issues](https://github.com/badrisnarayanan/antigravity-claude-proxy/issues/91)
 - [Programmatic tool calling - Claude Docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling)
 
 **Security & Authentication:**
+
 - [Hackers scan misconfigured proxies for paid LLM services](https://anavem.com/cybersecurity/hackers-scan-misconfigured-proxies-paid-llm-services)
 - [How API Gateways Proxy LLM Requests](https://api7.ai/learning-center/api-gateway-guide/api-gateway-proxy-llm-requests)
 
 **Rate Limiting:**
+
 - [API Rate Limiting at Scale: Patterns, Failures, and Control Strategies](https://www.gravitee.io/blog/rate-limiting-apis-scale-patterns-strategies)
 - [Mastering API Rate Limiting: Strategies, Challenges, and Best Practices](https://testfully.io/blog/api-rate-limit/)
 - [API Rate Limiting Fails: Death by a Thousand (Legitimate) Requests](https://medium.com/@instatunnel/api-rate-limiting-fails-death-by-a-thousand-legitimate-requests-30e24aba8b7f)
 
 **Circuit Breaker Patterns:**
+
 - [Circuit Breaker Pattern - Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
 - [The Circuit Breaker Pattern - Dos and Don'ts](https://akfpartners.com/growth-blog/the-circuit-breaker-pattern-dos-and-donts)
 
 **Cost Tracking:**
+
 - [Monitor your LiteLLM AI proxy with Datadog](https://www.datadoghq.com/blog/monitor-litellm-with-datadog/)
 - [LLM cost attribution: Tracking and optimizing spend for GenAI apps](https://portkey.ai/blog/llm-cost-attribution-for-genai-apps/)
 - [Monitoring AI Proxies to optimize performance and costs](https://www.datadoghq.com/blog/optimize-ai-proxies-with-datadog/)
 
 **Provider-Specific (Bedrock, Vertex, etc.):**
+
 - [AWS Bedrock | liteLLM](https://docs.litellm.ai/docs/providers/bedrock)
 - [Bedrock, Vertex, and proxies - Claude Code](https://docs.anthropic.com/en/docs/claude-code/bedrock-vertex-proxies)
 - [Configuring Claude Code Extension with AWS Bedrock (And How You Can Avoid My Mistakes)](https://aws.plainenglish.io/configuring-claude-code-extension-with-aws-bedrock-and-how-you-can-avoid-my-mistakes-090dbed5215b)
 
 **Credential Management:**
+
 - [API Key Security Best Practices for 2026](https://dev.to/alixd/api-key-security-best-practices-for-2026-1n5d)
 - [11 Best API Key Management Tools in 2026](https://www.digitalapi.ai/blogs/top-api-key-management-tools)
 

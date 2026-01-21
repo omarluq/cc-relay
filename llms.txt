@@ -1,0 +1,155 @@
+# cc-relay
+
+> Multi-provider proxy for Claude Code enabling simultaneous use of multiple Anthropic-compatible backends.
+
+## What is cc-relay?
+
+cc-relay is a Go-based HTTP proxy that sits between Claude Code and multiple LLM providers. It enables:
+
+- **Rate limit pooling**: Use multiple API keys across providers simultaneously
+- **Cost optimization**: Route tasks to cheaper providers (Z.AI, Ollama) automatically  
+- **Redundancy**: Automatic failover when providers are unavailable
+- **Flexibility**: Mix cloud providers with local models in one workflow
+
+## Quick Facts
+
+- **Language**: Go
+- **Config Format**: YAML (primary) or TOML
+- **TUI Framework**: Bubble Tea (Charm)
+- **Management API**: gRPC with optional grpc-web for WebUI
+- **Target Users**: Individual developers using Claude Code
+
+## Supported Providers
+
+| Provider | Type | Auth | Anthropic Compatible |
+|----------|------|------|---------------------|
+| Anthropic | Cloud | API Key | Native |
+| Z.AI (Zhipu) | Cloud | API Key | Yes |
+| Ollama | Local | None | Yes (limited) |
+| AWS Bedrock | Cloud | IAM/SigV4 | Partial (transforms needed) |
+| Azure Foundry | Cloud | API Key/Entra ID | Yes |
+| Vertex AI | Cloud | Google OAuth | Partial (transforms needed) |
+
+## Architecture Overview
+
+```
+Claude Code → cc-relay (HTTP proxy) → Multiple Providers
+                  ↑
+            gRPC Management API
+                  ↑
+           TUI / WebUI / CLI
+```
+
+## Key Technical Details
+
+### Proxy Requirements
+- Must implement `/v1/messages` endpoint exactly matching Anthropic API
+- Must handle SSE streaming with correct event sequence
+- Must preserve `tool_use_id` for Claude Code's parallel tool calls
+- Must support extended thinking (`thinking` blocks)
+
+### Provider Transformations
+- **Bedrock**: Model in URL, `anthropic_version: bedrock-2023-05-31`
+- **Vertex AI**: Model in URL, `anthropic_version: vertex-2023-10-16`, Google OAuth
+- **Azure**: `x-api-key` header (not `api-key`), deployment names as model IDs
+- **Ollama**: No prompt caching, no PDF support, base64 images only
+
+### Routing Strategies
+1. `simple-shuffle` - Weighted random (default)
+2. `round-robin` - Sequential distribution
+3. `failover` - Primary with fallback chain
+4. `cost-based` - Prefer cheaper providers
+5. `latency-based` - Prefer faster backends
+6. `model-based` - Route by model prefix
+
+## File Structure
+
+```
+cc-relay/
+├── cmd/cc-relay/main.go          # Entry point
+├── internal/
+│   ├── proxy/                     # HTTP proxy server, SSE handling
+│   ├── router/                    # Routing strategies, key pool
+│   ├── providers/                 # Provider implementations
+│   ├── health/                    # Circuit breaker, health tracking
+│   ├── config/                    # Config loading, hot-reload
+│   └── grpc/                      # Management API
+├── ui/tui/                        # Bubble Tea TUI
+├── proto/relay.proto              # gRPC service definitions
+└── config/example.yaml            # Example configuration
+```
+
+## Configuration Example
+
+```yaml
+server:
+  listen: "127.0.0.1:8787"
+
+routing:
+  strategy: "simple-shuffle"
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        rpm_limit: 60
+        tpm_limit: 100000
+  
+  - name: "zai"
+    type: "zai"
+    base_url: "https://api.z.ai/api/anthropic"
+    keys:
+      - key: "${ZAI_API_KEY}"
+```
+
+## Development Priorities
+
+1. **Phase 1 (MVP)**: Basic proxy, Anthropic/Z.AI/Ollama providers, simple-shuffle
+2. **Phase 2**: Multi-key pooling, rate limiting, failover
+3. **Phase 3**: Cloud providers (Bedrock, Azure, Vertex)
+4. **Phase 4**: gRPC API + Bubble Tea TUI
+5. **Phase 5**: Advanced routing strategies
+6. **Phase 6**: WebUI via grpc-web
+
+## Important Constraints
+
+- Claude Code expects exact Anthropic API format
+- SSE streaming must maintain event order and types
+- Tool use requires atomic handling of multiple blocks
+- Some providers (Ollama) don't support all features
+
+## Related Projects
+
+- LiteLLM: Python multi-LLM proxy (reference architecture)
+- claude-code-router: TypeScript, route-based selection
+- Bifrost: Go, high-performance LLM gateway
+
+## Usage with Claude Code
+
+```bash
+# Start cc-relay
+cc-relay serve
+
+# Point Claude Code to proxy
+export ANTHROPIC_BASE_URL="http://localhost:8787"
+export ANTHROPIC_API_KEY="managed-by-proxy"
+
+# Use normally
+claude
+```
+
+## Documentation
+
+- [SPEC.md](./SPEC.md) - Full technical specification
+- [config/example.yaml](./config/example.yaml) - Configuration reference
+
+## Links
+
+- GitHub: https://github.com/omarish/cc-relay
+- Anthropic API Docs: https://docs.anthropic.com/en/api/messages
+- Claude Code Docs: https://docs.anthropic.com/en/docs/claude-code
+
+---
+
+*This file follows the llms.txt convention for providing LLM-friendly project context.*

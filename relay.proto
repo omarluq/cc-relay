@@ -1,0 +1,355 @@
+syntax = "proto3";
+
+package relay;
+
+option go_package = "github.com/omarish/cc-relay/proto";
+
+// RelayManager provides management capabilities for the cc-relay daemon.
+// Used by TUI, WebUI, and CLI clients.
+service RelayManager {
+  // ============================================================================
+  // Stats & Monitoring
+  // ============================================================================
+  
+  // StreamStats returns a continuous stream of relay statistics.
+  // The stream sends updates at regular intervals (typically every second).
+  rpc StreamStats(Empty) returns (stream Stats);
+  
+  // GetStats returns a single snapshot of current statistics.
+  rpc GetStats(Empty) returns (Stats);
+  
+  // ============================================================================
+  // Provider Management
+  // ============================================================================
+  
+  // ListProviders returns all configured providers and their status.
+  rpc ListProviders(Empty) returns (ProviderList);
+  
+  // GetProvider returns detailed information about a specific provider.
+  rpc GetProvider(ProviderRequest) returns (Provider);
+  
+  // GetProviderHealth returns the health status of a specific provider.
+  rpc GetProviderHealth(ProviderRequest) returns (HealthStatus);
+  
+  // EnableProvider enables a disabled provider.
+  rpc EnableProvider(ProviderRequest) returns (Result);
+  
+  // DisableProvider disables a provider (stops routing to it).
+  rpc DisableProvider(ProviderRequest) returns (Result);
+  
+  // ============================================================================
+  // API Key Management
+  // ============================================================================
+  
+  // ListKeys returns all API keys for a provider (keys are masked).
+  rpc ListKeys(ProviderRequest) returns (KeyList);
+  
+  // AddKey adds a new API key to a provider.
+  rpc AddKey(AddKeyRequest) returns (Result);
+  
+  // RemoveKey removes an API key from a provider.
+  rpc RemoveKey(RemoveKeyRequest) returns (Result);
+  
+  // GetKeyUsage returns usage statistics for a specific key.
+  rpc GetKeyUsage(KeyRequest) returns (KeyUsage);
+  
+  // ResetKeyUsage resets the usage counters for a key (for testing).
+  rpc ResetKeyUsage(KeyRequest) returns (Result);
+  
+  // ============================================================================
+  // Configuration
+  // ============================================================================
+  
+  // GetConfig returns the current configuration.
+  rpc GetConfig(Empty) returns (Config);
+  
+  // UpdateConfig updates the configuration (partial update).
+  rpc UpdateConfig(Config) returns (Result);
+  
+  // ReloadConfig reloads configuration from disk.
+  rpc ReloadConfig(Empty) returns (Result);
+  
+  // ============================================================================
+  // Routing
+  // ============================================================================
+  
+  // GetRoutingStrategy returns the current routing strategy and settings.
+  rpc GetRoutingStrategy(Empty) returns (RoutingStrategy);
+  
+  // SetRoutingStrategy changes the routing strategy.
+  rpc SetRoutingStrategy(RoutingStrategy) returns (Result);
+  
+  // ============================================================================
+  // Request History
+  // ============================================================================
+  
+  // StreamRequests returns a stream of recent requests as they happen.
+  rpc StreamRequests(Empty) returns (stream RequestLog);
+  
+  // GetRecentRequests returns the most recent N requests.
+  rpc GetRecentRequests(RecentRequestsQuery) returns (RequestLogList);
+}
+
+// ============================================================================
+// Common Messages
+// ============================================================================
+
+message Empty {}
+
+message Result {
+  bool success = 1;
+  string message = 2;
+  string error = 3;
+}
+
+// ============================================================================
+// Stats Messages
+// ============================================================================
+
+message Stats {
+  int64 timestamp = 1;           // Unix timestamp in milliseconds
+  int64 uptime_seconds = 2;      // Time since daemon started
+  
+  // Global counters
+  int64 total_requests = 3;
+  int64 total_tokens_in = 4;
+  int64 total_tokens_out = 5;
+  int64 active_requests = 6;
+  
+  // Per-provider stats
+  repeated ProviderStats providers = 7;
+  
+  // Current routing strategy
+  string routing_strategy = 8;
+}
+
+message ProviderStats {
+  string name = 1;
+  string type = 2;               // anthropic, zai, ollama, bedrock, azure, vertex
+  string status = 3;             // healthy, degraded, unhealthy, disabled
+  bool enabled = 4;
+  
+  // Request counters
+  int64 requests_total = 5;
+  int64 requests_success = 6;
+  int64 requests_failed = 7;
+  int64 requests_in_flight = 8;
+  
+  // Performance
+  double avg_latency_ms = 9;
+  double p50_latency_ms = 10;
+  double p95_latency_ms = 11;
+  double p99_latency_ms = 12;
+  
+  // Token usage
+  int64 tokens_in = 13;
+  int64 tokens_out = 14;
+  
+  // Key stats (summarized)
+  int32 total_keys = 15;
+  int32 healthy_keys = 16;
+  
+  // Per-key details
+  repeated KeyStats keys = 17;
+}
+
+message KeyStats {
+  string key_id = 1;             // Masked key identifier (e.g., "sk-ant-...x7f2")
+  string status = 2;             // healthy, rate_limited, error
+  
+  // Rate limits
+  int32 rpm_used = 3;
+  int32 rpm_limit = 4;
+  int64 tpm_used = 5;
+  int64 tpm_limit = 6;
+  
+  // Reset time
+  int64 rpm_reset_at = 7;        // Unix timestamp
+  int64 tpm_reset_at = 8;        // Unix timestamp
+  
+  // Error tracking
+  int32 consecutive_errors = 9;
+  string last_error = 10;
+  int64 last_error_at = 11;
+}
+
+// ============================================================================
+// Provider Messages
+// ============================================================================
+
+message ProviderRequest {
+  string name = 1;
+}
+
+message Provider {
+  string name = 1;
+  string type = 2;
+  bool enabled = 3;
+  string base_url = 4;
+  HealthStatus health = 5;
+  repeated Key keys = 6;
+  map<string, string> model_mapping = 7;
+}
+
+message ProviderList {
+  repeated Provider providers = 1;
+}
+
+message HealthStatus {
+  string status = 1;             // healthy, degraded, unhealthy
+  bool circuit_open = 2;         // true if circuit breaker is open
+  int64 last_check_at = 3;
+  int64 last_success_at = 4;
+  int64 last_failure_at = 5;
+  string last_error = 6;
+  int32 failure_count = 7;
+  int32 success_count = 8;
+}
+
+// ============================================================================
+// Key Messages
+// ============================================================================
+
+message Key {
+  string id = 1;                 // Masked identifier
+  string status = 2;
+  int32 rpm_limit = 3;
+  int64 tpm_limit = 4;
+  KeyUsage usage = 5;
+}
+
+message KeyList {
+  string provider = 1;
+  repeated Key keys = 2;
+}
+
+message AddKeyRequest {
+  string provider = 1;
+  string key = 2;                // Full API key (will be stored securely)
+  int32 rpm_limit = 3;
+  int64 tpm_limit = 4;
+}
+
+message RemoveKeyRequest {
+  string provider = 1;
+  string key_id = 2;             // Masked key identifier
+}
+
+message KeyRequest {
+  string provider = 1;
+  string key_id = 2;
+}
+
+message KeyUsage {
+  int32 rpm_used = 1;
+  int32 rpm_limit = 2;
+  int64 tpm_used = 3;
+  int64 tpm_limit = 4;
+  int64 total_requests = 5;
+  int64 total_tokens = 6;
+  int64 reset_at = 7;
+}
+
+// ============================================================================
+// Configuration Messages
+// ============================================================================
+
+message Config {
+  ServerConfig server = 1;
+  RoutingConfig routing = 2;
+  repeated ProviderConfig providers = 3;
+  GrpcConfig grpc = 4;
+  LoggingConfig logging = 5;
+  MetricsConfig metrics = 6;
+}
+
+message ServerConfig {
+  string listen = 1;
+  int32 timeout_ms = 2;
+  int32 max_concurrent = 3;
+}
+
+message RoutingConfig {
+  string strategy = 1;
+  FailoverConfig failover = 2;
+}
+
+message FailoverConfig {
+  string primary = 1;
+  repeated string fallbacks = 2;
+  int32 cooldown_seconds = 3;
+}
+
+message ProviderConfig {
+  string name = 1;
+  string type = 2;
+  bool enabled = 3;
+  string base_url = 4;
+  string region = 5;
+  map<string, string> model_mapping = 6;
+  // Keys are not exposed in config responses for security
+}
+
+message GrpcConfig {
+  string listen = 1;
+  string web_listen = 2;
+}
+
+message LoggingConfig {
+  string level = 1;
+  string format = 2;
+  string file = 3;
+}
+
+message MetricsConfig {
+  bool enabled = 1;
+  string prometheus_endpoint = 2;
+  string prometheus_listen = 3;
+}
+
+// ============================================================================
+// Routing Messages
+// ============================================================================
+
+message RoutingStrategy {
+  string name = 1;               // simple-shuffle, round-robin, failover, etc.
+  map<string, string> settings = 2;
+}
+
+// ============================================================================
+// Request Log Messages
+// ============================================================================
+
+message RequestLog {
+  string id = 1;                 // Unique request ID
+  int64 timestamp = 2;           // Unix timestamp in milliseconds
+  
+  // Routing info
+  string provider = 3;
+  string key_id = 4;             // Masked
+  string model = 5;
+  
+  // Request details
+  int64 tokens_in = 6;
+  int64 tokens_out = 7;
+  int64 latency_ms = 8;
+  
+  // Status
+  string status = 9;             // success, error, timeout
+  string error = 10;
+  int32 status_code = 11;
+  
+  // Streaming
+  bool streaming = 12;
+  int64 time_to_first_token_ms = 13;
+}
+
+message RecentRequestsQuery {
+  int32 limit = 1;               // Max number of requests to return (default 100)
+  string provider = 2;           // Filter by provider (optional)
+  string status = 3;             // Filter by status (optional)
+}
+
+message RequestLogList {
+  repeated RequestLog requests = 1;
+}

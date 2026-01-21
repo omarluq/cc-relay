@@ -1,0 +1,16 @@
+# mise tool version management for cc-relay
+
+[tools]
+go = "1.24.7"
+
+# Task runner
+"go:github.com/go-task/task/v3/cmd/task" = "latest"
+
+# Live reload
+"go:github.com/air-verse/air" = "latest"
+
+# Linter (handles formatting too)
+"go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "latest"
+
+# Git hooks
+"go:github.com/evilmartians/lefthook" = "latest"

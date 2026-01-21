@@ -20,6 +20,7 @@ Critical risks center on SSE streaming buffering (breaks real-time UX), tool_use
 Go 1.23+ provides the ideal foundation for LLM proxy development, offering excellent HTTP/2 support, native SSE streaming capabilities, and strong concurrency primitives. The stdlib's net/http/httputil.ReverseProxy (with modern Rewrite function pattern) handles proxy concerns with battle-tested code, while log/slog provides structured logging without external dependencies. This stack prioritizes simplicity and performance, avoiding the allocation overhead and deployment complexity of Python-based alternatives like LiteLLM.
 
 **Core technologies:**
+
 - **Go 1.23+**: Primary language — Excellent HTTP/2 support, native concurrency for SSE streaming, strong stdlib, statically typed for API transformations
 - **net/http/httputil**: HTTP reverse proxy — Built-in ReverseProxy with Rewrite function, handles hop-by-hop headers, connection pooling, X-Forwarded headers automatically
 - **log/slog**: Structured logging — Standard library solution (Go 1.21+), TextHandler for dev, JSONHandler for prod, integrates with context for request tracing
@@ -30,12 +31,14 @@ Go 1.23+ provides the ideal foundation for LLM proxy development, offering excel
 - **Prometheus client_golang v1.20+**: Metrics — Standard for Go observability, Counter/Gauge/Histogram types, promhttp.Handler() for /metrics
 
 **Provider SDKs:**
+
 - **aws-sdk-go-v2 v1.33.0+**: AWS Bedrock — Official SDK v2 (v1 EOL), BedrockRuntime client, SigV4 signing built-in
 - **google.golang.org/genai**: Vertex AI — NEW preferred SDK (June 2025), replaces deprecated cloud.google.com/go/vertexai
 - **Azure/azure-sdk-for-go/sdk/ai/azopenai v0.8.0+**: Azure OpenAI — Official SDK, supports Azure-specific features
 - **ollama/ollama/api**: Ollama — Official client used by CLI itself, fully typed, respects OLLAMA_HOST env var
 
 **Critical version requirements:**
+
 - Go 1.21+ for log/slog
 - Go 1.20+ for net/http/httputil Rewrite function
 - Go 1.23+ required by gRPC v1.78.0 and aws-sdk-go-v2 v1.33.0
@@ -45,6 +48,7 @@ Go 1.23+ provides the ideal foundation for LLM proxy development, offering excel
 Research shows clear feature tiers based on competitive analysis (LiteLLM, Portkey, claude-code-router) and domain expertise. Users expect flawless API compatibility and SSE streaming as table stakes — missing these makes the product feel broken. Multi-key pooling and automatic failover provide competitive advantage by maximizing throughput and reliability. Advanced features like semantic caching and multi-tenancy are explicitly anti-features that add complexity without value for the target use case (single developer/small team).
 
 **Must have (table stakes):**
+
 - **Multi-provider routing** — Core value proposition, users expect to route to multiple backends
 - **API compatibility** — Existing clients (Claude Code) must work without modification, exact `/v1/messages` endpoint match
 - **SSE streaming support** — LLM responses streamed for real-time UX, exact event sequence (message_start → content_block_delta → message_stop)
@@ -54,16 +58,18 @@ Research shows clear feature tiers based on competitive analysis (LiteLLM, Portk
 - **Graceful shutdown** — Context cancellation, drain period, signal handling to avoid dropping in-flight requests
 
 **Should have (competitive):**
+
 - **Multi-key rate limit pooling** — Maximize throughput by distributing across API keys with per-key RPM/TPM tracking
 - **Automatic failover with circuit breaker** — High availability, route around failing providers with state machine (CLOSED/OPEN/HALF-OPEN)
 - **Cost-based routing** — Save money routing simple tasks to cheaper providers (Z.AI, Ollama)
 - **Latency-based routing** — Performance-critical apps prefer faster backends dynamically
-- **Model-based routing** — Route by model name prefix (claude-* → Anthropic, glm-* → Z.AI, local → Ollama)
+- **Model-based routing** — Route by model name prefix (claude-*→ Anthropic, glm-* → Z.AI, local → Ollama)
 - **Hot-reload configuration** — Change config without downtime using fsnotify file watcher
 - **Real-time TUI** — Visual monitoring via Bubble Tea with gRPC stats streaming
 - **Prometheus metrics** — Ops teams expect metrics for alerting (/metrics endpoint, per-provider counters)
 
 **Defer (v2+):**
+
 - **Semantic caching** — High complexity, storage requirement, conflicts with streaming UX (can't cache until response complete)
 - **Request queueing** — Adds latency, users can implement client-side queueing
 - **WebUI** — TUI works for target users (developers), web adds deployment complexity
@@ -76,6 +82,7 @@ Research shows clear feature tiers based on competitive analysis (LiteLLM, Portk
 Multi-provider LLM proxies follow a proven layered gateway architecture: API Gateway (handles incoming requests, auth, SSE) → Routing Layer (selects provider + key based on strategy) → Provider Adapter Layer (transforms requests for specific provider APIs) → Backend Providers. This separation of concerns enables independent evolution of routing strategies and provider integrations. The key architectural patterns are: (1) Reverse Proxy with Transformation Pipeline using net/http/httputil.ReverseProxy as base, (2) Circuit Breaker with State Machine to prevent cascading failures, (3) API Key Pool with Rate Limit Tracking using sliding windows, and (4) SSE Streaming with Immediate Flush to avoid buffering latency.
 
 **Major components:**
+
 1. **HTTP Proxy Server** (`internal/proxy/`) — API Gateway layer accepting `/v1/messages` requests, validating auth, handling SSE streaming with proper headers (X-Accel-Buffering: no), implementing middleware for logging/metrics
 2. **Router** (`internal/router/`) — Routing layer implementing pluggable strategies (shuffle, round-robin, failover, cost-based, latency-based, model-based), selecting backend provider + API key for each request, consulting health tracker before selection
 3. **Provider Adapters** (`internal/providers/`) — Provider interface with TransformRequest/TransformResponse/Authenticate/HealthCheck methods, separate adapter per provider (anthropic.go, zai.go, ollama.go, bedrock.go, azure.go, vertex.go) handling API-specific transformations
@@ -102,6 +109,7 @@ Research reveals 10 critical pitfalls with proven mitigation strategies. The top
 5. **Circuit Breaker Anti-Patterns** — Circuit breaker treats all failures equally, opening on recoverable errors (400 Bad Request). Only count server errors (5xx, timeouts, connection failures) as circuit breaker failures, use dedicated health check endpoints in half-open state, implement per-provider circuit breakers, set appropriate thresholds (5 consecutive failures not 1). Phase 2 (Health tracking).
 
 **Additional critical pitfalls:**
+
 - **Cost Attribution Blindness** — Can't determine who/what caused costs. Capture metadata (API key, model, provider, tokens, cost) on every request, log to structured JSON, export Prometheus metrics with labels. Phase 2 (Metrics).
 - **Provider-Specific Compatibility Ignored** — Bedrock requires inference profiles, Ollama doesn't support prompt caching, Azure uses different auth headers. Create provider compatibility matrix, implement provider-specific validation, test each provider independently. Phase 3 (Cloud providers).
 - **Missing Header Forwarding** — Proxy doesn't forward anthropic-beta headers, silently disabling features like extended thinking. Forward ALL anthropic-* headers by default, subscribe to API changelog, test with beta features enabled. Phase 1 (MVP).
@@ -119,6 +127,7 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 **Delivers:** Working proxy that accepts Claude Code requests, routes to single Anthropic key, preserves tool_use_id, handles SSE streaming correctly, validates API keys.
 
 **Addresses features:**
+
 - API compatibility (table stakes)
 - SSE streaming support (table stakes)
 - Authentication (table stakes)
@@ -127,12 +136,14 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 - Graceful shutdown (table stakes)
 
 **Avoids pitfalls:**
+
 - SSE Streaming Buffering (Critical #1)
 - Tool Use ID Preservation Failure (Critical #2)
 - Weak Authentication (Critical #3)
 - Missing Header Forwarding (Critical #8)
 
 **Implementation order:**
+
 1. HTTP Server (`internal/proxy/server.go`) — Basic /v1/messages endpoint
 2. Provider Interface (`internal/providers/provider.go`) — Define interface
 3. Anthropic Provider (`internal/providers/anthropic.go`) — Passthrough implementation
@@ -149,11 +160,13 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 **Delivers:** Multi-key rate limit pooling with RPM/TPM tracking, automatic failover between providers, circuit breaker for degraded backends, hot-reload configuration.
 
 **Uses stack elements:**
+
 - fsnotify for config file watching
 - Context for graceful shutdown
 - log/slog for structured failure logging
 
 **Implements architecture components:**
+
 - Router Interface (`internal/router/router.go`)
 - Simple Shuffle Strategy (`internal/router/strategies/shuffle.go`)
 - Round-Robin Strategy (`internal/router/strategies/roundrobin.go`)
@@ -163,11 +176,13 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 - Health Tracker (`internal/health/tracker.go`)
 
 **Addresses features:**
+
 - Multi-key rate limit pooling (competitive advantage)
 - Automatic failover with circuit breaker (competitive advantage)
 - Hot-reload configuration (competitive advantage)
 
 **Avoids pitfalls:**
+
 - Rate Limit Bypass (Critical #4)
 - Circuit Breaker Anti-Patterns (Critical #5)
 - Credential Rotation Downtime (Critical #9)
@@ -181,18 +196,22 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 **Delivers:** Support for Z.AI (Anthropic-compatible), Ollama (local models), establishing provider adapter pattern before cloud complexity.
 
 **Uses stack elements:**
+
 - Provider Interface from Phase 1
 - Routing strategies from Phase 2
 
 **Implements architecture components:**
+
 - Z.AI Provider (`internal/providers/zai.go`) — Model mapping (GLM-4.7 → claude-sonnet-4.5)
 - Ollama Provider (`internal/providers/ollama.go`) — Local endpoint, no auth, limitations documented
 
 **Addresses features:**
+
 - Multi-provider routing (table stakes, extended beyond Anthropic)
 - Cost-based routing (begins to differentiate Z.AI vs Anthropic pricing)
 
 **Avoids pitfalls:**
+
 - Provider-Specific Compatibility Ignored (Critical #7)
 
 **Testing focus:** Provider-specific quirks (Ollama no prompt caching, Z.AI model mapping), integration tests per provider
@@ -204,19 +223,23 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 **Delivers:** AWS Bedrock support with SigV4 signing, Azure AI Foundry with x-api-key auth, Google Vertex AI with OAuth tokens.
 
 **Uses stack elements:**
+
 - aws-sdk-go-v2 v1.33.0+ for Bedrock BedrockRuntime client
 - google.golang.org/genai for Vertex AI (new SDK)
 - Azure/azure-sdk-for-go/sdk/ai/azopenai v0.8.0+ for Azure
 
 **Implements architecture components:**
+
 - Bedrock Provider (`internal/providers/bedrock.go`) — SigV4 signing, inference profile validation
 - Azure Provider (`internal/providers/azure.go`) — x-api-key auth, deployment names as model IDs
 - Vertex Provider (`internal/providers/vertex.go`) — OAuth token generation, model in URL path
 
 **Addresses features:**
+
 - Enterprise cloud provider support (competitive advantage)
 
 **Avoids pitfalls:**
+
 - Provider-Specific Compatibility Ignored (Critical #7)
 - Bedrock Inference Profile Confusion (Critical #10)
 
@@ -229,15 +252,18 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 **Delivers:** Cost-based routing (route simple tasks to cheaper providers), latency-based routing (route to fastest backend), model-based routing (pattern matching on model field).
 
 **Uses stack elements:**
+
 - Router Interface from Phase 2
 - Provider adapters from Phases 3-4
 
 **Implements architecture components:**
+
 - Cost-Based Strategy (`internal/router/strategies/costbased.go`) — Cost mapping per provider/model
 - Latency-Based Strategy (`internal/router/strategies/latency.go`) — Exponential moving average
 - Model-Based Strategy (`internal/router/strategies/modelbased.go`) — Pattern matching (claude-* → Anthropic)
 
 **Addresses features:**
+
 - Cost-based routing (competitive advantage)
 - Latency-based routing (competitive advantage)
 - Model-based routing (competitive advantage)
@@ -251,20 +277,24 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 **Delivers:** gRPC management API for stats streaming, provider/key management, config updates. Bubble Tea TUI for real-time monitoring.
 
 **Uses stack elements:**
+
 - gRPC v1.78.0 for management API
 - Bubble Tea v1.3.10 for TUI
 - Prometheus client_golang for metrics export
 
 **Implements architecture components:**
+
 - gRPC Server (`internal/grpc/server.go`) — Stats streaming, management RPCs
 - TUI (`ui/tui/`) — Bubble Tea interface, gRPC client, real-time stats display
 - Prometheus Metrics (`internal/metrics/`) — /metrics endpoint, per-provider counters
 
 **Addresses features:**
+
 - Real-time TUI (competitive advantage)
 - Prometheus metrics (competitive advantage)
 
 **Avoids pitfalls:**
+
 - Cost Attribution Blindness (Critical #6)
 
 **Testing focus:** gRPC streaming stats, TUI responsiveness under load, Prometheus metric accuracy
@@ -276,10 +306,12 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 **Delivers:** Web-based management interface using grpc-web to connect to existing gRPC API.
 
 **Uses stack elements:**
+
 - grpc-web for browser-to-gRPC bridge
 - Existing gRPC API from Phase 6
 
 **Addresses features:**
+
 - WebUI (deferred, low priority)
 
 ### Phase Ordering Rationale
@@ -290,6 +322,7 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 - **Phase 6-7 add observability:** Management interfaces are most useful when proxy has all features (complete stats, all providers, all strategies).
 
 **Dependency chain:**
+
 - Phase 2 requires Phase 1 (routing requires working proxy)
 - Phase 3 requires Phase 2 (provider adapters use routing interface)
 - Phase 4 requires Phase 3 (cloud providers use proven adapter pattern)
@@ -298,6 +331,7 @@ Based on research findings, the roadmap should follow a dependency-driven progre
 - Phase 7 requires Phase 6 (WebUI uses gRPC API)
 
 **Risk mitigation:**
+
 - Phases 1-2 address all Critical pitfalls #1-5 before adding complexity
 - Each phase delivers working system (no "big bang" integration)
 - Provider adapters isolated (one failing provider doesn't break others)
@@ -353,6 +387,7 @@ While overall confidence is high, the following areas need validation during imp
 ### Primary (HIGH confidence)
 
 **Official Documentation:**
+
 - [net/http/httputil ReverseProxy](https://pkg.go.dev/net/http/httputil) — Verified Rewrite function pattern, Director deprecation context, FlushInterval for SSE
 - [log/slog package](https://pkg.go.dev/log/slog) — Verified Go 1.21 introduction, TextHandler/JSONHandler usage
 - [gRPC Go v1.78.0](https://pkg.go.dev/google.golang.org/grpc) — Verified version, Go 1.23+ requirement
@@ -367,6 +402,7 @@ While overall confidence is high, the following areas need validation during imp
 ### Secondary (MEDIUM confidence)
 
 **Architecture & Patterns:**
+
 - [How API Gateways Proxy LLM Requests - API7.ai](https://api7.ai/learning-center/api-gateway-guide/api-gateway-proxy-llm-requests) — Gateway architecture patterns
 - [Multi-provider LLM orchestration in production: A 2026 Guide - DEV](https://dev.to/ash_dubai/multi-provider-llm-orchestration-in-production-a-2026-guide-1g10) — Production patterns
 - [Building an SSE Proxy in Go - Medium](https://medium.com/@sercan.celenk/building-an-sse-proxy-in-go-streaming-and-forwarding-server-sent-events-1c951d3acd70) — SSE implementation
@@ -374,6 +410,7 @@ While overall confidence is high, the following areas need validation during imp
 - [Circuit Breaker Pattern - Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker) — Microsoft guidance
 
 **Competitive Analysis:**
+
 - [LiteLLM GitHub](https://github.com/BerriAI/litellm) — Multi-LLM proxy features, 8ms P95 latency
 - [Bifrost by Maxim AI](https://www.getmaxim.ai/blog/bifrost-a-drop-in-llm-proxy-40x-faster-than-litellm/) — Go implementation, 11μs overhead
 - [Portkey Alternatives](https://portkey.ai/alternatives/litellm-alternatives) — Feature comparison
@@ -381,6 +418,7 @@ While overall confidence is high, the following areas need validation during imp
 - [TrueFoundry Portkey vs LiteLLM](https://www.truefoundry.com/blog/portkey-vs-litellm) — Detailed comparison
 
 **Security & Pitfalls:**
+
 - [Hackers scan misconfigured proxies for paid LLM services](https://anavem.com/cybersecurity/hackers-scan-misconfigured-proxies-paid-llm-services) — 91,000+ attack sessions
 - [Fixing Slow SSE Streaming in Next.js and Vercel](https://medium.com/@oyetoketoby80/fixing-slow-sse-server-sent-events-streaming-in-next-js-and-vercel-99f42fbdb996) — Buffering issues
 - [Using Server Sent Events with Cloudflare Proxy](https://community.cloudflare.com/t/using-server-sent-events-sse-with-cloudflare-proxy/656279) — X-Accel-Buffering
@@ -388,6 +426,7 @@ While overall confidence is high, the following areas need validation during imp
 - [Configuring Claude Code with AWS Bedrock (And My Mistakes)](https://aws.plainenglish.io/configuring-claude-code-extension-with-aws-bedrock-and-how-you-can-avoid-my-mistakes-090dbed5215b) — Bedrock pitfalls
 
 **Cost & Observability:**
+
 - [Monitor LiteLLM AI proxy with Datadog](https://www.datadoghq.com/blog/monitor-litellm-with-datadog/) — Metrics patterns
 - [LLM cost attribution for GenAI apps](https://portkey.ai/blog/llm-cost-attribution-for-genai-apps/) — Cost tracking
 - [Optimize AI proxies with Datadog](https://www.datadoghq.com/blog/optimize-ai-proxies-with-datadog/) — Observability requirements
@@ -395,6 +434,7 @@ While overall confidence is high, the following areas need validation during imp
 ### Tertiary (LOW confidence)
 
 **Emerging Patterns (needs validation):**
+
 - [Prompt caching - ngrok blog](https://ngrok.com/blog/prompt-caching/) — Semantic caching patterns (not implemented in Phase 1)
 - [prompt-cache GitHub](https://github.com/messkan/prompt-cache) — Go semantic caching reference (future consideration)
 
