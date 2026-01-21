@@ -1,0 +1,166 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+project_name: cc-relay
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cc-relay
+    main: ./cmd/cc-relay
+    binary: cc-relay
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "7"
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/omarluq/cc-relay/internal/version.Version={{.Version}}
+      - -X github.com/omarluq/cc-relay/internal/version.Commit={{.Commit}}
+      - -X github.com/omarluq/cc-relay/internal/version.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - README.md
+      - LICENSE*
+      - config/example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Performance Improvements"
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "Other Changes"
+      order: 999
+
+dockers:
+  - id: amd64
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/omarluq/cc-relay:{{ .Version }}-amd64"
+      - "ghcr.io/omarluq/cc-relay:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/omarluq/cc-relay"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+
+  - id: arm64
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/omarluq/cc-relay:{{ .Version }}-arm64"
+      - "ghcr.io/omarluq/cc-relay:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/omarluq/cc-relay"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+
+docker_manifests:
+  - name_template: "ghcr.io/omarluq/cc-relay:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/omarluq/cc-relay:{{ .Version }}-amd64"
+      - "ghcr.io/omarluq/cc-relay:{{ .Version }}-arm64"
+
+  - name_template: "ghcr.io/omarluq/cc-relay:latest"
+    image_templates:
+      - "ghcr.io/omarluq/cc-relay:latest-amd64"
+      - "ghcr.io/omarluq/cc-relay:latest-arm64"
+
+release:
+  github:
+    owner: omarluq
+    name: cc-relay
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## cc-relay {{ .Version }}
+
+    Multi-provider proxy for Claude Code with rate limit pooling and automatic failover.
+
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/omarluq/cc-relay/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ### Installation
+
+    ```bash
+    # Docker (recommended)
+    docker pull ghcr.io/omarluq/cc-relay:{{ .Version }}
+    docker run -p 8787:8787 -v ~/.config/cc-relay:/config ghcr.io/omarluq/cc-relay:{{ .Version }}
+
+    # Linux/macOS (amd64)
+    curl -LO https://github.com/omarluq/cc-relay/releases/download/{{ .Tag }}/cc-relay_{{ .Version }}_$(uname -s | tr '[:upper:]' '[:lower:]')_x86_64.tar.gz
+    tar -xzf cc-relay_*.tar.gz
+    sudo mv cc-relay /usr/local/bin/
+
+    # Or with Go
+    go install github.com/omarluq/cc-relay/cmd/cc-relay@{{ .Tag }}
+    ```
