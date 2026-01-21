@@ -125,6 +125,15 @@ None yet.
   - Integration tests validate multi-node clustering
   - Ready for production deployment testing
 
+- Phase 1.2 INSERTED: Cache Documentation
+  - Comprehensive docs for cache keys, busting strategies, adapters, extensibility
+  - How to extend with new backends (Redis, Memcached)
+  - HA clustering configuration examples
+
+- Phase 1.3 INSERTED: Site Documentation Update
+  - Update all site docs in all supported languages
+  - Include cache documentation in site docs
+
 ### Blockers/Concerns
 
 None.
@@ -132,14 +141,16 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01.1-04-PLAN.md (Multi-Node Cluster Tests)
+Stopped at: Phase 1.1 execution complete, verification passed
 Resume file: None
 
-**Phase 1.1 Complete:**
+**Phase 1.1 Complete (VERIFIED):**
 - Plan 01 complete: OlricConfig extended with Environment, ReplicaCount, quorum settings
 - Plan 02 complete: buildOlricConfig helper applies HA settings
 - Plan 03 complete: ClusterInfo interface for cluster observability
 - Plan 04 complete: Integration tests validate clustering (formation, replication, node leave/join)
+- All 5 success criteria verified against codebase
 
 **Next Steps:**
-- Phase 2 or continue with remaining roadmap phases
+- Phase 1.2: Cache Documentation (keys, strategies, adapters, extensibility)
+- Phase 1.3: Site Documentation Update (all languages)
