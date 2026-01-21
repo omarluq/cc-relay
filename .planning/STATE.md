@@ -42,6 +42,12 @@ Progress: [██░░░░░░░░] 18% (2/11 plans)
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+**From 01-01 (Config & Provider Foundation):**
+- Use gopkg.in/yaml.v3 for config parsing (standard library approach)
+- Provider interface: Name, BaseURL, Authenticate, ForwardHeaders, SupportsStreaming (simple Phase 1 design)
+- ServerConfig.APIKey field for client authentication (AUTH-02 requirement)
+- CanonicalHeaderKey for HTTP header matching (case-insensitive handling)
+
 **From 01-02 (HTTP Server Foundation):**
 - Use SHA-256 hashing before constant-time comparison for API key validation
 - Set WriteTimeout to 600s to support 10+ minute Claude Code streaming operations
