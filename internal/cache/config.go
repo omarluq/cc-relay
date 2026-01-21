@@ -153,9 +153,16 @@ func DefaultRistrettoConfig() RistrettoConfig {
 }
 
 // DefaultOlricConfig returns an OlricConfig with sensible defaults.
-// DMapName: "cc-relay".
+// These defaults match Olric's internal defaults and are suitable for single-node operation.
+// Users can override for HA deployments requiring replication and quorum settings.
 func DefaultOlricConfig() OlricConfig {
 	return OlricConfig{
-		DMapName: "cc-relay",
+		DMapName:          "cc-relay",
+		Environment:       "local",
+		ReplicaCount:      1,
+		ReadQuorum:        1,
+		WriteQuorum:       1,
+		MemberCountQuorum: 1,
+		LeaveTimeout:      5 * time.Second,
 	}
 }
