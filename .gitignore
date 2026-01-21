@@ -27,3 +27,6 @@ go/
 # Temporary files
 tmp/
 *.tmp
+
+
+.claude/cache/*
