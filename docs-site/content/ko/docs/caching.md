@@ -1,0 +1,336 @@
+---
+title: 캐싱
+weight: 6
+---
+
+CC-Relay에는 LLM 프로바이더의 응답을 캐싱하여 지연 시간과 백엔드 부하를 크게 줄일 수 있는 유연한 캐싱 레이어가 포함되어 있습니다.
+
+## 개요
+
+캐시 서브시스템은 세 가지 작동 모드를 지원합니다:
+
+| 모드 | 백엔드 | 설명 |
+|------|--------|------|
+| `single` | Ristretto | 고성능 로컬 인메모리 캐시 (기본값) |
+| `ha` | Olric | 고가용성 배포를 위한 분산 캐시 |
+| `disabled` | Noop | 캐싱 없는 패스스루 모드 |
+
+**각 모드의 사용 시점:**
+
+- **Single 모드**: 개발, 테스트 또는 단일 인스턴스 프로덕션 배포. 네트워크 오버헤드 없이 가장 낮은 지연 시간을 제공합니다.
+- **HA 모드**: 노드 간 캐시 일관성이 필요한 다중 인스턴스 프로덕션 배포.
+- **Disabled 모드**: 디버깅, 규정 준수 요구사항 또는 다른 곳에서 캐싱이 처리되는 경우.
+
+## 아키텍처
+
+```mermaid
+graph TB
+    subgraph "cc-relay"
+        A[Proxy Handler] --> B{Cache Layer}
+        B --> C[Cache Interface]
+    end
+
+    subgraph "Backends"
+        C --> D[Ristretto<br/>Single Node]
+        C --> E[Olric<br/>Distributed]
+        C --> F[Noop<br/>Disabled]
+    end
+
+    style A fill:#6366f1,stroke:#4f46e5,color:#fff
+    style B fill:#ec4899,stroke:#db2777,color:#fff
+    style C fill:#f59e0b,stroke:#d97706,color:#000
+    style D fill:#10b981,stroke:#059669,color:#fff
+    style E fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    style F fill:#6b7280,stroke:#4b5563,color:#fff
+```
+
+캐시 레이어는 모든 백엔드를 추상화하는 통합된 `Cache` 인터페이스를 구현합니다:
+
+```go
+type Cache interface {
+    Get(ctx context.Context, key string) ([]byte, error)
+    Set(ctx context.Context, key string, value []byte) error
+    SetWithTTL(ctx context.Context, key string, value []byte, ttl time.Duration) error
+    Delete(ctx context.Context, key string) error
+    Exists(ctx context.Context, key string) (bool, error)
+    Close() error
+}
+```
+
+## 캐시 흐름
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Proxy
+    participant Cache
+    participant Backend
+
+    Client->>Proxy: POST /v1/messages
+    Proxy->>Cache: Get(key)
+    alt Cache Hit
+        Cache-->>Proxy: Cached Response
+        Proxy-->>Client: Response (fast)
+        Note over Client,Proxy: Latency: ~1ms
+    else Cache Miss
+        Cache-->>Proxy: ErrNotFound
+        Proxy->>Backend: Forward Request
+        Backend-->>Proxy: LLM Response
+        Proxy->>Cache: SetWithTTL(key, value, ttl)
+        Proxy-->>Client: Response
+        Note over Client,Backend: Latency: 500ms-30s
+    end
+```
+
+## 설정
+
+### Single 모드 (Ristretto)
+
+Ristretto는 Caffeine 라이브러리의 연구를 기반으로 한 고성능 동시성 캐시입니다. 최적의 히트율을 위해 TinyLFU 승인 정책을 사용합니다.
+
+```yaml
+cache:
+  mode: single
+
+  ristretto:
+    # 4비트 접근 카운터의 수
+    # 권장: 최적의 승인 정책을 위해 예상 최대 항목 수의 10배
+    # 예: 100,000 항목의 경우 1,000,000 카운터 사용
+    num_counters: 1000000
+
+    # 캐시된 값의 최대 메모리 (바이트)
+    # 104857600 = 100 MB
+    max_cost: 104857600
+
+    # Get 버퍼당 키 수 (기본값: 64)
+    # 승인 버퍼 크기 제어
+    buffer_items: 64
+```
+
+**메모리 계산:**
+
+`max_cost` 매개변수는 캐시가 값에 사용할 수 있는 메모리 양을 제어합니다. 적절한 크기를 추정하려면:
+
+1. 평균 응답 크기 추정 (일반적으로 LLM 응답의 경우 1-10 KB)
+2. 캐시하려는 고유 요청 수를 곱함
+3. 메타데이터를 위해 20% 오버헤드 추가
+
+예: 10,000 캐시된 응답 x 평균 5 KB = 50 MB, 따라서 `max_cost: 52428800` 설정
+
+### HA 모드 (Olric)
+
+Olric은 자동 클러스터 검색과 데이터 복제를 통한 분산 캐싱을 제공합니다.
+
+**클라이언트 모드** (외부 클러스터에 연결):
+
+```yaml
+cache:
+  mode: ha
+
+  olric:
+    # Olric 클러스터 멤버 주소
+    addresses:
+      - "olric-1:3320"
+      - "olric-2:3320"
+      - "olric-3:3320"
+
+    # 분산 맵 이름 (기본값: "cc-relay")
+    dmap_name: "cc-relay"
+```
+
+**임베디드 모드** (단일 노드 HA 또는 개발):
+
+```yaml
+cache:
+  mode: ha
+
+  olric:
+    # 임베디드 Olric 노드 실행
+    embedded: true
+
+    # 임베디드 노드의 바인드 주소
+    bind_addr: "0.0.0.0:3320"
+
+    # 클러스터 검색용 피어 주소 (선택 사항)
+    peers:
+      - "cc-relay-2:3320"
+      - "cc-relay-3:3320"
+
+    dmap_name: "cc-relay"
+```
+
+### Disabled 모드
+
+```yaml
+cache:
+  mode: disabled
+```
+
+모든 캐시 작업은 데이터를 저장하지 않고 즉시 반환됩니다. `Get` 작업은 항상 `ErrNotFound`를 반환합니다.
+
+## 캐시 모드 비교
+
+| 기능 | Single (Ristretto) | HA (Olric) | Disabled (Noop) |
+|------|-------------------|------------|-----------------|
+| **백엔드** | 로컬 메모리 | 분산 | 없음 |
+| **사용 사례** | 개발, 단일 인스턴스 | 프로덕션 HA | 디버깅 |
+| **영속성** | 없음 | 선택 사항 | N/A |
+| **다중 노드** | 없음 | 있음 | N/A |
+| **지연 시간** | 약 1 마이크로초 | 약 1-10 ms (네트워크) | 약 0 |
+| **메모리** | 로컬만 | 분산 | 없음 |
+| **일관성** | N/A | 최종 일관성 | N/A |
+| **복잡도** | 낮음 | 중간 | 없음 |
+
+## 선택적 인터페이스
+
+일부 캐시 백엔드는 선택적 인터페이스를 통해 추가 기능을 지원합니다:
+
+### 통계
+
+```go
+if sp, ok := cache.(cache.StatsProvider); ok {
+    stats := sp.Stats()
+    fmt.Printf("Hits: %d, Misses: %d\n", stats.Hits, stats.Misses)
+}
+```
+
+통계에는 다음이 포함됩니다:
+- `Hits`: 캐시 히트 수
+- `Misses`: 캐시 미스 수
+- `KeyCount`: 현재 키 수
+- `BytesUsed`: 대략적인 사용 메모리
+- `Evictions`: 용량으로 인해 제거된 키
+
+### 헬스 체크 (Ping)
+
+```go
+if p, ok := cache.(cache.Pinger); ok {
+    if err := p.Ping(ctx); err != nil {
+        // 캐시가 정상이 아님
+    }
+}
+```
+
+`Pinger` 인터페이스는 주로 분산 캐시(Olric)에서 클러스터 연결성을 확인하는 데 유용합니다.
+
+### 배치 작업
+
+```go
+// 배치 Get
+if mg, ok := cache.(cache.MultiGetter); ok {
+    results, err := mg.GetMulti(ctx, []string{"key1", "key2", "key3"})
+}
+
+// 배치 Set
+if ms, ok := cache.(cache.MultiSetter); ok {
+    err := ms.SetMultiWithTTL(ctx, items, 5*time.Minute)
+}
+```
+
+## 성능 팁
+
+### Ristretto 최적화
+
+1. **`num_counters`를 적절히 설정**: 예상 최대 항목의 10배를 사용하세요. 너무 낮으면 히트율이 감소하고, 너무 높으면 메모리가 낭비됩니다.
+
+2. **응답 크기에 기반하여 `max_cost` 크기 조정**: LLM 응답은 크게 다릅니다. 실제 사용량을 모니터링하고 조정하세요.
+
+3. **TTL을 현명하게 사용**: 동적 콘텐츠에는 짧은 TTL(1-5분), 결정론적 응답에는 긴 TTL(1시간 이상).
+
+4. **메트릭 모니터링**: 캐시 효율성을 검증하기 위해 히트율을 추적하세요:
+   ```
+   hit_rate = hits / (hits + misses)
+   ```
+   효과적인 캐싱을 위해 80% 이상의 히트율을 목표로 하세요.
+
+### Olric 최적화
+
+1. **cc-relay 인스턴스 가까이에 배포**: 네트워크 지연 시간이 분산 캐시 성능을 지배합니다.
+
+2. **단일 노드 배포에는 임베디드 모드 사용**: HA 준비 설정을 유지하면서 외부 종속성을 피합니다.
+
+3. **클러스터를 적절히 크기 조정**: 각 노드는 전체 데이터셋에 충분한 메모리를 가져야 합니다(Olric은 데이터를 복제합니다).
+
+4. **클러스터 상태 모니터링**: 헬스 체크에서 `Pinger` 인터페이스를 사용하세요.
+
+### 일반 팁
+
+1. **캐시 키 설계**: 요청 내용에 기반한 결정론적 키를 사용하세요. 모델 이름, 프롬프트 해시 및 관련 매개변수를 포함하세요.
+
+2. **스트리밍 응답 캐싱 피하기**: 스트리밍 SSE 응답은 증분적 특성으로 인해 기본적으로 캐시되지 않습니다.
+
+3. **캐시 워밍업 고려**: 예측 가능한 워크로드의 경우 일반적인 쿼리로 캐시를 미리 채우세요.
+
+## 문제 해결
+
+### 예상된 히트에서 캐시 미스 발생
+
+1. **키 생성 확인**: 캐시 키가 결정론적이고 타임스탬프나 요청 ID를 포함하지 않는지 확인하세요.
+
+2. **TTL 설정 확인**: 항목이 만료되었을 수 있습니다. TTL이 사용 사례에 너무 짧은지 확인하세요.
+
+3. **제거 모니터링**: 높은 제거 횟수는 `max_cost`가 너무 낮음을 나타냅니다:
+   ```go
+   stats := cache.Stats()
+   if stats.Evictions > 0 {
+       // max_cost 증가를 고려하세요
+   }
+   ```
+
+### Ristretto가 항목을 저장하지 않음
+
+Ristretto는 높은 히트율을 유지하기 위해 항목을 거부할 수 있는 승인 정책을 사용합니다. 이는 정상적인 동작입니다:
+
+1. **새 항목이 거부될 수 있음**: TinyLFU는 항목이 반복적인 접근을 통해 그 가치를 "증명"할 것을 요구합니다.
+
+2. **버퍼 플러시 대기**: Ristretto는 쓰기를 버퍼링합니다. 테스트에서 쓰기가 처리되도록 `cache.Wait()`를 호출하세요.
+
+3. **비용 계산 확인**: 비용 > `max_cost`인 항목은 저장되지 않습니다.
+
+### Olric 클러스터 연결 문제
+
+1. **네트워크 연결성 확인**: 모든 노드가 포트 3320(또는 설정된 포트)에서 서로 도달할 수 있는지 확인하세요.
+
+2. **방화벽 규칙 확인**: Olric은 노드 간 양방향 통신이 필요합니다.
+
+3. **주소 검증**: 클라이언트 모드에서 목록의 최소 하나의 주소가 도달 가능한지 확인하세요.
+
+4. **로그 모니터링**: 클러스터 멤버십 이벤트를 보기 위해 디버그 로깅을 활성화하세요:
+   ```yaml
+   logging:
+     level: debug
+   ```
+
+### 메모리 압력
+
+1. **`max_cost` 감소**: 메모리 사용량을 줄이기 위해 캐시 크기를 낮추세요.
+
+2. **짧은 TTL 사용**: 메모리를 확보하기 위해 항목을 더 빨리 만료시키세요.
+
+3. **Olric으로 전환**: 여러 노드에 메모리 압력을 분산하세요.
+
+4. **메트릭으로 모니터링**: 실제 메모리 소비를 이해하기 위해 `BytesUsed`를 추적하세요.
+
+## 오류 처리
+
+캐시 패키지는 일반적인 조건에 대한 표준 오류를 정의합니다:
+
+```go
+import "github.com/anthropics/cc-relay/internal/cache"
+
+data, err := c.Get(ctx, key)
+switch {
+case errors.Is(err, cache.ErrNotFound):
+    // 캐시 미스 - 백엔드에서 가져오기
+case errors.Is(err, cache.ErrClosed):
+    // 캐시가 닫힘 - 재생성 또는 실패
+case err != nil:
+    // 다른 오류 (네트워크, 직렬화 등)
+}
+```
+
+## 다음 단계
+
+- [설정 레퍼런스](/ko/docs/configuration/)
+- [아키텍처 개요](/ko/docs/architecture/)
+- [API 문서](/ko/docs/api/)
