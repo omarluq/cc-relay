@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 1 of 11 (Core Proxy)
-Plan: 2 of 5 in current phase
+Plan: 3 of 5 in current phase
 Status: In progress
-Last activity: 2026-01-21 — Completed 01-02-PLAN.md
+Last activity: 2026-01-21 — Completed 01-03-PLAN.md
 
-Progress: [██░░░░░░░░] 18% (2/11 plans)
+Progress: [██░░░░░░░░] 27% (3/11 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 8 min
-- Total execution time: 0.27 hours
+- Total plans completed: 3
+- Average duration: 7 min
+- Total execution time: 0.33 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 (Core Proxy) | 2 | 16 min | 8 min |
+| 01 (Core Proxy) | 3 | 20 min | 7 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (8min), 01-02 (8min)
-- Trend: Steady (consistent 8min per plan)
+- Last 5 plans: 01-01 (8min), 01-02 (8min), 01-03 (4min)
+- Trend: Accelerating (last plan faster)
 
 *Updated after each plan completion*
 
@@ -54,6 +54,12 @@ Recent decisions affecting current work:
 - Pre-hash expected API key at middleware creation rather than per-request
 - Streaming timeout pattern: short ReadTimeout (10s) + long WriteTimeout (600s)
 
+**From 01-03 (Proxy Handler & SSE Streaming):**
+- Use httputil.ReverseProxy with Rewrite function (not deprecated Director)
+- Set FlushInterval: -1 for immediate SSE event flushing
+- Do not parse/modify request body to preserve tool_use_id
+- Use WriteError in ErrorHandler for Anthropic-format error responses
+
 ### Pending Todos
 
 None yet.
@@ -65,5 +71,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01-02-PLAN.md (HTTP Server Foundation)
+Stopped at: Completed 01-03-PLAN.md (Proxy Handler & SSE Streaming)
 Resume file: None
