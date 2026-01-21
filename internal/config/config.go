@@ -4,6 +4,7 @@ package config
 import (
 	"strings"
 
+	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/rs/zerolog"
 )
 
@@ -20,6 +21,7 @@ type Config struct {
 	Providers []ProviderConfig `yaml:"providers"`
 	Logging   LoggingConfig    `yaml:"logging"`
 	Server    ServerConfig     `yaml:"server"`
+	Cache     cache.Config     `yaml:"cache"`
 }
 
 // ServerConfig defines server-level settings.

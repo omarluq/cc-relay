@@ -201,6 +201,46 @@ providers:
       "claude-haiku-4-5-20251001": "claude-haiku-4-5@20251001"
 
 # ============================================================================
+# Cache Configuration
+# ============================================================================
+cache:
+  # Cache mode options:
+  #   - single: Local in-memory cache using Ristretto (default, best for single instance)
+  #   - ha: Distributed cache using Olric (for multi-instance deployments)
+  #   - disabled: No caching (passthrough mode)
+  mode: single
+
+  # Ristretto configuration (used when mode: single)
+  ristretto:
+    # Number of 4-bit access counters
+    # Recommended: 10x expected max items for optimal admission policy
+    num_counters: 1000000
+
+    # Maximum memory for cached values (in bytes)
+    # 104857600 = 100 MB
+    max_cost: 104857600
+
+    # Number of keys per Get buffer (default: 64)
+    buffer_items: 64
+
+  # Olric configuration (used when mode: ha)
+  # olric:
+  #   # For connecting to external Olric cluster:
+  #   # addresses:
+  #   #   - "olric-1:3320"
+  #   #   - "olric-2:3320"
+  #
+  #   # For embedded Olric node:
+  #   # embedded: true
+  #   # bind_addr: "0.0.0.0:3320"
+  #   # peers:
+  #   #   - "olric-1:3320"
+  #   #   - "olric-2:3320"
+  #
+  #   # Distributed map name (default: "cc-relay")
+  #   dmap_name: "cc-relay"
+
+# ============================================================================
 # gRPC Management API
 # ============================================================================
 grpc:
