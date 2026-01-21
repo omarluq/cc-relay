@@ -3,512 +3,397 @@ title: Configuration
 weight: 3
 ---
 
-# Configuration Guide
-
-CC-Relay is configured via YAML or TOML files. This guide covers all configuration options.
+CC-Relay is configured via YAML files. This guide covers all configuration options.
 
 ## Configuration File Location
 
 Default locations (checked in order):
 
-1. `--config` flag: `cc-relay serve --config /path/to/config.yaml`
-2. `CC_RELAY_CONFIG` environment variable
-3. `~/.config/cc-relay/config.yaml`
-4. `./config.yaml` (current directory)
+1. `./config.yaml` (current directory)
+2. `~/.config/cc-relay/config.yaml`
+3. Path specified via `--config` flag
 
-## Configuration Structure
+Generate a default config with:
+
+```bash
+cc-relay config init
+```
+
+## Environment Variable Expansion
+
+CC-Relay supports environment variable expansion using `${VAR_NAME}` syntax:
 
 ```yaml
-server:
-  # Server configuration
-  
-routing:
-  # Routing strategy configuration
-  
 providers:
-  # Provider definitions
-  
-grpc:
-  # gRPC management API
-  
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"  # Expanded at load time
+```
+
+## Complete Configuration Reference
+
+```yaml
+# ==========================================================================
+# Server Configuration
+# ==========================================================================
+server:
+  # Address to listen on
+  listen: "127.0.0.1:8787"
+
+  # Request timeout in milliseconds (default: 600000 = 10 minutes)
+  timeout_ms: 600000
+
+  # Maximum concurrent requests (0 = unlimited)
+  max_concurrent: 0
+
+  # Enable HTTP/2 for better performance
+  enable_http2: true
+
+  # Authentication configuration
+  auth:
+    # Require specific API key for proxy access
+    api_key: "${PROXY_API_KEY}"
+
+    # Allow Claude Code subscription Bearer tokens
+    allow_subscription: true
+
+    # Specific Bearer token to validate (optional)
+    bearer_secret: "${BEARER_SECRET}"
+
+# ==========================================================================
+# Provider Configurations
+# ==========================================================================
+providers:
+  # Anthropic Direct API
+  - name: "anthropic"
+    type: "anthropic"
+    enabled: true
+    base_url: "https://api.anthropic.com"  # Optional, uses default
+
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        rpm_limit: 60       # Requests per minute
+        tpm_limit: 100000   # Tokens per minute
+
+    # Optional: Specify available models
+    models:
+      - "claude-sonnet-4-5-20250514"
+      - "claude-opus-4-5-20250514"
+      - "claude-haiku-3-5-20241022"
+
+  # Z.AI / Zhipu GLM
+  - name: "zai"
+    type: "zai"
+    enabled: true
+    base_url: "https://api.z.ai/api/anthropic"
+
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+    # Map Claude model names to Z.AI models
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "GLM-4.7"
+      "claude-haiku-3-5-20241022": "GLM-4.5-Air"
+
+    # Optional: Specify available models
+    models:
+      - "GLM-4.7"
+      - "GLM-4.5-Air"
+      - "GLM-4-Plus"
+
+# ==========================================================================
+# Logging Configuration
+# ==========================================================================
 logging:
-  # Logging configuration
-  
-metrics:
-  # Prometheus metrics
-  
-health:
-  # Health checking configuration
+  # Log level: debug, info, warn, error
+  level: "info"
+
+  # Log format: json, text
+  format: "text"
+
+  # Enable colored output (for text format)
+  pretty: true
+
+  # Granular debug options
+  debug_options:
+    log_request_body: false
+    log_response_headers: false
+    log_tls_metrics: false
+    max_body_log_size: 1000
 ```
 
 ## Server Configuration
 
+### Listen Address
+
+The `listen` field specifies where the proxy listens for incoming requests:
+
 ```yaml
 server:
-  listen_address: "127.0.0.1:8787"
-  read_timeout: 30s
-  write_timeout: 30s
-  idle_timeout: 120s
-  max_concurrent_requests: 100
-  max_request_body_size: 10485760  # 10MB
+  listen: "127.0.0.1:8787"  # Local only (recommended)
+  # listen: "0.0.0.0:8787"  # All interfaces (use with caution)
 ```
 
-**Options:**
-- `listen_address`: IP and port to bind to
-- `read_timeout`: Maximum time to read request
-- `write_timeout`: Maximum time to write response
-- `idle_timeout`: Keep-alive timeout
-- `max_concurrent_requests`: Maximum concurrent requests
-- `max_request_body_size`: Maximum request body size in bytes
+### Authentication
 
-## Provider Setup
+CC-Relay supports multiple authentication methods:
+
+#### API Key Authentication
+
+Require clients to provide a specific API key:
+
+```yaml
+server:
+  auth:
+    api_key: "${PROXY_API_KEY}"
+```
+
+Clients must include the header: `x-api-key: <your-proxy-key>`
+
+#### Claude Code Subscription Passthrough
+
+Allow Claude Code subscription users to connect:
+
+```yaml
+server:
+  auth:
+    allow_subscription: true
+```
+
+This accepts `Authorization: Bearer` tokens from Claude Code.
+
+#### Combined Authentication
+
+Allow both API key and subscription authentication:
+
+```yaml
+server:
+  auth:
+    api_key: "${PROXY_API_KEY}"
+    allow_subscription: true
+```
+
+#### No Authentication
+
+To disable authentication (not recommended for production):
+
+```yaml
+server:
+  auth: {}
+  # Or simply omit the auth section
+```
+
+### HTTP/2 Support
+
+Enable HTTP/2 for better performance with concurrent requests:
+
+```yaml
+server:
+  enable_http2: true
+```
+
+## Provider Configuration
+
+### Provider Types
+
+CC-Relay currently supports two provider types:
+
+| Type | Description | Default Base URL |
+|------|-------------|------------------|
+| `anthropic` | Anthropic Direct API | `https://api.anthropic.com` |
+| `zai` | Z.AI / Zhipu GLM | `https://api.z.ai/api/anthropic` |
 
 ### Anthropic Provider
 
 ```yaml
 providers:
-  - name: anthropic-primary
-    type: anthropic
-    base_url: https://api.anthropic.com  # Optional, defaults to official API
-    api_keys:
-      - key: ${ANTHROPIC_API_KEY}
-        rate_limit:
-          requests_per_minute: 50
-          tokens_per_minute: 40000
-    model_mapping:
-      "claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022"
+  - name: "anthropic"
+    type: "anthropic"
     enabled: true
-    priority: 1
+    base_url: "https://api.anthropic.com"  # Optional
+
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        rpm_limit: 60
+        tpm_limit: 100000
+
+    models:
+      - "claude-sonnet-4-5-20250514"
+      - "claude-opus-4-5-20250514"
+      - "claude-haiku-3-5-20241022"
 ```
 
 ### Z.AI Provider
 
+Z.AI offers Anthropic-compatible APIs with GLM models at lower cost:
+
 ```yaml
 providers:
-  - name: zai-primary
-    type: zai
-    base_url: https://api.z.ai
-    api_keys:
-      - key: ${ZAI_API_KEY}
-        rate_limit:
-          requests_per_minute: 100
-          tokens_per_minute: 100000
-    model_mapping:
-      "claude-3-5-sonnet-20241022": "glm-4-plus"
+  - name: "zai"
+    type: "zai"
     enabled: true
+    base_url: "https://api.z.ai/api/anthropic"
+
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "GLM-4.7"
+      "claude-haiku-3-5-20241022": "GLM-4.5-Air"
+
+    models:
+      - "GLM-4.7"
+      - "GLM-4.5-Air"
+      - "GLM-4-Plus"
 ```
 
-### Ollama Provider
+### Multiple API Keys
+
+Pool multiple API keys for higher throughput:
 
 ```yaml
 providers:
-  - name: ollama-local
-    type: ollama
-    base_url: http://localhost:11434
-    api_keys:
-      - key: "not-required"  # Ollama doesn't need auth
-    model_mapping:
-      "claude-3-5-sonnet-20241022": "llama3:latest"
+  - name: "anthropic"
+    type: "anthropic"
     enabled: true
+
+    keys:
+      - key: "${ANTHROPIC_API_KEY_1}"
+        rpm_limit: 60
+        tpm_limit: 100000
+      - key: "${ANTHROPIC_API_KEY_2}"
+        rpm_limit: 60
+        tpm_limit: 100000
+      - key: "${ANTHROPIC_API_KEY_3}"
+        rpm_limit: 60
+        tpm_limit: 100000
 ```
 
-### AWS Bedrock Provider
+### Custom Base URL
+
+Override the default API endpoint:
 
 ```yaml
 providers:
-  - name: bedrock-us-east
-    type: bedrock
-    region: us-east-1
-    access_key_id: ${AWS_ACCESS_KEY_ID}
-    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-    model_mapping:
-      "claude-3-5-sonnet-20241022": "anthropic.claude-3-5-sonnet-20241022-v2:0"
-    enabled: true
+  - name: "anthropic-custom"
+    type: "anthropic"
+    base_url: "https://custom-endpoint.example.com"
 ```
 
-### Azure Foundry Provider
+## Logging Configuration
 
-```yaml
-providers:
-  - name: azure-eastus
-    type: azure
-    base_url: https://your-deployment.openai.azure.com
-    api_keys:
-      - key: ${AZURE_API_KEY}
-    deployment_name: your-deployment-name
-    api_version: "2023-05-15"
-    enabled: true
-```
+### Log Levels
 
-### Vertex AI Provider
+| Level | Description |
+|-------|-------------|
+| `debug` | Verbose output for development |
+| `info` | Normal operation messages |
+| `warn` | Warning messages |
+| `error` | Error messages only |
 
-```yaml
-providers:
-  - name: vertex-us-central
-    type: vertex
-    project_id: your-gcp-project
-    region: us-central1
-    credentials_file: /path/to/service-account.json
-    model_mapping:
-      "claude-3-5-sonnet-20241022": "claude-3-5-sonnet@20241022"
-    enabled: true
-```
-
-## Routing Strategies
-
-### Shuffle (Random)
-
-Randomly select from available providers:
-
-```yaml
-routing:
-  strategy: shuffle
-```
-
-### Round-Robin
-
-Evenly distribute requests across providers:
-
-```yaml
-routing:
-  strategy: round-robin
-```
-
-### Failover (Priority-Based)
-
-Try providers in order of priority:
-
-```yaml
-routing:
-  strategy: failover
-  failover_chain:
-    - anthropic-primary
-    - anthropic-secondary
-    - zai-backup
-    
-providers:
-  - name: anthropic-primary
-    priority: 1
-    
-  - name: anthropic-secondary
-    priority: 2
-    
-  - name: zai-backup
-    priority: 3
-```
-
-### Cost-Based
-
-Route to cheapest provider meeting cost threshold:
-
-```yaml
-routing:
-  strategy: cost-based
-  max_cost_per_million_tokens: 15.0
-  
-providers:
-  - name: anthropic
-    cost_per_million_input_tokens: 3.0
-    cost_per_million_output_tokens: 15.0
-    
-  - name: zai
-    cost_per_million_input_tokens: 2.0
-    cost_per_million_output_tokens: 10.0
-```
-
-### Latency-Based
-
-Route to fastest provider (based on historical P95 latency):
-
-```yaml
-routing:
-  strategy: latency-based
-  max_latency_ms: 2000
-```
-
-### Model-Based
-
-Route based on model availability:
-
-```yaml
-routing:
-  strategy: model-based
-  
-providers:
-  - name: anthropic
-    model_mapping:
-      "claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022"
-      
-  - name: ollama
-    model_mapping:
-      "llama3": "llama3:latest"
-```
-
-## Rate Limiting
-
-### Per-Key Rate Limits
-
-```yaml
-providers:
-  - name: anthropic
-    api_keys:
-      - key: ${ANTHROPIC_KEY_1}
-        rate_limit:
-          requests_per_minute: 50
-          tokens_per_minute: 40000
-          
-      - key: ${ANTHROPIC_KEY_2}
-        rate_limit:
-          requests_per_minute: 100
-          tokens_per_minute: 80000
-```
-
-### Token Bucket Algorithm
-
-CC-Relay uses a token bucket algorithm for rate limiting:
-
-```mermaid
-graph LR
-    A[Request Arrives] --> B{Tokens Available?}
-    B -->|Yes| C[Consume Tokens]
-    B -->|No| D[Try Next Key]
-    C --> E[Forward Request]
-    D --> F{More Keys?}
-    F -->|Yes| B
-    F -->|No| G[Return 429]
-    
-    style A fill:#6366f1,stroke:#4f46e5,color:#fff
-    style B fill:#f59e0b,stroke:#d97706,color:#000
-    style C fill:#10b981,stroke:#059669,color:#fff
-    style D fill:#ef4444,stroke:#dc2626,color:#fff
-    style E fill:#8b5cf6,stroke:#7c3aed,color:#fff
-    style G fill:#f97316,stroke:#ea580c,color:#fff
-```
-
-### Global Rate Limits
-
-```yaml
-server:
-  global_rate_limit:
-    requests_per_second: 500
-    burst_size: 1000
-```
-
-## Health Tracking
-
-### Circuit Breaker Configuration
-
-```yaml
-health:
-  check_interval: 30s
-  failure_threshold: 3
-  success_threshold: 2
-  recovery_timeout: 60s
-  half_open_max_requests: 10
-```
-
-**States:**
-- **CLOSED**: Provider is healthy, all requests pass through
-- **OPEN**: Provider failed, requests are rejected
-- **HALF-OPEN**: Testing recovery, limited requests allowed
-
-### State Transition Diagram
-
-```mermaid
-stateDiagram-v2
-    [*] --> CLOSED
-    CLOSED --> OPEN: failures >= threshold
-    OPEN --> HALF_OPEN: after recovery_timeout
-    HALF_OPEN --> CLOSED: successes >= threshold
-    HALF_OPEN --> OPEN: any failure
-    
-    note right of CLOSED
-        Normal operation
-        All requests pass
-    end note
-    
-    note right of OPEN
-        Circuit tripped
-        Requests rejected
-    end note
-    
-    note right of HALF_OPEN
-        Testing recovery
-        Limited requests
-    end note
-```
-
-### Failure Detection
-
-Failures are counted for:
-- HTTP 429 (rate limit)
-- HTTP 5xx (server errors)
-- Timeout errors
-- Network errors
-
-## gRPC Management API
-
-```yaml
-grpc:
-  listen_address: "127.0.0.1:9090"
-  enable_reflection: true
-  max_concurrent_streams: 100
-```
-
-Access stats, update config, and manage providers via gRPC:
-
-```bash
-# Example: Get provider stats
-grpcurl -plaintext localhost:9090 relay.RelayService/GetProviderStats
-
-# Example: Update provider
-grpcurl -plaintext -d '{"provider_name": "anthropic", "enabled": false}' \
-  localhost:9090 relay.RelayService/UpdateProvider
-```
-
-## Logging
+### Log Format
 
 ```yaml
 logging:
-  level: info  # debug, info, warn, error
-  format: json  # json or text
-  output_file: /var/log/cc-relay/cc-relay.log
-  max_size_mb: 100
-  max_backups: 3
-  max_age_days: 30
-  compress: true
+  format: "text"   # Human-readable (default)
+  # format: "json" # Machine-readable, for log aggregation
 ```
 
-## Metrics (Prometheus)
+### Debug Options
+
+Fine-grained control over debug logging:
 
 ```yaml
-metrics:
-  enabled: true
-  listen_address: "127.0.0.1:9091"
-  endpoint: /metrics
-```
-
-Access metrics at `http://localhost:9091/metrics`:
-
-```
-cc_relay_requests_total{provider="anthropic",status="200"} 1234
-cc_relay_request_duration_seconds{provider="anthropic",quantile="0.95"} 0.523
-cc_relay_rate_limit_hits_total{provider="anthropic",key_id="key1"} 45
-cc_relay_provider_health{provider="anthropic",state="closed"} 1
-```
-
-## Hot Reload
-
-CC-Relay supports hot-reloading configuration without restart:
-
-```bash
-# Send SIGHUP to reload config
-kill -HUP $(pidof cc-relay)
-
-# Or use the management API
-grpcurl -plaintext -d '{}' localhost:9090 relay.RelayService/ReloadConfig
-```
-
-## Environment Variable Expansion
-
-Use `${VAR_NAME}` syntax in config files:
-
-```yaml
-providers:
-  - name: anthropic
-    api_keys:
-      - key: ${ANTHROPIC_API_KEY}
-      - key: ${ANTHROPIC_API_KEY_2}
-```
-
-Set environment variables before starting:
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-export ANTHROPIC_API_KEY_2="sk-ant-..."
-cc-relay serve
+logging:
+  level: "debug"
+  debug_options:
+    log_request_body: true      # Log request bodies (redacted)
+    log_response_headers: true  # Log response headers
+    log_tls_metrics: true       # Log TLS connection info
+    max_body_log_size: 1000     # Max bytes to log from bodies
 ```
 
 ## Example Configurations
 
-### Minimal Configuration
-
-```yaml
-routing:
-  strategy: shuffle
-  
-providers:
-  - name: anthropic
-    type: anthropic
-    api_keys:
-      - key: ${ANTHROPIC_API_KEY}
-```
-
-### Production Configuration
+### Minimal Single Provider
 
 ```yaml
 server:
-  listen_address: "0.0.0.0:8787"
-  max_concurrent_requests: 500
-  
-routing:
-  strategy: failover
-  failover_chain:
-    - anthropic-tier1
-    - anthropic-tier2
-    - bedrock-backup
-    
+  listen: "127.0.0.1:8787"
+
 providers:
-  - name: anthropic-tier1
-    type: anthropic
-    api_keys:
-      - key: ${ANTHROPIC_KEY_1}
-        rate_limit:
-          requests_per_minute: 100
-          tokens_per_minute: 80000
-      - key: ${ANTHROPIC_KEY_2}
-        rate_limit:
-          requests_per_minute: 100
-          tokens_per_minute: 80000
-    priority: 1
-    
-  - name: anthropic-tier2
-    type: anthropic
-    api_keys:
-      - key: ${ANTHROPIC_KEY_3}
-        rate_limit:
-          requests_per_minute: 50
-          tokens_per_minute: 40000
-    priority: 2
-    
-  - name: bedrock-backup
-    type: bedrock
-    region: us-east-1
-    access_key_id: ${AWS_ACCESS_KEY_ID}
-    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-    priority: 3
-    
-grpc:
-  listen_address: "127.0.0.1:9090"
-  
-metrics:
-  enabled: true
-  listen_address: "0.0.0.0:9091"
-  
-logging:
-  level: info
-  format: json
-  output_file: /var/log/cc-relay/cc-relay.log
-  
-health:
-  check_interval: 30s
-  failure_threshold: 3
-  recovery_timeout: 60s
+  - name: "anthropic"
+    type: "anthropic"
+    enabled: true
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
 ```
+
+### Multi-Provider Setup
+
+```yaml
+server:
+  listen: "127.0.0.1:8787"
+  auth:
+    allow_subscription: true
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    enabled: true
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    enabled: true
+    keys:
+      - key: "${ZAI_API_KEY}"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "GLM-4.7"
+
+logging:
+  level: "info"
+  format: "text"
+```
+
+### Development with Debug Logging
+
+```yaml
+server:
+  listen: "127.0.0.1:8787"
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    enabled: true
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+logging:
+  level: "debug"
+  format: "text"
+  pretty: true
+  debug_options:
+    log_request_body: true
+    log_response_headers: true
+    log_tls_metrics: true
+```
+
+## Validating Configuration
+
+Validate your configuration file:
+
+```bash
+cc-relay config validate
+```
+
+## Hot Reloading
+
+Configuration changes require a server restart. Hot-reloading is planned for a future release.
 
 ## Next Steps
 
-- [Understand the architecture](/docs/architecture/)
-- [Use the management API](/docs/api/)
-- [Monitor with the TUI](/docs/tui/)
-- [Set up Prometheus metrics](/docs/monitoring/)
+- [Understanding the architecture](/docs/architecture/)
+- [API reference](/docs/api/)

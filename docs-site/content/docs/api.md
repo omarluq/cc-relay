@@ -3,15 +3,13 @@ title: API Reference
 weight: 5
 ---
 
-# API Reference
-
-CC-Relay exposes two APIs: the HTTP proxy API (Anthropic-compatible) and the gRPC management API.
+CC-Relay exposes an HTTP API that is fully compatible with the Anthropic Messages API.
 
 ## HTTP Proxy API
 
 ### POST /v1/messages
 
-Creates a message using the Anthropic Messages API format.
+Creates a message using the Anthropic Messages API format. This is the main endpoint used by Claude Code and other LLM clients.
 
 **Endpoint**: `POST /v1/messages`
 
@@ -25,7 +23,7 @@ anthropic-version: 2023-06-01
 **Request Body**:
 ```json
 {
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5-20250514",
   "max_tokens": 1024,
   "messages": [
     {
@@ -50,7 +48,7 @@ anthropic-version: 2023-06-01
       "text": "Hello! How can I help you today?"
     }
   ],
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5-20250514",
   "stop_reason": "end_turn",
   "usage": {
     "input_tokens": 12,
@@ -69,21 +67,21 @@ Set `"stream": true` in the request to enable Server-Sent Events streaming.
 sequenceDiagram
     participant Client
     participant Proxy
-    
+
     Client->>Proxy: POST /v1/messages (stream=true)
-    
+
     Proxy-->>Client: event: message_start<br/>data: {"type":"message_start",...}
-    
+
     Proxy-->>Client: event: content_block_start<br/>data: {"type":"content_block_start",...}
-    
+
     loop Text Generation
         Proxy-->>Client: event: content_block_delta<br/>data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
     end
-    
+
     Proxy-->>Client: event: content_block_stop<br/>data: {"type":"content_block_stop"}
-    
+
     Proxy-->>Client: event: message_delta<br/>data: {"type":"message_delta","usage":{...}}
-    
+
     Proxy-->>Client: event: message_stop<br/>data: {"type":"message_stop"}
 ```
 
@@ -91,7 +89,7 @@ sequenceDiagram
 
 ```
 event: message_start
-data: {"type":"message_start","message":{"id":"msg_01ABC","type":"message","role":"assistant","content":[],"model":"claude-3-5-sonnet-20241022","usage":{"input_tokens":12,"output_tokens":0}}}
+data: {"type":"message_start","message":{"id":"msg_01ABC","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-5-20250514","usage":{"input_tokens":12,"output_tokens":0}}}
 
 event: content_block_start
 data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
@@ -114,12 +112,12 @@ data: {"type":"message_stop"}
 
 ### Tool Use
 
-Claude Code uses parallel tool execution. CC-Relay preserves `tool_use_id` for correct association:
+Claude Code uses tool execution for file operations and other tasks. CC-Relay preserves `tool_use_id` for correct association:
 
 **Request**:
 ```json
 {
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5-20250514",
   "max_tokens": 1024,
   "tools": [
     {
@@ -159,24 +157,26 @@ Claude Code uses parallel tool execution. CC-Relay preserves `tool_use_id` for c
 
 ### Error Responses
 
-**Rate Limit Exceeded** (429):
+All errors are returned in Anthropic API format:
+
+**Upstream Error** (502):
 ```json
 {
   "type": "error",
   "error": {
-    "type": "rate_limit_error",
-    "message": "Rate limit exceeded for all available API keys"
+    "type": "api_error",
+    "message": "upstream connection failed"
   }
 }
 ```
 
-**Provider Unhealthy** (503):
+**Authentication Error** (401):
 ```json
 {
   "type": "error",
   "error": {
-    "type": "overloaded_error",
-    "message": "All providers are currently unavailable"
+    "type": "authentication_error",
+    "message": "missing x-api-key header"
   }
 }
 ```
@@ -192,356 +192,201 @@ Claude Code uses parallel tool execution. CC-Relay preserves `tool_use_id` for c
 }
 ```
 
-## gRPC Management API
+## GET /v1/models
 
-The gRPC API is defined in `proto/relay.proto` and exposed on port 9090 (configurable).
+List available models from all configured providers.
 
-### Service Definition
+**Endpoint**: `GET /v1/models`
 
-```protobuf
-service RelayService {
-  // Get statistics for a specific provider
-  rpc GetProviderStats(ProviderStatsRequest) returns (ProviderStatsResponse);
-  
-  // Stream real-time statistics
-  rpc StreamStats(StreamStatsRequest) returns (stream StatsUpdate);
-  
-  // Update provider configuration
-  rpc UpdateProvider(UpdateProviderRequest) returns (UpdateProviderResponse);
-  
-  // Reload configuration from file
-  rpc ReloadConfig(ReloadConfigRequest) returns (ReloadConfigResponse);
-  
-  // Get provider health status
-  rpc GetProviderHealth(HealthRequest) returns (HealthResponse);
-  
-  // List all configured providers
-  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
-  
-  // Enable or disable a provider
-  rpc ToggleProvider(ToggleProviderRequest) returns (ToggleProviderResponse);
-  
-  // Get routing statistics
-  rpc GetRoutingStats(RoutingStatsRequest) returns (RoutingStatsResponse);
-}
-```
-
-### GetProviderStats
-
-Get statistics for a specific provider.
-
-**Request**:
-```protobuf
-message ProviderStatsRequest {
-  string provider_name = 1;
-}
-```
+**Headers**: None required (no authentication)
 
 **Response**:
-```protobuf
-message ProviderStatsResponse {
-  string name = 1;
-  string type = 2;
-  bool enabled = 3;
-  int64 total_requests = 4;
-  int64 successful_requests = 5;
-  int64 failed_requests = 6;
-  double average_latency_ms = 7;
-  double p95_latency_ms = 8;
-  double p99_latency_ms = 9;
-  int64 total_tokens_used = 10;
-  double current_rpm = 11;
-  double current_tpm = 12;
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "claude-sonnet-4-5-20250514",
+      "object": "model",
+      "owned_by": "anthropic",
+      "provider": "anthropic",
+      "created": 1737446400
+    },
+    {
+      "id": "claude-opus-4-5-20250514",
+      "object": "model",
+      "owned_by": "anthropic",
+      "provider": "anthropic",
+      "created": 1737446400
+    },
+    {
+      "id": "GLM-4.7",
+      "object": "model",
+      "owned_by": "zhipu",
+      "provider": "zai",
+      "created": 1737446400
+    }
+  ]
 }
 ```
 
-**Example (grpcurl)**:
-```bash
-grpcurl -plaintext -d '{"provider_name": "anthropic"}' \
-  localhost:9090 relay.RelayService/GetProviderStats
-```
+## GET /v1/providers
 
-### StreamStats
+List active providers with metadata.
 
-Stream real-time statistics updates.
+**Endpoint**: `GET /v1/providers`
 
-**Request**:
-```protobuf
-message StreamStatsRequest {
-  int32 interval_seconds = 1;  // Update interval (default: 5)
-  repeated string provider_names = 2;  // Empty = all providers
-}
-```
-
-**Response Stream**:
-```protobuf
-message StatsUpdate {
-  int64 timestamp = 1;
-  repeated ProviderStats providers = 2;
-  RoutingStats routing = 3;
-}
-```
-
-**Example**:
-```bash
-grpcurl -plaintext -d '{"interval_seconds": 1}' \
-  localhost:9090 relay.RelayService/StreamStats
-```
-
-### UpdateProvider
-
-Update provider configuration dynamically.
-
-**Request**:
-```protobuf
-message UpdateProviderRequest {
-  string provider_name = 1;
-  optional bool enabled = 2;
-  optional int32 priority = 3;
-  optional RateLimit rate_limit = 4;
-}
-```
-
-**Example**:
-```bash
-grpcurl -plaintext -d '{
-  "provider_name": "anthropic",
-  "enabled": false
-}' localhost:9090 relay.RelayService/UpdateProvider
-```
-
-### ReloadConfig
-
-Reload configuration from file without restarting.
-
-**Request**:
-```protobuf
-message ReloadConfigRequest {}
-```
+**Headers**: None required (no authentication)
 
 **Response**:
-```protobuf
-message ReloadConfigResponse {
-  bool success = 1;
-  string message = 2;
-  repeated string errors = 3;
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "name": "anthropic",
+      "type": "anthropic",
+      "base_url": "https://api.anthropic.com",
+      "models": [
+        "claude-sonnet-4-5-20250514",
+        "claude-opus-4-5-20250514",
+        "claude-haiku-3-5-20241022"
+      ],
+      "active": true
+    },
+    {
+      "name": "zai",
+      "type": "zhipu",
+      "base_url": "https://api.z.ai/api/anthropic",
+      "models": [
+        "GLM-4.7",
+        "GLM-4.5-Air",
+        "GLM-4-Plus"
+      ],
+      "active": true
+    }
+  ]
 }
 ```
 
-**Example**:
-```bash
-grpcurl -plaintext -d '{}' \
-  localhost:9090 relay.RelayService/ReloadConfig
-```
+## GET /health
 
-### GetProviderHealth
+Health check endpoint for monitoring and load balancers.
 
-Get health status for a provider.
+**Endpoint**: `GET /health`
 
-**Request**:
-```protobuf
-message HealthRequest {
-  string provider_name = 1;
-}
-```
+**Headers**: None required (no authentication)
 
 **Response**:
-```protobuf
-message HealthResponse {
-  string provider_name = 1;
-  string state = 2;  // "CLOSED", "OPEN", "HALF_OPEN"
-  int32 failure_count = 3;
-  int32 success_count = 4;
-  int64 last_failure_time = 5;
-  int64 next_attempt_time = 6;
-}
+```json
+{"status":"ok"}
 ```
 
-**Example**:
-```bash
-grpcurl -plaintext -d '{"provider_name": "anthropic"}' \
-  localhost:9090 relay.RelayService/GetProviderHealth
-```
+**HTTP Status Codes**:
+- `200 OK`: Server is healthy
+- `503 Service Unavailable`: Server is unhealthy (future implementation)
 
-### ListProviders
+## Authentication
 
-List all configured providers.
+CC-Relay supports multiple authentication methods for the `/v1/messages` endpoint:
 
-**Request**:
-```protobuf
-message ListProvidersRequest {}
-```
+### API Key Authentication
 
-**Response**:
-```protobuf
-message ListProvidersResponse {
-  repeated ProviderInfo providers = 1;
-}
-
-message ProviderInfo {
-  string name = 1;
-  string type = 2;
-  bool enabled = 3;
-  int32 priority = 4;
-  int32 api_key_count = 5;
-}
-```
-
-**Example**:
-```bash
-grpcurl -plaintext -d '{}' \
-  localhost:9090 relay.RelayService/ListProviders
-```
-
-### ToggleProvider
-
-Enable or disable a provider.
-
-**Request**:
-```protobuf
-message ToggleProviderRequest {
-  string provider_name = 1;
-  bool enabled = 2;
-}
-```
-
-**Example**:
-```bash
-grpcurl -plaintext -d '{
-  "provider_name": "anthropic",
-  "enabled": true
-}' localhost:9090 relay.RelayService/ToggleProvider
-```
-
-### GetRoutingStats
-
-Get statistics about routing decisions.
-
-**Request**:
-```protobuf
-message RoutingStatsRequest {}
-```
-
-**Response**:
-```protobuf
-message RoutingStatsResponse {
-  string current_strategy = 1;
-  map<string, int64> provider_selection_count = 2;
-  int64 total_routing_decisions = 3;
-  int64 failed_routing_attempts = 4;
-  double average_routing_time_ms = 5;
-}
-```
-
-**Example**:
-```bash
-grpcurl -plaintext -d '{}' \
-  localhost:9090 relay.RelayService/GetRoutingStats
-```
-
-## Using grpcurl
-
-Install grpcurl:
+Include the `x-api-key` header:
 
 ```bash
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+curl -X POST http://localhost:8787/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your-proxy-key" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model": "claude-sonnet-4-5-20250514", ...}'
 ```
 
-List available services:
+### Bearer Token Authentication
+
+Include the `Authorization` header:
 
 ```bash
-grpcurl -plaintext localhost:9090 list
+curl -X POST http://localhost:8787/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model": "claude-sonnet-4-5-20250514", ...}'
 ```
 
-Describe a service:
+This is used by Claude Code subscription users.
+
+## Request Headers
+
+CC-Relay forwards all `anthropic-*` headers to the backend provider:
+
+| Header | Description |
+|--------|-------------|
+| `anthropic-version` | API version (required) |
+| `anthropic-beta` | Beta features to enable |
+| `anthropic-dangerous-direct-browser-access` | Browser access flag |
+
+## Response Headers
+
+CC-Relay adds the following headers to responses:
+
+| Header | Description |
+|--------|-------------|
+| `X-Request-ID` | Unique request identifier for tracing |
+| `Content-Type` | `application/json` or `text/event-stream` |
+| `Cache-Control` | `no-cache, no-transform` for SSE |
+| `X-Accel-Buffering` | `no` to disable proxy buffering |
+
+## cURL Examples
+
+### Non-streaming Request
 
 ```bash
-grpcurl -plaintext localhost:9090 describe relay.RelayService
+curl -X POST http://localhost:8787/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: test" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 100,
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
 ```
 
-## Prometheus Metrics
+### Streaming Request
 
-Access metrics at `http://localhost:9091/metrics` (configurable).
-
-### Available Metrics
-
-**Request Metrics**:
-```
-cc_relay_requests_total{provider="anthropic",status="200"}
-cc_relay_request_duration_seconds{provider="anthropic",quantile="0.5"}
-cc_relay_request_duration_seconds{provider="anthropic",quantile="0.95"}
-cc_relay_request_duration_seconds{provider="anthropic",quantile="0.99"}
-```
-
-**Rate Limit Metrics**:
-```
-cc_relay_rate_limit_hits_total{provider="anthropic",key_id="key1"}
-cc_relay_available_tokens{provider="anthropic",key_id="key1",type="rpm"}
-cc_relay_available_tokens{provider="anthropic",key_id="key1",type="tpm"}
+```bash
+curl -N -X POST http://localhost:8787/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: test" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 100,
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": true
+  }'
 ```
 
-**Health Metrics**:
-```
-cc_relay_provider_health{provider="anthropic",state="closed"} 1
-cc_relay_circuit_breaker_transitions_total{provider="anthropic",from="closed",to="open"}
-```
+### List Models
 
-**Routing Metrics**:
-```
-cc_relay_routing_decisions_total{strategy="shuffle"}
-cc_relay_provider_selections_total{provider="anthropic"}
-cc_relay_routing_failures_total{reason="no_healthy_provider"}
+```bash
+curl http://localhost:8787/v1/models
 ```
 
-### Example Grafana Queries
+### List Providers
 
-**Request Rate**:
-```promql
-rate(cc_relay_requests_total[5m])
+```bash
+curl http://localhost:8787/v1/providers
 ```
 
-**Success Rate**:
-```promql
-sum(rate(cc_relay_requests_total{status=~"2.."}[5m])) /
-sum(rate(cc_relay_requests_total[5m]))
+### Health Check
+
+```bash
+curl http://localhost:8787/health
 ```
 
-**P95 Latency**:
-```promql
-histogram_quantile(0.95, rate(cc_relay_request_duration_seconds_bucket[5m]))
-```
-
-**Provider Health**:
-```promql
-cc_relay_provider_health{state="closed"}
-```
-
-## Client Libraries
-
-### Go Client (gRPC)
-
-```go
-import (
-    "context"
-    "google.golang.org/grpc"
-    pb "github.com/omarluq/cc-relay/proto"
-)
-
-conn, err := grpc.Dial("localhost:9090", grpc.WithInsecure())
-if err != nil {
-    log.Fatal(err)
-}
-defer conn.Close()
-
-client := pb.NewRelayServiceClient(conn)
-
-// Get provider stats
-stats, err := client.GetProviderStats(context.Background(), &pb.ProviderStatsRequest{
-    ProviderName: "anthropic",
-})
-```
-
-### Python Client (HTTP)
+## Python Client Example
 
 ```python
 import requests
@@ -554,7 +399,7 @@ response = requests.post(
         "anthropic-version": "2023-06-01",
     },
     json={
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5-20250514",
         "max_tokens": 1024,
         "messages": [
             {"role": "user", "content": "Hello!"}
@@ -565,38 +410,75 @@ response = requests.post(
 print(response.json())
 ```
 
-### cURL Examples
+## Python Streaming Example
 
-**Non-streaming request**:
-```bash
-curl -X POST http://localhost:8787/v1/messages \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: test" \
-  -H "anthropic-version: 2023-06-01" \
-  -d '{
-    "model": "claude-3-5-sonnet-20241022",
-    "max_tokens": 100,
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8787/v1/messages",
+    headers={
+        "Content-Type": "application/json",
+        "x-api-key": "managed-by-cc-relay",
+        "anthropic-version": "2023-06-01",
+    },
+    json={
+        "model": "claude-sonnet-4-5-20250514",
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": "Hello!"}
+        ],
+        "stream": True,
+    },
+    stream=True,
+)
+
+for line in response.iter_lines():
+    if line:
+        print(line.decode('utf-8'))
 ```
 
-**Streaming request**:
-```bash
-curl -N -X POST http://localhost:8787/v1/messages \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: test" \
-  -H "anthropic-version: 2023-06-01" \
-  -d '{
-    "model": "claude-3-5-sonnet-20241022",
-    "max_tokens": 100,
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "stream": true
-  }'
+## Go Client Example
+
+```go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+func main() {
+    body := map[string]interface{}{
+        "model":      "claude-sonnet-4-5-20250514",
+        "max_tokens": 100,
+        "messages": []map[string]string{
+            {"role": "user", "content": "Hello!"},
+        },
+    }
+
+    jsonBody, _ := json.Marshal(body)
+
+    req, _ := http.NewRequest("POST", "http://localhost:8787/v1/messages", bytes.NewReader(jsonBody))
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("x-api-key", "test")
+    req.Header.Set("anthropic-version", "2023-06-01")
+
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    data, _ := io.ReadAll(resp.Body)
+    fmt.Println(string(data))
+}
 ```
 
 ## Next Steps
 
-- [Configure providers](/docs/configuration/#provider-setup)
-- [Set up routing strategies](/docs/configuration/#routing-strategies)
-- [Use the TUI dashboard](/docs/tui/)
-- [Monitor with Prometheus](/docs/monitoring/)
+- [Configuration reference](/docs/configuration/)
+- [Architecture overview](/docs/architecture/)

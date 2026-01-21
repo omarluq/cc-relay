@@ -25,27 +25,27 @@ layout: hextra-home
 {{< hextra/feature-grid >}}
   {{< hextra/feature-card
     title="Multi-Provider Support"
-    subtitle="Connect to Anthropic, Z.AI, Ollama, AWS Bedrock, Azure, and Vertex AI from a single endpoint"
+    subtitle="Connect to Anthropic and Z.AI from a single endpoint (more providers coming soon)"
   >}}
   {{< hextra/feature-card
-    title="Rate Limit Pooling"
-    subtitle="Intelligently distribute requests across multiple API keys to maximize throughput"
+    title="SSE Streaming"
+    subtitle="Full Server-Sent Events support with perfect Claude Code compatibility"
   >}}
   {{< hextra/feature-card
-    title="Cost Optimization"
-    subtitle="Route requests based on cost, latency, or model availability for optimal efficiency"
+    title="Multiple API Keys"
+    subtitle="Pool multiple API keys per provider for higher throughput"
   >}}
   {{< hextra/feature-card
-    title="Automatic Failover"
-    subtitle="Circuit breaker with health tracking ensures high availability across providers"
+    title="Flexible Authentication"
+    subtitle="API key and Bearer token support for Claude Code subscription users"
   >}}
   {{< hextra/feature-card
-    title="Real-time Monitoring"
-    subtitle="TUI dashboard with live stats, provider health, and request logging"
+    title="Claude Code Integration"
+    subtitle="One command setup with built-in configuration management"
   >}}
   {{< hextra/feature-card
-    title="Hot Reload Config"
-    subtitle="Update provider settings and routing strategies without restart"
+    title="Anthropic API Compatible"
+    subtitle="Drop-in replacement requiring no client changes"
   >}}
 {{< /hextra/feature-grid >}}
 </div>
@@ -53,35 +53,21 @@ layout: hextra-home
 <div class="info-box">
   <div class="info-box-title">
     <span class="info-icon">⚡</span>
-    One Proxy, Unlimited Scale
+    Current Features
   </div>
   <div class="info-box-content">
     <div class="feature-item">
-      <span class="feature-icon">🎯</span>
-      <div>
-        <strong>Smart Routing</strong>
-        <p>Shuffle, round-robin, failover, cost-based, latency-based, or model-based strategies</p>
-      </div>
-    </div>
-    <div class="feature-item">
       <span class="feature-icon">🔑</span>
       <div>
-        <strong>API Key Pools</strong>
-        <p>Manage multiple keys per provider with RPM/TPM tracking</p>
+        <strong>Multiple API Keys</strong>
+        <p>Pool multiple keys per provider for higher throughput</p>
       </div>
     </div>
     <div class="feature-item">
-      <span class="feature-icon">☁️</span>
+      <span class="feature-icon">🔐</span>
       <div>
-        <strong>Cloud Provider Support</strong>
-        <p>Native integration with Bedrock, Azure Foundry, and Vertex AI</p>
-      </div>
-    </div>
-    <div class="feature-item">
-      <span class="feature-icon">💚</span>
-      <div>
-        <strong>Health Tracking</strong>
-        <p>Automatic circuit breaking and recovery for failed providers</p>
+        <strong>Multi-Auth Support</strong>
+        <p>API key and Bearer token authentication for flexible access</p>
       </div>
     </div>
     <div class="feature-item">
@@ -92,10 +78,24 @@ layout: hextra-home
       </div>
     </div>
     <div class="feature-item">
-      <span class="feature-icon">🎮</span>
+      <span class="feature-icon">🎛️</span>
       <div>
-        <strong>Management API</strong>
-        <p>gRPC interface for stats, config updates, and provider control</p>
+        <strong>Debug Logging</strong>
+        <p>Detailed request/response logging for troubleshooting</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">⚙️</span>
+      <div>
+        <strong>Environment Variables</strong>
+        <p>Secure configuration with ${VAR} expansion in YAML</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">🚀</span>
+      <div>
+        <strong>Easy Setup</strong>
+        <p>One-command Claude Code integration with cc-relay config cc init</p>
       </div>
     </div>
   </div>
@@ -176,7 +176,7 @@ layout: hextra-home
 
 <div class="section-box">
   <h2 class="section-title">Architecture</h2>
-  <p class="section-description">CC-Relay sits between your LLM client and multiple providers, intelligently routing requests based on your configured strategy</p>
+  <p class="section-description">CC-Relay sits between your LLM client and backend providers, proxying requests with full Anthropic API compatibility</p>
 
 <div class="architecture-diagram">
   <div class="arch-layer">
@@ -196,16 +196,16 @@ layout: hextra-home
     <div class="arch-layer-title">Proxy Engine</div>
     <div class="arch-proxy">
       <div class="arch-proxy-component">🔐 Authentication</div>
-      <div class="arch-proxy-component">🎯 Smart Router</div>
-      <div class="arch-proxy-component">💚 Health Tracker</div>
-      <div class="arch-proxy-component">🔑 API Key Pool</div>
+      <div class="arch-proxy-component">📝 Request Logging</div>
+      <div class="arch-proxy-component">📡 SSE Streaming</div>
+      <div class="arch-proxy-component">🔑 API Key Management</div>
     </div>
   </div>
 
   <div class="arch-connector">↓</div>
 
   <div class="arch-layer">
-    <div class="arch-layer-title">Provider Layer</div>
+    <div class="arch-layer-title">Provider Layer (Implemented)</div>
     <div class="arch-providers">
       <div class="arch-provider anthropic">
         <img src="/cc-relay/logos/anthropic.svg" alt="Anthropic" class="arch-provider-logo" />
@@ -217,6 +217,14 @@ layout: hextra-home
         <div class="arch-provider-name">Z.AI</div>
         <div class="arch-provider-desc">GLM Models</div>
       </div>
+    </div>
+  </div>
+
+  <div class="arch-connector" style="margin-top: 1rem;">↓</div>
+
+  <div class="arch-layer">
+    <div class="arch-layer-title" style="opacity: 0.7;">Coming Soon</div>
+    <div class="arch-providers" style="opacity: 0.6;">
       <div class="arch-provider ollama">
         <img src="/cc-relay/logos/ollama.svg" alt="Ollama" class="arch-provider-logo" />
         <div class="arch-provider-name">Ollama</div>
@@ -244,38 +252,38 @@ layout: hextra-home
 
 <div class="section-box">
   <h2 class="section-title">Use Cases</h2>
-  <p class="section-description">Power your development workflow with intelligent LLM routing</p>
+  <p class="section-description">Power your development workflow with CC-Relay</p>
 
   <div class="use-cases-grid">
     <div class="use-case-card">
-      <div class="use-case-icon">🤖</div>
-      <h3>Multi-Agent Systems</h3>
-      <p>Build HA multi-agent orchestration with intelligent routing and failover</p>
+      <div class="use-case-icon">🔄</div>
+      <h3>Provider Flexibility</h3>
+      <p>Switch between Anthropic and Z.AI without changing your client code</p>
     </div>
     <div class="use-case-card">
       <div class="use-case-icon">👥</div>
       <h3>Development Teams</h3>
-      <p>Share API quota across multiple developers</p>
+      <p>Share API quota across multiple developers with pooled keys</p>
     </div>
     <div class="use-case-card">
-      <div class="use-case-icon">🚀</div>
-      <h3>CI/CD Pipelines</h3>
-      <p>High-throughput testing with rate limit pooling</p>
+      <div class="use-case-icon">🔑</div>
+      <h3>API Key Management</h3>
+      <p>Centralize and rotate API keys without client updates</p>
     </div>
     <div class="use-case-card">
       <div class="use-case-icon">💰</div>
-      <h3>Cost Optimization</h3>
-      <p>Route to cheapest provider while maintaining quality</p>
+      <h3>Cost Comparison</h3>
+      <p>Test Z.AI's GLM models as a lower-cost alternative</p>
     </div>
     <div class="use-case-card">
-      <div class="use-case-icon">⚡</div>
-      <h3>High Availability</h3>
-      <p>Automatic failover ensures uptime</p>
+      <div class="use-case-icon">🔐</div>
+      <h3>Subscription Passthrough</h3>
+      <p>Route Claude Code subscription users through your proxy</p>
     </div>
     <div class="use-case-card">
-      <div class="use-case-icon">☁️</div>
-      <h3>Multi-Cloud</h3>
-      <p>Leverage Bedrock, Azure, and Vertex AI simultaneously</p>
+      <div class="use-case-icon">🐛</div>
+      <h3>Request Debugging</h3>
+      <p>Log and inspect API requests for troubleshooting</p>
     </div>
   </div>
 </div>
@@ -302,7 +310,7 @@ layout: hextra-home
     >}}
     {{< hextra/feature-card
       title="API Reference"
-      subtitle="gRPC management API and REST endpoints"
+      subtitle="HTTP endpoints, streaming, and client examples"
       link="/docs/api/"
     >}}
   </div>
