@@ -122,6 +122,8 @@ func runServe(_ *cobra.Command, _ []string) error {
 }
 
 // findConfigFile searches for config.yaml in default locations.
+//
+//nolint:goconst // config.yaml constant would be shared across subcommands
 func findConfigFile() string {
 	// Check current directory
 	if _, err := os.Stat("config.yaml"); err == nil {

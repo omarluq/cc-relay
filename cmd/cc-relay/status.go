@@ -44,6 +44,7 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		Timeout: 5 * time.Second,
 	}
 
+	//nolint:noctx // Simple health check doesn't need context propagation
 	resp, err := client.Get(healthURL)
 	if err != nil {
 		fmt.Printf("✗ cc-relay is not running (%s)\n", cfg.Server.Listen)
@@ -57,11 +58,14 @@ func runStatus(_ *cobra.Command, _ []string) error {
 	}
 
 	fmt.Printf("✗ cc-relay returned unexpected status: %d\n", resp.StatusCode)
+
 	return fmt.Errorf("health check failed with status %d", resp.StatusCode)
 }
 
 // findConfigFileForStatus is a copy of findConfigFile from serve.go.
 // Duplicated to avoid shared state between subcommands.
+//
+
 func findConfigFileForStatus() string {
 	// Check current directory
 	if _, err := os.Stat("config.yaml"); err == nil {
