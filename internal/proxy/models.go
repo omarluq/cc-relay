@@ -30,16 +30,12 @@ func NewModelsHandler(providerList []providers.Provider) *ModelsHandler {
 // ServeHTTP handles GET /v1/models requests.
 func (h *ModelsHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	// Collect all models from all providers
-	var allModels []providers.Model
+	// Preallocate with estimated capacity (assume ~5 models per provider)
+	allModels := make([]providers.Model, 0, len(h.providers)*5)
 
 	for _, provider := range h.providers {
 		models := provider.ListModels()
 		allModels = append(allModels, models...)
-	}
-
-	// Ensure we return an empty array, not null
-	if allModels == nil {
-		allModels = []providers.Model{}
 	}
 
 	response := ModelsResponse{

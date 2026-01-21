@@ -193,7 +193,7 @@ func TestDebugOptions_GetMaxBodyLogSize(t *testing.T) {
 func TestTLSVersionString(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table struct alignment
 		name     string
 		version  uint16
 		expected string
@@ -220,7 +220,7 @@ func TestTLSVersionString(t *testing.T) {
 func TestAttachTLSTrace_ReturnsMetricsFunction(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
 	ctx := req.Context()
 
 	newCtx, getMetrics := AttachTLSTrace(ctx, req)
@@ -342,8 +342,8 @@ func TestLogRequestDetails_HandlesNilBody(t *testing.T) {
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.Body = nil // Explicitly nil
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req.Body = http.NoBody // Empty body
 	opts := config.DebugOptions{LogRequestBody: true, MaxBodyLogSize: 1000}
 
 	// Should not panic

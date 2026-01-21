@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/rs/zerolog"
 )
 
 func TestAuthMiddleware_ValidKey(t *testing.T) {
@@ -22,7 +20,7 @@ func TestAuthMiddleware_ValidKey(t *testing.T) {
 	middleware := AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	req.Header.Set("x-api-key", "secret-key")
 
 	rec := httptest.NewRecorder()
@@ -43,7 +41,7 @@ func TestAuthMiddleware_InvalidKey(t *testing.T) {
 	middleware := AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	req.Header.Set("x-api-key", "wrong-key")
 
 	rec := httptest.NewRecorder()
@@ -64,7 +62,7 @@ func TestAuthMiddleware_MissingKey(t *testing.T) {
 	middleware := AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	// No x-api-key header
 
 	rec := httptest.NewRecorder()
@@ -91,7 +89,7 @@ func TestMultiAuthMiddleware_NoAuthConfigured(t *testing.T) {
 	middleware := MultiAuthMiddleware(authConfig)
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	// No auth headers
 
 	rec := httptest.NewRecorder()
@@ -118,7 +116,7 @@ func TestMultiAuthMiddleware_BearerOnly(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Valid bearer token
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	req.Header.Set("Authorization", "Bearer test-bearer-secret")
 
 	rec := httptest.NewRecorder()
@@ -143,7 +141,7 @@ func TestMultiAuthMiddleware_APIKeyOnly(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Valid API key
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	req.Header.Set("x-api-key", "test-api-key")
 
 	rec := httptest.NewRecorder()
@@ -171,7 +169,8 @@ func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 
 	// Test with bearer - should work
 	t.Run("bearer works", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer test-bearer-secret")
 
 		rec := httptest.NewRecorder()
@@ -184,7 +183,8 @@ func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 
 	// Test with API key - should work
 	t.Run("api key works", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key")
 
 		rec := httptest.NewRecorder()
@@ -210,7 +210,7 @@ func TestMultiAuthMiddleware_SubscriptionAlias(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Any bearer token should work (passthrough mode)
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	req.Header.Set("Authorization", "Bearer any-subscription-token")
 
 	rec := httptest.NewRecorder()
@@ -233,7 +233,7 @@ func TestRequestIDMiddleware_GeneratesID(t *testing.T) {
 	middleware := RequestIDMiddleware()
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -262,7 +262,7 @@ func TestRequestIDMiddleware_UsesProvidedID(t *testing.T) {
 	middleware := RequestIDMiddleware()
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	req.Header.Set("X-Request-ID", providedID)
 
 	rec := httptest.NewRecorder()
@@ -283,13 +283,7 @@ func TestRequestIDMiddleware_UsesProvidedID(t *testing.T) {
 func TestLoggingMiddleware_LogsRequest(t *testing.T) {
 	t.Parallel()
 
-	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Attach logger to context for middleware to use
-		ctx := logger.WithContext(r.Context())
-		r = r.WithContext(ctx)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -311,7 +305,7 @@ func TestLoggingMiddleware_LogsRequest(t *testing.T) {
 func TestFormatDuration(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table struct alignment
 		name     string
 		ms       int
 		expected string
@@ -339,7 +333,7 @@ func TestFormatDuration(t *testing.T) {
 func TestFormatCompletionMessage(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table struct alignment
 		status   int
 		symbol   string
 		duration string

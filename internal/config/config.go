@@ -7,10 +7,18 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// Log level constants.
+const (
+	LevelDebug = "debug"
+	LevelInfo  = "info"
+	LevelWarn  = "warn"
+	LevelError = "error"
+)
+
 // Config represents the complete cc-relay configuration.
 type Config struct {
-	Logging   LoggingConfig    `yaml:"logging"`
 	Providers []ProviderConfig `yaml:"providers"`
+	Logging   LoggingConfig    `yaml:"logging"`
 	Server    ServerConfig     `yaml:"server"`
 }
 
@@ -18,9 +26,9 @@ type Config struct {
 type ServerConfig struct {
 	Listen        string     `yaml:"listen"`
 	APIKey        string     `yaml:"api_key"` // Legacy: use Auth.APIKey instead
+	Auth          AuthConfig `yaml:"auth"`
 	TimeoutMS     int        `yaml:"timeout_ms"`
 	MaxConcurrent int        `yaml:"max_concurrent"`
-	Auth          AuthConfig `yaml:"auth"`
 }
 
 // AuthConfig defines authentication settings for the proxy.
@@ -29,13 +37,13 @@ type AuthConfig struct {
 	// If empty, API key authentication is disabled.
 	APIKey string `yaml:"api_key"`
 
-	// AllowBearer enables Authorization: Bearer token authentication.
-	// Used by Claude Code subscription users.
-	AllowBearer bool `yaml:"allow_bearer"`
-
 	// BearerSecret is the expected Bearer token value.
 	// If empty but AllowBearer is true, any bearer token is accepted.
 	BearerSecret string `yaml:"bearer_secret"`
+
+	// AllowBearer enables Authorization: Bearer token authentication.
+	// Used by Claude Code subscription users.
+	AllowBearer bool `yaml:"allow_bearer"`
 
 	// AllowSubscription is an alias for AllowBearer, provided for user-friendly config.
 	// Claude Code subscription users authenticate with Bearer tokens, so this enables
@@ -93,13 +101,13 @@ type LoggingConfig struct {
 // Returns zerolog.InfoLevel if the level string is invalid.
 func (l *LoggingConfig) ParseLevel() zerolog.Level {
 	switch strings.ToLower(l.Level) {
-	case "debug":
+	case LevelDebug:
 		return zerolog.DebugLevel
-	case "info":
+	case LevelInfo:
 		return zerolog.InfoLevel
-	case "warn":
+	case LevelWarn:
 		return zerolog.WarnLevel
-	case "error":
+	case LevelError:
 		return zerolog.ErrorLevel
 	default:
 		return zerolog.InfoLevel
@@ -109,7 +117,7 @@ func (l *LoggingConfig) ParseLevel() zerolog.Level {
 // EnableAllDebugOptions turns on all debug logging features.
 // Used by --debug CLI flag shortcut.
 func (l *LoggingConfig) EnableAllDebugOptions() {
-	l.Level = "debug"
+	l.Level = LevelDebug
 	l.DebugOptions = DebugOptions{
 		LogRequestBody:     true,
 		LogResponseHeaders: true,

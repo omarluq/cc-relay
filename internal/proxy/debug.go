@@ -29,10 +29,10 @@ var sensitivePatterns = []*regexp.Regexp{
 
 // TLSMetrics holds TLS connection timing and metadata.
 type TLSMetrics struct {
+	Version     string
 	DNSTime     time.Duration
 	ConnectTime time.Duration
 	TLSTime     time.Duration
-	Version     string
 	Reused      bool
 	HasMetrics  bool
 }
@@ -115,7 +115,12 @@ func LogRequestDetails(ctx context.Context, r *http.Request, opts config.DebugOp
 }
 
 // LogResponseDetails logs response headers and streaming event count in debug mode.
-func LogResponseDetails(ctx context.Context, headers http.Header, statusCode, eventCount int, opts config.DebugOptions) {
+func LogResponseDetails(
+	ctx context.Context,
+	headers http.Header,
+	statusCode, eventCount int,
+	opts config.DebugOptions,
+) {
 	if !opts.LogResponseHeaders {
 		return
 	}
@@ -209,6 +214,8 @@ func LogProxyMetrics(ctx context.Context, metrics Metrics, _ config.DebugOptions
 
 // AttachTLSTrace attaches httptrace to request for TLS metric collection.
 // Returns updated context with trace and a function to retrieve metrics.
+//
+//nolint:gocritic // unnamedResult: return values are clear from function signature
 func AttachTLSTrace(ctx context.Context, _ *http.Request) (context.Context, func() TLSMetrics) {
 	metrics := &TLSMetrics{}
 	var dnsStart, connectStart, tlsStart time.Time

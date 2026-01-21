@@ -178,7 +178,7 @@ func TestAuthConfig_IsBearerEnabled(t *testing.T) {
 func TestServerConfig_GetEffectiveAPIKey(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table struct alignment
 		name     string
 		config   ServerConfig
 		expected string
@@ -233,8 +233,8 @@ func TestLoggingConfig_EnableAllDebugOptions(t *testing.T) {
 	cfg.EnableAllDebugOptions()
 
 	// Verify level is set to debug
-	if cfg.Level != "debug" {
-		t.Errorf("Expected level 'debug', got %q", cfg.Level)
+	if cfg.Level != LevelDebug {
+		t.Errorf("Expected level '%s', got %q", LevelDebug, cfg.Level)
 	}
 
 	// Verify all debug options are enabled

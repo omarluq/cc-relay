@@ -37,11 +37,15 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 
 	// Add logging flags
-	serveCmd.Flags().StringVar(&logLevel, "log-level", "", "log level (debug, info, warn, error) - overrides config")
-	serveCmd.Flags().StringVar(&logFormat, "log-format", "", "log format (json, pretty) - overrides config")
-	serveCmd.Flags().BoolVar(&debugMode, "debug", false, "enable debug mode (sets log level to debug and enables all debug options)")
+	serveCmd.Flags().StringVar(&logLevel, "log-level", "",
+		"log level (debug, info, warn, error) - overrides config")
+	serveCmd.Flags().StringVar(&logFormat, "log-format", "",
+		"log format (json, pretty) - overrides config")
+	serveCmd.Flags().BoolVar(&debugMode, "debug", false,
+		"enable debug mode (sets log level to debug and enables all debug options)")
 }
 
+//nolint:gocognit,gocyclo // main server startup has necessary complexity
 func runServe(_ *cobra.Command, _ []string) error {
 	// Determine config path
 	configPath := cfgFile
@@ -81,9 +85,9 @@ func runServe(_ *cobra.Command, _ []string) error {
 	log.Logger = logger
 	zerolog.DefaultContextLogger = &logger
 
-	// Find first enabled provider (anthropic or zai)
-	var provider providers.Provider
-
+	// Collect all enabled providers
+	var allProviders []providers.Provider
+	var primaryProvider providers.Provider
 	var providerKey string
 
 	for _, p := range cfg.Providers {
@@ -91,31 +95,44 @@ func runServe(_ *cobra.Command, _ []string) error {
 			continue
 		}
 
+		var prov providers.Provider
 		switch p.Type {
 		case "anthropic":
-			provider = providers.NewAnthropicProvider(p.Name, p.BaseURL)
+			prov = providers.NewAnthropicProviderWithModels(p.Name, p.BaseURL, p.Models)
 		case "zai":
-			provider = providers.NewZAIProvider(p.Name, p.BaseURL)
+			prov = providers.NewZAIProviderWithModels(p.Name, p.BaseURL, p.Models)
 		default:
 			continue
 		}
 
-		if len(p.Keys) > 0 {
-			providerKey = p.Keys[0].Key
+		allProviders = append(allProviders, prov)
+
+		// First enabled provider becomes the primary (for routing requests)
+		if primaryProvider == nil {
+			primaryProvider = prov
+			if len(p.Keys) > 0 {
+				providerKey = p.Keys[0].Key
+			}
+			log.Info().
+				Str("provider", p.Name).
+				Str("type", p.Type).
+				Msg("using primary provider")
+		} else {
+			log.Info().
+				Str("provider", p.Name).
+				Str("type", p.Type).
+				Int("models", len(p.Models)).
+				Msg("registered provider for /v1/models")
 		}
-
-		log.Info().Str("provider", p.Name).Str("type", p.Type).Msg("using provider")
-
-		break
 	}
 
-	if provider == nil {
+	if primaryProvider == nil {
 		log.Error().Msg("no enabled provider found in config (supported types: anthropic, zai)")
 		return errors.New("no enabled provider in config")
 	}
 
-	// Setup routes
-	handler, err := proxy.SetupRoutes(cfg, provider, providerKey)
+	// Setup routes with all providers for /v1/models endpoint
+	handler, err := proxy.SetupRoutesWithProviders(cfg, primaryProvider, providerKey, allProviders)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to setup routes")
 		return err

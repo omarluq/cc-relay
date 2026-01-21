@@ -19,14 +19,14 @@ const (
 
 // Result contains the outcome of an authentication attempt.
 type Result struct {
-	// Valid indicates whether authentication succeeded.
-	Valid bool
 	// Type indicates which authentication method was used (or attempted).
 	Type Type
 	// Error contains the error message if authentication failed.
 	Error string
 	// Token contains the extracted token/key value (for logging, not validation).
 	Token string
+	// Valid indicates whether authentication succeeded.
+	Valid bool
 }
 
 // Authenticator defines the interface for authentication mechanisms.

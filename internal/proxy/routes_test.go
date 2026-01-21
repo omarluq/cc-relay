@@ -384,9 +384,9 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 	// Create mock backend server
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
-	defer backend.Close()
+	t.Cleanup(backend.Close)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -406,6 +406,7 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 
 	// Test 1: Bearer token should work
 	t.Run("bearer token works", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer test-bearer-token")
 		req.Header.Set("anthropic-version", "2023-06-01")
@@ -420,6 +421,7 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 
 	// Test 2: API key should work
 	t.Run("api key works", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key")
 		req.Header.Set("anthropic-version", "2023-06-01")
@@ -434,6 +436,7 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 
 	// Test 3: No credentials should fail
 	t.Run("no credentials fails", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 		req.Header.Set("anthropic-version", "2023-06-01")
 
@@ -672,9 +675,9 @@ func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
 	// Create mock backend server
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
-	defer backend.Close()
+	t.Cleanup(backend.Close)
 
 	// Test that both subscription and API key auth work together
 	cfg := &config.Config{
@@ -694,6 +697,7 @@ func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
 
 	// Test 1: Subscription token should work
 	t.Run("subscription token works", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer subscription-token")
 		req.Header.Set("anthropic-version", "2023-06-01")
@@ -708,6 +712,7 @@ func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
 
 	// Test 2: API key should work
 	t.Run("api key works", func(t *testing.T) {
+		t.Parallel()
 		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key")
 		req.Header.Set("anthropic-version", "2023-06-01")

@@ -40,7 +40,7 @@ func TestAPIKeyAuthenticator_Validate(t *testing.T) {
 
 	authenticator := auth.NewAPIKeyAuthenticator("test-api-key-12345")
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table struct alignment
 		name       string
 		apiKey     string
 		wantValid  bool
@@ -110,7 +110,7 @@ func TestAPIKeyAuthenticator_Type(t *testing.T) {
 func TestBearerAuthenticator_Validate(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table struct alignment
 		name       string
 		secret     string // empty means no validation
 		authHeader string
@@ -222,7 +222,7 @@ func TestChainAuthenticator_Validate(t *testing.T) {
 	// Chain: try bearer first, then api key
 	chainAuth := auth.NewChainAuthenticator(bearerAuth, apiKeyAuth)
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table struct alignment
 		name       string
 		apiKey     string
 		authHeader string
@@ -304,7 +304,7 @@ func TestChainAuthenticator_EmptyChain(t *testing.T) {
 
 	chainAuth := auth.NewChainAuthenticator() // No authenticators
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 	result := chainAuth.Validate(req)
 
 	if result.Valid {

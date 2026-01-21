@@ -21,6 +21,8 @@ const RequestIDKey ctxKey = "request_id"
 
 // NewLogger creates a zerolog.Logger from LoggingConfig.
 // Returns a configured logger ready for use as global logger.
+//
+//nolint:gocyclo // logger setup has necessary branching for format/output options
 func NewLogger(cfg config.LoggingConfig) (zerolog.Logger, error) {
 	// Determine output writer
 	var output io.Writer
@@ -35,7 +37,7 @@ func NewLogger(cfg config.LoggingConfig) (zerolog.Logger, error) {
 		outputFile = os.Stderr
 	default:
 		// File output
-		f, err := os.OpenFile(cfg.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		f, err := os.OpenFile(cfg.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
 			return zerolog.Logger{}, err
 		}

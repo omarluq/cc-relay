@@ -123,6 +123,8 @@ func RequestIDMiddleware() func(http.Handler) http.Handler {
 
 // LoggingMiddleware logs each request with method, path, and duration.
 // If debugOpts has debug logging enabled, logs additional request/response details.
+//
+//nolint:gocognit // logging middleware has necessary branching for different log levels
 func LoggingMiddleware(debugOpts config.DebugOptions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -248,10 +250,8 @@ func getBodyPreview(r *http.Request) string {
 	return preview
 }
 
-var (
-	// Match "api_key": "value" or "key": "value" patterns
-	apiKeyPattern = regexp.MustCompile(`("api_key"\s*:\s*")[^"]*(")|("key"\s*:\s*")[^"]*(")"`)
-)
+// Match "api_key": "value" or "key": "value" patterns.
+var apiKeyPattern = regexp.MustCompile(`("api_key"\s*:\s*")[^"]*(")|("key"\s*:\s*")[^"]*(")"`)
 
 // redactSensitiveFields replaces api_key and key values with [REDACTED].
 func redactSensitiveFields(s string) string {

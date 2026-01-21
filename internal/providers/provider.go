@@ -8,9 +8,9 @@ import "net/http"
 type Model struct {
 	ID       string `json:"id"`
 	Object   string `json:"object"`
-	Created  int64  `json:"created"`
 	OwnedBy  string `json:"owned_by"`
 	Provider string `json:"provider"`
+	Created  int64  `json:"created"`
 }
 
 // Provider defines the interface for LLM backend providers.

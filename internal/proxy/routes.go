@@ -28,7 +28,12 @@ func SetupRoutes(cfg *config.Config, provider providers.Provider, providerKey st
 //
 // The allProviders parameter is used for the /v1/models endpoint to list models
 // from all configured providers. If nil, only the primary provider's models are listed.
-func SetupRoutesWithProviders(cfg *config.Config, provider providers.Provider, providerKey string, allProviders []providers.Provider) (http.Handler, error) {
+func SetupRoutesWithProviders(
+	cfg *config.Config,
+	provider providers.Provider,
+	providerKey string,
+	allProviders []providers.Provider,
+) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Create proxy handler with debug options from config
