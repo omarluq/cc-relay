@@ -68,6 +68,11 @@ tasks:
       - go test -v -race -coverprofile={{.COVERAGE_FILE}} -covermode=atomic ./...
       - go tool cover -html={{.COVERAGE_FILE}} -o coverage.html
 
+  test-cluster:
+    desc: Run cache cluster integration tests
+    cmds:
+      - go test -tags=integration -v -timeout=120s ./internal/cache/... -run "TestOlricCluster"
+
   # Code quality (golangci-lint handles everything)
   lint:
     desc: Run golangci-lint
