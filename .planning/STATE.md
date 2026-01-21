@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 1 of 11 (Core Proxy)
-Plan: 3 of 5 in current phase
+Plan: 4 of 5 in current phase
 Status: In progress
-Last activity: 2026-01-21 — Completed 01-03-PLAN.md
+Last activity: 2026-01-21 — Completed 01-04-PLAN.md
 
-Progress: [██░░░░░░░░] 27% (3/11 plans)
+Progress: [███░░░░░░░] 36% (4/11 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 7 min
-- Total execution time: 0.33 hours
+- Total execution time: 0.47 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 (Core Proxy) | 3 | 20 min | 7 min |
+| 01 (Core Proxy) | 4 | 28 min | 7 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (8min), 01-02 (8min), 01-03 (4min)
-- Trend: Accelerating (last plan faster)
+- Last 5 plans: 01-01 (8min), 01-02 (8min), 01-03 (4min), 01-04 (8min)
+- Trend: Stable (consistent around 7min average)
 
 *Updated after each plan completion*
 
@@ -60,6 +60,12 @@ Recent decisions affecting current work:
 - Do not parse/modify request body to preserve tool_use_id
 - Use WriteError in ErrorHandler for Anthropic-format error responses
 
+**From 01-04 (Routing & CLI Integration):**
+- Config search order: --config flag > ./config.yaml > ~/.config/cc-relay/config.yaml
+- 30 second timeout for graceful shutdown (adequate for in-flight requests)
+- Use errors.Is for wrapped error checking (errorlint compliance)
+- Mock HTTP backends in tests to avoid real network calls
+
 ### Pending Todos
 
 None yet.
@@ -71,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01-03-PLAN.md (Proxy Handler & SSE Streaming)
+Stopped at: Completed 01-04-PLAN.md (Routing & CLI Integration)
 Resume file: None
