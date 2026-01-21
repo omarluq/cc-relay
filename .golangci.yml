@@ -14,7 +14,6 @@ issues:
 
 output:
   show-stats: true
-  sort-results: true
 
 linters:
   enable:
@@ -114,8 +113,6 @@ linters:
 
     misspell:
       locale: US
-      ignore-words:
-        - lefthook
 
     nakedret:
       max-func-lines: 30
@@ -161,68 +158,6 @@ linters:
         global:
           nosec: true
           audit: true
-
-    stylecheck:
-      checks:
-        - all
-        - -ST1000
-        - -ST1003
-        - -ST1016
-        - -ST1020
-        - -ST1021
-        - -ST1022
-      dot-import-whitelist:
-        - fmt
-      initialisms:
-        - ACL
-        - API
-        - ASCII
-        - CPU
-        - CSS
-        - DNS
-        - EOF
-        - GUID
-        - HTML
-        - HTTP
-        - HTTPS
-        - ID
-        - IP
-        - JSON
-        - QPS
-        - RAM
-        - RPC
-        - SLA
-        - SMTP
-        - SQL
-        - SSH
-        - TCP
-        - TLS
-        - TTL
-        - UDP
-        - UI
-        - GID
-        - UID
-        - UUID
-        - URI
-        - URL
-        - UTF8
-        - VM
-        - XML
-        - XMPP
-        - XSRF
-        - XSS
-        - SIP
-        - RTP
-        - AMQP
-        - DB
-        - TS
-
-    gci:
-      sections:
-        - standard
-        - default
-        - prefix(github.com/omarluq/cc-relay)
-      custom-order: true
 
     gocritic:
       enabled-tags:
