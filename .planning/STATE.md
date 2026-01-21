@@ -97,6 +97,11 @@ Recent decisions affecting current work:
 - Default Environment to "local" for development compatibility
 - Default quorum values to 1 for single-node operation
 
+**From 01.1-02 (Apply HA Config):**
+- Extract buildOlricConfig helper to centralize config building
+- Only set non-zero values to preserve Olric internal defaults
+- Add EnvLocal, EnvLAN, EnvWAN constants for type safety
+
 **From 01.1-03 (Cluster Membership Helpers):**
 - Stats API returns 0 in embedded test mode (Olric limitation with external interface)
 - ClusterInfo methods return safe defaults (empty string, 0) when stats unavailable
