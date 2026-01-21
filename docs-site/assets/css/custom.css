@@ -1,3 +1,34 @@
+/* ========================================
+   Recursive Variable Font
+   Loaded via layouts/partials/custom/head-end.html
+   ======================================== */
+
+:root {
+  --font-sans: 'Recursive', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: 'Recursive', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Apply Recursive font globally */
+body {
+  font-family: var(--font-sans);
+  font-variation-settings: 'MONO' 0, 'CASL' 0, 'slnt' 0, 'CRSV' 0;
+}
+
+/* Monospace variant for code */
+code, pre, kbd, samp,
+.code, .mono,
+code[class*="language-"],
+pre[class*="language-"] {
+  font-family: var(--font-mono);
+  font-variation-settings: 'MONO' 1, 'CASL' 0, 'slnt' 0, 'CRSV' 0;
+}
+
+/* Headings - slightly casual */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-variation-settings: 'MONO' 0, 'CASL' 0.3, 'slnt' 0, 'CRSV' 0;
+}
+
 /* CC-Relay Landing Page Custom Styles */
 /* All styles scoped to .landing-page class to avoid affecting documentation */
 
