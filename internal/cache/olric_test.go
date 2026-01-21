@@ -576,3 +576,115 @@ func BenchmarkOlricCache_Mixed(b *testing.B) {
 		}
 	})
 }
+
+func TestOlricCache_ClusterInfo(t *testing.T) {
+	cache := newTestOlricCache(t)
+
+	// Type assert to ClusterInfo
+	ci, ok := interface{}(cache).(ClusterInfo)
+	if !ok {
+		t.Fatal("olricCache should implement ClusterInfo")
+	}
+
+	// Test IsEmbedded
+	if !ci.IsEmbedded() {
+		t.Error("IsEmbedded should return true for embedded cache")
+	}
+
+	// Test ClusterMembers - for embedded mode stats may not be available
+	// via the external interface (requires cluster client connection)
+	members := ci.ClusterMembers()
+	t.Logf("ClusterMembers returned %d", members)
+	// Note: In embedded mode with no external listener configured,
+	// Stats() call may fail since it tries to connect via external port.
+	// The method returns 0 on error which is acceptable behavior.
+
+	// Test MemberlistAddr - same limitation applies
+	addr := ci.MemberlistAddr()
+	if addr == "" {
+		t.Log("MemberlistAddr returned empty (expected for embedded mode without external stats)")
+	} else {
+		t.Logf("MemberlistAddr: %s", addr)
+	}
+
+	// The key behavior we verify:
+	// 1. Interface is implemented (compile-time and runtime check)
+	// 2. IsEmbedded correctly identifies embedded mode
+	// 3. Methods don't panic and return safe defaults when stats unavailable
+}
+
+func TestOlricCache_ClusterInfo_ClientMode(t *testing.T) {
+	// Skip this test in CI - requires external Olric cluster
+	// This documents expected behavior for client mode
+	t.Skip("Skipping client mode test - requires external Olric cluster")
+
+	// In client mode (db == nil), all ClusterInfo methods should return zero/empty values
+	// This is intentional - client doesn't know about memberlist details
+}
+
+func TestOlricCache_GracefulShutdown(t *testing.T) {
+	port := getNextPort()
+	cfg := OlricConfig{
+		DMapName:     fmt.Sprintf("shutdown-test-%d", port),
+		Embedded:     true,
+		BindAddr:     fmt.Sprintf("127.0.0.1:%d", port),
+		LeaveTimeout: 2 * time.Second, // Short timeout for test
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cache, err := newOlricCache(ctx, &cfg)
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+
+	// Set some data
+	err = cache.Set(ctx, "key", []byte("value"))
+	if err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	// Time the shutdown - should complete within LeaveTimeout + overhead
+	start := time.Now()
+	err = cache.Close()
+	duration := time.Since(start)
+
+	if err != nil {
+		t.Errorf("Close returned error: %v", err)
+	}
+
+	// Shutdown should complete reasonably quickly for single node
+	// (no leave broadcast needed when no other members)
+	if duration > 5*time.Second {
+		t.Errorf("Close took %v, expected < 5s for single node", duration)
+	}
+
+	t.Logf("Graceful shutdown completed in %v", duration)
+}
+
+func TestOlricCache_ClusterInfo_AfterClose(t *testing.T) {
+	cache := newTestOlricCache(t)
+
+	// Close the cache first
+	err := cache.Close()
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	// ClusterInfo methods should return zero values after close
+	ci := cache
+
+	if ci.MemberlistAddr() != "" {
+		t.Error("MemberlistAddr should return empty string after close")
+	}
+
+	if ci.ClusterMembers() != 0 {
+		t.Error("ClusterMembers should return 0 after close")
+	}
+
+	// IsEmbedded should still return true (it's a static property)
+	if !ci.IsEmbedded() {
+		t.Error("IsEmbedded should still return true after close")
+	}
+}
