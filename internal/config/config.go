@@ -1,6 +1,12 @@
 // Package config provides configuration loading and parsing for cc-relay.
 package config
 
+import (
+	"strings"
+
+	"github.com/rs/zerolog"
+)
+
 // Config represents the complete cc-relay configuration.
 type Config struct {
 	Logging   LoggingConfig    `yaml:"logging"`
@@ -35,6 +41,25 @@ type KeyConfig struct {
 
 // LoggingConfig defines logging behavior.
 type LoggingConfig struct {
-	Level  string `yaml:"level"`
-	Format string `yaml:"format"`
+	Level  string `yaml:"level"`  // debug, info, warn, error
+	Format string `yaml:"format"` // json, console
+	Output string `yaml:"output"` // stdout, stderr, or file path
+	Pretty bool   `yaml:"pretty"` // enable colored console output
+}
+
+// ParseLevel converts a string log level to zerolog.Level.
+// Returns zerolog.InfoLevel if the level string is invalid.
+func (l *LoggingConfig) ParseLevel() zerolog.Level {
+	switch strings.ToLower(l.Level) {
+	case "debug":
+		return zerolog.DebugLevel
+	case "info":
+		return zerolog.InfoLevel
+	case "warn":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	default:
+		return zerolog.InfoLevel
+	}
 }
