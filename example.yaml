@@ -81,7 +81,13 @@ providers:
   - name: "anthropic-pool"
     type: "anthropic"
     enabled: true
-    
+
+    # Models available from this provider (shown in /v1/models endpoint)
+    models:
+      - "claude-sonnet-4-5-20250514"
+      - "claude-opus-4-5-20250514"
+      - "claude-haiku-3-5-20241022"
+
     # Multiple API keys for rate limit pooling
     keys:
       - key: "${ANTHROPIC_API_KEY}"
@@ -99,10 +105,15 @@ providers:
     type: "zai"
     enabled: true
     base_url: "https://api.z.ai/api/anthropic"
-    
+
+    # Models available from Z.AI (shown in /v1/models endpoint)
+    models:
+      - "GLM-4.7"
+      - "GLM-4.5-Air"
+
     keys:
       - key: "${ZAI_API_KEY}"
-    
+
     # Map Anthropic model names to Z.AI models
     model_mapping:
       "claude-sonnet-4-5-20250929": "GLM-4.7"
