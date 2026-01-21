@@ -37,7 +37,7 @@ params:
 
   # Open Graph / Social Media Cards
   images:
-    - /og-image.png
+    - https://omarluq.github.io/cc-relay/og-image.png
 
   navbar:
     displayTitle: true
@@ -67,4 +67,4 @@ params:
     links:
       - rel: "icon"
         type: "image/svg+xml"
-        href: "/favicon.svg"
+        href: "/cc-relay/favicon.svg"
