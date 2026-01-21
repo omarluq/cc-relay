@@ -37,7 +37,7 @@ Claude Code connects to one provider at a time. But what if you want to:
 
 ```bash
 # Install
-go install github.com/omarish/cc-relay@latest
+go install github.com/omarluq/cc-relay@latest
 
 # Create config
 mkdir -p ~/.config/cc-relay
