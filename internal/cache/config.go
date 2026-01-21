@@ -23,6 +23,16 @@ const (
 	ModeDisabled Mode = "disabled"
 )
 
+// Environment constants for Olric memberlist presets.
+const (
+	// EnvLocal is for local development (fast failure detection).
+	EnvLocal = "local"
+	// EnvLAN is for LAN environments (default memberlist settings).
+	EnvLAN = "lan"
+	// EnvWAN is for WAN environments (longer timeouts for higher latency).
+	EnvWAN = "wan"
+)
+
 // Config defines cache configuration.
 // Use Validate() to check for configuration errors before creating a cache.
 type Config struct {
@@ -94,7 +104,7 @@ func (o *OlricConfig) Validate() error {
 // validateEnvironment checks Environment field.
 func (o *OlricConfig) validateEnvironment() error {
 	switch o.Environment {
-	case "", "local", "lan", "wan":
+	case "", EnvLocal, EnvLAN, EnvWAN:
 		return nil
 	default:
 		return errors.New(`cache: olric.environment must be "local", "lan", or "wan"`)

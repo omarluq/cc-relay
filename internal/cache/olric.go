@@ -38,7 +38,7 @@ func buildOlricConfig(cfg *OlricConfig) *olricconfig.Config {
 	// Select environment preset - determines memberlist timeouts, gossip intervals
 	env := cfg.Environment
 	if env == "" {
-		env = "local"
+		env = EnvLocal
 	}
 
 	c := olricconfig.New(env)
@@ -185,7 +185,7 @@ func newEmbeddedOlricCache(
 	// Determine environment for logging (matching buildOlricConfig logic)
 	env := cfg.Environment
 	if env == "" {
-		env = "local"
+		env = EnvLocal
 	}
 
 	lg.Info().
