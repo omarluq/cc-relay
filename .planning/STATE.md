@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 1 of 11 (Core Proxy)
-Plan: 4 of 5 in current phase
-Status: In progress
-Last activity: 2026-01-21 — Completed 01-04-PLAN.md
+Plan: 5 of 5 in current phase
+Status: Phase complete
+Last activity: 2026-01-21 — Completed 01-05-PLAN.md (Integration Testing)
 
-Progress: [███░░░░░░░] 36% (4/11 plans)
+Progress: [████░░░░░░] 45% (5/11 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 7 min
-- Total execution time: 0.47 hours
+- Total plans completed: 5
+- Average duration: 8 min
+- Total execution time: 0.72 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 (Core Proxy) | 4 | 28 min | 7 min |
+| 01 (Core Proxy) | 5 | 43 min | 9 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (8min), 01-02 (8min), 01-03 (4min), 01-04 (8min)
-- Trend: Stable (consistent around 7min average)
+- Last 5 plans: 01-01 (11min), 01-02 (8min), 01-03 (4min), 01-04 (8min), 01-05 (15min)
+- Trend: Stable with variance (simple tasks 4-8min, complex tasks 11-15min)
 
 *Updated after each plan completion*
 
@@ -66,6 +66,12 @@ Recent decisions affecting current work:
 - Use errors.Is for wrapped error checking (errorlint compliance)
 - Mock HTTP backends in tests to avoid real network calls
 
+**From 01-05 (Integration Testing):**
+- Use build tag 'integration' to separate integration tests from unit tests
+- Skip tests when ANTHROPIC_API_KEY not set (no CI failures without credentials)
+- Verify streaming behavior by checking event timing and sequence
+- Test tool_use_id preservation with actual tool calling flow
+
 ### Pending Todos
 
 None yet.
@@ -77,5 +83,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01-04-PLAN.md (Routing & CLI Integration)
+Stopped at: Completed 01-05-PLAN.md (Integration Testing) - **PHASE 1 COMPLETE**
 Resume file: None
+
+**Phase 1 (Core Proxy) Milestone:**
+- All 5 plans completed successfully
+- Full end-to-end proxy working with real Anthropic API
+- Ready to begin Phase 2 (Multi-key pooling & rate limiting)
