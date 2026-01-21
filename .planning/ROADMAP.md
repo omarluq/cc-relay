@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Core Proxy (MVP)** - Establish working proxy with exact Anthropic API compatibility
 - [x] **Phase 1.1: Embedded HA Cache Clustering** - Enable cc-relay to form HA clusters with embedded Olric (INSERTED)
-- [ ] **Phase 1.2: Cache Documentation** - Comprehensive cache system documentation (keys, strategies, adapters, extensibility) (INSERTED)
+- [x] **Phase 1.2: Cache Documentation** - Comprehensive cache system documentation (keys, strategies, adapters, extensibility) (INSERTED)
 - [ ] **Phase 1.3: Site Documentation Update** - Update all site docs in all languages (INSERTED)
 - [ ] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
 - [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
@@ -84,7 +84,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 01.2-01-PLAN.md - Comprehensive cache documentation (keys, strategies, adapters, HA clustering, troubleshooting)
+- [x] 01.2-01-PLAN.md - Comprehensive cache documentation (keys, strategies, adapters, HA clustering, troubleshooting)
 
 ### Phase 1.3: Site Documentation Update (INSERTED)
 **Goal**: Update all site documentation in all supported languages to reflect current implementation
@@ -276,7 +276,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 3 -> 4 -> 5 -> 6
 |-------|----------------|--------|-----------|
 | 1. Core Proxy (MVP) | 8/9 | In progress | - |
 | 1.1 Embedded HA Cache (INSERTED) | 4/4 | Complete | 2026-01-21 |
-| 1.2 Cache Documentation (INSERTED) | 0/1 | Planned | - |
+| 1.2 Cache Documentation (INSERTED) | 1/1 | Complete | 2026-01-21 |
 | 1.3 Site Docs Update (INSERTED) | 0/1 | Not started | - |
 | 2. Multi-Key Pooling | 0/TBD | Not started | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
