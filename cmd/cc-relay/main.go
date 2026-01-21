@@ -2,10 +2,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/providers"
@@ -62,9 +68,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create server (Task 3 will add startup and shutdown)
+	// Create server
 	server := proxy.NewServer(cfg.Server.Listen, handler)
-	_ = server // Used in Task 3
+
+	// Graceful shutdown on SIGINT/SIGTERM
+	done := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
+		<-sigint
+
+		slog.Info("shutting down...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(ctx); err != nil {
+			slog.Error("shutdown error", "error", err)
+		}
+
+		close(done)
+	}()
+
+	// Start server
+	slog.Info("starting cc-relay", "listen", cfg.Server.Listen)
+
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.Error("server error", "error", err)
+		os.Exit(1)
+	}
+
+	<-done
+	slog.Info("server stopped")
 }
 
 // findConfigFile searches for config.yaml in default locations.
