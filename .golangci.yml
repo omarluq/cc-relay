@@ -1,4 +1,7 @@
 # golangci-lint configuration for cc-relay
+# v2 format for golangci-lint v2.8.0+
+
+version: "2"
 
 run:
   timeout: 5m
@@ -8,32 +11,10 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
   new: false
-  exclude-rules:
-    - path: ".*\\.pb\\.go$"
-      linters:
-        - all
-    - path: ".*_generated\\.go$"
-      linters:
-        - all
-    - path: "_test\\.go$"
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - goconst
-        - testpackage
-        - paralleltest
-        - thelper
-        - noctx
-    - source: "^//go:generate "
-      linters:
-        - lll
 
 output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
+  show-stats: true
+  sort-results: true
 
 linters:
   enable:
@@ -89,159 +70,170 @@ linters:
     - funlen
     - cyclop
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    exclude-functions:
-      - io/ioutil.ReadFile
-      - io.Copy(*bytes.Buffer)
-      - io.Copy(os.Stdout)
-
-  govet:
-    enable-all: true
-    disable:
-      - shadow
-
-  gocyclo:
-    min-complexity: 15
-
-  gocognit:
-    min-complexity: 20
-
-  dupl:
-    threshold: 100
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-
-  lll:
-    line-length: 120
-    tab-width: 4
-
-  misspell:
-    locale: US
-    ignore-words:
-      - lefthook
-
-  nakedret:
-    max-func-lines: 30
-
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: true
-
-  revive:
-    confidence: 0.8
+  exclusions:
     rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
+      - linters: [all]
+        path: ".*\\.pb\\.go$"
+      - linters: [all]
+        path: ".*_generated\\.go$"
+      - linters: [gocyclo, errcheck, dupl, gosec, goconst, testpackage, paralleltest, thelper, noctx]
+        path: "_test\\.go$"
+      - linters: [lll]
+        source: "^//go:generate "
 
-  gosec:
-    excludes:
-      - G104
-      - G304
-    config:
-      global:
-        nosec: true
-        audit: true
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - io/ioutil.ReadFile
+        - io.Copy(*bytes.Buffer)
+        - io.Copy(os.Stdout)
 
-  stylecheck:
-    checks:
-      - all
-      - -ST1000
-      - -ST1003
-      - -ST1016
-      - -ST1020
-      - -ST1021
-      - -ST1022
-    dot-import-whitelist:
-      - fmt
-    initialisms:
-      - ACL
-      - API
-      - ASCII
-      - CPU
-      - CSS
-      - DNS
-      - EOF
-      - GUID
-      - HTML
-      - HTTP
-      - HTTPS
-      - ID
-      - IP
-      - JSON
-      - QPS
-      - RAM
-      - RPC
-      - SLA
-      - SMTP
-      - SQL
-      - SSH
-      - TCP
-      - TLS
-      - TTL
-      - UDP
-      - UI
-      - GID
-      - UID
-      - UUID
-      - URI
-      - URL
-      - UTF8
-      - VM
-      - XML
-      - XMPP
-      - XSRF
-      - XSS
-      - SIP
-      - RTP
-      - AMQP
-      - DB
-      - TS
+    govet:
+      enable-all: true
+      disable:
+        - shadow
 
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/omarluq/cc-relay)
-    custom-order: true
+    gocyclo:
+      min-complexity: 15
 
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - wrapperFunc
+    gocognit:
+      min-complexity: 20
+
+    dupl:
+      threshold: 100
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    lll:
+      line-length: 120
+      tab-width: 4
+
+    misspell:
+      locale: US
+      ignore-words:
+        - lefthook
+
+    nakedret:
+      max-func-lines: 30
+
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: true
+
+    revive:
+      confidence: 0.8
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+    gosec:
+      excludes:
+        - G104
+        - G304
+      config:
+        global:
+          nosec: true
+          audit: true
+
+    stylecheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+      dot-import-whitelist:
+        - fmt
+      initialisms:
+        - ACL
+        - API
+        - ASCII
+        - CPU
+        - CSS
+        - DNS
+        - EOF
+        - GUID
+        - HTML
+        - HTTP
+        - HTTPS
+        - ID
+        - IP
+        - JSON
+        - QPS
+        - RAM
+        - RPC
+        - SLA
+        - SMTP
+        - SQL
+        - SSH
+        - TCP
+        - TLS
+        - TTL
+        - UDP
+        - UI
+        - GID
+        - UID
+        - UUID
+        - URI
+        - URL
+        - UTF8
+        - VM
+        - XML
+        - XMPP
+        - XSRF
+        - XSS
+        - SIP
+        - RTP
+        - AMQP
+        - DB
+        - TS
+
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/omarluq/cc-relay)
+      custom-order: true
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+        - whyNoLint
+        - wrapperFunc
