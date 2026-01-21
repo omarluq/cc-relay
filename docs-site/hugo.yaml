@@ -209,10 +209,8 @@ params:
   editURL:
     enable: false
 
-  # Custom CSS and favicon
+  # Custom favicon (custom.css is auto-loaded from assets/css/)
   head:
-    css:
-      - "css/custom.css"
     links:
       - rel: "icon"
         type: "image/svg+xml"
