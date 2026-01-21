@@ -26,8 +26,6 @@ linters:
     - unused
 
     # Additional quality linters
-    - gofmt
-    - goimports
     - revive
     - gosec
     - bodyclose
