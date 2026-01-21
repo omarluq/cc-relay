@@ -13,7 +13,9 @@ cc-relay evolves from a basic single-provider proxy (Phase 1) to a production-re
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Core Proxy (MVP)** - Establish working proxy with exact Anthropic API compatibility
-- [ ] **Phase 1.1: Embedded HA Cache Clustering** - Enable cc-relay to form HA clusters with embedded Olric (INSERTED)
+- [x] **Phase 1.1: Embedded HA Cache Clustering** - Enable cc-relay to form HA clusters with embedded Olric (INSERTED)
+- [ ] **Phase 1.2: Cache Documentation** - Comprehensive cache system documentation (keys, strategies, adapters, extensibility) (INSERTED)
+- [ ] **Phase 1.3: Site Documentation Update** - Update all site docs in all languages (INSERTED)
 - [ ] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
 - [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
@@ -63,10 +65,40 @@ Plans:
 **Plans**: 4 plans in 3 waves
 
 Plans:
-- [ ] 01.1-01-PLAN.md - Extend OlricConfig with HA settings (environment, replication, quorum)
-- [ ] 01.1-02-PLAN.md - Apply HA config in embedded node creation (buildOlricConfig helper)
-- [ ] 01.1-03-PLAN.md - Cluster membership helpers and graceful shutdown verification
-- [ ] 01.1-04-PLAN.md - Integration tests for multi-node clustering
+- [x] 01.1-01-PLAN.md - Extend OlricConfig with HA settings (environment, replication, quorum)
+- [x] 01.1-02-PLAN.md - Apply HA config in embedded node creation (buildOlricConfig helper)
+- [x] 01.1-03-PLAN.md - Cluster membership helpers and graceful shutdown verification
+- [x] 01.1-04-PLAN.md - Integration tests for multi-node clustering
+
+### Phase 1.2: Cache Documentation (INSERTED)
+**Goal**: Create comprehensive documentation for the cache system covering keys, busting strategies, adapters, and extensibility
+**Depends on**: Phase 1.1 (cache system fully implemented)
+**Requirements**: DOC-CACHE-01
+**Success Criteria** (what must be TRUE):
+  1. Cache key naming conventions documented with examples
+  2. Cache busting strategies documented (TTL, manual invalidation, cluster events)
+  3. Cache adapter interface documented with implementation guide
+  4. How to extend cache with new backends (Redis, Memcached) documented
+  5. HA clustering configuration documented with examples
+  6. Troubleshooting guide for common cache issues
+**Plans**: TBD
+
+Plans:
+- [ ] 01.2-01-PLAN.md - Cache documentation (keys, strategies, adapters, extensibility)
+
+### Phase 1.3: Site Documentation Update (INSERTED)
+**Goal**: Update all site documentation in all supported languages to reflect current implementation
+**Depends on**: Phase 1.2 (cache docs complete)
+**Requirements**: DOC-SITE-01
+**Success Criteria** (what must be TRUE):
+  1. English documentation updated with all new features
+  2. All other language translations updated (i18n)
+  3. Cache documentation included in site docs
+  4. Configuration examples updated for HA clustering
+**Plans**: TBD
+
+Plans:
+- [ ] 01.3-01-PLAN.md - Update site docs in all languages
 
 ### Phase 2: Multi-Key Pooling
 **Goal**: Enable multiple API keys per provider with rate limit tracking (RPM/TPM) and intelligent key selection
@@ -238,12 +270,14 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core Proxy (MVP) | 8/9 | In progress | - |
-| 1.1 Embedded HA Cache (INSERTED) | 0/4 | Not started | - |
+| 1.1 Embedded HA Cache (INSERTED) | 4/4 | Complete | 2026-01-21 |
+| 1.2 Cache Documentation (INSERTED) | 0/1 | Not started | - |
+| 1.3 Site Docs Update (INSERTED) | 0/1 | Not started | - |
 | 2. Multi-Key Pooling | 0/TBD | Not started | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
