@@ -492,6 +492,62 @@ Ristretto uses admission policy that may reject items to maintain high hit rates
 
 4. **Monitor with metrics**: Track `BytesUsed` to understand actual memory consumption.
 
+### Nodes Cannot Join Cluster
+
+**Symptom:** Nodes start but don't discover each other.
+
+**Causes and Solutions:**
+
+1. **Wrong peer port:** Peers must use memberlist port (bind_addr + 2), not Olric port.
+   ```yaml
+   # Wrong
+   peers:
+     - "other-node:3320"  # This is the Olric port
+
+   # Correct
+   peers:
+     - "other-node:3322"  # Memberlist port = 3320 + 2
+   ```
+
+2. **Firewall blocking:** Ensure both Olric and memberlist ports are open.
+   ```bash
+   # Check connectivity
+   nc -zv other-node 3320  # Olric port
+   nc -zv other-node 3322  # Memberlist port
+   ```
+
+3. **DNS resolution:** Verify hostnames resolve correctly.
+   ```bash
+   getent hosts other-node
+   ```
+
+4. **Environment mismatch:** All nodes must use the same `environment` setting.
+
+### Quorum Errors
+
+**Symptom:** "not enough members" or operations fail despite nodes being up.
+
+**Solution:** Ensure `member_count_quorum` is less than or equal to actual running nodes.
+
+```yaml
+# For 2-node cluster
+member_count_quorum: 2  # Requires both nodes
+
+# For 3-node cluster with 1-node fault tolerance
+member_count_quorum: 2  # Allows 1 node to be down
+```
+
+### Data Not Replicated
+
+**Symptom:** Data disappears when a node goes down.
+
+**Solution:** Ensure `replica_count` > 1 and have enough nodes.
+
+```yaml
+replica_count: 2          # Store 2 copies
+member_count_quorum: 2    # Need 2 nodes to write
+```
+
 ## Error Handling
 
 The cache package defines standard errors for common conditions:
