@@ -1,24 +1,247 @@
 # golangci-lint configuration for cc-relay
-# Comprehensive linting rules for Go code quality
+# Configuration format for golangci-lint v2.x
 
-version: 2
+version: "2"
 
 run:
   timeout: 5m
   tests: true
-  build-tags:
-    - integration
 
 issues:
-  exclude-dirs:
-    - vendor
-    - third_party
-    - go
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*_generated\\.go$"
-  exclude-rules:
-    - path: _test\.go
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+output:
+  formats: text
+  sort-order:
+    - linter
+    - file
+  show-stats: true
+
+linters:
+  default: standard
+  enable:
+    # Core linters
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Additional quality linters
+    - gofmt
+    - goimports
+    - revive
+    - gosec
+    - bodyclose
+    - dupl
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - errname
+    - errorlint
+    - exhaustive
+    - gci
+    - gocognit
+    - goprintffuncname
+    - lll
+    - misspell
+    - nakedret
+    - nilerr
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - stylecheck
+    - thelper
+    - unconvert
+    - unparam
+    - whitespace
+    - wsl
+    - testpackage
+    - paralleltest
+    - tparallel
+    - wastedassign
+    - nilnil
+
+  disable:
+    - exhaustruct
+    - varnamelen
+    - forbidigo
+    - funlen
+    - cyclop
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - io/ioutil.ReadFile
+        - io.Copy(*bytes.Buffer)
+        - io.Copy(os.Stdout)
+
+    govet:
+      enable-all: true
+      disable:
+        - shadow
+
+    gocyclo:
+      min-complexity: 15
+
+    gocognit:
+      min-complexity: 20
+
+    dupl:
+      threshold: 100
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    lll:
+      line-length: 120
+      tab-width: 4
+
+    misspell:
+      locale: US
+      ignore-words:
+        - lefthook
+
+    nakedret:
+      max-func-lines: 30
+
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: true
+
+    revive:
+      confidence: 0.8
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+
+    gosec:
+      excludes:
+        - G104
+        - G304
+      config:
+        global:
+          nosec: true
+          audit: true
+
+    stylecheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+      dot-import-whitelist:
+        - fmt
+      initialisms:
+        - ACL
+        - API
+        - ASCII
+        - CPU
+        - CSS
+        - DNS
+        - EOF
+        - GUID
+        - HTML
+        - HTTP
+        - HTTPS
+        - ID
+        - IP
+        - JSON
+        - QPS
+        - RAM
+        - RPC
+        - SLA
+        - SMTP
+        - SQL
+        - SSH
+        - TCP
+        - TLS
+        - TTL
+        - UDP
+        - UI
+        - GID
+        - UID
+        - UUID
+        - URI
+        - URL
+        - UTF8
+        - VM
+        - XML
+        - XMPP
+        - XSRF
+        - XSS
+        - SIP
+        - RTP
+        - AMQP
+        - DB
+        - TS
+
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/omarluq/cc-relay)
+      custom-order: true
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+        - whyNoLint
+        - wrapperFunc
+
+  exclusions:
+    - mode: file
+      patterns:
+        - ".*\\.pb\\.go$"
+        - ".*_generated\\.go$"
+      linters:
+        - all
+
+    - mode: path
+      patterns:
+        - "_test\\.go$"
       linters:
         - gocyclo
         - errcheck
@@ -29,189 +252,21 @@ issues:
         - paralleltest
         - thelper
         - noctx
-    - path: ".*\\.pb\\.go$"
+
+    - mode: source
+      patterns:
+        - "^//go:generate "
       linters:
-        - all
-    - linters:
         - lll
-      source: "^//go:generate "
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  new: false
 
-output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-  sort-results: true
-
-linters:
-  enable:
-    # Default enabled linters
-    - errcheck      # Check for unchecked errors
-    - gosimple      # Simplify code
-    - govet         # Report suspicious constructs
-    - ineffassign   # Detect ineffectual assignments
-    - staticcheck   # Go static analysis
-    - unused        # Check for unused constants, variables, functions and types
-
-    # Additional quality linters
-    - gofmt         # Checks whether code was gofmt-ed
-    - goimports     # Check import statements are formatted
-    - revive        # Fast, configurable, extensible, flexible drop-in replacement for golint
-    - gosec         # Security issues
-    - bodyclose     # Checks whether HTTP response body is closed
-    - dupl          # Code clone detection
-    - goconst       # Finds repeated strings that could be replaced by a constant
-    - gocritic      # Provides diagnostics that check for bugs, performance and style issues
-    - gocyclo       # Computes and checks the cyclomatic complexity of functions
-    - godot         # Check if comments end in a period
-    - errname       # Checks that sentinel errors are prefixed with Err and error types are suffixed with Error
-    - errorlint     # Find code that will cause problems with Go 1.13 error wrapping scheme
-    - exhaustive    # Check exhaustiveness of enum switch statements
-    - gci           # Controls golang package import order and makes it always deterministic
-    - gocognit      # Computes and checks the cognitive complexity of functions
-    - goheader      # Checks is file header matches pattern
-    - goprintffuncname # Checks that printf-like functions are named with f at the end
-    - lll           # Reports long lines
-    - misspell      # Finds commonly misspelled English words in comments
-    - nakedret      # Finds naked returns in functions greater than a specified function length
-    - nilerr        # Finds the code that returns nil even if it checks that the error is not nil
-    - noctx         # Finds sending http request without context.Context
-    - nolintlint    # Reports ill-formed or insufficient nolint directives
-    - prealloc      # Finds slice declarations that could potentially be pre-allocated
-    - predeclared   # Find code that shadows one of Go's predeclared identifiers
-    - stylecheck    # Stylecheck is a replacement for golint
-    - thelper       # Detects golang test helpers without t.Helper() call
-    - unconvert     # Remove unnecessary type conversions
-    - unparam       # Reports unused function parameters
-    - whitespace    # Detection of leading and trailing whitespace
-    - wsl           # Whitespace Linter
-    - testpackage   # Makes you use a separate _test package
-    - paralleltest  # Detects missing usage of t.Parallel() method in tests
-    - tparallel     # Detects inappropriate usage of t.Parallel() method in tests
-    - wastedassign  # Finds wasted assignment statements
-    - nilnil        # Checks that there is no simultaneous return of nil error and an invalid value
-
-  disable:
-    - exhaustruct   # Too strict for general use
-    - varnamelen    # Too opinionated
-    - forbidigo     # Not needed
-    - funlen        # Too strict
-    - cyclop        # Duplicate of gocyclo
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    exclude-functions:
-      - io/ioutil.ReadFile
-      - io.Copy(*bytes.Buffer)
-      - io.Copy(os.Stdout)
-
-  govet:
-    enable-all: true
-    disable:
-      - shadow  # Too strict
-
-  gocyclo:
-    min-complexity: 15
-
-  gocognit:
-    min-complexity: 20
-
-  dupl:
-    threshold: 100
-
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-
-  lll:
-    line-length: 120
-    tab-width: 4
-
-  misspell:
-    locale: US
-    ignore-words:
-      - lefthook
-
-  nakedret:
-    max-func-lines: 30
-
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: true
-
-  revive:
-    confidence: 0.8
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
-
-  gosec:
-    excludes:
-      - G104  # Audit errors not checked (covered by errcheck)
-      - G304  # File inclusion via variable (acceptable for config loading)
-    config:
-      global:
-        nosec: true
-        audit: true
-
-  stylecheck:
-    checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
-    dot-import-whitelist:
-      - fmt
-    initialisms: ["ACL", "API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "QPS", "RAM", "RPC", "SLA", "SMTP", "SQL", "SSH", "TCP", "TLS", "TTL", "UDP", "UI", "GID", "UID", "UUID", "URI", "URL", "UTF8", "VM", "XML", "XMPP", "XSRF", "XSS", "SIP", "RTP", "AMQP", "DB", "TS"]
-    http-status-code-whitelist: ["200", "400", "404", "500"]
-
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/omarluq/cc-relay)
-    custom-order: true
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - wrapperFunc
+    - mode: directory
+      patterns:
+        - vendor
+        - third_party
+        - go
 
 severity:
-  default-severity: warning
+  default: warning
   rules:
     - linters:
         - gosec
