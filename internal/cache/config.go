@@ -67,6 +67,54 @@ type OlricConfig struct {
 	Embedded          bool          `yaml:"embedded"`
 }
 
+// Validate checks OlricConfig for errors.
+func (o *OlricConfig) Validate() error {
+	// Validate connection mode
+	if !o.Embedded && len(o.Addresses) == 0 {
+		return errors.New("cache: olric.addresses required when not embedded")
+	}
+	if o.Embedded && o.BindAddr == "" {
+		return errors.New("cache: olric.bind_addr required when embedded")
+	}
+	// Validate Environment
+	if err := o.validateEnvironment(); err != nil {
+		return err
+	}
+	// Validate quorum relationships
+	if err := o.validateQuorum(); err != nil {
+		return err
+	}
+	// Validate timeouts
+	if o.LeaveTimeout < 0 {
+		return errors.New("cache: olric.leave_timeout cannot be negative")
+	}
+	return nil
+}
+
+// validateEnvironment checks Environment field.
+func (o *OlricConfig) validateEnvironment() error {
+	switch o.Environment {
+	case "", "local", "lan", "wan":
+		return nil
+	default:
+		return errors.New(`cache: olric.environment must be "local", "lan", or "wan"`)
+	}
+}
+
+// validateQuorum checks quorum field relationships.
+func (o *OlricConfig) validateQuorum() error {
+	if o.WriteQuorum > 0 && o.ReplicaCount > 0 && o.WriteQuorum > o.ReplicaCount {
+		return errors.New("cache: olric.write_quorum cannot exceed replica_count")
+	}
+	if o.ReadQuorum > 0 && o.ReplicaCount > 0 && o.ReadQuorum > o.ReplicaCount {
+		return errors.New("cache: olric.read_quorum cannot exceed replica_count")
+	}
+	if o.MemberCountQuorum < 0 {
+		return errors.New("cache: olric.member_count_quorum cannot be negative")
+	}
+	return nil
+}
+
 // Validate checks the configuration for errors.
 // Returns nil if the configuration is valid.
 func (c *Config) Validate() error {
@@ -79,11 +127,8 @@ func (c *Config) Validate() error {
 			return errors.New("cache: ristretto.num_counters must be positive")
 		}
 	case ModeHA:
-		if !c.Olric.Embedded && len(c.Olric.Addresses) == 0 {
-			return errors.New("cache: olric.addresses required when not embedded")
-		}
-		if c.Olric.Embedded && c.Olric.BindAddr == "" {
-			return errors.New("cache: olric.bind_addr required when embedded")
+		if err := c.Olric.Validate(); err != nil {
+			return err
 		}
 	case ModeDisabled:
 		// No validation needed for disabled mode
