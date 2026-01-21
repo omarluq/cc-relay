@@ -989,31 +989,698 @@ div[class*="mt-6"] > a,
   height: 24px;
 }
 
-/* Responsive spacing adjustments */
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+/* Feature Grid (Hextra shortcode) - Mobile adjustments */
 @media (max-width: 768px) {
+  .landing-page .mt-6.mb-6,
+  .landing-page [class*="hextra-feature-grid"],
+  .landing-page .hx-mt-6 {
+    padding: 0 0.75rem;
+  }
+
+  /* Make feature grid cards stack on mobile */
+  .landing-page .hextra-feature-grid,
+  .landing-page [class*="feature-grid"] {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-page .mt-6.mb-6,
+  .landing-page [class*="hextra-feature-grid"],
+  .landing-page .hx-mt-6 {
+    padding: 0 0.5rem;
+  }
+}
+
+/* Tablet and below (max-width: 768px) */
+@media (max-width: 768px) {
+  /* General landing page adjustments */
   .landing-page section {
-    margin: 2rem 0 !important;
+    margin: 2rem 0.75rem !important;
+    padding: 2rem 1.25rem !important;
   }
 
   .landing-page h2 {
     margin-top: 2.5rem !important;
+    font-size: 1.75rem !important;
   }
 
+  /* Hero Section */
+  .landing-page .custom-hero {
+    padding: 3rem 1.5rem 2.5rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .landing-page .hero-title {
+    font-size: 2.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .landing-page .hero-subtitle {
+    font-size: 1rem;
+    margin-bottom: 2rem;
+    padding: 0 0.5rem;
+  }
+
+  .landing-page .hero-buttons {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1rem;
+  }
+
+  .landing-page .hero-button {
+    width: 100%;
+    max-width: 320px;
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+    min-height: 48px; /* Touch-friendly */
+  }
+
+  /* Info Box */
+  .info-box {
+    margin: 3rem 0.75rem !important;
+    border-radius: 1rem;
+  }
+
+  .info-box-title {
+    padding: 1.5rem 1rem;
+    font-size: 1.35rem;
+    flex-wrap: wrap;
+  }
+
+  .info-box-content {
+    padding: 1.5rem 1rem;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .feature-item {
+    padding: 1rem;
+    min-height: 48px; /* Touch-friendly */
+  }
+
+  .feature-icon {
+    font-size: 1.5rem;
+  }
+
+  .feature-item strong {
+    font-size: 1rem;
+  }
+
+  .feature-item p {
+    font-size: 0.9rem;
+  }
+
+  /* Terminal */
+  .terminal-container {
+    margin: 2rem 0 !important;
+    border-radius: 1rem;
+  }
+
+  .terminal-body {
+    padding: 1rem;
+    min-height: auto;
+    overflow-x: auto;
+  }
+
+  .terminal-line {
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .terminal-command {
+    word-break: break-word;
+  }
+
+  .terminal-output {
+    padding-left: 1rem;
+  }
+
+  /* Architecture Diagram */
   .architecture-diagram {
     padding: 2rem 1rem;
+    margin: 2rem 0;
+    border-radius: 1rem;
   }
 
-  .arch-proxy {
-    grid-template-columns: 1fr;
-  }
-
-  .arch-providers {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+  .arch-layer-title {
+    font-size: 0.75rem;
+    margin-bottom: 1.5rem;
   }
 
   .arch-node {
     min-width: auto;
     padding: 1rem 1.5rem;
+  }
+
+  .arch-node-client {
+    flex-direction: column !important;
+    text-align: center !important;
+    padding: 1.25rem !important;
+    gap: 0.75rem !important;
+  }
+
+  .client-icon {
+    font-size: 2.5rem;
+  }
+
+  .client-text {
+    text-align: center;
+  }
+
+  .arch-proxy {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    max-width: 100%;
+    padding: 0 0.5rem;
+  }
+
+  .arch-proxy-component {
+    padding: 1rem;
+    font-size: 0.875rem;
+    min-height: 48px; /* Touch-friendly */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .arch-providers {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    padding: 0;
+  }
+
+  .arch-provider {
+    padding: 1.25rem 0.75rem;
+    border-radius: 0.75rem;
+    min-height: 48px; /* Touch-friendly */
+  }
+
+  .arch-provider-logo {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 0.75rem;
+  }
+
+  .arch-provider-name {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .arch-provider-desc {
+    font-size: 0.7rem;
+  }
+
+  .arch-connector {
+    font-size: 1.5rem;
+    margin: 1.5rem 0;
+  }
+
+  /* Section Boxes */
+  .section-box {
+    margin: 3rem auto;
+    padding: 0 0.5rem;
+  }
+
+  .section-title {
+    font-size: 1.75rem;
+  }
+
+  .section-description {
+    font-size: 1rem;
+    padding: 0 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Use Cases Grid */
+  .use-cases-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0 0.5rem;
+    margin: 2rem auto;
+  }
+
+  .use-case-card {
+    padding: 1.5rem;
+    min-height: 48px; /* Touch-friendly */
+  }
+
+  .use-case-icon {
+    font-size: 2.5rem;
+  }
+
+  .use-case-card h3 {
+    font-size: 1.1rem;
+  }
+
+  .use-case-card p {
+    font-size: 0.9rem;
+  }
+
+  /* Docs Grid */
+  .docs-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0 0.5rem;
+    margin: 2rem auto;
+  }
+
+  /* Feature Cards */
+  .hextra-feature-card,
+  .landing-page .hextra-feature-card {
+    padding: 1.5rem !important;
+    margin-bottom: 1rem !important;
+    min-height: 48px; /* Touch-friendly */
+  }
+
+  .hextra-feature-card:hover,
+  .landing-page .hextra-feature-card:hover {
+    transform: translateY(-4px) scale(1.01) !important;
+  }
+
+  /* Contributing Section */
+  .contributing-links {
+    flex-direction: column;
+    gap: 1rem;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+
+  .contrib-link {
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+    padding: 1rem 1.5rem;
+    min-height: 48px; /* Touch-friendly */
+  }
+
+  .contrib-icon {
+    font-size: 1.25rem;
+  }
+
+  .license-box {
+    margin: 2rem 1rem;
+    padding: 1rem;
+  }
+
+  .license-box p {
+    font-size: 0.9rem;
+  }
+
+  /* Footer */
+  .custom-footer {
+    margin-top: 3rem;
+    padding: 2rem 1rem;
+  }
+
+  .custom-footer p {
+    font-size: 0.875rem;
+  }
+
+  .footer-social {
+    gap: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .footer-social a {
+    min-width: 44px;
+    min-height: 44px; /* Touch-friendly */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .footer-social svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Code blocks */
+  .landing-page pre {
+    padding: 1rem !important;
+    margin: 1rem 0 !important;
+    font-size: 0.8rem !important;
+    overflow-x: auto;
+  }
+
+  /* Unified Container System - mobile adjustment */
+  .section-box,
+  .info-box,
+  .terminal-container,
+  .architecture-diagram {
+    max-width: 100% !important;
+  }
+}
+
+/* Small phones (max-width: 480px) */
+@media (max-width: 480px) {
+  /* Hero Section */
+  .landing-page .custom-hero {
+    padding: 2rem 1rem 2rem 1rem;
+  }
+
+  .landing-page .hero-title {
+    font-size: 2.25rem;
+    line-height: 1.15;
+  }
+
+  .landing-page .hero-subtitle {
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .landing-page .hero-button {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.95rem;
+  }
+
+  /* Info Box */
+  .info-box-title {
+    font-size: 1.15rem;
+    padding: 1.25rem 0.75rem;
+  }
+
+  .info-icon {
+    font-size: 1.5rem;
+  }
+
+  .info-box-content {
+    padding: 1rem 0.75rem;
+  }
+
+  .feature-item {
+    gap: 0.75rem;
+    padding: 0.875rem;
+  }
+
+  .feature-icon {
+    font-size: 1.25rem;
+  }
+
+  .feature-item strong {
+    font-size: 0.95rem;
+  }
+
+  .feature-item p {
+    font-size: 0.85rem;
+  }
+
+  /* Terminal */
+  .terminal-header {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .terminal-title {
+    font-size: 0.75rem;
+  }
+
+  .terminal-body {
+    padding: 0.75rem;
+  }
+
+  .terminal-line {
+    font-size: 0.65rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .terminal-prompt {
+    margin-right: 0.5rem;
+  }
+
+  .terminal-output {
+    padding-left: 0.75rem;
+  }
+
+  .terminal-cursor {
+    width: 6px;
+    height: 14px;
+  }
+
+  /* Architecture Diagram */
+  .architecture-diagram {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .arch-layer-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+  }
+
+  .arch-node-client {
+    padding: 1rem !important;
+  }
+
+  .client-icon {
+    font-size: 2rem;
+  }
+
+  .client-text strong {
+    font-size: 1rem;
+  }
+
+  .client-text span {
+    font-size: 0.75rem !important;
+  }
+
+  .arch-proxy-component {
+    padding: 0.875rem;
+    font-size: 0.8rem;
+  }
+
+  .arch-providers {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .arch-provider {
+    padding: 1rem 0.5rem;
+  }
+
+  .arch-provider-logo {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 0.5rem;
+  }
+
+  .arch-provider-name {
+    font-size: 0.75rem;
+  }
+
+  .arch-provider-desc {
+    font-size: 0.65rem;
+  }
+
+  .arch-connector {
+    font-size: 1.25rem;
+    margin: 1rem 0;
+  }
+
+  /* Section Boxes */
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .section-description {
+    font-size: 0.9rem;
+  }
+
+  /* Use Cases */
+  .use-cases-grid {
+    gap: 0.75rem;
+  }
+
+  .use-case-card {
+    padding: 1.25rem;
+  }
+
+  .use-case-icon {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .use-case-card h3 {
+    font-size: 1rem;
+    margin: 0.75rem 0 0.375rem 0 !important;
+  }
+
+  .use-case-card p {
+    font-size: 0.85rem;
+  }
+
+  /* Feature Cards */
+  .hextra-feature-card,
+  .landing-page .hextra-feature-card {
+    padding: 1.25rem !important;
+  }
+
+  /* Contributing */
+  .contrib-link {
+    padding: 0.875rem 1.25rem;
+    font-size: 0.9rem;
+  }
+
+  .contrib-icon {
+    font-size: 1.1rem;
+  }
+
+  /* Footer */
+  .custom-footer {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .footer-social {
+    gap: 1rem;
+  }
+
+  .footer-social svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .custom-footer p {
+    font-size: 0.8rem;
+  }
+
+  /* General spacing */
+  .landing-page section {
+    margin: 1.5rem 0.5rem !important;
+    padding: 1.5rem 1rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .landing-page h2 {
+    font-size: 1.5rem !important;
+  }
+
+  .landing-page p {
+    font-size: 0.9rem !important;
+  }
+}
+
+/* Landscape orientation on mobile - prevent content from being too wide */
+@media (max-width: 768px) and (orientation: landscape) {
+  .landing-page .custom-hero {
+    padding: 2rem 1.5rem;
+  }
+
+  .landing-page .hero-title {
+    font-size: 2.5rem;
+  }
+
+  .landing-page .hero-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .landing-page .hero-button {
+    width: auto;
+    max-width: none;
+  }
+
+  .info-box-content {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .use-cases-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .docs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .arch-providers {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .contributing-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .contrib-link {
+    width: auto;
+  }
+}
+
+/* Prevent horizontal overflow */
+.landing-page {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* Ensure images don't overflow */
+.landing-page img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Touch-friendly hover states (disable hover effects on touch devices) */
+@media (hover: none) {
+  .hextra-feature-card:hover,
+  .landing-page .hextra-feature-card:hover {
+    transform: none !important;
+  }
+
+  .feature-item:hover {
+    transform: none;
+  }
+
+  .use-case-card:hover {
+    transform: none;
+  }
+
+  .arch-provider:hover {
+    transform: none;
+  }
+
+  .contrib-link:hover {
+    transform: none;
+  }
+
+  .landing-page .hero-button:hover {
+    transform: none;
+  }
+}
+
+/* Active states for touch devices */
+@media (hover: none) {
+  .hextra-feature-card:active,
+  .landing-page .hextra-feature-card:active {
+    transform: scale(0.98) !important;
+    transition: transform 0.1s ease !important;
+  }
+
+  .feature-item:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  .use-case-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  .arch-provider:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
+
+  .contrib-link:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  .landing-page .hero-button:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
   }
 }
