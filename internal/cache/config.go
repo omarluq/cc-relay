@@ -3,6 +3,7 @@ package cache
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 // Mode represents the cache operating mode.
@@ -53,11 +54,17 @@ type RistrettoConfig struct {
 // OlricConfig configures the Olric distributed cache.
 // Olric provides a distributed in-memory key/value store with clustering support.
 type OlricConfig struct {
-	DMapName  string   `yaml:"dmap_name"`
-	BindAddr  string   `yaml:"bind_addr"`
-	Addresses []string `yaml:"addresses"`
-	Peers     []string `yaml:"peers"`
-	Embedded  bool     `yaml:"embedded"`
+	DMapName          string        `yaml:"dmap_name"`
+	BindAddr          string        `yaml:"bind_addr"`
+	Environment       string        `yaml:"environment"`
+	Addresses         []string      `yaml:"addresses"`
+	Peers             []string      `yaml:"peers"`
+	ReplicaCount      int           `yaml:"replica_count"`
+	ReadQuorum        int           `yaml:"read_quorum"`
+	WriteQuorum       int           `yaml:"write_quorum"`
+	LeaveTimeout      time.Duration `yaml:"leave_timeout"`
+	MemberCountQuorum int32         `yaml:"member_count_quorum"`
+	Embedded          bool          `yaml:"embedded"`
 }
 
 // Validate checks the configuration for errors.
