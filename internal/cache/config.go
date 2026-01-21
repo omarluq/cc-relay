@@ -1,0 +1,133 @@
+package cache
+
+import (
+	"errors"
+	"fmt"
+)
+
+// Mode represents the cache operating mode.
+type Mode string
+
+const (
+	// ModeSingle uses local Ristretto cache (default).
+	// Best for single-instance deployments with high performance requirements.
+	ModeSingle Mode = "single"
+
+	// ModeHA uses distributed Olric cache for high availability.
+	// Best for multi-instance deployments requiring shared cache state.
+	ModeHA Mode = "ha"
+
+	// ModeDisabled uses noop cache (caching disabled).
+	// All operations return immediately without storing data.
+	ModeDisabled Mode = "disabled"
+)
+
+// Config defines cache configuration.
+// Use Validate() to check for configuration errors before creating a cache.
+type Config struct {
+	// Mode selects the cache backend: "single", "ha", or "disabled".
+	// Default is empty, which will cause validation to fail.
+	Mode Mode `yaml:"mode"`
+
+	// Ristretto configuration (used when mode: single).
+	Ristretto RistrettoConfig `yaml:"ristretto"`
+
+	// Olric configuration (used when mode: ha).
+	Olric OlricConfig `yaml:"olric"`
+}
+
+// RistrettoConfig configures the Ristretto local cache.
+// Ristretto is a high-performance, concurrent cache based on research from
+// the Caffeine library.
+type RistrettoConfig struct {
+	// NumCounters is the number of 4-bit access counters.
+	// Recommended: 10x expected max items for optimal admission policy.
+	// Example: For 100,000 items, use 1,000,000 counters.
+	NumCounters int64 `yaml:"num_counters"`
+
+	// MaxCost is the maximum cost (memory) the cache can hold.
+	// Cost is measured in bytes of cached values.
+	// Example: 100 << 20 for 100 MB.
+	MaxCost int64 `yaml:"max_cost"`
+
+	// BufferItems is the number of keys per Get buffer.
+	// This controls the size of the admission buffer.
+	// Recommended: 64 (default).
+	BufferItems int64 `yaml:"buffer_items"`
+}
+
+// OlricConfig configures the Olric distributed cache.
+// Olric provides a distributed in-memory key/value store with clustering support.
+type OlricConfig struct {
+	// Addresses is a list of Olric cluster member addresses.
+	// Used when connecting as a client to an existing cluster.
+	// Example: ["olric-1:3320", "olric-2:3320"]
+	Addresses []string `yaml:"addresses"`
+
+	// DMapName is the name of the distributed map to use.
+	// Default: "cc-relay".
+	DMapName string `yaml:"dmap_name"`
+
+	// Embedded starts an embedded Olric node instead of connecting as client.
+	// Useful for single-node HA setups or development.
+	// When true, BindAddr should be set.
+	Embedded bool `yaml:"embedded"`
+
+	// BindAddr is the address for the embedded node to bind to.
+	// Only used when Embedded: true.
+	// Example: "0.0.0.0:3320"
+	BindAddr string `yaml:"bind_addr"`
+
+	// Peers is a list of peer addresses for cluster discovery.
+	// Only used when Embedded: true.
+	// Example: ["olric-1:3320", "olric-2:3320"]
+	Peers []string `yaml:"peers"`
+}
+
+// Validate checks the configuration for errors.
+// Returns nil if the configuration is valid.
+func (c *Config) Validate() error {
+	switch c.Mode {
+	case ModeSingle:
+		if c.Ristretto.MaxCost <= 0 {
+			return errors.New("cache: ristretto.max_cost must be positive")
+		}
+		if c.Ristretto.NumCounters <= 0 {
+			return errors.New("cache: ristretto.num_counters must be positive")
+		}
+	case ModeHA:
+		if !c.Olric.Embedded && len(c.Olric.Addresses) == 0 {
+			return errors.New("cache: olric.addresses required when not embedded")
+		}
+		if c.Olric.Embedded && c.Olric.BindAddr == "" {
+			return errors.New("cache: olric.bind_addr required when embedded")
+		}
+	case ModeDisabled:
+		// No validation needed for disabled mode
+	case "":
+		return errors.New("cache: mode is required")
+	default:
+		return fmt.Errorf("cache: unknown mode %q", c.Mode)
+	}
+	return nil
+}
+
+// DefaultRistrettoConfig returns a RistrettoConfig with sensible defaults.
+// NumCounters: 1,000,000 (for ~100K items)
+// MaxCost: 100 MB
+// BufferItems: 64
+func DefaultRistrettoConfig() RistrettoConfig {
+	return RistrettoConfig{
+		NumCounters: 1_000_000,
+		MaxCost:     100 << 20, // 100 MB
+		BufferItems: 64,
+	}
+}
+
+// DefaultOlricConfig returns an OlricConfig with sensible defaults.
+// DMapName: "cc-relay"
+func DefaultOlricConfig() OlricConfig {
+	return OlricConfig{
+		DMapName: "cc-relay",
+	}
+}
