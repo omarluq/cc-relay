@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -196,11 +197,16 @@ func LoggingMiddleware() func(http.Handler) http.Handler {
 }
 
 // formatDuration formats duration in human-readable format.
+// Shows milliseconds for fast requests (<1s), seconds for slow requests.
 func formatDuration(d time.Duration) string {
-	if d < time.Millisecond {
-		return d.String()
+	if d < time.Second {
+		// Fast request: show milliseconds (e.g., "456ms")
+		ms := d.Round(time.Millisecond).Milliseconds()
+		return fmt.Sprintf("%dms", ms)
 	}
-	return d.Round(time.Millisecond).String()
+	// Slow request: show seconds with 2 decimal places (e.g., "1.23s")
+	seconds := float64(d) / float64(time.Second)
+	return fmt.Sprintf("%.2fs", seconds)
 }
 
 // formatCompletionMessage formats the completion message with status.
