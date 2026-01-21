@@ -168,6 +168,187 @@ cache:
 
 All cache operations return immediately without storing data. `Get` operations always return `ErrNotFound`.
 
+## HA Clustering Guide
+
+This section covers deploying cc-relay with distributed caching across multiple nodes for high availability.
+
+### Prerequisites
+
+Before configuring HA mode:
+
+1. **Network connectivity**: All nodes must be able to reach each other
+2. **Port accessibility**: Both Olric and memberlist ports must be open
+3. **Consistent configuration**: All nodes must use the same `dmap_name` and `environment`
+
+### Port Requirements
+
+**Critical:** Olric uses two ports:
+
+| Port | Purpose | Default |
+|------|---------|---------|
+| `bind_addr` port | Olric client connections | 3320 |
+| `bind_addr` port + 2 | Memberlist gossip protocol | 3322 |
+
+**Example:** If `bind_addr: "0.0.0.0:3320"`, memberlist automatically uses port 3322.
+
+Ensure both ports are open in firewalls:
+
+```bash
+# Allow Olric client port
+sudo ufw allow 3320/tcp
+
+# Allow memberlist gossip port (bind_addr port + 2)
+sudo ufw allow 3322/tcp
+```
+
+### Environment Settings
+
+| Setting | Gossip Interval | Probe Interval | Probe Timeout | Use When |
+|---------|-----------------|----------------|---------------|----------|
+| `local` | 100ms | 100ms | 200ms | Same host, development |
+| `lan` | 200ms | 1s | 500ms | Same datacenter |
+| `wan` | 500ms | 3s | 2s | Cross-datacenter |
+
+**All nodes in a cluster must use the same environment setting.**
+
+### Two-Node Cluster Example
+
+**Node 1 (cc-relay-1):**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"  # Memberlist port of node 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**Node 2 (cc-relay-2):**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-1:3322"  # Memberlist port of node 1
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+### Three-Node Docker Compose Example
+
+```yaml
+version: '3.8'
+
+services:
+  cc-relay-1:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node1.yaml:/config/config.yaml:ro
+    ports:
+      - "8787:8787"   # HTTP proxy
+      - "3320:3320"   # Olric client port
+      - "3322:3322"   # Memberlist gossip port
+    networks:
+      - cc-relay-net
+
+  cc-relay-2:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node2.yaml:/config/config.yaml:ro
+    ports:
+      - "8788:8787"
+      - "3330:3320"
+      - "3332:3322"
+    networks:
+      - cc-relay-net
+
+  cc-relay-3:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node3.yaml:/config/config.yaml:ro
+    ports:
+      - "8789:8787"
+      - "3340:3320"
+      - "3342:3322"
+    networks:
+      - cc-relay-net
+
+networks:
+  cc-relay-net:
+    driver: bridge
+```
+
+**config-node1.yaml:**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"
+      - "cc-relay-3:3322"
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**config-node2.yaml and config-node3.yaml:** Same as node1, but with different peers lists pointing to the other nodes.
+
+### Replication and Quorum Explained
+
+**replica_count:** Number of copies of each key stored in the cluster.
+
+| replica_count | Behavior |
+|---------------|----------|
+| 1 | No replication (single copy) |
+| 2 | One primary + one backup |
+| 3 | One primary + two backups |
+
+**read_quorum / write_quorum:** Minimum successful operations before returning success.
+
+| Setting | Consistency | Availability |
+|---------|-------------|--------------|
+| quorum = 1 | Eventual | High |
+| quorum = replica_count | Strong | Lower |
+| quorum = (replica_count/2)+1 | Majority | Balanced |
+
+**Recommendations:**
+
+| Cluster Size | replica_count | read_quorum | write_quorum | Fault Tolerance |
+|--------------|---------------|-------------|--------------|-----------------|
+| 2 nodes | 2 | 1 | 1 | 1 node failure |
+| 3 nodes | 2 | 1 | 1 | 1 node failure |
+| 3 nodes | 3 | 2 | 2 | 1 node failure (strong consistency) |
+
 ## Cache Modes Comparison
 
 | Feature | Single (Ristretto) | HA (Olric) | Disabled (Noop) |
