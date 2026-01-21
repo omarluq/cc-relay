@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 1.1 of 11 (Embedded HA Cache Clustering)
-Plan: 1 of 5 in current phase
+Plan: 3 of 5 in current phase
 Status: In progress
-Last activity: 2026-01-21 - Completed 01.1-01-PLAN.md (HA Clustering Config)
+Last activity: 2026-01-21 - Completed 01.1-03-PLAN.md (Cluster Membership Helpers)
 
-Progress: [██████░░░░] 75% (9/12 plans)
+Progress: [███████░░░] 85% (11/13 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 9.6 min
-- Total execution time: 1.37 hours
+- Total plans completed: 11
+- Average duration: 9.2 min
+- Total execution time: 1.68 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 (Core Proxy) | 8 | 76 min | 9.5 min |
-| 01.1 (HA Cache) | 1 | 6 min | 6 min |
+| 01.1 (HA Cache) | 3 | 25 min | 8.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-05 (15min), 01-06 (17min), 01-09 (8min), 01-08 (8min), 01.1-01 (6min)
-- Trend: Consistent 6-10 min for focused config tasks
+- Last 5 plans: 01-09 (8min), 01-08 (8min), 01.1-01 (6min), 01.1-02 (11min), 01.1-03 (8min)
+- Trend: Consistent 6-11 min for focused tasks
 
 *Updated after each plan completion*
 
@@ -97,6 +97,11 @@ Recent decisions affecting current work:
 - Default Environment to "local" for development compatibility
 - Default quorum values to 1 for single-node operation
 
+**From 01.1-03 (Cluster Membership Helpers):**
+- Stats API returns 0 in embedded test mode (Olric limitation with external interface)
+- ClusterInfo methods return safe defaults (empty string, 0) when stats unavailable
+- Use explicit client.Close() error handling to satisfy errcheck linter
+
 ### Pending Todos
 
 None yet.
@@ -115,9 +120,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01.1-01-PLAN.md (HA Clustering Config)
+Stopped at: Completed 01.1-03-PLAN.md (Cluster Membership Helpers)
 Resume file: None
 
 **Phase 1.1 Progress:**
 - Plan 01 complete: OlricConfig extended with Environment, ReplicaCount, ReadQuorum, WriteQuorum, MemberCountQuorum, LeaveTimeout
-- Ready for Plan 02: Update Olric initialization to use new config fields
+- Plan 02 complete: buildOlricConfig helper, newEmbeddedOlricCache updated to use HA settings
+- Plan 03 complete: ClusterInfo interface with MemberlistAddr, ClusterMembers, IsEmbedded
+- Ready for Plan 04: Multi-Node Clustering tests and integration
