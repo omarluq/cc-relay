@@ -158,14 +158,6 @@ func LoggingMiddleware() func(http.Handler) http.Handler {
 			duration := time.Since(start)
 			durationStr := formatDuration(duration)
 
-			logger := zerolog.Ctx(r.Context()).With().
-				Str("method", r.Method).
-				Str("path", r.URL.Path).
-				Int("status", wrapped.statusCode).
-				Str("duration", durationStr).
-				Str("req_id", shortID).
-				Logger()
-
 			// Format completion message based on status
 			var statusMsg string
 			if wrapped.statusCode >= 500 {
@@ -177,6 +169,20 @@ func LoggingMiddleware() func(http.Handler) http.Handler {
 			}
 
 			completionMsg := formatCompletionMessage(wrapped.statusCode, statusMsg, durationStr)
+
+			logCtx := zerolog.Ctx(r.Context()).With().
+				Str("method", r.Method).
+				Str("path", r.URL.Path).
+				Int("status", wrapped.statusCode).
+				Str("duration", durationStr).
+				Str("req_id", shortID)
+
+			// Add SSE event count if streaming
+			if wrapped.isStreaming && wrapped.sseEvents > 0 {
+				logCtx = logCtx.Int("sse_events", wrapped.sseEvents)
+			}
+
+			logger := logCtx.Logger()
 
 			if wrapped.statusCode >= 500 {
 				logger.Error().Msg(completionMsg)
@@ -241,13 +247,34 @@ func redactSensitiveFields(s string) string {
 	return apiKeyPattern.ReplaceAllString(s, `${1}[REDACTED]${2}${3}[REDACTED]${4}`)
 }
 
-// responseWriter wraps http.ResponseWriter to capture status code.
+// responseWriter wraps http.ResponseWriter to capture status code and SSE events.
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode  int
+	sseEvents   int
+	isStreaming bool
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
+	// Check if this is a streaming response
+	if rw.Header().Get("Content-Type") == "text/event-stream" {
+		rw.isStreaming = true
+	}
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+// Write intercepts writes to count SSE events.
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	// Count SSE events if streaming
+	if rw.isStreaming {
+		// Count occurrences of "event:" prefix in the data
+		data := string(b)
+		for i := 0; i < len(data); i++ {
+			if i+6 <= len(data) && data[i:i+6] == "event:" {
+				rw.sseEvents++
+			}
+		}
+	}
+	return rw.ResponseWriter.Write(b)
 }
