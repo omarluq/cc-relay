@@ -32,6 +32,53 @@ func parseBindAddr(addr string) (h string, p int) {
 	return h, p
 }
 
+// buildOlricConfig creates an Olric config from the cache OlricConfig.
+// It applies environment presets and HA clustering settings.
+func buildOlricConfig(cfg *OlricConfig) *olricconfig.Config {
+	// Select environment preset - determines memberlist timeouts, gossip intervals
+	env := cfg.Environment
+	if env == "" {
+		env = "local"
+	}
+
+	c := olricconfig.New(env)
+
+	// Parse bind address - may contain host:port or just host
+	bindAddr, bindPort := parseBindAddr(cfg.BindAddr)
+	c.BindAddr = bindAddr
+	if bindPort > 0 {
+		c.BindPort = bindPort
+	}
+
+	// Set peers for cluster discovery
+	if len(cfg.Peers) > 0 {
+		c.Peers = cfg.Peers
+	}
+
+	// Apply HA clustering settings (only if non-zero to preserve Olric defaults)
+	if cfg.ReplicaCount > 0 {
+		c.ReplicaCount = cfg.ReplicaCount
+	}
+	if cfg.ReadQuorum > 0 {
+		c.ReadQuorum = cfg.ReadQuorum
+	}
+	if cfg.WriteQuorum > 0 {
+		c.WriteQuorum = cfg.WriteQuorum
+	}
+	if cfg.MemberCountQuorum > 0 {
+		c.MemberCountQuorum = cfg.MemberCountQuorum
+	}
+	if cfg.LeaveTimeout > 0 {
+		c.LeaveTimeout = cfg.LeaveTimeout
+	}
+
+	// Suppress verbose Olric logging
+	c.LogOutput = io.Discard
+	c.Logger = log.New(io.Discard, "", 0)
+
+	return c
+}
+
 // olricCache implements Cache using Olric as the backend.
 // It provides distributed caching for high-availability deployments.
 // Supports two modes:
@@ -52,6 +99,7 @@ var (
 	_ Cache         = (*olricCache)(nil)
 	_ StatsProvider = (*olricCache)(nil)
 	_ Pinger        = (*olricCache)(nil)
+	_ ClusterInfo   = (*olricCache)(nil)
 )
 
 // newOlricCache creates a new Olric distributed cache with the given configuration.
@@ -77,25 +125,8 @@ func newOlricCache(ctx context.Context, cfg *OlricConfig) (*olricCache, error) {
 func newEmbeddedOlricCache(
 	ctx context.Context, cfg *OlricConfig, dmapName string, lg *zerolog.Logger,
 ) (*olricCache, error) {
-	// Create embedded config
-	c := olricconfig.New("local")
-
-	// Parse bind address - it may contain host:port or just host
-	bindAddr, bindPort := parseBindAddr(cfg.BindAddr)
-	c.BindAddr = bindAddr
-	if bindPort > 0 {
-		c.BindPort = bindPort
-	}
-
-	// Set peers if provided
-	if len(cfg.Peers) > 0 {
-		c.Peers = cfg.Peers
-	}
-
-	// Suppress verbose Olric logging (especially useful for tests)
-	// Set log output to discard to avoid cluttering test output
-	c.LogOutput = io.Discard
-	c.Logger = log.New(io.Discard, "", 0)
+	// Create embedded config with HA settings
+	c := buildOlricConfig(cfg)
 
 	// Channel to signal when Olric is ready
 	// This must be set BEFORE calling olric.New()
@@ -151,11 +182,20 @@ func newEmbeddedOlricCache(
 		return nil, err
 	}
 
+	// Determine environment for logging (matching buildOlricConfig logic)
+	env := cfg.Environment
+	if env == "" {
+		env = "local"
+	}
+
 	lg.Info().
-		Str("bind_addr", bindAddr).
-		Int("bind_port", bindPort).
+		Str("bind_addr", cfg.BindAddr).
 		Str("dmap", dmapName).
 		Int("peers", len(cfg.Peers)).
+		Str("environment", env).
+		Int("replica_count", cfg.ReplicaCount).
+		Int("write_quorum", cfg.WriteQuorum).
+		Int("member_count_quorum", int(cfg.MemberCountQuorum)).
 		Msg("olric embedded cache created")
 
 	return &olricCache{
@@ -531,4 +571,83 @@ func (o *olricCache) Ping(ctx context.Context) error {
 
 	o.log.Debug().Msg("cache ping: healthy")
 	return nil
+}
+
+// MemberlistAddr returns the memberlist address of this node.
+// Other nodes should use this address in their Peers list to join the cluster.
+// Returns empty string if not in embedded mode or if the cache is closed.
+func (o *olricCache) MemberlistAddr() string {
+	if o.db == nil {
+		return "" // Not embedded mode
+	}
+
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	if o.closed.Load() {
+		return ""
+	}
+
+	// Get the runtime to access this node's address
+	// Stats returns information about this node including its member address
+	client := o.db.NewEmbeddedClient()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Empty string gets stats for the local node
+	stats, err := client.Stats(ctx, "")
+
+	// Close client after getting stats (ignore error, we're done)
+	if closeErr := client.Close(ctx); closeErr != nil {
+		o.log.Debug().Err(closeErr).Msg("olric: failed to close stats client")
+	}
+
+	if err != nil {
+		o.log.Debug().Err(err).Msg("olric: failed to get stats for MemberlistAddr")
+		return ""
+	}
+
+	// Return the member address from stats
+	return stats.Member.String()
+}
+
+// ClusterMembers returns the number of members in the cluster.
+// Returns 0 if not in embedded mode or unable to get stats.
+func (o *olricCache) ClusterMembers() int {
+	if o.db == nil {
+		return 0 // Not embedded mode
+	}
+
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	if o.closed.Load() {
+		return 0
+	}
+
+	client := o.db.NewEmbeddedClient()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stats, err := client.Stats(ctx, "")
+
+	// Close client after getting stats (ignore error, we're done)
+	if closeErr := client.Close(ctx); closeErr != nil {
+		o.log.Debug().Err(closeErr).Msg("olric: failed to close stats client")
+	}
+
+	if err != nil {
+		o.log.Debug().Err(err).Msg("olric: failed to get cluster stats")
+		return 0
+	}
+
+	return len(stats.ClusterMembers)
+}
+
+// IsEmbedded returns true if this cache is running an embedded Olric node.
+// Client mode caches return false.
+func (o *olricCache) IsEmbedded() bool {
+	return o.db != nil
 }
