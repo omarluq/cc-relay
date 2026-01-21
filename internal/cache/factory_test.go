@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -17,7 +19,7 @@ func TestNew_ModeSingle_CreatesRistretto(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, cfg)
+	c, err := New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
@@ -39,8 +41,8 @@ func TestNew_ModeSingle_CreatesRistretto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
-	if string(got) != string(value) {
-		t.Errorf("Get() = %q, want %q", string(got), string(value))
+	if !bytes.Equal(got, value) {
+		t.Errorf("Get() = %q, want %q", got, value)
 	}
 
 	// Verify it implements StatsProvider (Ristretto does)
@@ -55,7 +57,7 @@ func TestNew_ModeDisabled_CreatesNoop(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, cfg)
+	c, err := New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
@@ -71,9 +73,10 @@ func TestNew_ModeDisabled_CreatesNoop(t *testing.T) {
 	}
 
 	_, err = c.Get(ctx, key)
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("Get() error = %v, want ErrNotFound", err)
 	}
+
 
 	// Verify Exists returns false
 	exists, err := c.Exists(ctx, key)
@@ -101,7 +104,7 @@ func TestNew_ModeHA_CreatesOlric(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, cfg)
+	c, err := New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
@@ -120,8 +123,8 @@ func TestNew_ModeHA_CreatesOlric(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
-	if string(got) != string(value) {
-		t.Errorf("Get() = %q, want %q", string(got), string(value))
+	if !bytes.Equal(got, value) {
+		t.Errorf("Get() = %q, want %q", got, value)
 	}
 }
 
@@ -131,7 +134,7 @@ func TestNew_InvalidMode_ReturnsError(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := New(ctx, cfg)
+	_, err := New(ctx, &cfg)
 	if err == nil {
 		t.Fatal("New() error = nil, want error for invalid mode")
 	}
@@ -143,9 +146,9 @@ func TestNew_InvalidMode_ReturnsError(t *testing.T) {
 }
 
 func TestNew_InvalidConfig_ReturnsError(t *testing.T) {
-	tests := []struct {
-		name    string
+	tests := []struct { //nolint:govet // test struct field alignment is not critical
 		cfg     Config
+		name    string
 		wantErr string
 	}{
 		{
@@ -206,7 +209,7 @@ func TestNew_InvalidConfig_ReturnsError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			_, err := New(ctx, tt.cfg)
+			_, err := New(ctx, &tt.cfg)
 			if err == nil {
 				t.Fatal("New() error = nil, want error")
 			}
@@ -225,7 +228,7 @@ func TestNew_DefaultConfig_Works(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, cfg)
+	c, err := New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() with DefaultRistrettoConfig error = %v, want nil", err)
 	}
@@ -247,15 +250,20 @@ func TestNew_DefaultConfig_Works(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
-	if string(got) != string(value) {
-		t.Errorf("Get() = %q, want %q", string(got), string(value))
+	if !bytes.Equal(got, value) {
+		t.Errorf("Get() = %q, want %q", got, value)
 	}
 }
 
 // containsString checks if a string contains a substring (case-insensitive not needed here).
 func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
+	if substr == "" {
+		return true
+	}
+	if s == "" {
+		return false
+	}
+	return len(s) >= len(substr) && findSubstring(s, substr)
 }
 
 func findSubstring(s, substr string) bool {

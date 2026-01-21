@@ -16,8 +16,8 @@ var Logger = zerolog.Nop()
 // Example:
 //
 //	logger := zerolog.New(os.Stdout).Level(zerolog.DebugLevel)
-//	cache.SetLogger(logger)
-func SetLogger(l zerolog.Logger) {
+//	cache.SetLogger(&logger)
+func SetLogger(l *zerolog.Logger) {
 	Logger = l.With().Str("component", "cache").Logger()
 }
 

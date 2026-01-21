@@ -204,7 +204,7 @@ func TestNoopCache_Stats_ReturnsZero(t *testing.T) {
 	}
 }
 
-func TestNoopCache_ConcurrentAccess(t *testing.T) {
+func TestNoopCache_ConcurrentAccess(_ *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -216,7 +216,7 @@ func TestNoopCache_ConcurrentAccess(t *testing.T) {
 	wg.Add(goroutines)
 
 	for i := 0; i < goroutines; i++ {
-		go func(id int) {
+		go func() {
 			defer wg.Done()
 
 			for j := 0; j < operations; j++ {
@@ -238,13 +238,14 @@ func TestNoopCache_ConcurrentAccess(t *testing.T) {
 					_ = c.Stats()
 				}
 			}
-		}(i)
+		}()
 	}
 
 	wg.Wait()
 }
 
 func TestNoopCache_ImplementsInterfaces(t *testing.T) {
+	t.Helper()
 	c := newNoopCache()
 	defer c.Close()
 

@@ -25,15 +25,9 @@ const (
 // Config defines cache configuration.
 // Use Validate() to check for configuration errors before creating a cache.
 type Config struct {
-	// Mode selects the cache backend: "single", "ha", or "disabled".
-	// Default is empty, which will cause validation to fail.
-	Mode Mode `yaml:"mode"`
-
-	// Ristretto configuration (used when mode: single).
+	Mode      Mode            `yaml:"mode"`
+	Olric     OlricConfig     `yaml:"olric"`
 	Ristretto RistrettoConfig `yaml:"ristretto"`
-
-	// Olric configuration (used when mode: ha).
-	Olric OlricConfig `yaml:"olric"`
 }
 
 // RistrettoConfig configures the Ristretto local cache.
@@ -59,29 +53,11 @@ type RistrettoConfig struct {
 // OlricConfig configures the Olric distributed cache.
 // Olric provides a distributed in-memory key/value store with clustering support.
 type OlricConfig struct {
-	// Addresses is a list of Olric cluster member addresses.
-	// Used when connecting as a client to an existing cluster.
-	// Example: ["olric-1:3320", "olric-2:3320"]
+	DMapName  string   `yaml:"dmap_name"`
+	BindAddr  string   `yaml:"bind_addr"`
 	Addresses []string `yaml:"addresses"`
-
-	// DMapName is the name of the distributed map to use.
-	// Default: "cc-relay".
-	DMapName string `yaml:"dmap_name"`
-
-	// Embedded starts an embedded Olric node instead of connecting as client.
-	// Useful for single-node HA setups or development.
-	// When true, BindAddr should be set.
-	Embedded bool `yaml:"embedded"`
-
-	// BindAddr is the address for the embedded node to bind to.
-	// Only used when Embedded: true.
-	// Example: "0.0.0.0:3320"
-	BindAddr string `yaml:"bind_addr"`
-
-	// Peers is a list of peer addresses for cluster discovery.
-	// Only used when Embedded: true.
-	// Example: ["olric-1:3320", "olric-2:3320"]
-	Peers []string `yaml:"peers"`
+	Peers     []string `yaml:"peers"`
+	Embedded  bool     `yaml:"embedded"`
 }
 
 // Validate checks the configuration for errors.
@@ -113,19 +89,19 @@ func (c *Config) Validate() error {
 }
 
 // DefaultRistrettoConfig returns a RistrettoConfig with sensible defaults.
-// NumCounters: 1,000,000 (for ~100K items)
-// MaxCost: 100 MB
-// BufferItems: 64
+// NumCounters: 1,000,000 (for ~100K items).
+// MaxCost: 100 MB.
+// BufferItems: 64.
 func DefaultRistrettoConfig() RistrettoConfig {
 	return RistrettoConfig{
 		NumCounters: 1_000_000,
-		MaxCost:     100 << 20, // 100 MB
+		MaxCost:     100 << 20, // 100 MB.
 		BufferItems: 64,
 	}
 }
 
 // DefaultOlricConfig returns an OlricConfig with sensible defaults.
-// DMapName: "cc-relay"
+// DMapName: "cc-relay".
 func DefaultOlricConfig() OlricConfig {
 	return OlricConfig{
 		DMapName: "cc-relay",

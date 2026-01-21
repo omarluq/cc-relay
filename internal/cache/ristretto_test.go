@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync"
@@ -46,7 +47,7 @@ func TestRistrettoCache_GetSet(t *testing.T) {
 		t.Fatalf("Get failed: %v", err)
 	}
 
-	if string(got) != string(value) {
+	if !bytes.Equal(got, value) {
 		t.Errorf("Get returned %q, want %q", got, value)
 	}
 
@@ -78,7 +79,7 @@ func TestRistrettoCache_SetWithTTL_Expires(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get immediately after SetWithTTL failed: %v", err)
 	}
-	if string(got) != string(value) {
+	if !bytes.Equal(got, value) {
 		t.Errorf("Get returned %q, want %q", got, value)
 	}
 
@@ -268,34 +269,34 @@ func TestRistrettoCache_Stats(t *testing.T) {
 func TestRistrettoCache_ContextCancellation(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 
-	// Create cancelled context
+	// Create canceled context
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	// All operations should return context error
 	_, err := cache.Get(ctx, "key")
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Get with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Get with canceled context returned %v, want context.Canceled", err)
 	}
 
 	err = cache.Set(ctx, "key", []byte("value"))
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Set with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Set with canceled context returned %v, want context.Canceled", err)
 	}
 
 	err = cache.SetWithTTL(ctx, "key", []byte("value"), time.Minute)
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("SetWithTTL with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("SetWithTTL with canceled context returned %v, want context.Canceled", err)
 	}
 
 	err = cache.Delete(ctx, "key")
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Delete with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Delete with canceled context returned %v, want context.Canceled", err)
 	}
 
 	_, err = cache.Exists(ctx, "key")
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Exists with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Exists with canceled context returned %v, want context.Canceled", err)
 	}
 }
 

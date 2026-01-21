@@ -18,17 +18,18 @@ import (
 
 // parseBindAddr parses a bind address string that may contain host:port or just host.
 // Returns the host and port (0 if not specified).
-func parseBindAddr(addr string) (string, int) {
-	host, portStr, err := net.SplitHostPort(addr)
+func parseBindAddr(addr string) (h string, p int) {
+	var err error
+	h, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		// No port specified, return address as-is
 		return addr, 0
 	}
-	port, err := strconv.Atoi(portStr)
+	p, err = strconv.Atoi(portStr)
 	if err != nil {
-		return host, 0
+		return h, 0
 	}
-	return host, port
+	return h, p
 }
 
 // olricCache implements Cache using Olric as the backend.
@@ -37,13 +38,13 @@ func parseBindAddr(addr string) (string, int) {
 //   - Embedded mode: Runs a local Olric node (for single-node HA or testing)
 //   - Client mode: Connects to an existing Olric cluster
 type olricCache struct {
-	client olric.Client // Client interface (works for both embedded and cluster)
-	dmap   olric.DMap   // Distributed map handle
-	db     *olric.Olric // Olric instance (only for embedded mode, nil for client mode)
-	name   string       // DMap name for reference
-	log    zerolog.Logger
-	closed atomic.Bool
+	db     *olric.Olric    // Olric instance (only for embedded mode, nil for client mode)
+	client olric.Client    // Client interface (works for both embedded and cluster)
+	dmap   olric.DMap      // Distributed map handle
+	log    *zerolog.Logger // Logger for cache operations
+	name   string          // DMap name for reference
 	mu     sync.RWMutex
+	closed atomic.Bool
 }
 
 // Ensure olricCache implements the required interfaces.
@@ -56,8 +57,8 @@ var (
 // newOlricCache creates a new Olric distributed cache with the given configuration.
 // In embedded mode, it starts a local Olric node.
 // In client mode, it connects to an existing Olric cluster.
-func newOlricCache(ctx context.Context, cfg OlricConfig) (*olricCache, error) {
-	log := logger().With().Str("backend", "olric").Logger()
+func newOlricCache(ctx context.Context, cfg *OlricConfig) (*olricCache, error) {
+	olricLog := logger().With().Str("backend", "olric").Logger()
 
 	dmapName := cfg.DMapName
 	if dmapName == "" {
@@ -65,15 +66,17 @@ func newOlricCache(ctx context.Context, cfg OlricConfig) (*olricCache, error) {
 	}
 
 	if cfg.Embedded {
-		log.Debug().Str("mode", "embedded").Msg("olric: starting embedded node")
-		return newEmbeddedOlricCache(ctx, cfg, dmapName, log)
+		olricLog.Debug().Str("mode", "embedded").Msg("olric: starting embedded node")
+		return newEmbeddedOlricCache(ctx, cfg, dmapName, &olricLog)
 	}
-	log.Debug().Str("mode", "client").Strs("addresses", cfg.Addresses).Msg("olric: connecting to cluster")
-	return newClientOlricCache(ctx, cfg, dmapName, log)
+	olricLog.Debug().Str("mode", "client").Strs("addresses", cfg.Addresses).Msg("olric: connecting to cluster")
+	return newClientOlricCache(ctx, cfg, dmapName, &olricLog)
 }
 
 // newEmbeddedOlricCache starts an embedded Olric node.
-func newEmbeddedOlricCache(ctx context.Context, cfg OlricConfig, dmapName string, lg zerolog.Logger) (*olricCache, error) {
+func newEmbeddedOlricCache(
+	ctx context.Context, cfg *OlricConfig, dmapName string, lg *zerolog.Logger,
+) (*olricCache, error) {
 	// Create embedded config
 	c := olricconfig.New("local")
 
@@ -141,7 +144,10 @@ func newEmbeddedOlricCache(ctx context.Context, cfg OlricConfig, dmapName string
 	dm, err := client.NewDMap(dmapName)
 	if err != nil {
 		lg.Error().Err(err).Str("dmap", dmapName).Msg("olric: failed to create dmap")
-		_ = db.Shutdown(context.Background())
+		// Failed to create DMap, shutdown the embedded node
+		if shutdownErr := db.Shutdown(context.Background()); shutdownErr != nil {
+			lg.Error().Err(shutdownErr).Msg("olric: failed to shutdown after dmap creation error")
+		}
 		return nil, err
 	}
 
@@ -162,7 +168,9 @@ func newEmbeddedOlricCache(ctx context.Context, cfg OlricConfig, dmapName string
 }
 
 // newClientOlricCache connects to an external Olric cluster.
-func newClientOlricCache(ctx context.Context, cfg OlricConfig, dmapName string, lg zerolog.Logger) (*olricCache, error) {
+func newClientOlricCache(
+	ctx context.Context, cfg *OlricConfig, dmapName string, lg *zerolog.Logger,
+) (*olricCache, error) {
 	if len(cfg.Addresses) == 0 {
 		lg.Error().Msg("olric: addresses required for client mode")
 		return nil, errors.New("cache: olric addresses required for client mode")
@@ -179,7 +187,10 @@ func newClientOlricCache(ctx context.Context, cfg OlricConfig, dmapName string, 
 	dm, err := client.NewDMap(dmapName)
 	if err != nil {
 		lg.Error().Err(err).Str("dmap", dmapName).Msg("olric: failed to create dmap")
-		_ = client.Close(ctx)
+		// Failed to create DMap, close the client connection
+		if closeErr := client.Close(ctx); closeErr != nil {
+			lg.Error().Err(closeErr).Msg("olric: failed to close client after dmap creation error")
+		}
 		return nil, err
 	}
 
@@ -426,7 +437,10 @@ func (o *olricCache) Close() error {
 
 	// Close the DMap
 	if o.dmap != nil {
-		_ = o.dmap.Close(ctx)
+		// DMap close error is not critical, we're already shutting down
+		if dmapErr := o.dmap.Close(ctx); dmapErr != nil {
+			o.log.Debug().Err(dmapErr).Msg("olric: dmap close error during shutdown")
+		}
 	}
 
 	var err error

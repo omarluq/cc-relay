@@ -29,7 +29,7 @@ import (
 //		log.Fatal(err)
 //	}
 //	defer c.Close()
-func New(ctx context.Context, cfg Config) (Cache, error) {
+func New(ctx context.Context, cfg *Config) (Cache, error) {
 	log := logger().With().Str("component", "cache_factory").Logger()
 	start := time.Now()
 
@@ -49,7 +49,7 @@ func New(ctx context.Context, cfg Config) (Cache, error) {
 	case ModeSingle:
 		cache, err = newRistrettoCache(cfg.Ristretto)
 	case ModeHA:
-		cache, err = newOlricCache(ctx, cfg.Olric)
+		cache, err = newOlricCache(ctx, &cfg.Olric)
 	case ModeDisabled:
 		cache = newNoopCache()
 	default:

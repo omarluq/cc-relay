@@ -263,7 +263,7 @@ func (r *ristrettoCache) Stats() Stats {
 		Hits:      metrics.Hits(),
 		Misses:    metrics.Misses(),
 		KeyCount:  metrics.KeysAdded() - metrics.KeysEvicted(),
-		BytesUsed: uint64(metrics.CostAdded() - metrics.CostEvicted()),
+		BytesUsed: metrics.CostAdded() - metrics.CostEvicted(),
 		Evictions: metrics.KeysEvicted(),
 	}
 

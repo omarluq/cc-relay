@@ -103,7 +103,7 @@ func (c *noopCache) Stats() Stats {
 	return Stats{}
 }
 
-// Compile-time interface checks
+// Compile-time interface checks ensure noopCache implements required interfaces.
 var (
 	_ Cache         = (*noopCache)(nil)
 	_ StatsProvider = (*noopCache)(nil)

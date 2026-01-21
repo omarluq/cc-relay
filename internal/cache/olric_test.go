@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,15 +11,15 @@ import (
 	"time"
 )
 
-// portCounter is used to generate unique ports for each test
+// portCounter is used to generate unique ports for each test.
 var portCounter atomic.Int32
 
 func init() {
-	// Start from a high port to avoid conflicts
+	// Start from a high port to avoid conflicts.
 	portCounter.Store(13320)
 }
 
-// getNextPort returns a unique port for testing
+// getNextPort returns a unique port for testing.
 func getNextPort() int {
 	return int(portCounter.Add(1))
 }
@@ -38,7 +39,7 @@ func newTestOlricCache(t *testing.T) *olricCache {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cache, err := newOlricCache(ctx, cfg)
+	cache, err := newOlricCache(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("failed to create olric cache: %v", err)
 	}
@@ -68,7 +69,7 @@ func TestOlricCache_GetSet(t *testing.T) {
 		t.Fatalf("Get failed: %v", err)
 	}
 
-	if string(got) != string(value) {
+	if !bytes.Equal(got, value) {
 		t.Errorf("Get returned %q, want %q", got, value)
 	}
 
@@ -97,7 +98,7 @@ func TestOlricCache_SetWithTTL_Expires(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get immediately after SetWithTTL failed: %v", err)
 	}
-	if string(got) != string(value) {
+	if !bytes.Equal(got, value) {
 		t.Errorf("Get returned %q, want %q", got, value)
 	}
 
@@ -191,7 +192,7 @@ func TestOlricCache_Close(t *testing.T) {
 
 	ctx := context.Background()
 
-	cache, err := newOlricCache(ctx, cfg)
+	cache, err := newOlricCache(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("failed to create olric cache: %v", err)
 	}
@@ -287,34 +288,34 @@ func TestOlricCache_Stats(t *testing.T) {
 func TestOlricCache_ContextTimeout(t *testing.T) {
 	cache := newTestOlricCache(t)
 
-	// Create already cancelled context
+	// Create already canceled context
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	// All operations should return context error
 	_, err := cache.Get(ctx, "key")
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Get with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Get with canceled context returned %v, want context.Canceled", err)
 	}
 
 	err = cache.Set(ctx, "key", []byte("value"))
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Set with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Set with canceled context returned %v, want context.Canceled", err)
 	}
 
 	err = cache.SetWithTTL(ctx, "key", []byte("value"), time.Minute)
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("SetWithTTL with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("SetWithTTL with canceled context returned %v, want context.Canceled", err)
 	}
 
 	err = cache.Delete(ctx, "key")
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Delete with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Delete with canceled context returned %v, want context.Canceled", err)
 	}
 
 	_, err = cache.Exists(ctx, "key")
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("Exists with cancelled context returned %v, want context.Canceled", err)
+		t.Errorf("Exists with canceled context returned %v, want context.Canceled", err)
 	}
 }
 
@@ -465,7 +466,7 @@ func TestOlricCache_SpecialKeys(t *testing.T) {
 				t.Fatalf("Get %q failed: %v", tc.key, err)
 			}
 
-			if string(got) != string(tc.value) {
+			if !bytes.Equal(got, tc.value) {
 				t.Errorf("Get %q returned %q, want %q", tc.key, got, tc.value)
 			}
 		})
@@ -486,7 +487,7 @@ func BenchmarkOlricCache_Get(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	cache, err := newOlricCache(ctx, cfg)
+	cache, err := newOlricCache(ctx, &cfg)
 	if err != nil {
 		b.Fatalf("failed to create cache: %v", err)
 	}
@@ -517,7 +518,7 @@ func BenchmarkOlricCache_Set(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	cache, err := newOlricCache(ctx, cfg)
+	cache, err := newOlricCache(ctx, &cfg)
 	if err != nil {
 		b.Fatalf("failed to create cache: %v", err)
 	}
@@ -547,7 +548,7 @@ func BenchmarkOlricCache_Mixed(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	cache, err := newOlricCache(ctx, cfg)
+	cache, err := newOlricCache(ctx, &cfg)
 	if err != nil {
 		b.Fatalf("failed to create cache: %v", err)
 	}

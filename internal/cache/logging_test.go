@@ -19,7 +19,7 @@ func TestSetLogger_UpdatesLogger(t *testing.T) {
 	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
 	// Set the new logger
-	SetLogger(testLogger)
+	SetLogger(&testLogger)
 
 	// Verify Logger was updated
 	if Logger.GetLevel() != zerolog.DebugLevel {
@@ -50,8 +50,9 @@ func TestDefaultLogger_IsNoOp(t *testing.T) {
 func TestRistrettoCache_LogsCreation(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cfg := RistrettoConfig{
 		NumCounters: 100_000,
@@ -80,8 +81,9 @@ func TestRistrettoCache_LogsCreation(t *testing.T) {
 func TestRistrettoCache_LogsGetHit(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
@@ -116,8 +118,9 @@ func TestRistrettoCache_LogsGetHit(t *testing.T) {
 func TestRistrettoCache_LogsGetMiss(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
@@ -138,8 +141,9 @@ func TestRistrettoCache_LogsGetMiss(t *testing.T) {
 func TestRistrettoCache_LogsSet(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
@@ -164,8 +168,9 @@ func TestRistrettoCache_LogsSet(t *testing.T) {
 func TestRistrettoCache_LogsSetWithTTL(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
@@ -187,8 +192,9 @@ func TestRistrettoCache_LogsSetWithTTL(t *testing.T) {
 func TestRistrettoCache_LogsDelete(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
@@ -210,8 +216,9 @@ func TestRistrettoCache_LogsDelete(t *testing.T) {
 func TestRistrettoCache_LogsClose(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cfg := RistrettoConfig{
 		NumCounters: 100_000,
@@ -240,8 +247,9 @@ func TestRistrettoCache_LogsClose(t *testing.T) {
 func TestRistrettoCache_LogsStats(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
@@ -264,8 +272,9 @@ func TestRistrettoCache_LogsStats(t *testing.T) {
 func TestNoopCache_LogsCreation(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newNoopCache()
 	defer cache.Close()
@@ -282,8 +291,9 @@ func TestNoopCache_LogsCreation(t *testing.T) {
 func TestNoopCache_LogsGet(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newNoopCache()
 	defer cache.Close()
@@ -308,8 +318,9 @@ func TestNoopCache_LogsGet(t *testing.T) {
 func TestNoopCache_LogsSet(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newNoopCache()
 	defer cache.Close()
@@ -334,8 +345,9 @@ func TestNoopCache_LogsSet(t *testing.T) {
 func TestNoopCache_LogsSetWithTTL(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newNoopCache()
 	defer cache.Close()
@@ -357,8 +369,9 @@ func TestNoopCache_LogsSetWithTTL(t *testing.T) {
 func TestNoopCache_LogsDelete(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newNoopCache()
 	defer cache.Close()
@@ -380,8 +393,9 @@ func TestNoopCache_LogsDelete(t *testing.T) {
 func TestNoopCache_LogsClose(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cache := newNoopCache()
 
@@ -398,8 +412,9 @@ func TestNoopCache_LogsClose(t *testing.T) {
 func TestSetLogger_AddsComponentTag(t *testing.T) {
 	var buf bytes.Buffer
 	baseLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(baseLogger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&baseLogger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	// Create a noop cache to trigger logging
 	cache := newNoopCache()
@@ -414,8 +429,9 @@ func TestSetLogger_AddsComponentTag(t *testing.T) {
 func TestFactory_LogsCreation(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cfg := Config{
 		Mode: ModeSingle,
@@ -426,7 +442,7 @@ func TestFactory_LogsCreation(t *testing.T) {
 		},
 	}
 
-	cache, err := New(context.Background(), cfg)
+	cache, err := New(context.Background(), &cfg)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
@@ -444,14 +460,15 @@ func TestFactory_LogsCreation(t *testing.T) {
 func TestFactory_LogsDisabledMode(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	cfg := Config{
 		Mode: ModeDisabled,
 	}
 
-	cache, err := New(context.Background(), cfg)
+	cache, err := New(context.Background(), &cfg)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
@@ -466,8 +483,9 @@ func TestFactory_LogsDisabledMode(t *testing.T) {
 func TestFactory_LogsValidationFailure(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(logger)
-	defer SetLogger(zerolog.Nop())
+	SetLogger(&logger)
+	nop := zerolog.Nop()
+	defer SetLogger(&nop)
 
 	// Invalid config (single mode with zero NumCounters)
 	cfg := Config{
@@ -478,7 +496,7 @@ func TestFactory_LogsValidationFailure(t *testing.T) {
 		},
 	}
 
-	_, err := New(context.Background(), cfg)
+	_, err := New(context.Background(), &cfg)
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
