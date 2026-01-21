@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hashicorp/memberlist"
 	"github.com/olric-data/olric"
 	olricconfig "github.com/olric-data/olric/config"
 	"github.com/rs/zerolog"
@@ -48,6 +49,21 @@ func buildOlricConfig(cfg *OlricConfig) *olricconfig.Config {
 	c.BindAddr = bindAddr
 	if bindPort > 0 {
 		c.BindPort = bindPort
+	}
+
+	// Configure memberlist to also bind to the same address.
+	// By default, memberlist picks the first non-loopback interface,
+	// which can cause issues in tests and containers.
+	// Note: Olric uses two ports - one for client connections (BindPort)
+	// and one for memberlist discovery (BindPort + 2 by default).
+	if c.MemberlistConfig == nil {
+		c.MemberlistConfig = memberlist.DefaultLocalConfig()
+	}
+	c.MemberlistConfig.BindAddr = bindAddr
+	if bindPort > 0 {
+		// Memberlist uses Olric port + 2 (matching Olric defaults: 3320 + 2 = 3322)
+		c.MemberlistConfig.BindPort = bindPort + 2
+		c.MemberlistConfig.AdvertisePort = bindPort + 2
 	}
 
 	// Set peers for cluster discovery

@@ -22,17 +22,20 @@ func init() {
 }
 
 // getClusterTestPort returns a unique port for cluster testing.
+// Each call returns a port that is 10 higher than the previous to allow
+// room for both Olric client port and memberlist port (port + 2).
 func getClusterTestPort() int {
-	return int(testClusterPortCounter.Add(1))
+	return int(testClusterPortCounter.Add(10))
 }
 
 // testCacheCluster manages a group of embedded Olric nodes for testing.
 // It handles node creation, peer discovery, and cleanup.
 type testCacheCluster struct {
-	t        *testing.T
-	dmapName string
-	members  []*olricCache
-	mtx      sync.Mutex
+	t            *testing.T
+	dmapName     string
+	members      []*olricCache
+	memberAddrs  []string // Memberlist addresses (host:memberlistPort) for peer discovery
+	mtx          sync.Mutex
 }
 
 // newTestCacheCluster creates a new test cluster.
@@ -60,6 +63,10 @@ func (cl *testCacheCluster) addMember() *olricCache {
 	defer cl.mtx.Unlock()
 
 	port := getClusterTestPort()
+	// Memberlist port is Olric port + 2 (see buildOlricConfig)
+	memberlistPort := port + 2
+	memberlistAddr := fmt.Sprintf("127.0.0.1:%d", memberlistPort)
+
 	cfg := &OlricConfig{
 		DMapName:     cl.dmapName,
 		Embedded:     true,
@@ -69,26 +76,8 @@ func (cl *testCacheCluster) addMember() *olricCache {
 	}
 
 	// Add existing members as peers for discovery.
-	// Use the Olric bind address - memberlist uses same port.
-	for _, m := range cl.members {
-		if addr := m.MemberlistAddr(); addr != "" {
-			cfg.Peers = append(cfg.Peers, addr)
-		}
-	}
-
-	// If we don't have peer addresses from MemberlistAddr (embedded stats limitation),
-	// use the bind addresses directly for the first few members.
-	if len(cfg.Peers) == 0 && len(cl.members) > 0 {
-		for _, m := range cl.members {
-			// Get the bind address from the embedded DB config
-			if m.db != nil {
-				stats, err := m.db.NewEmbeddedClient().Stats(context.Background(), "")
-				if err == nil && stats.Member.String() != "" {
-					cfg.Peers = append(cfg.Peers, stats.Member.String())
-				}
-			}
-		}
-	}
+	// Use the tracked memberlist addresses since MemberlistAddr() doesn't work in embedded mode.
+	cfg.Peers = append(cfg.Peers, cl.memberAddrs...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -99,6 +88,7 @@ func (cl *testCacheCluster) addMember() *olricCache {
 	}
 
 	cl.members = append(cl.members, cache)
+	cl.memberAddrs = append(cl.memberAddrs, memberlistAddr)
 
 	// Give the cluster time to converge
 	time.Sleep(500 * time.Millisecond)
@@ -173,8 +163,11 @@ func (cl *testCacheCluster) removeMember(i int) *olricCache {
 
 	member := cl.members[i]
 
-	// Remove from slice
+	// Remove from slices
 	cl.members = append(cl.members[:i], cl.members[i+1:]...)
+	if i < len(cl.memberAddrs) {
+		cl.memberAddrs = append(cl.memberAddrs[:i], cl.memberAddrs[i+1:]...)
+	}
 
 	// Close the member
 	if err := member.Close(); err != nil {
