@@ -626,3 +626,97 @@ func TestSetupRoutes_ModelsEndpointEmptyProviders(t *testing.T) {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
 }
+
+func TestSetupRoutes_SubscriptionTokenAuth(t *testing.T) {
+	t.Parallel()
+
+	// Create mock backend server
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer backend.Close()
+
+	// Test that allow_subscription works as an alias for allow_bearer
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Auth: config.AuthConfig{
+				AllowSubscription: true, // User-friendly config option
+				// BearerSecret empty = passthrough mode (any token accepted)
+			},
+		},
+	}
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+
+	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	if err != nil {
+		t.Fatalf("SetupRoutes failed: %v", err)
+	}
+
+	// Subscription token (sent as Bearer) should work
+	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req.Header.Set("Authorization", "Bearer claude-subscription-token-abc123")
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusUnauthorized {
+		t.Errorf("expected subscription token to pass with allow_subscription, got 401: %s", rec.Body.String())
+	}
+}
+
+func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
+	t.Parallel()
+
+	// Create mock backend server
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer backend.Close()
+
+	// Test that both subscription and API key auth work together
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Auth: config.AuthConfig{
+				APIKey:            "test-api-key",
+				AllowSubscription: true,
+			},
+		},
+	}
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+
+	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	if err != nil {
+		t.Fatalf("SetupRoutes failed: %v", err)
+	}
+
+	// Test 1: Subscription token should work
+	t.Run("subscription token works", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+		req.Header.Set("Authorization", "Bearer subscription-token")
+		req.Header.Set("anthropic-version", "2023-06-01")
+
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code == http.StatusUnauthorized {
+			t.Errorf("expected subscription token to pass, got 401: %s", rec.Body.String())
+		}
+	})
+
+	// Test 2: API key should work
+	t.Run("api key works", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+		req.Header.Set("x-api-key", "test-api-key")
+		req.Header.Set("anthropic-version", "2023-06-01")
+
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code == http.StatusUnauthorized {
+			t.Errorf("expected API key to pass, got 401: %s", rec.Body.String())
+		}
+	})
+}

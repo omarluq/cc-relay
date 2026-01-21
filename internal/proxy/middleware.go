@@ -57,7 +57,8 @@ func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.
 	var authenticators []auth.Authenticator
 
 	// Bearer token auth (checked first as it's more specific)
-	if authConfig.AllowBearer {
+	// IsBearerEnabled() returns true for both AllowBearer and AllowSubscription
+	if authConfig.IsBearerEnabled() {
 		authenticators = append(authenticators, auth.NewBearerAuthenticator(authConfig.BearerSecret))
 	}
 
@@ -121,10 +122,14 @@ func RequestIDMiddleware() func(http.Handler) http.Handler {
 }
 
 // LoggingMiddleware logs each request with method, path, and duration.
-func LoggingMiddleware() func(http.Handler) http.Handler {
+// If debugOpts has debug logging enabled, logs additional request/response details.
+func LoggingMiddleware(debugOpts config.DebugOptions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
+
+			// Log request details in debug mode
+			LogRequestDetails(r.Context(), r, debugOpts)
 
 			// Wrap ResponseWriter to capture status code
 			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}

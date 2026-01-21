@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 1 of 11 (Core Proxy)
-Plan: 6 of 6 in current phase (Wave 5 extension)
+Plan: 9 of 9 in current phase (Wave 6 extension)
 Status: Phase complete (with extensions)
-Last activity: 2026-01-21 — Completed 01-06-PLAN.md (Zerolog Integration)
+Last activity: 2026-01-21 — Completed 01-09-PLAN.md (Enhanced Debug Logging)
 
-Progress: [█████░░░░░] 55% (6/11 plans)
+Progress: [██████░░░░] 64% (7/11 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: 10 min
-- Total execution time: 1.00 hours
+- Total execution time: 1.13 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 (Core Proxy) | 6 | 60 min | 10 min |
+| 01 (Core Proxy) | 7 | 68 min | 10 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (8min), 01-03 (4min), 01-04 (8min), 01-05 (15min), 01-06 (17min)
-- Trend: Increasing for complex integration tasks (logging, testing)
+- Last 5 plans: 01-03 (4min), 01-04 (8min), 01-05 (15min), 01-06 (17min), 01-09 (8min)
+- Trend: Increasing for complex integration tasks, faster for verification tasks
 
 *Updated after each plan completion*
 
@@ -79,6 +79,12 @@ Recent decisions affecting current work:
 - Use responseWriter wrapper to capture HTTP status codes
 - Log authentication attempts at Debug/Warn levels for security auditing
 
+**From 01-09 (Enhanced Debug Logging):**
+- Use httptrace for TLS metrics (DNS, connect, handshake timing)
+- Redact api_key, password, token, secret, authorization, bearer patterns
+- Default MaxBodyLogSize: 1000 bytes to prevent log bloat
+- --debug flag enables all debug options + sets level to debug
+
 ### Pending Todos
 
 None yet.
@@ -90,12 +96,13 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01-06-PLAN.md (Zerolog Integration) - **PHASE 1 COMPLETE WITH EXTENSIONS**
+Stopped at: Completed 01-09-PLAN.md (Enhanced Debug Logging) - **PHASE 1 FULLY COMPLETE**
 Resume file: None
 
 **Phase 1 (Core Proxy) Milestone:**
-- All 6 plans completed successfully (5 core + 1 Wave 5 extension)
+- All 7 plans completed successfully (5 core + 2 Wave 5/6 extensions)
 - Full end-to-end proxy working with real Anthropic API
 - Production-ready structured logging with zerolog
 - Request correlation and operational visibility
+- Enhanced debug logging with TLS metrics and --debug flag
 - Ready to begin Phase 2 (Multi-key pooling & rate limiting)

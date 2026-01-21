@@ -99,6 +99,16 @@ func TestAuthConfig_IsEnabled(t *testing.T) {
 			config:   AuthConfig{BearerSecret: "secret"},
 			expected: false,
 		},
+		{
+			name:     "subscription only",
+			config:   AuthConfig{AllowSubscription: true},
+			expected: true,
+		},
+		{
+			name:     "subscription and api key",
+			config:   AuthConfig{APIKey: "test-key", AllowSubscription: true},
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -108,6 +118,58 @@ func TestAuthConfig_IsEnabled(t *testing.T) {
 			got := tt.config.IsEnabled()
 			if got != tt.expected {
 				t.Errorf("IsEnabled() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAuthConfig_IsBearerEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   AuthConfig
+		expected bool
+	}{
+		{
+			name:     "no bearer configured",
+			config:   AuthConfig{},
+			expected: false,
+		},
+		{
+			name:     "allow_bearer true",
+			config:   AuthConfig{AllowBearer: true},
+			expected: true,
+		},
+		{
+			name:     "allow_subscription true",
+			config:   AuthConfig{AllowSubscription: true},
+			expected: true,
+		},
+		{
+			name:     "both bearer and subscription",
+			config:   AuthConfig{AllowBearer: true, AllowSubscription: true},
+			expected: true,
+		},
+		{
+			name:     "api key only does not enable bearer",
+			config:   AuthConfig{APIKey: "test-key"},
+			expected: false,
+		},
+		{
+			name:     "bearer secret without allow flag",
+			config:   AuthConfig{BearerSecret: "secret"},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.config.IsBearerEnabled()
+			if got != tt.expected {
+				t.Errorf("IsBearerEnabled() = %v, want %v", got, tt.expected)
 			}
 		})
 	}

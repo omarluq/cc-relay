@@ -17,7 +17,7 @@ type Config struct {
 // ServerConfig defines server-level settings.
 type ServerConfig struct {
 	Listen        string     `yaml:"listen"`
-	APIKey        string     `yaml:"api_key"`         // Legacy: use Auth.APIKey instead
+	APIKey        string     `yaml:"api_key"` // Legacy: use Auth.APIKey instead
 	TimeoutMS     int        `yaml:"timeout_ms"`
 	MaxConcurrent int        `yaml:"max_concurrent"`
 	Auth          AuthConfig `yaml:"auth"`
@@ -36,11 +36,22 @@ type AuthConfig struct {
 	// BearerSecret is the expected Bearer token value.
 	// If empty but AllowBearer is true, any bearer token is accepted.
 	BearerSecret string `yaml:"bearer_secret"`
+
+	// AllowSubscription is an alias for AllowBearer, provided for user-friendly config.
+	// Claude Code subscription users authenticate with Bearer tokens, so this enables
+	// the same passthrough Bearer authentication.
+	AllowSubscription bool `yaml:"allow_subscription"`
 }
 
 // IsEnabled returns true if any authentication method is configured.
 func (a *AuthConfig) IsEnabled() bool {
-	return a.APIKey != "" || a.AllowBearer
+	return a.APIKey != "" || a.AllowBearer || a.AllowSubscription
+}
+
+// IsBearerEnabled returns true if Bearer token authentication is enabled.
+// This checks both AllowBearer and AllowSubscription (which is an alias).
+func (a *AuthConfig) IsBearerEnabled() bool {
+	return a.AllowBearer || a.AllowSubscription
 }
 
 // GetEffectiveAPIKey returns the API key from Auth config or falls back to legacy ServerConfig.APIKey.
