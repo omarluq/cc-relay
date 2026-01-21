@@ -42,18 +42,20 @@ func TestFindConfigFile(t *testing.T) {
 }
 
 func TestFindConfigFile_NotFound(t *testing.T) {
-	t.Parallel()
+	// Note: Cannot use t.Parallel() because we modify HOME env var
 
-	// Save original working directory
+	// Save original working directory and HOME
 	origWd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
+	origHome := os.Getenv("HOME")
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
 			t.Logf("failed to restore working directory: %v", err)
 		}
+		os.Setenv("HOME", origHome)
 	}()
 
 	// Change to temp directory without config.yaml
@@ -61,6 +63,9 @@ func TestFindConfigFile_NotFound(t *testing.T) {
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatal(err)
 	}
+
+	// Set HOME to temp dir so it won't find user's config
+	os.Setenv("HOME", tmpDir)
 
 	// Should return default even if not found
 	found := findConfigFile()

@@ -173,10 +173,10 @@ func TestProvidersHandler_EmptyProviders(t *testing.T) {
 	}
 }
 
-func TestProvidersHandler_ProviderWithNoModels(t *testing.T) {
+func TestProvidersHandler_ProviderWithDefaultModels(t *testing.T) {
 	t.Parallel()
 
-	// Provider without configured models
+	// Provider without explicitly configured models gets default models
 	provider := providers.NewAnthropicProvider("anthropic", "https://api.anthropic.com")
 
 	handler := NewProvidersHandler([]providers.Provider{provider})
@@ -199,9 +199,10 @@ func TestProvidersHandler_ProviderWithNoModels(t *testing.T) {
 		t.Fatalf("Expected 1 provider, got %d", len(response.Data))
 	}
 
-	// Provider should exist but have empty models list
-	if len(response.Data[0].Models) != 0 {
-		t.Errorf("Expected 0 models for provider with no configured models, got %d", len(response.Data[0].Models))
+	// Provider should have default models when none are explicitly configured
+	expectedCount := len(providers.DefaultAnthropicModels)
+	if len(response.Data[0].Models) != expectedCount {
+		t.Errorf("Expected %d default models for provider, got %d", expectedCount, len(response.Data[0].Models))
 	}
 }
 

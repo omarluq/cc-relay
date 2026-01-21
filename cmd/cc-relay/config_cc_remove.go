@@ -20,7 +20,7 @@ func init() {
 	configCCCmd.AddCommand(configCCRemoveCmd)
 }
 
-func runConfigCCRemove(cmd *cobra.Command, args []string) error {
+func runConfigCCRemove(_ *cobra.Command, _ []string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
@@ -82,7 +82,7 @@ func runConfigCCRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+	if err := os.WriteFile(settingsPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write settings.json: %w", err)
 	}
 

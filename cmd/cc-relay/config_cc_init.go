@@ -21,8 +21,11 @@ func init() {
 	configCCInitCmd.Flags().String("proxy-url", "http://127.0.0.1:8787", "cc-relay proxy URL")
 }
 
-func runConfigCCInit(cmd *cobra.Command, args []string) error {
-	proxyURL, _ := cmd.Flags().GetString("proxy-url")
+func runConfigCCInit(cmd *cobra.Command, _ []string) error {
+	proxyURL, err := cmd.Flags().GetString("proxy-url")
+	if err != nil {
+		return fmt.Errorf("failed to get proxy-url flag: %w", err)
+	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -56,7 +59,7 @@ func runConfigCCInit(cmd *cobra.Command, args []string) error {
 
 	// Create directory if needed
 	dir := filepath.Dir(settingsPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create .claude directory: %w", err)
 	}
 
@@ -66,7 +69,7 @@ func runConfigCCInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+	if err := os.WriteFile(settingsPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write settings.json: %w", err)
 	}
 

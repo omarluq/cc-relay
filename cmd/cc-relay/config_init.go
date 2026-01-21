@@ -22,8 +22,14 @@ func init() {
 }
 
 func runConfigInit(cmd *cobra.Command, _ []string) error {
-	output, _ := cmd.Flags().GetString("output")
-	force, _ := cmd.Flags().GetBool("force")
+	output, err := cmd.Flags().GetString("output")
+	if err != nil {
+		return fmt.Errorf("failed to get output flag: %w", err)
+	}
+	force, err := cmd.Flags().GetBool("force")
+	if err != nil {
+		return fmt.Errorf("failed to get force flag: %w", err)
+	}
 
 	if output == "" {
 		home, err := os.UserHomeDir()
@@ -40,7 +46,7 @@ func runConfigInit(cmd *cobra.Command, _ []string) error {
 
 	// Create directory if needed
 	dir := filepath.Dir(output)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -166,7 +172,7 @@ health:
       server_errors: 3
 `
 
-	if err := os.WriteFile(output, []byte(defaultConfig), 0644); err != nil {
+	if err := os.WriteFile(output, []byte(defaultConfig), 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
