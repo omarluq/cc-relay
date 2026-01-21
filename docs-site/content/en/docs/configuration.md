@@ -314,6 +314,105 @@ logging:
     max_body_log_size: 1000     # Max bytes to log from bodies
 ```
 
+## Cache Configuration
+
+CC-Relay provides a unified caching layer with multiple backend options for different deployment scenarios.
+
+### Cache Modes
+
+| Mode | Backend | Use Case |
+|------|---------|----------|
+| `single` | [Ristretto](https://github.com/dgraph-io/ristretto) | Single-instance deployments, high performance |
+| `ha` | [Olric](https://github.com/buraksezer/olric) | Multi-instance deployments, shared state |
+| `disabled` | Noop | No caching, passthrough |
+
+### Single Mode (Ristretto)
+
+Ristretto is a high-performance, concurrent in-memory cache. This is the default mode for single-instance deployments.
+
+```yaml
+cache:
+  mode: single
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `num_counters` | int64 | 1,000,000 | Number of 4-bit access counters. Recommended: 10x expected max items. |
+| `max_cost` | int64 | 104,857,600 (100 MB) | Maximum memory in bytes the cache can hold. |
+| `buffer_items` | int64 | 64 | Number of keys per Get buffer. Controls admission buffer size. |
+
+### HA Mode (Olric) - Embedded
+
+For multi-instance deployments requiring shared cache state, use embedded Olric mode where each cc-relay instance runs an Olric node.
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "other-node:3322"  # Memberlist port = bind_addr + 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `embedded` | bool | false | Run embedded Olric node (true) vs. connect to external cluster (false). |
+| `bind_addr` | string | required | Address for Olric client connections (e.g., "0.0.0.0:3320"). |
+| `dmap_name` | string | "cc-relay" | Name of the distributed map. All nodes must use the same name. |
+| `environment` | string | "local" | Memberlist preset: "local", "lan", or "wan". |
+| `peers` | []string | - | Memberlist addresses for peer discovery. Uses port bind_addr + 2. |
+| `replica_count` | int | 1 | Number of copies per key. 1 = no replication. |
+| `read_quorum` | int | 1 | Minimum successful reads for response. |
+| `write_quorum` | int | 1 | Minimum successful writes for response. |
+| `member_count_quorum` | int32 | 1 | Minimum cluster members required to operate. |
+| `leave_timeout` | duration | 5s | Time to broadcast leave message before shutdown. |
+
+**Important:** Olric uses two ports - the `bind_addr` port for client connections and `bind_addr + 2` for memberlist gossip. Ensure both ports are open in your firewall.
+
+### HA Mode (Olric) - Client Mode
+
+Connect to an external Olric cluster instead of running embedded nodes:
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: false
+    addresses:
+      - "olric-node-1:3320"
+      - "olric-node-2:3320"
+    dmap_name: "cc-relay"
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `embedded` | bool | Set to `false` for client mode. |
+| `addresses` | []string | External Olric cluster addresses. |
+| `dmap_name` | string | Distributed map name (must match cluster configuration). |
+
+### Disabled Mode
+
+Disable caching entirely for debugging or when caching is handled elsewhere:
+
+```yaml
+cache:
+  mode: disabled
+```
+
+For detailed cache configuration including cache key conventions, cache busting strategies, HA clustering guides, and troubleshooting, see the [Cache System documentation](/docs/cache/).
+
 ## Example Configurations
 
 ### Minimal Single Provider
