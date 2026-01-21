@@ -13,6 +13,7 @@ cc-relay evolves from a basic single-provider proxy (Phase 1) to a production-re
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Core Proxy (MVP)** - Establish working proxy with exact Anthropic API compatibility
+- [ ] **Phase 1.1: Embedded HA Cache Clustering** - Enable cc-relay to form HA clusters with embedded Olric (INSERTED)
 - [ ] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
 - [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
@@ -48,6 +49,24 @@ Plans:
 - [x] 01-07-PLAN.md - CLI Subcommands (serve, status, config validate, version)
 - [ ] 01-08-PLAN.md - Claude Code subscription token support
 - [ ] 01-09-PLAN.md - Enhanced debug logging (request/response details, TLS metrics)
+
+### Phase 1.1: Embedded HA Cache Clustering (INSERTED)
+**Goal**: Enable cc-relay instances to form HA clusters with embedded Olric for shared cache state, automatic node discovery, and data replication
+**Depends on**: Phase 1 (cache adapter foundation already implemented)
+**Requirements**: CACHE-HA-01, CACHE-HA-02, CACHE-HA-03
+**Success Criteria** (what must be TRUE):
+  1. Multiple cc-relay instances can discover each other and form a cache cluster
+  2. Cache data is replicated across nodes (ReplicaCount >= 2)
+  3. Node failure does not cause data loss (surviving nodes have replicas)
+  4. New nodes can join an existing cluster dynamically
+  5. Remote client mode preserved for external cache (Redis future support)
+**Plans**: 4 plans in 3 waves
+
+Plans:
+- [ ] 01.1-01-PLAN.md - Extend OlricConfig with HA settings (environment, replication, quorum)
+- [ ] 01.1-02-PLAN.md - Apply HA config in embedded node creation (buildOlricConfig helper)
+- [ ] 01.1-03-PLAN.md - Cluster membership helpers and graceful shutdown verification
+- [ ] 01.1-04-PLAN.md - Integration tests for multi-node clustering
 
 ### Phase 2: Multi-Key Pooling
 **Goal**: Enable multiple API keys per provider with rate limit tracking (RPM/TPM) and intelligent key selection
@@ -219,11 +238,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 1.1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Proxy (MVP) | 7/9 | In progress | - |
+| 1. Core Proxy (MVP) | 8/9 | In progress | - |
+| 1.1 Embedded HA Cache (INSERTED) | 0/4 | Not started | - |
 | 2. Multi-Key Pooling | 0/TBD | Not started | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
