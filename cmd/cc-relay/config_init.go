@@ -176,8 +176,7 @@ health:
 	fmt.Println("  2. Edit the config file to customize providers and routing")
 	fmt.Println("  3. Validate with: cc-relay config validate")
 	fmt.Println("  4. Start the proxy: cc-relay serve")
-	fmt.Println("\nFor Claude Code integration:")
-	fmt.Println("  export ANTHROPIC_BASE_URL=\"http://localhost:8787\"")
+	fmt.Println("  5. Configure Claude Code: cc-relay config cc init")
 
 	return nil
 }
