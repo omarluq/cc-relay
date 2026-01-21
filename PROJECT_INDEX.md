@@ -1,7 +1,7 @@
 # Project Index: cc-relay
 
 **Generated:** 2026-01-20
-**Status:** Pre-implementation (Specification Phase)
+**Status:** Phase 1 Development (Core Proxy Implementation)
 **Language:** Go 1.24.7
 **Type:** HTTP Proxy / CLI Tool
 
@@ -14,9 +14,10 @@ cc-relay is a multi-provider proxy for Claude Code that enables simultaneous use
 **Key Value Propositions:**
 
 - Pool rate limits across multiple API keys
-- Save costs by routing tasks to cheaper providers
+- Save costs by routing tasks to cheaper providers (Z.AI ~1/7 cost)
 - Automatic failover between providers
 - Mix cloud providers with local models
+- TUI dashboard for real-time monitoring
 
 ---
 
@@ -24,396 +25,384 @@ cc-relay is a multi-provider proxy for Claude Code that enables simultaneous use
 
 ```
 cc-relay/
-├── .claude/
-│   ├── CLAUDE.md              # Claude Code development guide
-│   └── settings.local.json    # Local settings
+├── .claude/                   # Claude Code configuration
+│   ├── CLAUDE.md             # Development guide & instructions
+│   ├── agents/               # GSD agent definitions
+│   ├── commands/             # GSD slash commands
+│   └── get-shit-done/        # GSD framework templates
 ├── .github/
 │   └── workflows/
-│       └── test.yml           # CI/CD pipeline
-├── README.md                  # User-facing documentation
-├── SPEC.md                    # Technical specification (614 lines)
-├── llms.txt                   # LLM-friendly project context (155 lines)
-├── relay.proto                # gRPC service definitions (355 lines)
-├── example.yaml               # Example configuration (216 lines)
-├── go.mod                     # Go module definition
-└── PROJECT_INDEX.md           # This file
+│       └── ci.yml            # CI/CD pipeline
+├── .planning/                # Phase-based development planning
+│   ├── PROJECT.md            # Project requirements
+│   ├── ROADMAP.md            # 11-phase roadmap
+│   ├── codebase/             # Codebase documentation
+│   └── phases/               # Phase-specific plans
+│       └── 01-core-proxy/    # Phase 1 plans (5 plans)
+├── cmd/
+│   └── cc-relay/
+│       └── main.go           # CLI entry point
+├── internal/
+│   └── version/              # Version information
+│       ├── version.go
+│       └── version_test.go
+├── scripts/
+│   └── setup-tools.sh        # Development tools installer
+├── bin/                      # Compiled binaries
+├── README.md                 # User-facing documentation
+├── SPEC.md                   # Technical specification (614 lines)
+├── DEVELOPMENT.md            # Development setup guide
+├── llms.txt                  # LLM-friendly context
+├── relay.proto               # gRPC service definitions
+├── example.yaml              # Example configuration
+├── Taskfile.yml              # Task runner definitions
+├── lefthook.yml              # Git hooks configuration
+├── .air.toml                 # Live reload configuration
+├── .golangci.yml             # Linter configuration
+├── .mise.toml                # Tool version management
+└── go.mod                    # Go module definition
 ```
-
-**Note:** No source code exists yet. This is the specification/design phase before implementation.
 
 ---
 
 ## 🚀 Entry Points
 
-### Planned Entry Points (Not Yet Implemented)
-
-Based on SPEC.md architecture:
+### Current Entry Points
 
 - **CLI Entry:** `cmd/cc-relay/main.go`
-  - Subcommands: `serve`, `tui`, `status`, `config`, `provider`, `key`
+  - Currently minimal (prints "cc-relay")
+  - Planned subcommands: `serve`, `tui`, `status`, `config`, `provider`, `key`
 
-- **HTTP Server:** `internal/proxy/server.go`
+### Planned Entry Points (Phase 1+)
+
+- **HTTP Server:** `internal/proxy/server.go` (TBD)
   - Endpoint: `POST /v1/messages` (Anthropic API compatible)
   - Streaming: SSE support via `internal/proxy/sse.go`
 
-- **gRPC Server:** `internal/grpc/server.go`
+- **gRPC Server:** `internal/grpc/server.go` (Phase 4)
   - Management API for TUI/CLI/WebUI
   - Defined in `relay.proto`
 
-- **TUI Application:** `ui/tui/app.go`
+- **TUI Application:** `ui/tui/app.go` (Phase 4)
   - Built with Bubble Tea framework
   - Connects to daemon via gRPC
 
 ---
 
-## 📦 Core Modules (Planned)
+## 📦 Core Modules
 
-### 1. Proxy Layer (`internal/proxy/`)
+### Implemented
 
-**Purpose:** HTTP reverse proxy implementing Anthropic Messages API
+**1. Version Module** (`internal/version/`)
+- Provides version information
+- Test coverage included
 
-**Key Components:**
+### Planned Modules
 
-- `server.go` - Main HTTP server
-- `sse.go` - Server-Sent Events streaming handler
-- `middleware.go` - Logging, metrics, auth validation
+**2. Proxy Layer** (`internal/proxy/`) - Phase 1
+- HTTP reverse proxy implementing Anthropic Messages API
+- SSE streaming handler
+- Middleware for logging, metrics, auth
+- Must preserve `tool_use_id` for parallel tool calls
 
-**Critical Requirements:**
+**3. Router** (`internal/router/`) - Phases 2-3
+- Request routing and API key selection
+- Strategies: shuffle, round-robin, failover, cost-based, latency-based
+- API key pool with rate limit tracking (RPM/TPM)
 
-- Exact Anthropic API format compatibility
-- Preserve `tool_use_id` for parallel tool calls
-- Maintain SSE event sequence order
-- Support extended thinking blocks
+**4. Providers** (`internal/providers/`) - Phases 1, 5, 6
+- Provider-specific API transformations
+- Anthropic (Phase 1), Z.AI (Phase 5), Ollama (Phase 5)
+- Bedrock, Azure, Vertex AI (Phase 6)
 
-### 2. Router (`internal/router/`)
+**5. Health Tracking** (`internal/health/`) - Phase 4
+- Circuit breaker (CLOSED/OPEN/HALF-OPEN states)
+- Provider health monitoring
+- Automatic recovery probing
 
-**Purpose:** Request routing and API key selection
+**6. Configuration** (`internal/config/`) - Phases 1, 7
+- YAML/TOML config loading
+- Environment variable expansion
+- Hot-reload via fsnotify (Phase 7)
 
-**Strategies:**
+**7. gRPC Management API** (`internal/grpc/`) - Phase 9
+- Real-time stats streaming
+- Provider/key management
+- Configuration updates
 
-- `simple-shuffle` - Weighted random (default)
-- `round-robin` - Sequential distribution
-- `least-busy` - Fewest in-flight requests
-- `cost-based` - Prefer cheaper providers
-- `latency-based` - Prefer faster backends
-- `failover` - Primary with fallback chain
-- `model-based` - Route by model prefix
-
-**Key Components:**
-
-- `router.go` - Routing interface
-- `strategies/*.go` - Strategy implementations
-- `keypool.go` - API key pool with rate limit tracking
-
-### 3. Providers (`internal/providers/`)
-
-**Purpose:** Provider-specific API transformations
-
-**Interface:**
-
-```go
-type ProviderTransformer interface {
-    TransformRequest(req *AnthropicRequest) (*http.Request, error)
-    TransformResponse(resp *http.Response) (*AnthropicResponse, error)
-    Authenticate(req *http.Request) error
-    HealthCheck(ctx context.Context) error
-}
-```
-
-**Implementations:**
-
-- `anthropic.go` - Direct Anthropic API (native)
-- `zai.go` - Z.AI / Zhipu GLM (Anthropic-compatible)
-- `ollama.go` - Local Ollama (limited features)
-- `bedrock.go` - AWS Bedrock (model in URL, SigV4 auth)
-- `azure.go` - Azure AI Foundry (x-api-key header)
-- `vertex.go` - Google Vertex AI (model in URL, OAuth)
-
-### 4. Health Tracking (`internal/health/`)
-
-**Purpose:** Circuit breaker and provider health monitoring
-
-**Components:**
-
-- `tracker.go` - Health tracking per backend
-- `circuit.go` - Circuit breaker (CLOSED/OPEN/HALF-OPEN)
-
-**Triggers:**
-
-- Rate limit errors (429)
-- Timeouts
-- Server errors (5xx)
-- Configurable failure thresholds
-
-### 5. Configuration (`internal/config/`)
-
-**Purpose:** YAML/TOML config loading and hot-reload
-
-**Components:**
-
-- `config.go` - Configuration structs
-- `loader.go` - Parse and validate config
-- `watcher.go` - File watcher for hot-reload (fsnotify)
-
-### 6. gRPC Management API (`internal/grpc/`)
-
-**Purpose:** Real-time stats and management interface
-
-**Service Definition:** See `relay.proto`
-
-**Key RPCs:**
-
-- `StreamStats` - Real-time statistics stream
-- `ListProviders` / `EnableProvider` / `DisableProvider`
-- `ListKeys` / `AddKey` / `RemoveKey` / `GetKeyUsage`
-- `GetConfig` / `UpdateConfig` / `ReloadConfig`
-- `GetRoutingStrategy` / `SetRoutingStrategy`
-- `StreamRequests` - Request log stream
-
-### 7. TUI (`ui/tui/`)
-
-**Purpose:** Terminal user interface for management
-
-**Framework:** Bubble Tea (Elm architecture)
-
-**Features:**
-
-- Real-time provider stats
-- Per-key rate limit tracking
-- Request logs
-- Provider enable/disable
-- Health status visualization
+**8. TUI** (`ui/tui/`) - Phase 10
+- Bubble Tea interface
+- Real-time monitoring
+- Interactive management
 
 ---
 
 ## 🔧 Configuration
 
-### Primary Config File
+### Default Location
+`~/.config/cc-relay/config.yaml`
 
-- **Location:** `~/.config/cc-relay/config.yaml`
-- **Format:** YAML (primary) or TOML
-- **Example:** `example.yaml` (216 lines, comprehensive)
+### Formats
+- YAML (primary)
+- TOML (alternative)
 
 ### Key Sections
 
-| Section | Purpose |
-|---------|---------|
-| `server` | Listen address, timeout, max concurrent |
-| `routing` | Strategy selection, failover chain |
-| `providers` | Array of provider configs with keys, rate limits, model mappings |
-| `grpc` | Management API settings |
-| `logging` | Level, format (json/text), file output |
-| `metrics` | Prometheus endpoint config |
-| `health` | Check intervals, circuit breaker thresholds |
+| Section | Purpose | Phase |
+|---------|---------|-------|
+| `server` | Listen address, timeout, max concurrent | 1 |
+| `routing` | Strategy selection, failover chain | 3 |
+| `providers` | Provider configs, keys, rate limits | 1 |
+| `grpc` | Management API settings | 9 |
+| `logging` | Level, format, file output | 8 |
+| `metrics` | Prometheus endpoint | 8 |
+| `health` | Check intervals, circuit breaker | 4 |
 
 ### Environment Variables
+Supports `${VAR_NAME}` expansion for API keys and credentials.
 
-- Support `${VAR_NAME}` expansion in config
-- Commonly used: `ANTHROPIC_API_KEY`, `ZAI_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`, `AZURE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`
+**Example:**
+```yaml
+providers:
+  - name: anthropic
+    type: anthropic
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+```
 
 ---
 
 ## 📚 Documentation
 
-### For Users
+### User Documentation
+- **README.md** (173 lines) - Quick start, features, setup
+- **example.yaml** (216 lines) - Full config reference
+- **QUICK_REFERENCE.md** - Command reference
+- **SETUP_SUMMARY.md** - Setup guide
 
-- **README.md** (173 lines) - Quick start, features, usage
-- **example.yaml** (216 lines) - Comprehensive config reference with comments
-- **llms.txt** (155 lines) - LLM-optimized project context
-
-### For Developers
-
+### Developer Documentation
 - **SPEC.md** (614 lines) - Complete technical specification
-  - Architecture diagrams
-  - Provider-specific requirements
-  - API compatibility details
-  - Development phases
-  - Component architecture
+- **DEVELOPMENT.md** - Development workflow guide
+- **.claude/CLAUDE.md** - Claude Code development instructions
+- **llms.txt** (155 lines) - LLM-optimized context
+- **relay.proto** (355 lines) - gRPC API definitions
 
-- **.claude/CLAUDE.md** - Claude Code development guide
-  - Build, test, run commands
-  - Architecture overview
-  - Critical API compatibility notes
-  - Provider transformation requirements
-
-### API Definitions
-
-- **relay.proto** (355 lines) - gRPC service definitions
-  - Stats messages
-  - Provider management
-  - Key management
-  - Configuration
-  - Routing
-  - Request logs
+### Planning Documentation
+- **.planning/PROJECT.md** - Core requirements
+- **.planning/ROADMAP.md** - 11-phase development plan
+- **.planning/phases/01-core-proxy/** - Phase 1 detailed plans (5 plans)
 
 ---
 
-## 🏗️ Development Phases
+## 🏗️ Development Roadmap
 
-The project follows a phased roadmap:
+### Current Status: Phase 1 - Core Proxy (MVP)
 
-### Phase 1: MVP (v0.1.0)
+**11-Phase Roadmap:**
 
-- [ ] Basic HTTP proxy server
-- [ ] Anthropic provider (single key)
-- [ ] Z.AI provider
-- [ ] Ollama provider
-- [ ] Simple-shuffle routing
-- [ ] YAML configuration
-- [ ] Basic CLI (`cc-relay serve`)
+1. **✅ Phase 1: Core Proxy (In Progress)** - Basic proxy with Anthropic compatibility
+2. **Phase 2: Multi-Key Pooling** - Rate limit pooling across multiple keys
+3. **Phase 3: Routing Strategies** - Pluggable routing algorithms
+4. **Phase 4: Circuit Breaker & Health** - Health tracking and failover
+5. **Phase 5: Additional Providers** - Z.AI and Ollama support
+6. **Phase 6: Cloud Providers** - Bedrock, Azure, Vertex AI
+7. **Phase 7: Configuration Management** - Hot-reload and validation
+8. **Phase 8: Observability** - Logging and metrics
+9. **Phase 9: gRPC Management API** - Real-time stats and control
+10. **Phase 10: TUI Dashboard** - Interactive monitoring interface
+11. **Phase 11: CLI Commands** - Complete CLI tooling
 
-### Phase 2: Multi-Key & Routing (v0.2.0)
+### Phase 1 Details
 
-- [ ] Multi-key pooling per provider
-- [ ] Rate limit tracking (RPM/TPM)
-- [ ] Round-robin strategy
-- [ ] Failover strategy with circuit breaker
-- [ ] Health checking
-- [ ] Hot-reload configuration
+**Goal:** Establish working proxy with Anthropic API compatibility
 
-### Phase 3: Cloud Providers (v0.3.0)
+**Plans (5 total in 4 waves):**
+- 01-01: Foundation - Config loading and Provider interface
+- 01-02: HTTP Server and Auth middleware
+- 01-03: Proxy handler with SSE streaming
+- 01-04: CLI integration and route wiring
+- 01-05: Integration testing and verification
 
-- [ ] AWS Bedrock provider
-- [ ] Azure Foundry provider
-- [ ] Vertex AI provider
-
-### Phase 4: Management Interface (v0.4.0)
-
-- [ ] gRPC management API
-- [ ] Bubble Tea TUI
-- [ ] Real-time stats streaming
-- [ ] Key/provider management commands
-
-### Phase 5: Advanced Features (v0.5.0)
-
-- [ ] Cost-based routing
-- [ ] Latency-based routing
-- [ ] Model-based routing
-- [ ] Prometheus metrics
-- [ ] Request logging/audit trail
-
-### Phase 6: WebUI (v0.6.0)
-
-- [ ] grpc-web proxy
-- [ ] React/Svelte WebUI
-- [ ] Dashboard with live stats
+**Success Criteria:**
+1. Claude Code can send requests and receive responses
+2. SSE streaming works with real-time delivery
+3. Parallel tool calls preserve `tool_use_id`
+4. Invalid API keys return 401
+5. Extended thinking blocks stream correctly
 
 ---
 
-## 🔗 Key Dependencies (Planned)
+## 🔗 Dependencies
 
-| Dependency | Purpose |
-|------------|---------|
-| Go 1.24.7 | Base language |
-| `net/http`, `net/http/httputil` | HTTP proxy server |
-| `google.golang.org/grpc` | gRPC management API |
-| `github.com/charmbracelet/bubbletea` | TUI framework |
-| `github.com/fsnotify/fsnotify` | Config file watching |
-| `gopkg.in/yaml.v3` | YAML parsing |
-| AWS SDK | Bedrock SigV4 signing |
-| Google Auth Library | Vertex AI OAuth |
-| Prometheus client | Metrics export |
+### Current
+```go
+module github.com/omarluq/cc-relay
+go 1.24.7
+```
+
+### Planned Dependencies
+
+| Package | Purpose | Phase |
+|---------|---------|-------|
+| `net/http`, `net/http/httputil` | HTTP proxy server | 1 |
+| `google.golang.org/grpc` | gRPC management API | 9 |
+| `github.com/charmbracelet/bubbletea` | TUI framework | 10 |
+| `github.com/fsnotify/fsnotify` | Config hot-reload | 7 |
+| `gopkg.in/yaml.v3` | YAML parsing | 1 |
+| AWS SDK | Bedrock SigV4 signing | 6 |
+| Google Auth Library | Vertex AI OAuth | 6 |
+| Prometheus client | Metrics export | 8 |
 
 ---
 
-## 🧪 Testing Strategy
+## 🧪 Testing
+
+### Current Status
+- `internal/version/version_test.go` - Version module tests
+
+### Test Commands (via Taskfile)
+
+```bash
+task test              # Run all tests
+task test-short        # Quick test run
+task test-coverage     # Generate coverage report
+task test-integration  # Integration tests
+task bench             # Benchmarks
+```
 
 ### Planned Test Coverage
 
 **Unit Tests:**
-
-- Provider transformers (request/response)
+- Provider transformers
 - Routing strategies
-- Key pool selection logic
-- Circuit breaker state transitions
-- Config parsing and validation
+- Key pool selection
+- Circuit breaker states
+- Config parsing
 
 **Integration Tests:**
-
 - End-to-end proxy flow
 - SSE streaming correctness
 - Multi-provider failover
 - Rate limit enforcement
 - gRPC API functionality
 
-**Test Providers:**
+---
 
-- Mock providers for unit tests
-- Local Ollama for integration tests
-- Z.AI test endpoint (if available)
+## 🛠️ Development Tools
 
-### Test Commands
+### Installed Tools (via `scripts/setup-tools.sh`)
+
+**Formatters:**
+- `gofmt`, `goimports`, `gofumpt`
+
+**Linters:**
+- `golangci-lint` (meta-linter with 40+ linters)
+- `go vet`
+
+**Security:**
+- `govulncheck`
+- `gosec`
+
+**Build & Development:**
+- `task` (task runner)
+- `air` (live reload)
+- `lefthook` (git hooks)
+
+**Other:**
+- `buf` (protobuf tooling)
+- `yamlfmt`, `yamllint`
+- `markdownlint-cli`
+
+### Development Workflow
 
 ```bash
-go test ./...                        # All tests
-go test -v ./internal/proxy          # Specific package
-go test -race ./...                  # Race detection
-go test -cover ./...                 # Coverage
-go test -bench=. ./internal/router   # Benchmarks
+# Setup tools (first time)
+./scripts/setup-tools.sh
+# or
+task setup
+
+# Development with live reload
+task dev
+
+# Build
+task build
+
+# Code quality
+task fmt          # Auto-format
+task lint         # Run linters
+task ci           # Full CI checks
+
+# Git hooks
+task hooks-install
+task hooks-run    # Manual run
 ```
+
+### Git Hooks (Lefthook)
+
+**Pre-commit:**
+- Format code (gofmt, goimports, gofumpt)
+- Lint (golangci-lint with auto-fix)
+- YAML/Markdown formatting
+- Quick tests
+
+**Pre-push:**
+- Full test suite
+- Security scanning (govulncheck)
+- Build verification
+
+**Commit message:**
+- Conventional Commits validation
+- Valid types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`
 
 ---
 
-## 📝 Quick Start (Planned)
+## 📝 Quick Start (Current)
 
-### Installation
+### Build & Run
 
 ```bash
-go install github.com/omarish/cc-relay@latest
+# Clone
+git clone https://github.com/omarish/cc-relay
+cd cc-relay
+
+# Install tools
+./scripts/setup-tools.sh
+
+# Build
+task build
+
+# Run
+./bin/cc-relay
 ```
 
-### Configuration
+### Development
 
 ```bash
-mkdir -p ~/.config/cc-relay
-cp example.yaml ~/.config/cc-relay/config.yaml
-# Edit config.yaml with your API keys
-```
+# Live reload development
+task dev
 
-### Running
+# Run CI checks locally
+task ci
 
-```bash
-# Start daemon
-cc-relay serve
+# Format and fix code
+task fmt
 
-# In another terminal, configure Claude Code
-export ANTHROPIC_BASE_URL="http://localhost:8787"
-export ANTHROPIC_API_KEY="managed-by-cc-relay"
-
-# Use Claude Code normally
-claude
-```
-
-### Management
-
-```bash
-cc-relay tui              # Launch TUI
-cc-relay status           # Show status
-cc-relay config reload    # Reload config
-cc-relay provider list    # List providers
+# Run tests
+task test
 ```
 
 ---
 
 ## 🎯 Critical Implementation Notes
 
-### API Compatibility
+### API Compatibility (Phase 1 Priority)
 
 - **Must** implement `/v1/messages` exactly matching Anthropic API
-- **Must** handle SSE with correct event sequence
+- **Must** handle SSE with correct event sequence order
 - **Must** preserve `tool_use_id` for Claude Code's parallel tool calls
 - **Must** support extended thinking blocks
 
-### Provider Transformations
-
-| Provider | Key Requirement |
-|----------|----------------|
-| Bedrock | Model in URL, `anthropic_version: bedrock-2023-05-31`, SigV4 |
-| Vertex AI | Model in URL, `anthropic_version: vertex-2023-10-16`, OAuth |
-| Azure | Use `x-api-key` header, deployment names as model IDs |
-| Ollama | No prompt caching, no PDF support, base64 images only |
-
-### SSE Streaming
+### SSE Streaming Requirements
 
 ```
 Content-Type: text/event-stream
@@ -422,7 +411,18 @@ X-Accel-Buffering: no
 Connection: keep-alive
 ```
 
-Use `http.Flusher` to flush each event immediately.
+Use `http.Flusher` interface to flush each SSE event immediately.
+
+### Provider Transformations
+
+| Provider | Key Requirement | Phase |
+|----------|----------------|-------|
+| Anthropic | Native format | 1 |
+| Z.AI | Fully compatible | 5 |
+| Ollama | No caching, base64 images | 5 |
+| Bedrock | Model in URL, SigV4 auth | 6 |
+| Vertex AI | Model in URL, OAuth | 6 |
+| Azure | `x-api-key` header | 6 |
 
 ---
 
@@ -441,13 +441,34 @@ Use `http.Flusher` to flush each event immediately.
 
 | Metric | Value |
 |--------|-------|
-| Full documentation read | ~3,500 tokens |
-| This index | ~1,200 tokens |
-| **Savings per session** | **~2,300 tokens (66%)** |
-| **10 sessions** | **23,000 tokens saved** |
+| Full documentation read | ~6,500 tokens |
+| This index | ~2,800 tokens |
+| **Savings per session** | **~3,700 tokens (57%)** |
+| **10 sessions** | **37,000 tokens saved** |
+
+**Break-even:** 1 session (index creation ~2,000 tokens)
+
+---
+
+## 🔄 GSD Framework Integration
+
+This project uses the Get Shit Done (GSD) framework for development:
+
+- **Planning:** `.planning/` directory with PROJECT.md, ROADMAP.md
+- **Phases:** 11 phases with detailed plans and success criteria
+- **Commands:** GSD slash commands in `.claude/commands/gsd/`
+- **Agents:** Specialized agents for planning, execution, verification
+- **Workflow:** Discuss → Research → Plan → Execute → Verify
+
+**Key GSD Commands:**
+- `/gsd:progress` - Check current status
+- `/gsd:execute-phase` - Execute phase plans
+- `/gsd:plan-phase` - Create detailed phase plan
+- `/gsd:verify-work` - Validate implementation
 
 ---
 
 **Last Updated:** 2026-01-20
-**Index Version:** 1.0
-**Project Phase:** Specification & Design (Pre-implementation)
+**Index Version:** 2.0
+**Project Phase:** Phase 1 Development (Core Proxy Implementation)
+**Current Wave:** Planning and foundation setup

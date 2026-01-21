@@ -193,15 +193,24 @@ task markdown-lint # Lint and fix Markdown files
 task dev
 
 # Production build and run
-task run
+task build
+./bin/cc-relay serve
 
-# Manual
-./cc-relay serve
-./cc-relay serve --config /path/to/config.yaml
-./cc-relay serve --tui
-./cc-relay tui
-./cc-relay status
-./cc-relay config reload
+# Check server status
+./bin/cc-relay status
+
+# Validate configuration
+./bin/cc-relay config validate
+
+# Show version
+./bin/cc-relay version
+
+# Get help
+./bin/cc-relay --help
+./bin/cc-relay serve --help
+
+# Manual with custom config
+./bin/cc-relay serve --config /path/to/config.yaml
 ```
 
 ### Dependency Management

@@ -1,0 +1,172 @@
+/* Architecture Diagram Styles */
+.architecture-diagram {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 1.5rem;
+  padding: 4rem 2rem;
+  margin: 4rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.architecture-diagram::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.arch-layer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 3rem;
+  position: relative;
+  z-index: 1;
+}
+
+.arch-layer-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+  margin-bottom: 2rem;
+}
+
+.arch-node {
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 1.5rem 2.5rem;
+  min-width: 280px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.arch-node:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.arch-node-client {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  border-color: #4f46e5;
+  color: white;
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+.arch-proxy {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.arch-proxy-component {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  border-color: #db2777;
+  color: white;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.875rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 20px rgba(236, 72, 153, 0.3);
+}
+
+.arch-providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 2rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.arch-provider {
+  background: rgba(30, 41, 59, 0.6);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.arch-provider:hover {
+  transform: translateY(-8px) scale(1.05);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.arch-provider-logo {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 1rem;
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+  transition: all 0.3s ease;
+}
+
+.arch-provider:hover .arch-provider-logo {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.arch-provider-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #e2e8f0;
+  margin-bottom: 0.5rem;
+}
+
+.arch-provider-desc {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.arch-connector {
+  text-align: center;
+  margin: 2rem 0;
+  color: #94a3b8;
+  font-size: 1.5rem;
+  opacity: 0.5;
+}
+
+/* Provider-specific colors on hover */
+.arch-provider.anthropic:hover { border-color: #10b981; }
+.arch-provider.zai:hover { border-color: #f59e0b; }
+.arch-provider.ollama:hover { border-color: #3b82f6; }
+.arch-provider.bedrock:hover { border-color: #ff9900; }
+.arch-provider.azure:hover { border-color: #0078d4; }
+.arch-provider.vertex:hover { border-color: #4285f4; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .architecture-diagram {
+    padding: 2rem 1rem;
+  }
+
+  .arch-proxy {
+    grid-template-columns: 1fr;
+  }
+
+  .arch-providers {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .arch-node {
+    min-width: auto;
+    padding: 1rem 1.5rem;
+  }
+}

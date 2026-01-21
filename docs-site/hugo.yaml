@@ -1,0 +1,66 @@
+# Hugo configuration file
+baseURL: 'https://omarluq.github.io/cc-relay/'
+languageCode: en-us
+title: CC-Relay - Multi-Provider LLM Proxy
+
+# Copyright
+copyright: "© 2026 Omar Alani. All rights reserved."
+
+# import hextra as module
+module:
+  imports:
+    - path: github.com/imfing/hextra
+
+markup:
+  # allow raw html
+  goldmark:
+    renderer:
+      unsafe: true
+
+  # enable hextra syntax highlight
+  highlight:
+    noClasses: false
+
+menu:
+  main:
+    - name: Documentation
+      pageRef: /docs
+      weight: 1
+    - name: GitHub
+      weight: 2
+      url: "https://github.com/omarluq/cc-relay"
+      params:
+        icon: github
+
+params:
+  description: "A high-performance, multi-provider proxy for Claude Code and other LLM clients"
+
+  navbar:
+    displayTitle: true
+    displayLogo: false
+    width: wide
+
+  page:
+    # full (100%), wide (90rem), normal (1280px)
+    width: wide
+
+  theme:
+    # light | dark | system
+    default: dark
+    displayToggle: true
+
+  footer:
+    displayCopyright: true
+    displayPoweredBy: true
+
+  editURL:
+    enable: false
+
+  # Custom CSS and favicon
+  head:
+    css:
+      - "css/custom.css"
+    links:
+      - rel: "icon"
+        type: "image/svg+xml"
+        href: "/favicon.svg"

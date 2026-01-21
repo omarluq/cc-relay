@@ -29,9 +29,20 @@ tasks:
   # Build
   build:
     desc: Build binary
+    vars:
+      VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+      COMMIT:
+        sh: git rev-parse --short HEAD 2>/dev/null || echo "none"
+      BUILD_DATE:
+        sh: date -u +"%Y-%m-%dT%H:%M:%SZ"
+      LDFLAGS: >-
+        -X github.com/omarluq/cc-relay/internal/version.Version={{.VERSION}}
+        -X github.com/omarluq/cc-relay/internal/version.Commit={{.COMMIT}}
+        -X github.com/omarluq/cc-relay/internal/version.BuildDate={{.BUILD_DATE}}
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/cc-relay
+      - go build -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/cc-relay
 
   clean:
     desc: Clean build artifacts
@@ -93,3 +104,22 @@ tasks:
       - task: lint
       - task: test
       - task: build
+
+  # Documentation site (Hugo)
+  docs-dev:
+    desc: Run Hugo development server with live reload
+    dir: docs-site
+    cmds:
+      - hugo server --buildDrafts --disableFastRender --baseURL http://localhost:1313/
+
+  docs-build:
+    desc: Build Hugo site for production
+    dir: docs-site
+    cmds:
+      - hugo --minify
+
+  docs-clean:
+    desc: Clean Hugo build artifacts
+    dir: docs-site
+    cmds:
+      - rm -rf public resources

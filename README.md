@@ -63,9 +63,160 @@ export ANTHROPIC_API_KEY="managed-by-cc-relay"
 claude
 ```
 
+## CLI Commands
+
+```bash
+# Start the proxy server
+cc-relay serve [--config path/to/config.yaml]
+
+# Check if server is running
+cc-relay status
+
+# Validate configuration file
+cc-relay config validate [--config path/to/config.yaml]
+
+# Show version information
+cc-relay version
+
+# Get help
+cc-relay --help
+cc-relay serve --help
+```
+
+## API Endpoints
+
+### POST /v1/messages
+
+Proxies requests to the configured backend provider. This is the main endpoint used by Claude Code.
+
+- **Auth**: Required (x-api-key or Bearer token depending on config)
+- **Content-Type**: application/json
+- **Streaming**: Supports SSE streaming via `stream: true` in request body
+
+### GET /v1/models
+
+Lists all available models from all configured providers. This is a discovery endpoint.
+
+- **Auth**: Not required
+- **Response format**: Anthropic-compatible model list
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "claude-sonnet-4-5-20250514",
+      "object": "model",
+      "created": 1737500000,
+      "owned_by": "anthropic",
+      "provider": "anthropic-primary"
+    },
+    {
+      "id": "glm-4-plus",
+      "object": "model",
+      "created": 1737500000,
+      "owned_by": "zhipu",
+      "provider": "zai-primary"
+    }
+  ]
+}
+```
+
+Configure models in your provider config:
+
+```yaml
+providers:
+  - name: anthropic-primary
+    type: anthropic
+    enabled: true
+    models:
+      - claude-sonnet-4-5-20250514
+      - claude-opus-4-5-20250514
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: zai-primary
+    type: zai
+    enabled: true
+    models:
+      - glm-4
+      - glm-4-plus
+    keys:
+      - key: "${ZAI_API_KEY}"
+```
+
+### GET /health
+
+Health check endpoint for load balancers and monitoring.
+
+- **Auth**: Not required
+- **Response**: `{"status":"ok"}`
+
+## Authentication
+
+cc-relay supports multiple authentication methods for different Claude Code user types.
+
+### API Key Users
+
+If you have an Anthropic API key (starts with `sk-ant-...`):
+
+```bash
+# Start cc-relay
+cc-relay serve
+
+# Configure Claude Code to use proxy
+export ANTHROPIC_BASE_URL="http://localhost:8787"
+export ANTHROPIC_API_KEY="sk-ant-..."  # Your actual API key
+claude
+```
+
+cc-relay configuration:
+
+```yaml
+server:
+  auth:
+    api_key: "${PROXY_API_KEY}"  # Optional: require specific proxy auth key
+```
+
+### Subscription Users (Claude Code Pro/Team)
+
+If you use Claude Code with a subscription (no API key required):
+
+1. Configure cc-relay to accept subscription tokens:
+
+```yaml
+server:
+  auth:
+    allow_subscription: true  # Accept subscription tokens
+```
+
+2. Use Claude Code normally - the token is passed through to Anthropic:
+
+```bash
+export ANTHROPIC_BASE_URL="http://localhost:8787"
+claude
+```
+
+**How it works:** Claude Code subscription users authenticate via `Authorization: Bearer` tokens. cc-relay accepts these tokens in passthrough mode and forwards them to Anthropic for validation.
+
+**Security Note:** Subscription tokens are as sensitive as API keys. Never commit them to version control or share them publicly.
+
+### Multiple Auth Methods
+
+You can enable multiple auth methods simultaneously. The proxy tries them in order until one succeeds:
+
+```yaml
+server:
+  auth:
+    api_key: "${PROXY_API_KEY}"     # Method 1: x-api-key header
+    allow_subscription: true         # Method 2: Bearer token (subscription)
+    allow_bearer: true               # Method 3: Generic Bearer token
+    bearer_secret: ""                # Empty = accept any bearer token
+```
+
 ## Configuration
 
-See [config/example.yaml](config/example.yaml) for full configuration options.
+See [example.yaml](example.yaml) for full configuration options.
 
 ### Multiple API Keys
 
@@ -102,6 +253,25 @@ routing:
   # Routes to cheapest provider that can handle the request
 ```
 
+### Z.AI Provider
+
+Z.AI (Zhipu AI) offers GLM models through an Anthropic-compatible API at ~1/7 the cost:
+
+```yaml
+providers:
+  - name: zai
+    type: zai
+    enabled: true
+    base_url: "https://api.z.ai/api/anthropic"
+    keys:
+      - key: "${ZAI_API_KEY}"
+    model_mapping:
+      "claude-sonnet-4-5-20250929": "GLM-4.7"
+      "claude-sonnet-4-5": "GLM-4.7"
+      "claude-haiku-4-5-20251001": "GLM-4.5-Air"
+      "claude-haiku-4-5": "GLM-4.5-Air"
+```
+
 ## Supported Providers
 
 | Provider      | Status     | Notes                                   |
@@ -123,11 +293,11 @@ cc-relay tui
 ┌─────────────────────────────────────────────────────────────────┐
 │  cc-relay v0.1.0                              [q]uit [?]help    │
 ├─────────────────────────────────────────────────────────────────┤
-│  Strategy: simple-shuffle    Active: 3    Requests: 1,247      │
+│  Strategy: simple-shuffle    Active: 3    Requests: 1,247       │
 ├─────────────────────────────────────────────────────────────────┤
-│  ● anthropic     healthy   847 req   avg 234ms   [2 keys]      │
-│  ● zai           healthy   312 req   avg 189ms   [1 key]       │
-│  ○ ollama        degraded   88 req   avg 1.2s    [local]       │
+│  ● anthropic     healthy   847 req   avg 234ms   [2 keys]       │
+│  ● zai           healthy   312 req   avg 189ms   [1 key]        │
+│  ○ ollama        degraded   88 req   avg 1.2s    [local]        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -135,7 +305,7 @@ cc-relay tui
 
 - [SPEC.md](SPEC.md) - Full technical specification
 - [llms.txt](llms.txt) - LLM-friendly project context
-- [config/example.yaml](config/example.yaml) - Configuration reference
+- [example.yaml](example.yaml) - Configuration reference
 
 ## Development
 
@@ -151,7 +321,7 @@ go build -o cc-relay ./cmd/cc-relay
 go test ./...
 
 # Run
-./cc-relay serve --config config/example.yaml
+./cc-relay serve --config example.yaml
 ```
 
 ## Roadmap
