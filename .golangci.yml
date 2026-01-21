@@ -19,7 +19,6 @@ linters:
   enable:
     # Core linters
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -47,12 +46,10 @@ linters:
     - nolintlint
     - prealloc
     - predeclared
-    - stylecheck
     - thelper
     - unconvert
     - unparam
     - whitespace
-    - wsl
     - testpackage
     - paralleltest
     - tparallel
