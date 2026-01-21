@@ -172,6 +172,7 @@ linters-settings:
   gosec:
     excludes:
       - G104  # Audit errors not checked (covered by errcheck)
+      - G304  # File inclusion via variable (acceptable for config loading)
     config:
       global:
         nosec: true
