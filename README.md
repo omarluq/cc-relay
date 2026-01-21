@@ -63,6 +63,26 @@ export ANTHROPIC_API_KEY="managed-by-cc-relay"
 claude
 ```
 
+## CLI Commands
+
+```bash
+# Start the proxy server
+cc-relay serve [--config path/to/config.yaml]
+
+# Check if server is running
+cc-relay status
+
+# Validate configuration file
+cc-relay config validate [--config path/to/config.yaml]
+
+# Show version information
+cc-relay version
+
+# Get help
+cc-relay --help
+cc-relay serve --help
+```
+
 ## Configuration
 
 See [config/example.yaml](config/example.yaml) for full configuration options.
