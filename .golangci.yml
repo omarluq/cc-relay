@@ -37,7 +37,6 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - gci
     - gocognit
     - goprintffuncname
     - lll
