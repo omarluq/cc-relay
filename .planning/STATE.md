@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 1.1 Complete - Embedded HA Cache Clustering
+**Current focus:** Phase 1.2 Complete - Cache Documentation
 
 ## Current Position
 
-Phase: 1.1 of 11 (Embedded HA Cache Clustering)
-Plan: 4 of 4 in current phase (COMPLETE)
-Status: Phase 1.1 complete
-Last activity: 2026-01-21 - Completed 01.1-04-PLAN.md (Multi-Node Cluster Tests)
+Phase: 1.2 of 11 (Cache Documentation)
+Plan: 1 of 1 in current phase (COMPLETE)
+Status: Phase 1.2 complete
+Last activity: 2026-01-21 - Completed 01.2-01-PLAN.md (Cache Documentation)
 
-Progress: [████████░░] 92% (12/13 plans)
+Progress: [████████░░] 100% (13/13 plans through Phase 1.2)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: 9.6 min
-- Total execution time: 1.93 hours
+- Total plans completed: 13
+- Average duration: 9.1 min
+- Total execution time: 1.98 hours
 
 **By Phase:**
 
@@ -29,10 +29,11 @@ Progress: [████████░░] 92% (12/13 plans)
 |-------|-------|-------|----------|
 | 01 (Core Proxy) | 8 | 76 min | 9.5 min |
 | 01.1 (HA Cache) | 4 | 40 min | 10 min |
+| 01.2 (Cache Docs) | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01.1-01 (6min), 01.1-02 (11min), 01.1-03 (8min), 01.1-04 (15min)
-- Trend: 01.1-04 took longer due to debugging memberlist port configuration
+- Last 5 plans: 01.1-02 (11min), 01.1-03 (8min), 01.1-04 (15min), 01.2-01 (3min)
+- Trend: Documentation plan executed quickly (no code changes)
 
 *Updated after each plan completion*
 
@@ -113,9 +114,14 @@ Recent decisions affecting current work:
 - Memberlist port = Olric port + 2 (matching Olric defaults 3320/3322)
 - Space test ports by 10 to avoid Olric/memberlist overlap
 
+**From 01.2-01 (Cache Documentation):**
+- Single comprehensive docs/cache.md file for all cache documentation
+- Include Redis skeleton implementation example for extensibility
+- Document memberlist port calculation explicitly (bind_addr + 2)
+
 ### Pending Todos
 
-None yet.
+None.
 
 ### Roadmap Evolution
 
@@ -125,12 +131,15 @@ None yet.
   - Integration tests validate multi-node clustering
   - Ready for production deployment testing
 
-- Phase 1.2 INSERTED: Cache Documentation
-  - Comprehensive docs for cache keys, busting strategies, adapters, extensibility
-  - How to extend with new backends (Redis, Memcached)
-  - HA clustering configuration examples
+- Phase 1.2 COMPLETE: Cache Documentation
+  - Comprehensive docs/cache.md (1033 lines) covering all 6 success criteria
+  - Cache key naming conventions with examples
+  - Cache busting strategies (TTL, manual, cluster events)
+  - Backend implementation guide with Redis skeleton
+  - HA clustering configuration with docker-compose example
+  - Troubleshooting guide for common issues
 
-- Phase 1.3 INSERTED: Site Documentation Update
+- Phase 1.3 NEXT: Site Documentation Update
   - Update all site docs in all supported languages
   - Include cache documentation in site docs
 
@@ -141,16 +150,19 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Phase 1.1 execution complete, verification passed
+Stopped at: Phase 1.2 execution complete, all verification passed
 Resume file: None
 
-**Phase 1.1 Complete (VERIFIED):**
-- Plan 01 complete: OlricConfig extended with Environment, ReplicaCount, quorum settings
-- Plan 02 complete: buildOlricConfig helper applies HA settings
-- Plan 03 complete: ClusterInfo interface for cluster observability
-- Plan 04 complete: Integration tests validate clustering (formation, replication, node leave/join)
-- All 5 success criteria verified against codebase
+**Phase 1.2 Complete (VERIFIED):**
+- Plan 01 complete: Comprehensive cache documentation created
+- docs/cache.md: 1033 lines, 10 sections, 15 YAML examples, 16 Go examples
+- All 6 success criteria verified:
+  - Cache key naming conventions documented with examples
+  - Cache busting strategies documented (TTL, manual, cluster)
+  - Cache adapter interface documented with implementation guide
+  - How to extend with new backends (Redis skeleton)
+  - HA clustering configuration documented with examples
+  - Troubleshooting guide for common issues
 
 **Next Steps:**
-- Phase 1.2: Cache Documentation (keys, strategies, adapters, extensibility)
 - Phase 1.3: Site Documentation Update (all languages)
