@@ -1,6 +1,8 @@
 # golangci-lint configuration for cc-relay
 # Comprehensive linting rules for Go code quality
 
+version: 2
+
 run:
   timeout: 5m
   tests: true
