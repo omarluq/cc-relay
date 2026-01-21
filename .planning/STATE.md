@@ -5,34 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 1.1 - Embedded HA Cache Clustering
+**Current focus:** Phase 1.1 Complete - Embedded HA Cache Clustering
 
 ## Current Position
 
 Phase: 1.1 of 11 (Embedded HA Cache Clustering)
-Plan: 3 of 5 in current phase
-Status: In progress
-Last activity: 2026-01-21 - Completed 01.1-03-PLAN.md (Cluster Membership Helpers)
+Plan: 4 of 4 in current phase (COMPLETE)
+Status: Phase 1.1 complete
+Last activity: 2026-01-21 - Completed 01.1-04-PLAN.md (Multi-Node Cluster Tests)
 
-Progress: [███████░░░] 85% (11/13 plans)
+Progress: [████████░░] 92% (12/13 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 9.2 min
-- Total execution time: 1.68 hours
+- Total plans completed: 12
+- Average duration: 9.6 min
+- Total execution time: 1.93 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 (Core Proxy) | 8 | 76 min | 9.5 min |
-| 01.1 (HA Cache) | 3 | 25 min | 8.3 min |
+| 01.1 (HA Cache) | 4 | 40 min | 10 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-09 (8min), 01-08 (8min), 01.1-01 (6min), 01.1-02 (11min), 01.1-03 (8min)
-- Trend: Consistent 6-11 min for focused tasks
+- Last 5 plans: 01.1-01 (6min), 01.1-02 (11min), 01.1-03 (8min), 01.1-04 (15min)
+- Trend: 01.1-04 took longer due to debugging memberlist port configuration
 
 *Updated after each plan completion*
 
@@ -107,29 +107,39 @@ Recent decisions affecting current work:
 - ClusterInfo methods return safe defaults (empty string, 0) when stats unavailable
 - Use explicit client.Close() error handling to satisfy errcheck linter
 
+**From 01.1-04 (Multi-Node Cluster Tests):**
+- Use integration build tag for cluster tests (keep regular suite fast)
+- Track memberlist addresses explicitly (Stats API unavailable in embedded mode)
+- Memberlist port = Olric port + 2 (matching Olric defaults 3320/3322)
+- Space test ports by 10 to avoid Olric/memberlist overlap
+
 ### Pending Todos
 
 None yet.
 
 ### Roadmap Evolution
 
-- Phase 1.1 inserted after Phase 1: Embedded HA Cache Clustering (URGENT)
-  - cc-relay should support node discovery and HA clustering natively
-  - Embedded Olric mode needs extended config (replication, quorum, environment)
-  - Keep remote client mode for future Redis/external cache support
+- Phase 1.1 COMPLETE: Embedded HA Cache Clustering
+  - cc-relay now supports node discovery and HA clustering natively
+  - Embedded Olric mode fully configured (replication, quorum, environment)
+  - Integration tests validate multi-node clustering
+  - Ready for production deployment testing
 
 ### Blockers/Concerns
 
-None yet.
+None.
 
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 01.1-03-PLAN.md (Cluster Membership Helpers)
+Stopped at: Completed 01.1-04-PLAN.md (Multi-Node Cluster Tests)
 Resume file: None
 
-**Phase 1.1 Progress:**
-- Plan 01 complete: OlricConfig extended with Environment, ReplicaCount, ReadQuorum, WriteQuorum, MemberCountQuorum, LeaveTimeout
-- Plan 02 complete: buildOlricConfig helper, newEmbeddedOlricCache updated to use HA settings
-- Plan 03 complete: ClusterInfo interface with MemberlistAddr, ClusterMembers, IsEmbedded
-- Ready for Plan 04: Multi-Node Clustering tests and integration
+**Phase 1.1 Complete:**
+- Plan 01 complete: OlricConfig extended with Environment, ReplicaCount, quorum settings
+- Plan 02 complete: buildOlricConfig helper applies HA settings
+- Plan 03 complete: ClusterInfo interface for cluster observability
+- Plan 04 complete: Integration tests validate clustering (formation, replication, node leave/join)
+
+**Next Steps:**
+- Phase 2 or continue with remaining roadmap phases
