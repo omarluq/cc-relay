@@ -35,10 +35,6 @@ menu:
 params:
   description: "A high-performance, multi-provider proxy for Claude Code and other LLM clients. Redefining the Claude Code multi-model story."
 
-  # Open Graph / Social Media Cards
-  images:
-    - /og-image.png
-
   navbar:
     displayTitle: true
     displayLogo: false
