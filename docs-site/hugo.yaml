@@ -1,5 +1,5 @@
 # Hugo configuration file
-baseURL: 'https://omarluq.github.io/cc-relay/'
+baseURL: "https://cc-relay.ai/"
 title: CC-Relay - Multi-Provider LLM Proxy
 
 # Default language
@@ -179,7 +179,7 @@ languages:
 params:
   # Open Graph / Social Media Cards
   images:
-    - https://omarluq.github.io/cc-relay/og-image.png
+    - https://cc-relay.ai/og-image.png
 
   navbar:
     displayTitle: true
@@ -214,4 +214,4 @@ params:
     links:
       - rel: "icon"
         type: "image/svg+xml"
-        href: "/cc-relay/favicon.svg"
+        href: "/favicon.svg"

@@ -208,12 +208,12 @@ layout: hextra-home
     <div class="arch-layer-title">프로바이더 레이어 (구현됨)</div>
     <div class="arch-providers">
       <div class="arch-provider anthropic">
-        <img src="/cc-relay/logos/anthropic.svg" alt="Anthropic" class="arch-provider-logo" />
+        <img src="/logos/anthropic.svg" alt="Anthropic" class="arch-provider-logo" />
         <div class="arch-provider-name">Anthropic</div>
         <div class="arch-provider-desc">Claude 모델</div>
       </div>
       <div class="arch-provider zai">
-        <img src="/cc-relay/logos/zai.svg" alt="Z.AI" class="arch-provider-logo" />
+        <img src="/logos/zai.svg" alt="Z.AI" class="arch-provider-logo" />
         <div class="arch-provider-name">Z.AI</div>
         <div class="arch-provider-desc">GLM 모델</div>
       </div>
@@ -226,22 +226,22 @@ layout: hextra-home
     <div class="arch-layer-title" style="opacity: 0.7;">출시 예정</div>
     <div class="arch-providers" style="opacity: 0.6;">
       <div class="arch-provider ollama">
-        <img src="/cc-relay/logos/ollama.svg" alt="Ollama" class="arch-provider-logo" />
+        <img src="/logos/ollama.svg" alt="Ollama" class="arch-provider-logo" />
         <div class="arch-provider-name">Ollama</div>
         <div class="arch-provider-desc">로컬 모델</div>
       </div>
       <div class="arch-provider bedrock">
-        <img src="/cc-relay/logos/aws.svg" alt="AWS Bedrock" class="arch-provider-logo" />
+        <img src="/logos/aws.svg" alt="AWS Bedrock" class="arch-provider-logo" />
         <div class="arch-provider-name">AWS Bedrock</div>
         <div class="arch-provider-desc">SigV4 인증</div>
       </div>
       <div class="arch-provider azure">
-        <img src="/cc-relay/logos/azure.svg" alt="Azure" class="arch-provider-logo" />
+        <img src="/logos/azure.svg" alt="Azure" class="arch-provider-logo" />
         <div class="arch-provider-name">Azure Foundry</div>
         <div class="arch-provider-desc">배포</div>
       </div>
       <div class="arch-provider vertex">
-        <img src="/cc-relay/logos/gcp.svg" alt="Vertex AI" class="arch-provider-logo" />
+        <img src="/logos/gcp.svg" alt="Vertex AI" class="arch-provider-logo" />
         <div class="arch-provider-name">Vertex AI</div>
         <div class="arch-provider-desc">OAuth</div>
       </div>
