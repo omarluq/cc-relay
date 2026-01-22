@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1.3: Site Documentation Update** - Update all site docs in all languages (INSERTED)
 - [x] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
 - [x] **Phase 2.1: Multi-Key Pooling Site Documentation** - Update all site docs in all languages (INSERTED)
-- [ ] **Phase 2.2: Subscription Token Relay** - Document two-tier auth model and add config validation (INSERTED)
+- [ ] **Phase 2.2: Subscription Token Relay** - Implement transparent proxy for client auth forwarding (INSERTED)
 - [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
@@ -141,22 +141,20 @@ Plans:
 - [x] 02.1-01-PLAN.md - Add Multi-Key Pooling documentation to all 6 language configuration.md files
 
 ### Phase 2.2: Subscription Token Relay (INSERTED)
-**Goal**: REVISED - Document and validate cc-relay's two-tier authentication model (client-to-proxy vs proxy-to-backend). Original goal of forwarding subscription tokens to Anthropic is blocked by January 2026 API restriction.
+**Goal**: Implement transparent proxy that forwards client Authorization headers to Anthropic unchanged. Auto-detects based on client headers - no new config fields needed.
 **Depends on**: Phase 2.1 (multi-key pooling docs complete)
-**Requirements**: AUTH-SUB-01, AUTH-SUB-02, AUTH-SUB-03, DOC-AUTH-01
-**Revised Success Criteria** (what must be TRUE):
-  1. Documentation clearly explains two-tier auth model (client-to-proxy vs proxy-to-backend)
-  2. Users understand subscription tokens only authenticate to proxy, not to Anthropic
-  3. Config validation warns when allow_subscription=true but no provider keys configured
-  4. Example configurations have clear comments explaining auth flow
-  5. All 6 language site docs explain the authentication architecture
-  6. Users know they need provider API keys even with subscription passthrough
-**Plans**: 3 plans in 2 waves
+**Requirements**: AUTH-SUB-01, AUTH-SUB-02, DOC-AUTH-01
+**Success Criteria** (what must be TRUE):
+  1. Client Authorization header forwarded unchanged when present
+  2. Client x-api-key header forwarded unchanged when present
+  3. Fallback to configured provider keys when client has no auth
+  4. KeyPool/rate limiting only applies when using proxy's own keys
+  5. Works with existing ANTHROPIC_AUTH_TOKEN - user just changes URL
+  6. Documentation explains auto-detection behavior
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 02.2-01-PLAN.md - Add Authentication Architecture docs (EN) + config validation + example.yaml updates
-- [ ] 02.2-02-PLAN.md - Translate Authentication Architecture to German and Spanish
-- [ ] 02.2-03-PLAN.md - Translate Authentication Architecture to Japanese, Chinese, and Korean
+- [ ] 02.2-01-PLAN.md - Transparent auth forwarding in handler.go with tests and documentation
 
 ### Phase 3: Routing Strategies
 **Goal**: Implement pluggable routing strategies (round-robin, shuffle, failover) selected via configuration
@@ -323,7 +321,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 3 
 | 1.3 Site Docs Update (INSERTED) | 6/6 | Complete | 2026-01-21 |
 | 2. Multi-Key Pooling | 6/6 | Complete | 2026-01-22 |
 | 2.1 Multi-Key Pooling Docs (INSERTED) | 1/1 | Complete | 2026-01-21 |
-| 2.2 Subscription Token Relay (INSERTED) | 0/3 | Planned | - |
+| 2.2 Subscription Token Relay (INSERTED) | 0/1 | Planned | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
