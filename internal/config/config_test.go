@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -710,4 +711,305 @@ func TestProviderConfig_IsPoolingEnabled(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Tests for mo.Option helper methods
+
+func TestDebugOptions_GetMaxBodyLogSizeOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		opts      DebugOptions
+		wantSome  bool
+		wantValue int
+	}{
+		{
+			name:     "zero returns None",
+			opts:     DebugOptions{MaxBodyLogSize: 0},
+			wantSome: false,
+		},
+		{
+			name:     "negative returns None",
+			opts:     DebugOptions{MaxBodyLogSize: -1},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some",
+			opts:      DebugOptions{MaxBodyLogSize: 5000},
+			wantSome:  true,
+			wantValue: 5000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.opts.GetMaxBodyLogSizeOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+func TestServerConfig_GetTimeoutOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		config    ServerConfig
+		wantSome  bool
+		wantValue time.Duration
+	}{
+		{
+			name:     "zero returns None",
+			config:   ServerConfig{TimeoutMS: 0},
+			wantSome: false,
+		},
+		{
+			name:     "negative returns None",
+			config:   ServerConfig{TimeoutMS: -1},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some with converted duration",
+			config:    ServerConfig{TimeoutMS: 5000},
+			wantSome:  true,
+			wantValue: 5 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.config.GetTimeoutOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %v, want %v", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+func TestServerConfig_GetMaxConcurrentOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		config    ServerConfig
+		wantSome  bool
+		wantValue int
+	}{
+		{
+			name:     "zero returns None",
+			config:   ServerConfig{MaxConcurrent: 0},
+			wantSome: false,
+		},
+		{
+			name:     "negative returns None",
+			config:   ServerConfig{MaxConcurrent: -1},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some",
+			config:    ServerConfig{MaxConcurrent: 100},
+			wantSome:  true,
+			wantValue: 100,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.config.GetMaxConcurrentOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+func TestKeyConfig_GetRPMLimitOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		config    KeyConfig
+		wantSome  bool
+		wantValue int
+	}{
+		{
+			name:     "zero returns None",
+			config:   KeyConfig{Key: "test", RPMLimit: 0},
+			wantSome: false,
+		},
+		{
+			name:     "negative returns None",
+			config:   KeyConfig{Key: "test", RPMLimit: -1},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some",
+			config:    KeyConfig{Key: "test", RPMLimit: 50},
+			wantSome:  true,
+			wantValue: 50,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.config.GetRPMLimitOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+func TestKeyConfig_GetITPMLimitOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		config    KeyConfig
+		wantSome  bool
+		wantValue int
+	}{
+		{
+			name:     "zero returns None",
+			config:   KeyConfig{Key: "test", ITPMLimit: 0},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some",
+			config:    KeyConfig{Key: "test", ITPMLimit: 30000},
+			wantSome:  true,
+			wantValue: 30000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.config.GetITPMLimitOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+func TestKeyConfig_GetOTPMLimitOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		config    KeyConfig
+		wantSome  bool
+		wantValue int
+	}{
+		{
+			name:     "zero returns None",
+			config:   KeyConfig{Key: "test", OTPMLimit: 0},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some",
+			config:    KeyConfig{Key: "test", OTPMLimit: 10000},
+			wantSome:  true,
+			wantValue: 10000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.config.GetOTPMLimitOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+// Test Option usage with OrElse pattern.
+func TestOption_OrElse_Pattern(t *testing.T) {
+	t.Parallel()
+
+	t.Run("timeout with OrElse", func(t *testing.T) {
+		t.Parallel()
+
+		defaultTimeout := 30 * time.Second
+
+		// Zero timeout uses default
+		cfg := ServerConfig{TimeoutMS: 0}
+		timeout := cfg.GetTimeoutOption().OrElse(defaultTimeout)
+		if timeout != defaultTimeout {
+			t.Errorf("Expected default timeout %v, got %v", defaultTimeout, timeout)
+		}
+
+		// Explicit timeout uses config value
+		cfg2 := ServerConfig{TimeoutMS: 5000}
+		timeout2 := cfg2.GetTimeoutOption().OrElse(defaultTimeout)
+		if timeout2 != 5*time.Second {
+			t.Errorf("Expected 5s timeout, got %v", timeout2)
+		}
+	})
+
+	t.Run("max concurrent with OrElse", func(t *testing.T) {
+		t.Parallel()
+
+		defaultMax := 1000
+
+		// Zero uses default (unlimited represented as high value)
+		cfg := ServerConfig{MaxConcurrent: 0}
+		maxConc := cfg.GetMaxConcurrentOption().OrElse(defaultMax)
+		if maxConc != defaultMax {
+			t.Errorf("Expected default %d, got %d", defaultMax, maxConc)
+		}
+
+		// Explicit limit uses config value
+		cfg2 := ServerConfig{MaxConcurrent: 50}
+		maxConc2 := cfg2.GetMaxConcurrentOption().OrElse(defaultMax)
+		if maxConc2 != 50 {
+			t.Errorf("Expected 50, got %d", maxConc2)
+		}
+	})
 }
