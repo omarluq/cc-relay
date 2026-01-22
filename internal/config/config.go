@@ -2,11 +2,36 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/rs/zerolog"
 )
+
+// Configuration errors.
+var (
+	ErrKeyRequired = errors.New("config: key is required")
+)
+
+// InvalidPriorityError is returned when priority is outside valid range.
+type InvalidPriorityError struct {
+	Priority int
+}
+
+func (e InvalidPriorityError) Error() string {
+	return fmt.Sprintf("config: priority must be 0-2, got %d", e.Priority)
+}
+
+// InvalidWeightError is returned when weight is negative.
+type InvalidWeightError struct {
+	Weight int
+}
+
+func (e InvalidWeightError) Error() string {
+	return fmt.Sprintf("config: weight must be >= 0, got %d", e.Weight)
+}
 
 // Log level constants.
 const (
@@ -81,14 +106,72 @@ type ProviderConfig struct {
 	BaseURL      string            `yaml:"base_url"`
 	Keys         []KeyConfig       `yaml:"keys"`
 	Models       []string          `yaml:"models"`
+	Pooling      PoolingConfig     `yaml:"pooling"`
 	Enabled      bool              `yaml:"enabled"`
 }
 
-// KeyConfig defines an API key with rate limits.
+// PoolingConfig defines key pool behavior for a provider.
+type PoolingConfig struct {
+	Strategy string `yaml:"strategy"` // least_loaded (default), round_robin, random, weighted
+	Enabled  bool   `yaml:"enabled"`  // Enable pooling (default: true if multiple keys)
+}
+
+// GetEffectiveStrategy returns the selection strategy with default fallback.
+func (p *ProviderConfig) GetEffectiveStrategy() string {
+	if p.Pooling.Strategy != "" {
+		return p.Pooling.Strategy
+	}
+	return "least_loaded" // Default strategy
+}
+
+// IsPoolingEnabled returns true if key pooling should be used.
+func (p *ProviderConfig) IsPoolingEnabled() bool {
+	// Explicit setting takes precedence
+	if p.Pooling.Enabled {
+		return true
+	}
+	// Default: enable if multiple keys
+	return len(p.Keys) > 1
+}
+
+// KeyConfig defines an API key with rate limits and selection metadata.
 type KeyConfig struct {
-	Key      string `yaml:"key"`
-	RPMLimit int    `yaml:"rpm_limit"`
-	TPMLimit int    `yaml:"tpm_limit"`
+	Key       string `yaml:"key"`        // API key value (supports ${ENV_VAR})
+	RPMLimit  int    `yaml:"rpm_limit"`  // Requests per minute (0 = unlimited/learn)
+	ITPMLimit int    `yaml:"itpm_limit"` // Input tokens per minute (0 = unlimited/learn)
+	OTPMLimit int    `yaml:"otpm_limit"` // Output tokens per minute (0 = unlimited/learn)
+	Priority  int    `yaml:"priority"`   // Selection priority: 0=low, 1=normal (default), 2=high
+	Weight    int    `yaml:"weight"`     // For weighted selection strategy (default: 1)
+
+	// Deprecated: Use ITPMLimit + OTPMLimit instead
+	TPMLimit int `yaml:"tpm_limit"`
+}
+
+// GetEffectiveTPM returns the combined TPM limit for backwards compatibility.
+// Prefers ITPMLimit + OTPMLimit if set, falls back to TPMLimit.
+func (k *KeyConfig) GetEffectiveTPM() (itpm, otpm int) {
+	if k.ITPMLimit > 0 || k.OTPMLimit > 0 {
+		return k.ITPMLimit, k.OTPMLimit
+	}
+	// Legacy: split TPMLimit equally between input/output
+	if k.TPMLimit > 0 {
+		return k.TPMLimit / 2, k.TPMLimit / 2
+	}
+	return 0, 0
+}
+
+// Validate checks KeyConfig for errors.
+func (k *KeyConfig) Validate() error {
+	if k.Key == "" {
+		return ErrKeyRequired
+	}
+	if k.Priority < 0 || k.Priority > 2 {
+		return InvalidPriorityError{Priority: k.Priority}
+	}
+	if k.Weight < 0 {
+		return InvalidWeightError{Weight: k.Weight}
+	}
+	return nil
 }
 
 // LoggingConfig defines logging behavior.

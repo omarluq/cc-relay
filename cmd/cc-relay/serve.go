@@ -90,7 +90,8 @@ func runServe(_ *cobra.Command, _ []string) error {
 	var primaryProvider providers.Provider
 	var providerKey string
 
-	for _, p := range cfg.Providers {
+	for i := range cfg.Providers {
+		p := &cfg.Providers[i]
 		if !p.Enabled {
 			continue
 		}

@@ -67,7 +67,8 @@ func validateConfig(cfg *config.Config) error {
 	// Check at least one enabled provider
 	hasEnabledProvider := false
 
-	for _, p := range cfg.Providers {
+	for i := range cfg.Providers {
+		p := &cfg.Providers[i]
 		if p.Enabled {
 			hasEnabledProvider = true
 			// Check provider has at least one key
