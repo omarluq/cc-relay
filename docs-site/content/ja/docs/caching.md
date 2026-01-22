@@ -168,6 +168,187 @@ cache:
 
 すべてのキャッシュ操作はデータを保存せずに即座に返します。`Get` 操作は常に `ErrNotFound` を返します。
 
+## HAクラスタリングガイド
+
+このセクションでは、高可用性のために複数のノードにわたって分散キャッシュを使用して cc-relay をデプロイする方法を説明します。
+
+### 前提条件
+
+HA モードを設定する前に：
+
+1. **ネットワーク接続性**: すべてのノードが相互に到達可能である必要があります
+2. **ポートアクセシビリティ**: Olric と memberlist の両方のポートが開いている必要があります
+3. **一貫した設定**: すべてのノードで同じ `dmap_name` と `environment` を使用する必要があります
+
+### ポート要件
+
+**重要:** Olric は2つのポートを使用します：
+
+| ポート | 目的 | デフォルト |
+|--------|------|----------|
+| `bind_addr` ポート | Olric クライアント接続 | 3320 |
+| `bind_addr` ポート + 2 | Memberlist ゴシッププロトコル | 3322 |
+
+**例:** `bind_addr: "0.0.0.0:3320"` の場合、memberlist は自動的にポート 3322 を使用します。
+
+ファイアウォールで両方のポートが開いていることを確認してください：
+
+```bash
+# Olric クライアントポートを許可
+sudo ufw allow 3320/tcp
+
+# memberlist ゴシップポートを許可（bind_addr ポート + 2）
+sudo ufw allow 3322/tcp
+```
+
+### 環境設定
+
+| 設定 | ゴシップ間隔 | プローブ間隔 | プローブタイムアウト | 使用場面 |
+|------|-------------|-------------|-------------------|---------|
+| `local` | 100ms | 100ms | 200ms | 同一ホスト、開発 |
+| `lan` | 200ms | 1s | 500ms | 同一データセンター |
+| `wan` | 500ms | 3s | 2s | クロスデータセンター |
+
+**クラスター内のすべてのノードは同じ environment 設定を使用する必要があります。**
+
+### 2ノードクラスター例
+
+**ノード1（cc-relay-1）:**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"  # ノード2の memberlist ポート
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**ノード2（cc-relay-2）:**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-1:3322"  # ノード1の memberlist ポート
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+### 3ノードDocker Compose例
+
+```yaml
+version: '3.8'
+
+services:
+  cc-relay-1:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node1.yaml:/config/config.yaml:ro
+    ports:
+      - "8787:8787"   # HTTP プロキシ
+      - "3320:3320"   # Olric クライアントポート
+      - "3322:3322"   # Memberlist ゴシップポート
+    networks:
+      - cc-relay-net
+
+  cc-relay-2:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node2.yaml:/config/config.yaml:ro
+    ports:
+      - "8788:8787"
+      - "3330:3320"
+      - "3332:3322"
+    networks:
+      - cc-relay-net
+
+  cc-relay-3:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node3.yaml:/config/config.yaml:ro
+    ports:
+      - "8789:8787"
+      - "3340:3320"
+      - "3342:3322"
+    networks:
+      - cc-relay-net
+
+networks:
+  cc-relay-net:
+    driver: bridge
+```
+
+**config-node1.yaml:**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"
+      - "cc-relay-3:3322"
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**config-node2.yaml と config-node3.yaml:** ノード1と同じですが、peers リストは他のノードを指すように変更します。
+
+### レプリケーションとクォーラムの説明
+
+**replica_count:** クラスター内に保存される各キーのコピー数。
+
+| replica_count | 動作 |
+|---------------|------|
+| 1 | レプリケーションなし（単一コピー） |
+| 2 | 1つのプライマリ + 1つのバックアップ |
+| 3 | 1つのプライマリ + 2つのバックアップ |
+
+**read_quorum / write_quorum:** 成功を返す前に必要な最小成功操作数。
+
+| 設定 | 一貫性 | 可用性 |
+|------|-------|-------|
+| quorum = 1 | 結果整合性 | 高 |
+| quorum = replica_count | 強一貫性 | 低 |
+| quorum = (replica_count/2)+1 | 多数決 | バランス |
+
+**推奨:**
+
+| クラスターサイズ | replica_count | read_quorum | write_quorum | 障害耐性 |
+|-----------------|---------------|-------------|--------------|---------|
+| 2ノード | 2 | 1 | 1 | 1ノード障害 |
+| 3ノード | 2 | 1 | 1 | 1ノード障害 |
+| 3ノード | 3 | 2 | 2 | 1ノード障害（強一貫性） |
+
 ## キャッシュモードの比較
 
 | 機能 | Single（Ristretto） | HA（Olric） | Disabled（Noop） |
@@ -310,6 +491,62 @@ Ristretto は高いヒット率を維持するためにアイテムを拒否す�
 3. **Olric に切り替える**: メモリプレッシャーを複数のノードに分散してください。
 
 4. **メトリクスで監視する**: 実際のメモリ消費を理解するために `BytesUsed` を追跡してください。
+
+### ノードがクラスターに参加できない
+
+**症状:** ノードは起動するが、互いを検出しない。
+
+**原因と解決策:**
+
+1. **間違ったピアポート:** ピアは Olric ポートではなく memberlist ポート（bind_addr + 2）を使用する必要があります。
+   ```yaml
+   # 間違い
+   peers:
+     - "other-node:3320"  # これは Olric ポートです
+
+   # 正しい
+   peers:
+     - "other-node:3322"  # memberlist ポート = 3320 + 2
+   ```
+
+2. **ファイアウォールのブロック:** Olric と memberlist の両方のポートが開いていることを確認してください。
+   ```bash
+   # 接続性を確認
+   nc -zv other-node 3320  # Olric ポート
+   nc -zv other-node 3322  # memberlist ポート
+   ```
+
+3. **DNS 解決:** ホスト名が正しく解決されることを確認してください。
+   ```bash
+   getent hosts other-node
+   ```
+
+4. **environment の不一致:** すべてのノードで同じ `environment` 設定を使用する必要があります。
+
+### クォーラムエラー
+
+**症状:** "not enough members" またはノードが稼働しているにもかかわらず操作が失敗する。
+
+**解決策:** `member_count_quorum` が実際に稼働しているノード数以下であることを確認してください。
+
+```yaml
+# 2ノードクラスターの場合
+member_count_quorum: 2  # 両方のノードが必要
+
+# 1ノード障害を許容する3ノードクラスターの場合
+member_count_quorum: 2  # 1ノードのダウンを許可
+```
+
+### データが複製されない
+
+**症状:** ノードがダウンするとデータが消える。
+
+**解決策:** `replica_count` > 1 であり、十分なノードがあることを確認してください。
+
+```yaml
+replica_count: 2          # 2つのコピーを保存
+member_count_quorum: 2    # 書き込みに2ノードが必要
+```
 
 ## エラーハンドリング
 
