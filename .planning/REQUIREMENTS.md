@@ -199,12 +199,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ROUT-06 | Phase 11 | Pending |
 | ROUT-07 | Phase 3 | Pending |
 | ROUT-08 | Phase 4 | Pending |
-| POOL-01 | Phase 2 | Pending |
-| POOL-02 | Phase 2 | Pending |
-| POOL-03 | Phase 2 | Pending |
-| POOL-04 | Phase 2 | Pending |
-| POOL-05 | Phase 2 | Pending |
-| POOL-06 | Phase 2 | Pending |
+| POOL-01 | Phase 2 | Complete |
+| POOL-02 | Phase 2 | Complete |
+| POOL-03 | Phase 2 | Complete |
+| POOL-04 | Phase 2 | Complete |
+| POOL-05 | Phase 2 | Complete |
+| POOL-06 | Phase 2 | Complete |
 | CIRC-01 | Phase 4 | Pending |
 | CIRC-02 | Phase 4 | Pending |
 | CIRC-03 | Phase 4 | Pending |
@@ -215,8 +215,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-01 | Phase 1 | Pending |
 | AUTH-02 | Phase 1 | Pending |
 | AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 2 | Pending |
-| AUTH-05 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Complete |
+| AUTH-05 | Phase 2 | Complete |
 | CONF-01 | Phase 7 | Pending |
 | CONF-02 | Phase 7 | Pending |
 | CONF-03 | Phase 7 | Pending |
@@ -263,4 +263,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 ---
 
 *Requirements defined: 2026-01-20*
-*Last updated: 2026-01-20 after roadmap creation*
+*Last updated: 2026-01-22 after Phase 2 completion*
