@@ -121,6 +121,33 @@ logging:
     log_response_headers: false
     log_tls_metrics: false
     max_body_log_size: 1000
+
+# ==========================================================================
+# Configuracion de Cache
+# ==========================================================================
+cache:
+  # Modo de cache: single, ha, disabled
+  mode: single
+
+  # Configuracion de modo unico (Ristretto)
+  ristretto:
+    num_counters: 1000000  # 10x elementos maximos esperados
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Tamano del buffer de admision
+
+  # Configuracion de modo HA (Olric)
+  olric:
+    embedded: true                 # Ejecutar nodo Olric embebido
+    bind_addr: "0.0.0.0:3320"      # Puerto de cliente Olric
+    dmap_name: "cc-relay"          # Nombre del mapa distribuido
+    environment: lan               # local, lan, o wan
+    peers:                         # Direcciones memberlist (bind_addr + 2)
+      - "other-node:3322"
+    replica_count: 2               # Copias por clave
+    read_quorum: 1                 # Min. lecturas para exito
+    write_quorum: 1                # Min. escrituras para exito
+    member_count_quorum: 2         # Min. miembros del cluster
+    leave_timeout: 5s              # Duracion del mensaje de salida
 ```
 
 ## Configuracion del Servidor
@@ -313,6 +340,105 @@ logging:
     log_tls_metrics: true       # Registrar info de conexion TLS
     max_body_log_size: 1000     # Bytes maximos a registrar de cuerpos
 ```
+
+## Configuracion de Cache
+
+CC-Relay proporciona una capa de cache unificada con multiples opciones de backend para diferentes escenarios de implementacion.
+
+### Modos de Cache
+
+| Modo | Backend | Descripcion |
+|------|---------|-------------|
+| `single` | [Ristretto](https://github.com/dgraph-io/ristretto) | Cache local en memoria de alto rendimiento (predeterminado) |
+| `ha` | [Olric](https://github.com/buraksezer/olric) | Cache distribuido para implementaciones de alta disponibilidad |
+| `disabled` | Noop | Modo de paso sin almacenamiento en cache |
+
+### Modo Unico (Ristretto)
+
+Ristretto es un cache en memoria concurrente de alto rendimiento. Este es el modo predeterminado para implementaciones de instancia unica.
+
+```yaml
+cache:
+  mode: single
+  ristretto:
+    num_counters: 1000000  # 10x elementos maximos esperados
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Tamano del buffer de admision
+```
+
+| Campo | Tipo | Predeterminado | Descripcion |
+|-------|------|----------------|-------------|
+| `num_counters` | int64 | 1,000,000 | Numero de contadores de acceso de 4 bits. Recomendado: 10x elementos maximos esperados. |
+| `max_cost` | int64 | 104,857,600 (100 MB) | Memoria maxima en bytes que el cache puede contener. |
+| `buffer_items` | int64 | 64 | Numero de claves por buffer de Get. Controla el tamano del buffer de admision. |
+
+### Modo HA (Olric) - Embebido
+
+Para implementaciones multi-instancia que requieren estado de cache compartido, use el modo Olric embebido donde cada instancia de cc-relay ejecuta un nodo Olric.
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "other-node:3322"  # Puerto memberlist = bind_addr + 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+| Campo | Tipo | Predeterminado | Descripcion |
+|-------|------|----------------|-------------|
+| `embedded` | bool | false | Ejecutar nodo Olric embebido (true) vs. conectar a cluster externo (false). |
+| `bind_addr` | string | requerido | Direccion para conexiones de cliente Olric (ej. "0.0.0.0:3320"). |
+| `dmap_name` | string | "cc-relay" | Nombre del mapa distribuido. Todos los nodos deben usar el mismo nombre. |
+| `environment` | string | "local" | Preset de memberlist: "local", "lan", o "wan". |
+| `peers` | []string | - | Direcciones memberlist para descubrimiento de peers. Usa puerto bind_addr + 2. |
+| `replica_count` | int | 1 | Numero de copias por clave. 1 = sin replicacion. |
+| `read_quorum` | int | 1 | Lecturas exitosas minimas para respuesta. |
+| `write_quorum` | int | 1 | Escrituras exitosas minimas para respuesta. |
+| `member_count_quorum` | int32 | 1 | Miembros minimos del cluster requeridos para operar. |
+| `leave_timeout` | duration | 5s | Tiempo para transmitir mensaje de salida antes de apagar. |
+
+**Importante:** Olric usa dos puertos - el puerto `bind_addr` para conexiones de cliente y `bind_addr + 2` para gossip de memberlist. Asegurese de que ambos puertos esten abiertos en su firewall.
+
+### Modo HA (Olric) - Modo Cliente
+
+Conecte a un cluster Olric externo en lugar de ejecutar nodos embebidos:
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: false
+    addresses:
+      - "olric-node-1:3320"
+      - "olric-node-2:3320"
+    dmap_name: "cc-relay"
+```
+
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `embedded` | bool | Establecer en `false` para modo cliente. |
+| `addresses` | []string | Direcciones del cluster Olric externo. |
+| `dmap_name` | string | Nombre del mapa distribuido (debe coincidir con la configuracion del cluster). |
+
+### Modo Deshabilitado
+
+Deshabilitar el cache completamente para depuracion o cuando el cache se maneja en otro lugar:
+
+```yaml
+cache:
+  mode: disabled
+```
+
+Para documentacion completa de cache incluyendo convenciones de claves de cache, estrategias de invalidacion de cache, guias de clustering HA y solucion de problemas, vea la [documentacion del Sistema de Cache](/es/docs/caching/).
 
 ## Configuraciones de Ejemplo
 
