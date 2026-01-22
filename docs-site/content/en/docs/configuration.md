@@ -220,6 +220,72 @@ server:
   enable_http2: true
 ```
 
+## Transparent Authentication
+
+cc-relay automatically detects how to handle authentication based on what the client sends:
+
+### How It Works
+
+| Client Sends | cc-relay Behavior | Use Case |
+|--------------|-------------------|----------|
+| `Authorization: Bearer <token>` | Forward unchanged | Claude Code subscription users |
+| `x-api-key: <key>` | Forward unchanged | Direct API key users |
+| No auth headers | Use configured provider keys | Enterprise/team deployments |
+
+### Claude Code Subscription Users
+
+If you have a Claude Code subscription (Max/Team/Enterprise plan), you can use cc-relay as a transparent proxy:
+
+```bash
+# Set cc-relay as your API endpoint
+export ANTHROPIC_BASE_URL="http://localhost:8787"
+
+# Your subscription token flows through unchanged
+# ANTHROPIC_AUTH_TOKEN is already set by Claude Code
+claude
+```
+
+**No API key required** - cc-relay forwards your subscription token to Anthropic.
+
+### Enterprise/Team Deployments
+
+For centralized API key management, don't provide client auth - cc-relay uses configured keys:
+
+```yaml
+# config.yaml
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: ${ANTHROPIC_API_KEY}
+        rpm_limit: 50
+```
+
+```bash
+# Client has no auth - uses configured keys
+export ANTHROPIC_BASE_URL="http://localhost:8787"
+unset ANTHROPIC_AUTH_TOKEN
+unset ANTHROPIC_API_KEY
+claude
+```
+
+### Mixed Mode
+
+You can run both modes simultaneously:
+- Subscription users: Their auth flows through (no key pool overhead)
+- Team users: Use configured keys with rate limit pooling
+
+Rate limiting and key pooling only apply when using configured keys, not client-provided auth.
+
+### Key Points
+
+1. **Auto-detection**: No configuration needed - behavior determined by client headers
+2. **Subscription passthrough**: `Authorization: Bearer` forwarded unchanged
+3. **Fallback keys**: Used only when client has no auth
+4. **Key pool efficiency**: Only tracks usage of YOUR keys, not client subscriptions
+
 ## Provider Configuration
 
 ### Provider Types
