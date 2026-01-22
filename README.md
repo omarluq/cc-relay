@@ -1,353 +1,94 @@
-# cc-relay
-
-[![Go Version](https://img.shields.io/badge/-%3E%3D1.18-00ADD8?style=flat&labelColor=24292e&logo=go&logoColor=white)](https://go.dev/)
-[![Made with Love](https://img.shields.io/badge/Made%20with-Love-ff69b4?style=flat&labelColor=24292e&logo=githubsponsors&logoColor=white)](https://github.com/omarluq/cc-relay)
-[![Website](https://img.shields.io/badge/Website-cc--relay.ai-5e5086?style=flat&labelColor=24292e&logo=safari&logoColor=white)](https://cc-relay.ai/)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat&labelColor=24292e&logo=opensourceinitiative&logoColor=white)](LICENSE)
-[![Tests](https://img.shields.io/github/actions/workflow/status/omarluq/cc-relay/ci.yml?style=flat&labelColor=24292e&label=Tests&logo=github&logoColor=white)](https://github.com/omarluq/cc-relay/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/github/v/release/omarluq/cc-relay?style=flat&labelColor=24292e&color=28a745&label=Version&logo=semver&logoColor=white)](https://github.com/omarluq/cc-relay/releases)
-[![codecov](https://img.shields.io/codecov/c/github/omarluq/cc-relay?style=flat&labelColor=24292e&logo=codecov&logoColor=white&token=YW23EDL5T5)](https://codecov.io/gh/omarluq/cc-relay)
-[![Maintained](https://img.shields.io/badge/Maintained%3F-yes-28a745?style=flat&labelColor=24292e&logo=checkmarx&logoColor=white)](https://github.com/omarluq/cc-relay)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1bf02765-01f0-4f22-8230-1d10d0480c67" alt="goophers" width="500" height="500"/>
+</p>
 
 
-Multi-provider proxy for Claude Code that enables simultaneous use of multiple Anthropic-compatible API endpoints, API keys, and models.
 
-## Why?
+<h1 align="center">CC-Relay</h1>
 
-Claude Code connects to one provider at a time. But what if you want to:
+<h4 align="center">
+Boost Claude Code by routing to multiple Anthropic-compatible providers simultaneously
+</h4>
 
-- **Pool rate limits** across multiple Anthropic API keys?
-- **Save money** by routing simple tasks to Z.AI or local Ollama?
-- **Never get stuck** with automatic failover between providers?
-- **Use your company's Bedrock/Azure/Vertex** alongside personal API keys?
 
-**cc-relay** makes all of this possible.
+<p align="center">  
+  <a href="https://cc-relay.ai/"><img src="https://img.shields.io/badge/-cc--relay.ai-5e5086?style=flat&labelColor=24292e&logo=safari&logoColor=white" alt="Website"></a>
+  <a href="https://cc-relay.ai/docs"><img src="https://img.shields.io/badge/-Read%20the%20Docs-blue?style=flat&labelColor=24292e&logo=readthedocs&logoColor=white" alt="Documentation"></a>
+  <a href="https://github.com/omarluq/cc-relay/releases"><img src="https://img.shields.io/badge/-Latest%20Release-28a745?style=flat&labelColor=24292e&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAxNWw1LTUtMS40MS0xLjQxTDEzIDExLjE3VjRoLTJ2Ny4xN0w4LjQxIDguNTkgNyAxMGw1IDV6bTcgMnY0SDV2LTRIMy42OHY0LjMzYzAgLjczNC41OTYgMS4zMyAxLjMzIDEuMzNoMTMuOThjLjczNCAwIDEuMzMtLjU5NiAxLjMzLTEuMzNWMTdIMTl6Ii8+PC9zdmc+" alt="Download"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/-%3E%3D1.18-00ADD8?style=flat&labelColor=24292e&logo=go&logoColor=white" alt="Go Version"></a>
+  <br/>
+  <a href="https://github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/Made%20with-Love-ff69b4?style=flat&labelColor=24292e&logo=githubsponsors&logoColor=white" alt="Made with Love"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat&labelColor=24292e&logo=opensourceinitiative&logoColor=white" alt="License: AGPL-3.0"></a>
+  <a href="https://github.com/omarluq/cc-relay/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/omarluq/cc-relay/ci.yml?style=flat&labelColor=24292e&label=Tests&logo=github&logoColor=white" alt="Tests"></a>
+  <a href="https://github.com/omarluq/cc-relay/releases"><img src="https://img.shields.io/github/v/release/omarluq/cc-relay?style=flat&labelColor=24292e&color=28a745&label=Version&logo=semver&logoColor=white" alt="Version"></a>
+  <a href="https://codecov.io/gh/omarluq/cc-relay"><img src="https://img.shields.io/codecov/c/github/omarluq/cc-relay?style=flat&labelColor=24292e&logo=codecov&logoColor=white&token=YW23EDL5T5" alt="codecov"></a>
+  <a href="https://github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/Maintained%3F-yes-28a745?style=flat&labelColor=24292e&logo=checkmarx&logoColor=white" alt="Maintained"></a>
+</p>
 
-```
-┌─────────────┐     ┌───────────┐     ┌─────────────────────────────┐
-│ Claude Code │────▶│ cc-relay  │────▶│ Anthropic (key1, key2, ...) │
-└─────────────┘     │           │────▶│ Z.AI                        │
-                    │           │────▶│ Ollama (local)              │
-                    │           │────▶│ AWS Bedrock                 │
-                    │           │────▶│ Azure Foundry               │
-                    └───────────┘────▶│ Vertex AI                   │
-                                      └─────────────────────────────┘
-```
 
-## Features
+<h2>Why?</h2>
 
-- 🔄 **Multi-key pooling** - Combine multiple API keys to maximize throughput
-- 🚀 **Smart routing** - Shuffle, round-robin, cost-based, latency-based, or failover
-- 🔌 **6 providers** - Anthropic, Z.AI, Ollama, Bedrock, Azure, Vertex AI
-- 🖥️ **TUI dashboard** - Real-time stats and management via Bubble Tea
-- 🔥 **Hot reload** - Change config without restarting
-- 📊 **Prometheus metrics** - Built-in observability
+<p>
+  Claude Code connects to one provider at a time. But what if you want to:
+</p>
 
-## Quick Start
+<p>
+  <strong>🔑 Pool rate limits</strong> across multiple Anthropic API keys<br>
+  <strong>💰 Save money</strong> by routing simple tasks to lighter models<br>
+  <strong>🛡️ Never get stuck</strong> with automatic failover between providers<br>
+  <strong>🏢 Use your company's Bedrock/Azure/Vertex</strong> alongside personal API keys
+</p>
 
-```bash
-# Install
-go install github.com/omarluq/cc-relay@latest
+<p>
+  <strong>cc-relay</strong> makes all of this possible.
+</p>
 
-# Create config
-mkdir -p ~/.config/cc-relay
-cat > ~/.config/cc-relay/config.yaml << 'EOF'
-server:
-  listen: "127.0.0.1:8787"
+<p>
 
-providers:
-  - name: anthropic
-    type: anthropic
-    keys:
-      - key: "${ANTHROPIC_API_KEY}"
-EOF
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'primaryTextColor': '#fff', 'primaryBorderColor': '#4f46e5', 'lineColor': '#94a3b8', 'secondaryColor': 'transparent', 'tertiaryColor': 'transparent', 'background': 'transparent', 'mainBkg': 'transparent', 'nodeBorder': '#4f46e5', 'clusterBkg': 'transparent', 'clusterBorder': 'transparent', 'titleColor': '#1e293b', 'edgeLabelBackground': 'transparent'}}}%%
 
-# Start proxy
-cc-relay serve
+flowchart LR
+    CC["👾 Claude Code"]
+    RELAY["⚡ CC-Relay"]
+    
+    subgraph providers[" "]
+        direction TB
+        ANT["🤖 Anthropic"]
+        ZAI["🤖 Z.AI"]
+        OLL["🦙 Ollama"]
+        BED["🤖 AWS Bedrock"]
+        AZU["🤖 Azure Foundry"]
+        VTX["🤖 Vertex AI"]
+    end
+    
+    CC --> RELAY
+    RELAY --> ANT
+    RELAY --> ZAI
+    RELAY --> OLL
+    RELAY --> BED
+    RELAY --> AZU
+    RELAY --> VTX
 
-# Configure Claude Code to use proxy
-export ANTHROPIC_BASE_URL="http://localhost:8787"
-export ANTHROPIC_API_KEY="managed-by-cc-relay"
-
-# Use Claude Code normally
-claude
-```
-
-## CLI Commands
-
-```bash
-# Start the proxy server
-cc-relay serve [--config path/to/config.yaml]
-
-# Check if server is running
-cc-relay status
-
-# Validate configuration file
-cc-relay config validate [--config path/to/config.yaml]
-
-# Show version information
-cc-relay version
-
-# Get help
-cc-relay --help
-cc-relay serve --help
+    style CC fill:#1e1e2e,stroke:#6366f1,stroke-width:2px,color:#fff
+    style RELAY fill:#6366f1,stroke:#4f46e5,stroke-width:3px,color:#fff
+    style ANT fill:#ff6b35,stroke:#e55a2b,stroke-width:2px,color:#fff
+    style ZAI fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff
+    style OLL fill:#22c55e,stroke:#16a34a,stroke-width:2px,color:#fff
+    style BED fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
+    style AZU fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
+    style VTX fill:#ef4444,stroke:#dc2626,stroke-width:2px,color:#fff
+    style providers fill:transparent,stroke:transparent
 ```
 
-## API Endpoints
+</p>
 
-### POST /v1/messages
 
-Proxies requests to the configured backend provider. This is the main endpoint used by Claude Code.
-
-- **Auth**: Required (x-api-key or Bearer token depending on config)
-- **Content-Type**: application/json
-- **Streaming**: Supports SSE streaming via `stream: true` in request body
-
-### GET /v1/models
-
-Lists all available models from all configured providers. This is a discovery endpoint.
-
-- **Auth**: Not required
-- **Response format**: Anthropic-compatible model list
-
-```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "claude-sonnet-4-5-20250514",
-      "object": "model",
-      "created": 1737500000,
-      "owned_by": "anthropic",
-      "provider": "anthropic-primary"
-    },
-    {
-      "id": "glm-4-plus",
-      "object": "model",
-      "created": 1737500000,
-      "owned_by": "zhipu",
-      "provider": "zai-primary"
-    }
-  ]
-}
-```
-
-Configure models in your provider config:
-
-```yaml
-providers:
-  - name: anthropic-primary
-    type: anthropic
-    enabled: true
-    models:
-      - claude-sonnet-4-5-20250514
-      - claude-opus-4-5-20250514
-    keys:
-      - key: "${ANTHROPIC_API_KEY}"
-
-  - name: zai-primary
-    type: zai
-    enabled: true
-    models:
-      - glm-4
-      - glm-4-plus
-    keys:
-      - key: "${ZAI_API_KEY}"
-```
-
-### GET /health
-
-Health check endpoint for load balancers and monitoring.
-
-- **Auth**: Not required
-- **Response**: `{"status":"ok"}`
-
-## Authentication
-
-cc-relay supports multiple authentication methods for different Claude Code user types.
-
-### API Key Users
-
-If you have an Anthropic API key (starts with `sk-ant-...`):
-
-```bash
-# Start cc-relay
-cc-relay serve
-
-# Configure Claude Code to use proxy
-export ANTHROPIC_BASE_URL="http://localhost:8787"
-export ANTHROPIC_API_KEY="sk-ant-..."  # Your actual API key
-claude
-```
-
-cc-relay configuration:
-
-```yaml
-server:
-  auth:
-    api_key: "${PROXY_API_KEY}" # Optional: require specific proxy auth key
-```
-
-### Subscription Users (Claude Code Pro/Team)
-
-If you use Claude Code with a subscription (no API key required):
-
-1. Configure cc-relay to accept subscription tokens:
-
-```yaml
-server:
-  auth:
-    allow_subscription: true # Accept subscription tokens
-```
-
-1. Use Claude Code normally - the token is passed through to Anthropic:
-
-```bash
-export ANTHROPIC_BASE_URL="http://localhost:8787"
-claude
-```
-
-**How it works:** Claude Code subscription users authenticate via `Authorization: Bearer` tokens. cc-relay accepts these tokens in passthrough mode and forwards them to Anthropic for validation.
-
-**Security Note:** Subscription tokens are as sensitive as API keys. Never commit them to version control or share them publicly.
-
-### Multiple Auth Methods
-
-You can enable multiple auth methods simultaneously. The proxy tries them in order until one succeeds:
-
-```yaml
-server:
-  auth:
-    api_key: "${PROXY_API_KEY}" # Method 1: x-api-key header
-    allow_subscription: true # Method 2: Bearer token (subscription)
-    allow_bearer: true # Method 3: Generic Bearer token
-    bearer_secret: "" # Empty = accept any bearer token
-```
-
-## Configuration
-
-See [example.yaml](example.yaml) for full configuration options.
-
-### Multiple API Keys
-
-```yaml
-providers:
-  - name: anthropic-pool
-    type: anthropic
-    keys:
-      - key: "${ANTHROPIC_API_KEY_1}"
-        rpm_limit: 60
-        tpm_limit: 100000
-      - key: "${ANTHROPIC_API_KEY_2}"
-        rpm_limit: 60
-        tpm_limit: 100000
-```
-
-### Failover Chain
-
-```yaml
-routing:
-  strategy: failover
-  failover:
-    primary: anthropic
-    fallbacks:
-      - zai
-      - ollama
-```
-
-### Cost-Based Routing
-
-```yaml
-routing:
-  strategy: cost-based
-  # Routes to cheapest provider that can handle the request
-```
-
-### Z.AI Provider
-
-Z.AI (Zhipu AI) offers GLM models through an Anthropic-compatible API at ~1/7 the cost:
-
-```yaml
-providers:
-  - name: zai
-    type: zai
-    enabled: true
-    base_url: "https://api.z.ai/api/anthropic"
-    keys:
-      - key: "${ZAI_API_KEY}"
-    model_mapping:
-      "claude-sonnet-4-5-20250929": "GLM-4.7"
-      "claude-sonnet-4-5": "GLM-4.7"
-      "claude-haiku-4-5-20251001": "GLM-4.5-Air"
-      "claude-haiku-4-5": "GLM-4.5-Air"
-```
-
-## Supported Providers
-
-| Provider      | Status     | Notes                                   |
-| ------------- | ---------- | --------------------------------------- |
-| Anthropic     | ✅ Full    | Native support, all features            |
-| Z.AI (Zhipu)  | ✅ Full    | Anthropic-compatible, ~1/7 cost         |
-| Ollama        | ⚠️ Partial | No prompt caching, no extended thinking |
-| AWS Bedrock   | ✅ Full    | IAM or Bearer Token auth                |
-| Azure Foundry | ✅ Full    | API Key or Entra ID auth                |
-| Vertex AI     | ✅ Full    | Google OAuth auth                       |
-
-## TUI Dashboard
-
-```bash
-cc-relay tui
-```
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  cc-relay v0.1.0                              [q]uit [?]help    │
-├─────────────────────────────────────────────────────────────────┤
-│  Strategy: simple-shuffle    Active: 3    Requests: 1,247       │
-├─────────────────────────────────────────────────────────────────┤
-│  ● anthropic     healthy   847 req   avg 234ms   [2 keys]       │
-│  ● zai           healthy   312 req   avg 189ms   [1 key]        │
-│  ○ ollama        degraded   88 req   avg 1.2s    [local]        │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Documentation
-
-- [SPEC.md](SPEC.md) - Full technical specification
-- [llms.txt](llms.txt) - LLM-friendly project context
-- [example.yaml](example.yaml) - Configuration reference
-
-## Development
-
-```bash
-# Clone
-git clone https://github.com/omarish/cc-relay
-cd cc-relay
-
-# Build
-go build -o cc-relay ./cmd/cc-relay
-
-# Test
-go test ./...
-
-# Run
-./cc-relay serve --config example.yaml
-```
-
-## Roadmap
-
-- [x] Spec & architecture design
-- [ ] Phase 1: MVP (Anthropic, Z.AI, Ollama, simple-shuffle)
-- [ ] Phase 2: Multi-key pooling & rate limiting
-- [ ] Phase 3: Cloud providers (Bedrock, Azure, Vertex)
-- [ ] Phase 4: gRPC management API & TUI
-- [ ] Phase 5: Advanced routing strategies
-- [ ] Phase 6: WebUI
 
 ## License
 
-AGPL 3
+[AGPL-3.0](https://github.com/omarluq/cc-relay/blob/main/LICENSE)
 
 ## Contributing
 
-Contributions welcome! Please read the spec first and open an issue to discuss before submitting PRs.
+Contributions welcome! Please open an issue before submitting PRs.
