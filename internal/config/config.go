@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/rs/zerolog"
+	"github.com/samber/mo"
 )
 
 // Configuration errors.
@@ -240,4 +242,63 @@ func (d *DebugOptions) GetMaxBodyLogSize() int {
 // IsEnabled returns true if any debug option is enabled.
 func (d *DebugOptions) IsEnabled() bool {
 	return d.LogRequestBody || d.LogResponseHeaders || d.LogTLSMetrics
+}
+
+// GetMaxBodyLogSizeOption returns the max body log size as an Option.
+// Returns None if the value is not explicitly set (zero or negative).
+func (d *DebugOptions) GetMaxBodyLogSizeOption() mo.Option[int] {
+	if d.MaxBodyLogSize <= 0 {
+		return mo.None[int]()
+	}
+	return mo.Some(d.MaxBodyLogSize)
+}
+
+// ServerConfig Option helpers for type-safe access to optional configuration values.
+// These methods expose configuration fields as mo.Option[T] for composable handling.
+
+// GetTimeoutOption returns the timeout as an Option.
+// Returns None if TimeoutMS is zero (use default).
+func (s *ServerConfig) GetTimeoutOption() mo.Option[time.Duration] {
+	if s.TimeoutMS <= 0 {
+		return mo.None[time.Duration]()
+	}
+	return mo.Some(time.Duration(s.TimeoutMS) * time.Millisecond)
+}
+
+// GetMaxConcurrentOption returns the max concurrent setting as an Option.
+// Returns None if MaxConcurrent is zero (unlimited).
+func (s *ServerConfig) GetMaxConcurrentOption() mo.Option[int] {
+	if s.MaxConcurrent <= 0 {
+		return mo.None[int]()
+	}
+	return mo.Some(s.MaxConcurrent)
+}
+
+// KeyConfig Option helpers for type-safe access to optional rate limit values.
+
+// GetRPMLimitOption returns the RPM limit as an Option.
+// Returns None if RPMLimit is zero (unlimited/learn from headers).
+func (k *KeyConfig) GetRPMLimitOption() mo.Option[int] {
+	if k.RPMLimit <= 0 {
+		return mo.None[int]()
+	}
+	return mo.Some(k.RPMLimit)
+}
+
+// GetITPMLimitOption returns the ITPM limit as an Option.
+// Returns None if ITPMLimit is zero (unlimited/learn from headers).
+func (k *KeyConfig) GetITPMLimitOption() mo.Option[int] {
+	if k.ITPMLimit <= 0 {
+		return mo.None[int]()
+	}
+	return mo.Some(k.ITPMLimit)
+}
+
+// GetOTPMLimitOption returns the OTPM limit as an Option.
+// Returns None if OTPMLimit is zero (unlimited/learn from headers).
+func (k *KeyConfig) GetOTPMLimitOption() mo.Option[int] {
+	if k.OTPMLimit <= 0 {
+		return mo.None[int]()
+	}
+	return mo.Some(k.OTPMLimit)
 }
