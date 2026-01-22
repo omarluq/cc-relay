@@ -40,7 +40,8 @@ func SetupRoutesWithProviders(
 
 	// Create proxy handler with debug options from config
 	debugOpts := cfg.Logging.DebugOptions
-	handler, err := NewHandler(provider, providerKey, debugOpts)
+	// TODO(02-05): Initialize keypool when provider has multiple keys configured
+	handler, err := NewHandler(provider, providerKey, nil, debugOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
