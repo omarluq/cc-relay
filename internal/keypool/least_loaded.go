@@ -1,5 +1,7 @@
 package keypool
 
+import "github.com/samber/lo"
+
 // LeastLoadedSelector picks the key with the most remaining capacity.
 // Capacity is determined by GetCapacityScore() which considers both
 // RPM and TPM (input + output tokens) remaining.
@@ -18,24 +20,20 @@ func (s *LeastLoadedSelector) Select(keys []*KeyMetadata) (*KeyMetadata, error) 
 		return nil, ErrNoKeys
 	}
 
-	var bestKey *KeyMetadata
-	var bestScore float64
+	// Filter to available keys only
+	availableKeys := lo.Filter(keys, func(k *KeyMetadata, _ int) bool {
+		return k.IsAvailable()
+	})
 
-	for _, key := range keys {
-		if !key.IsAvailable() {
-			continue // Skip unhealthy/cooldown keys
-		}
-
-		score := key.GetCapacityScore()
-		if bestKey == nil || score > bestScore {
-			bestKey = key
-			bestScore = score
-		}
-	}
-
-	if bestKey == nil {
+	if len(availableKeys) == 0 {
 		return nil, ErrAllKeysExhausted
 	}
+
+	// Find key with highest capacity score using MaxBy
+	// MaxBy comparison: returns true if 'a' should replace 'b' as max
+	bestKey := lo.MaxBy(availableKeys, func(a, b *KeyMetadata) bool {
+		return a.GetCapacityScore() > b.GetCapacityScore()
+	})
 
 	return bestKey, nil
 }
