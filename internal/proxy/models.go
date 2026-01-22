@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/samber/lo"
 )
 
 // ModelsResponse represents the response format for /v1/models endpoint.
@@ -29,14 +30,10 @@ func NewModelsHandler(providerList []providers.Provider) *ModelsHandler {
 
 // ServeHTTP handles GET /v1/models requests.
 func (h *ModelsHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	// Collect all models from all providers
-	// Preallocate with estimated capacity (assume ~5 models per provider)
-	allModels := make([]providers.Model, 0, len(h.providers)*5)
-
-	for _, provider := range h.providers {
-		models := provider.ListModels()
-		allModels = append(allModels, models...)
-	}
+	// Collect all models from all providers using lo.FlatMap
+	allModels := lo.FlatMap(h.providers, func(provider providers.Provider, _ int) []providers.Model {
+		return provider.ListModels()
+	})
 
 	response := ModelsResponse{
 		Object: "list",
