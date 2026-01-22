@@ -1,0 +1,165 @@
+# cc-relay Example Configuration
+
+# Server settings
+server:
+  listen: ":8787"
+  timeout_ms: 600000  # 10 minutes for long-running Claude Code requests
+  max_concurrent: 100
+
+  # Authentication settings
+  auth:
+    # API key for x-api-key header authentication
+    api_key: ${CC_RELAY_API_KEY}
+
+    # Bearer token authentication (for Claude Code subscription users)
+    allow_subscription: true  # Alias for allow_bearer
+    # bearer_secret: ""  # Leave empty to accept any bearer token (backend validates)
+
+# Logging configuration
+logging:
+  level: info  # debug, info, warn, error
+  format: json  # json or console
+  output: stdout  # stdout, stderr, or file path
+  pretty: false  # Enable colored console output
+
+  debug_options:
+    log_request_body: false
+    log_response_headers: false
+    log_tls_metrics: false
+    max_body_log_size: 1000  # bytes
+
+# Provider configurations
+providers:
+  # Anthropic - Multi-key pooling example
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+
+    # Models to make available
+    models:
+      - claude-sonnet-4-20250514
+      - claude-opus-4-20250514
+      - claude-3-5-sonnet-20241022
+      - claude-3-5-haiku-20241022
+
+    # Multi-key pooling configuration
+    pooling:
+      strategy: least_loaded  # Options: least_loaded, round_robin, random, weighted
+      # enabled: true  # Implicit when multiple keys configured
+
+    # Multiple API keys for rate limit pooling
+    keys:
+      # Primary key (high priority)
+      - key: ${ANTHROPIC_API_KEY}
+        rpm_limit: 50          # Requests per minute (0 = learn from headers)
+        itpm_limit: 30000      # Input tokens per minute
+        otpm_limit: 10000      # Output tokens per minute
+        priority: 2            # 0=low, 1=normal, 2=high
+
+      # Secondary key (normal priority)
+      - key: ${ANTHROPIC_API_KEY_2}
+        rpm_limit: 50
+        priority: 1
+
+      # Backup key (low priority, no limits = learn from headers)
+      - key: ${ANTHROPIC_API_KEY_3}
+        priority: 0
+
+  # Anthropic - Single key example (pooling not used)
+  - name: anthropic-simple
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: false  # Disabled by default
+
+    models:
+      - claude-sonnet-4-20250514
+
+    keys:
+      - key: ${ANTHROPIC_API_KEY}
+
+  # Z.AI Provider example
+  - name: zai
+    type: zai
+    base_url: https://api.z.ai
+    enabled: true
+
+    models:
+      - claude-sonnet-4-20250514
+      - claude-opus-4-20250514
+
+    # Model mapping for provider-specific model names
+    model_mapping:
+      glm-4-plus: claude-sonnet-4-20250514
+      glm-4: claude-3-5-sonnet-20241022
+
+    keys:
+      - key: ${ZAI_API_KEY}
+        rpm_limit: 100
+
+  # Ollama local inference example
+  - name: ollama
+    type: ollama
+    base_url: http://localhost:11434
+    enabled: false  # Disabled by default
+
+    models:
+      - llama2
+      - codellama
+
+    keys:
+      - key: "not-required-for-ollama"  # Ollama doesn't require API keys
+
+# Cache configuration
+cache:
+  # Enable distributed caching (required for multi-node deployments)
+  enabled: false
+
+  # Backend: "memory" (default), "olric" (distributed)
+  backend: memory
+
+  # Olric distributed cache settings (when backend: olric)
+  olric:
+    # Cluster configuration
+    bind_addr: "0.0.0.0"
+    bind_port: 3320
+
+    # Replication settings
+    replication_mode: 1  # 0=async, 1=sync
+    replica_count: 1
+
+    # Environment: "local", "lan", "wan"
+    environment: local
+
+    # Join existing cluster members
+    peers: []
+      # - "192.168.1.10:3320"
+      # - "192.168.1.11:3320"
+
+# Multi-Key Pooling Notes:
+#
+# Rate Limits:
+#   - Set explicit limits if you know your tier: rpm_limit, itpm_limit, otpm_limit
+#   - Or leave at 0 to learn dynamically from anthropic-ratelimit-* response headers
+#   - Learning mode adapts automatically when Anthropic changes limits
+#
+# Priority (0-2):
+#   - 2 (high): Used first when multiple keys have capacity
+#   - 1 (normal): Standard priority, used when high-priority keys exhausted
+#   - 0 (low): Backup keys, used only when others unavailable
+#
+# Weight (0+):
+#   - Only used with strategy: weighted
+#   - Higher weight = more traffic routed to that key
+#   - Example: weight: 2 gets twice the requests of weight: 1
+#
+# Selection Strategies:
+#   - least_loaded (default): Picks key with most available capacity (RPM+TPM)
+#   - round_robin: Rotates through keys evenly
+#   - random: Random selection
+#   - weighted: Distributes based on weight field
+#
+# Environment Variables:
+#   - Use ${VAR_NAME} syntax for secrets
+#   - Example: key: ${ANTHROPIC_API_KEY}
+#   - Prevents committing API keys to version control

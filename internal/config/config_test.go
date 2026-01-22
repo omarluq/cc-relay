@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -341,6 +342,371 @@ func TestDebugOptions_IsEnabled(t *testing.T) {
 			got := tt.opts.IsEnabled()
 			if got != tt.expected {
 				t.Errorf("IsEnabled() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestKeyConfig_GetEffectiveTPM(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		config       KeyConfig
+		expectedITPM int
+		expectedOTPM int
+	}{
+		{
+			name: "ITPM and OTPM set",
+			config: KeyConfig{
+				ITPMLimit: 30000,
+				OTPMLimit: 10000,
+			},
+			expectedITPM: 30000,
+			expectedOTPM: 10000,
+		},
+		{
+			name: "only ITPM set",
+			config: KeyConfig{
+				ITPMLimit: 30000,
+			},
+			expectedITPM: 30000,
+			expectedOTPM: 0,
+		},
+		{
+			name: "only OTPM set",
+			config: KeyConfig{
+				OTPMLimit: 10000,
+			},
+			expectedITPM: 0,
+			expectedOTPM: 10000,
+		},
+		{
+			name: "legacy TPMLimit",
+			config: KeyConfig{
+				TPMLimit: 40000,
+			},
+			expectedITPM: 20000,
+			expectedOTPM: 20000,
+		},
+		{
+			name: "ITPM/OTPM preferred over TPMLimit",
+			config: KeyConfig{
+				ITPMLimit: 30000,
+				OTPMLimit: 10000,
+				TPMLimit:  40000,
+			},
+			expectedITPM: 30000,
+			expectedOTPM: 10000,
+		},
+		{
+			name:         "no limits set",
+			config:       KeyConfig{},
+			expectedITPM: 0,
+			expectedOTPM: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			itpm, otpm := tt.config.GetEffectiveTPM()
+			if itpm != tt.expectedITPM {
+				t.Errorf("GetEffectiveTPM() ITPM = %d, want %d", itpm, tt.expectedITPM)
+			}
+			if otpm != tt.expectedOTPM {
+				t.Errorf("GetEffectiveTPM() OTPM = %d, want %d", otpm, tt.expectedOTPM)
+			}
+		})
+	}
+}
+
+//nolint:gocognit // Test function complexity is acceptable for comprehensive coverage
+func TestKeyConfig_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		checkFunc func(t *testing.T, err error)
+		name      string
+		config    KeyConfig
+		wantError bool
+	}{
+		{
+			name: "valid key with all fields",
+			config: KeyConfig{
+				Key:       "sk-test123",
+				RPMLimit:  50,
+				ITPMLimit: 30000,
+				OTPMLimit: 10000,
+				Priority:  2,
+				Weight:    5,
+			},
+			wantError: false,
+		},
+		{
+			name: "valid key with defaults",
+			config: KeyConfig{
+				Key: "sk-test123",
+			},
+			wantError: false,
+		},
+		{
+			name: "empty key",
+			config: KeyConfig{
+				Key: "",
+			},
+			wantError: true,
+			checkFunc: func(t *testing.T, err error) {
+				if !errors.Is(err, ErrKeyRequired) {
+					t.Errorf("Expected ErrKeyRequired, got %v", err)
+				}
+			},
+		},
+		{
+			name: "invalid priority too high",
+			config: KeyConfig{
+				Key:      "sk-test123",
+				Priority: 3,
+			},
+			wantError: true,
+			checkFunc: func(t *testing.T, err error) {
+				var priorityErr InvalidPriorityError
+				if !errors.As(err, &priorityErr) {
+					t.Errorf("Expected InvalidPriorityError, got %T", err)
+				}
+			},
+		},
+		{
+			name: "invalid priority negative",
+			config: KeyConfig{
+				Key:      "sk-test123",
+				Priority: -1,
+			},
+			wantError: true,
+			checkFunc: func(t *testing.T, err error) {
+				var priorityErr InvalidPriorityError
+				if !errors.As(err, &priorityErr) {
+					t.Errorf("Expected InvalidPriorityError, got %T", err)
+				}
+			},
+		},
+		{
+			name: "negative weight",
+			config: KeyConfig{
+				Key:    "sk-test123",
+				Weight: -1,
+			},
+			wantError: true,
+			checkFunc: func(t *testing.T, err error) {
+				var weightErr InvalidWeightError
+				if !errors.As(err, &weightErr) {
+					t.Errorf("Expected InvalidWeightError, got %T", err)
+				}
+			},
+		},
+		{
+			name: "valid priority 0 (low)",
+			config: KeyConfig{
+				Key:      "sk-test123",
+				Priority: 0,
+			},
+			wantError: false,
+		},
+		{
+			name: "valid priority 1 (normal)",
+			config: KeyConfig{
+				Key:      "sk-test123",
+				Priority: 1,
+			},
+			wantError: false,
+		},
+		{
+			name: "valid priority 2 (high)",
+			config: KeyConfig{
+				Key:      "sk-test123",
+				Priority: 2,
+			},
+			wantError: false,
+		},
+		{
+			name: "zero weight is valid",
+			config: KeyConfig{
+				Key:    "sk-test123",
+				Weight: 0,
+			},
+			wantError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.config.Validate()
+			if tt.wantError {
+				if err == nil {
+					t.Error("Validate() expected error, got nil")
+					return
+				}
+				if tt.checkFunc != nil {
+					tt.checkFunc(t, err)
+				}
+			} else if err != nil {
+				t.Errorf("Validate() expected no error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestProviderConfig_GetEffectiveStrategy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		expected string
+		config   ProviderConfig
+	}{
+		{
+			name: "configured strategy least_loaded",
+			config: ProviderConfig{
+				Pooling: PoolingConfig{
+					Strategy: "least_loaded",
+				},
+			},
+			expected: "least_loaded",
+		},
+		{
+			name: "configured strategy round_robin",
+			config: ProviderConfig{
+				Pooling: PoolingConfig{
+					Strategy: "round_robin",
+				},
+			},
+			expected: "round_robin",
+		},
+		{
+			name: "configured strategy weighted",
+			config: ProviderConfig{
+				Pooling: PoolingConfig{
+					Strategy: "weighted",
+				},
+			},
+			expected: "weighted",
+		},
+		{
+			name:     "no strategy configured - defaults to least_loaded",
+			config:   ProviderConfig{},
+			expected: "least_loaded",
+		},
+		{
+			name: "empty strategy - defaults to least_loaded",
+			config: ProviderConfig{
+				Pooling: PoolingConfig{
+					Strategy: "",
+				},
+			},
+			expected: "least_loaded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.config.GetEffectiveStrategy()
+			if got != tt.expected {
+				t.Errorf("GetEffectiveStrategy() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProviderConfig_IsPoolingEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   ProviderConfig
+		expected bool
+	}{
+		{
+			name: "explicitly enabled",
+			config: ProviderConfig{
+				Pooling: PoolingConfig{
+					Enabled: true,
+				},
+				Keys: []KeyConfig{{Key: "key1"}},
+			},
+			expected: true,
+		},
+		{
+			name: "explicitly enabled with multiple keys",
+			config: ProviderConfig{
+				Pooling: PoolingConfig{
+					Enabled: true,
+				},
+				Keys: []KeyConfig{
+					{Key: "key1"},
+					{Key: "key2"},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "not explicitly enabled but multiple keys",
+			config: ProviderConfig{
+				Keys: []KeyConfig{
+					{Key: "key1"},
+					{Key: "key2"},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "not explicitly enabled with three keys",
+			config: ProviderConfig{
+				Keys: []KeyConfig{
+					{Key: "key1"},
+					{Key: "key2"},
+					{Key: "key3"},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "not enabled with single key",
+			config: ProviderConfig{
+				Keys: []KeyConfig{{Key: "key1"}},
+			},
+			expected: false,
+		},
+		{
+			name: "not enabled with no keys",
+			config: ProviderConfig{
+				Keys: []KeyConfig{},
+			},
+			expected: false,
+		},
+		{
+			name: "explicitly enabled overrides single key",
+			config: ProviderConfig{
+				Pooling: PoolingConfig{
+					Enabled: true,
+				},
+				Keys: []KeyConfig{{Key: "key1"}},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.config.IsPoolingEnabled()
+			if got != tt.expected {
+				t.Errorf("IsPoolingEnabled() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
