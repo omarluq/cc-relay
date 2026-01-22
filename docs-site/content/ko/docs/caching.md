@@ -168,6 +168,187 @@ cache:
 
 모든 캐시 작업은 데이터를 저장하지 않고 즉시 반환됩니다. `Get` 작업은 항상 `ErrNotFound`를 반환합니다.
 
+## HA 클러스터링 가이드
+
+이 섹션에서는 고가용성을 위해 여러 노드에 걸쳐 분산 캐싱을 사용하여 cc-relay를 배포하는 방법을 설명합니다.
+
+### 전제 조건
+
+HA 모드를 구성하기 전에:
+
+1. **네트워크 연결성**: 모든 노드가 서로 도달할 수 있어야 합니다
+2. **포트 접근성**: Olric 및 memberlist 포트가 모두 열려 있어야 합니다
+3. **일관된 구성**: 모든 노드가 동일한 `dmap_name` 및 `environment`를 사용해야 합니다
+
+### 포트 요구 사항
+
+**중요:** Olric은 두 개의 포트를 사용합니다:
+
+| 포트 | 용도 | 기본값 |
+|------|------|-------|
+| `bind_addr` 포트 | Olric 클라이언트 연결 | 3320 |
+| `bind_addr` 포트 + 2 | Memberlist gossip 프로토콜 | 3322 |
+
+**예:** `bind_addr: "0.0.0.0:3320"`인 경우 memberlist는 자동으로 포트 3322를 사용합니다.
+
+방화벽에서 두 포트가 모두 열려 있는지 확인하세요:
+
+```bash
+# Olric 클라이언트 포트 허용
+sudo ufw allow 3320/tcp
+
+# memberlist gossip 포트 허용 (bind_addr 포트 + 2)
+sudo ufw allow 3322/tcp
+```
+
+### 환경 설정
+
+| 설정 | Gossip 간격 | 프로브 간격 | 프로브 타임아웃 | 사용 시기 |
+|------|------------|-----------|---------------|---------|
+| `local` | 100ms | 100ms | 200ms | 동일 호스트, 개발 환경 |
+| `lan` | 200ms | 1s | 500ms | 동일 데이터센터 |
+| `wan` | 500ms | 3s | 2s | 교차 데이터센터 |
+
+**클러스터의 모든 노드는 동일한 environment 설정을 사용해야 합니다.**
+
+### 2노드 클러스터 예제
+
+**노드 1 (cc-relay-1):**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"  # 노드 2의 memberlist 포트
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**노드 2 (cc-relay-2):**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-1:3322"  # 노드 1의 memberlist 포트
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+### 3노드 Docker Compose 예제
+
+```yaml
+version: '3.8'
+
+services:
+  cc-relay-1:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node1.yaml:/config/config.yaml:ro
+    ports:
+      - "8787:8787"   # HTTP 프록시
+      - "3320:3320"   # Olric 클라이언트 포트
+      - "3322:3322"   # Memberlist gossip 포트
+    networks:
+      - cc-relay-net
+
+  cc-relay-2:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node2.yaml:/config/config.yaml:ro
+    ports:
+      - "8788:8787"
+      - "3330:3320"
+      - "3332:3322"
+    networks:
+      - cc-relay-net
+
+  cc-relay-3:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node3.yaml:/config/config.yaml:ro
+    ports:
+      - "8789:8787"
+      - "3340:3320"
+      - "3342:3322"
+    networks:
+      - cc-relay-net
+
+networks:
+  cc-relay-net:
+    driver: bridge
+```
+
+**config-node1.yaml:**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"
+      - "cc-relay-3:3322"
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**config-node2.yaml 및 config-node3.yaml:** 노드 1과 동일하지만 peers 목록이 다른 노드를 가리킵니다.
+
+### 복제 및 쿼럼 설명
+
+**replica_count:** 클러스터에 저장되는 각 키의 복사본 수.
+
+| replica_count | 동작 |
+|---------------|------|
+| 1 | 복제 없음 (단일 복사본) |
+| 2 | 하나의 프라이머리 + 하나의 백업 |
+| 3 | 하나의 프라이머리 + 두 개의 백업 |
+
+**read_quorum / write_quorum:** 성공을 반환하기 전에 필요한 최소 성공 작업 수.
+
+| 설정 | 일관성 | 가용성 |
+|------|-------|-------|
+| quorum = 1 | 최종 일관성 | 높음 |
+| quorum = replica_count | 강한 일관성 | 낮음 |
+| quorum = (replica_count/2)+1 | 다수결 | 균형 |
+
+**권장 사항:**
+
+| 클러스터 크기 | replica_count | read_quorum | write_quorum | 장애 허용 |
+|-------------|---------------|-------------|--------------|---------|
+| 2노드 | 2 | 1 | 1 | 1노드 장애 |
+| 3노드 | 2 | 1 | 1 | 1노드 장애 |
+| 3노드 | 3 | 2 | 2 | 1노드 장애 (강한 일관성) |
+
 ## 캐시 모드 비교
 
 | 기능 | Single (Ristretto) | HA (Olric) | Disabled (Noop) |
@@ -310,6 +491,62 @@ Ristretto는 높은 히트율을 유지하기 위해 항목을 거부할 수 있
 3. **Olric으로 전환**: 여러 노드에 메모리 압력을 분산하세요.
 
 4. **메트릭으로 모니터링**: 실제 메모리 소비를 이해하기 위해 `BytesUsed`를 추적하세요.
+
+### 노드가 클러스터에 참여할 수 없음
+
+**증상:** 노드가 시작되지만 서로를 발견하지 못합니다.
+
+**원인 및 해결 방법:**
+
+1. **잘못된 피어 포트:** 피어는 Olric 포트가 아닌 memberlist 포트(bind_addr + 2)를 사용해야 합니다.
+   ```yaml
+   # 잘못됨
+   peers:
+     - "other-node:3320"  # 이것은 Olric 포트입니다
+
+   # 올바름
+   peers:
+     - "other-node:3322"  # memberlist 포트 = 3320 + 2
+   ```
+
+2. **방화벽 차단:** Olric 및 memberlist 포트가 모두 열려 있는지 확인하세요.
+   ```bash
+   # 연결성 확인
+   nc -zv other-node 3320  # Olric 포트
+   nc -zv other-node 3322  # memberlist 포트
+   ```
+
+3. **DNS 해석:** 호스트 이름이 올바르게 해석되는지 확인하세요.
+   ```bash
+   getent hosts other-node
+   ```
+
+4. **environment 불일치:** 모든 노드가 동일한 `environment` 설정을 사용해야 합니다.
+
+### 쿼럼 오류
+
+**증상:** "not enough members" 또는 노드가 실행 중인데도 작업이 실패합니다.
+
+**해결 방법:** `member_count_quorum`이 실제 실행 중인 노드 수보다 작거나 같은지 확인하세요.
+
+```yaml
+# 2노드 클러스터의 경우
+member_count_quorum: 2  # 두 노드 모두 필요
+
+# 1노드 장애를 허용하는 3노드 클러스터의 경우
+member_count_quorum: 2  # 1노드 다운 허용
+```
+
+### 데이터가 복제되지 않음
+
+**증상:** 노드가 다운되면 데이터가 사라집니다.
+
+**해결 방법:** `replica_count` > 1이고 충분한 노드가 있는지 확인하세요.
+
+```yaml
+replica_count: 2          # 2개의 복사본 저장
+member_count_quorum: 2    # 쓰기에 2노드 필요
+```
 
 ## 오류 처리
 
