@@ -1,5 +1,15 @@
 # cc-relay
 
+[![Go Version](https://img.shields.io/badge/-%3E%3D1.18-00ADD8?style=flat&labelColor=24292e&logo=go&logoColor=white)](https://go.dev/)
+[![Made with Love](https://img.shields.io/badge/Made%20with-Love-ff69b4?style=flat&labelColor=24292e&logo=githubsponsors&logoColor=white)](https://github.com/omarluq/cc-relay)
+[![Website](https://img.shields.io/badge/Website-cc--relay.ai-5e5086?style=flat&labelColor=24292e&logo=safari&logoColor=white)](https://cc-relay.ai/)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat&labelColor=24292e&logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/omarluq/cc-relay/ci.yml?style=flat&labelColor=24292e&label=Tests&logo=github&logoColor=white)](https://github.com/omarluq/cc-relay/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/release/omarluq/cc-relay?style=flat&labelColor=24292e&color=28a745&label=Version&logo=semver&logoColor=white)](https://github.com/omarluq/cc-relay/releases)
+[![codecov](https://img.shields.io/codecov/c/github/omarluq/cc-relay?style=flat&labelColor=24292e&logo=codecov&logoColor=white&token=YW23EDL5T5)](https://codecov.io/gh/omarluq/cc-relay)
+[![Maintained](https://img.shields.io/badge/Maintained%3F-yes-28a745?style=flat&labelColor=24292e&logo=checkmarx&logoColor=white)](https://github.com/omarluq/cc-relay)
+
+
 Multi-provider proxy for Claude Code that enables simultaneous use of multiple Anthropic-compatible API endpoints, API keys, and models.
 
 ## Why?
