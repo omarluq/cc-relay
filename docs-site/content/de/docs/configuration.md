@@ -121,6 +121,33 @@ logging:
     log_response_headers: false
     log_tls_metrics: false
     max_body_log_size: 1000
+
+# ==========================================================================
+# Cache-Konfiguration
+# ==========================================================================
+cache:
+  # Cache-Modus: single, ha, disabled
+  mode: single
+
+  # Einzelmodus (Ristretto) Konfiguration
+  ristretto:
+    num_counters: 1000000  # 10x erwartete maximale Elemente
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Aufnahme-Puffergroesse
+
+  # HA-Modus (Olric) Konfiguration
+  olric:
+    embedded: true                 # Eingebetteten Olric-Knoten ausfuehren
+    bind_addr: "0.0.0.0:3320"      # Olric-Client-Port
+    dmap_name: "cc-relay"          # Name der verteilten Map
+    environment: lan               # local, lan, oder wan
+    peers:                         # Memberlist-Adressen (bind_addr + 2)
+      - "other-node:3322"
+    replica_count: 2               # Kopien pro Schluessel
+    read_quorum: 1                 # Min. Lesevorgaenge fuer Erfolg
+    write_quorum: 1                # Min. Schreibvorgaenge fuer Erfolg
+    member_count_quorum: 2         # Min. Cluster-Mitglieder
+    leave_timeout: 5s              # Dauer der Leave-Nachricht
 ```
 
 ## Server-Konfiguration
@@ -313,6 +340,105 @@ logging:
     log_tls_metrics: true       # TLS-Verbindungsinfo protokollieren
     max_body_log_size: 1000     # Max. Bytes aus Bodies protokollieren
 ```
+
+## Cache-Konfiguration
+
+CC-Relay bietet eine einheitliche Caching-Schicht mit mehreren Backend-Optionen fuer verschiedene Einsatzszenarien.
+
+### Cache-Modi
+
+| Modus | Backend | Beschreibung |
+|-------|---------|--------------|
+| `single` | [Ristretto](https://github.com/dgraph-io/ristretto) | Hochleistungs-lokaler In-Memory-Cache (Standard) |
+| `ha` | [Olric](https://github.com/buraksezer/olric) | Verteilter Cache fuer Hochverfuegbarkeitsbereitstellungen |
+| `disabled` | Noop | Durchleitungsmodus ohne Caching |
+
+### Einzelmodus (Ristretto)
+
+Ristretto ist ein hochleistungsfaehiger, nebenlaeufiger In-Memory-Cache. Dies ist der Standardmodus fuer Einzelinstanz-Bereitstellungen.
+
+```yaml
+cache:
+  mode: single
+  ristretto:
+    num_counters: 1000000  # 10x erwartete maximale Elemente
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Aufnahme-Puffergroesse
+```
+
+| Feld | Typ | Standard | Beschreibung |
+|------|-----|----------|--------------|
+| `num_counters` | int64 | 1.000.000 | Anzahl der 4-Bit-Zugriffszaehler. Empfohlen: 10x erwartete maximale Elemente. |
+| `max_cost` | int64 | 104.857.600 (100 MB) | Maximaler Speicher in Bytes, den der Cache halten kann. |
+| `buffer_items` | int64 | 64 | Anzahl der Schluessel pro Get-Puffer. Steuert die Aufnahme-Puffergroesse. |
+
+### HA-Modus (Olric) - Eingebettet
+
+Fuer Multi-Instanz-Bereitstellungen, die gemeinsamen Cache-Zustand erfordern, verwenden Sie den eingebetteten Olric-Modus, bei dem jede cc-relay-Instanz einen Olric-Knoten ausfuehrt.
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "other-node:3322"  # Memberlist-Port = bind_addr + 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+| Feld | Typ | Standard | Beschreibung |
+|------|-----|----------|--------------|
+| `embedded` | bool | false | Eingebetteten Olric-Knoten ausfuehren (true) vs. mit externem Cluster verbinden (false). |
+| `bind_addr` | string | erforderlich | Adresse fuer Olric-Client-Verbindungen (z.B. "0.0.0.0:3320"). |
+| `dmap_name` | string | "cc-relay" | Name der verteilten Map. Alle Knoten muessen denselben Namen verwenden. |
+| `environment` | string | "local" | Memberlist-Preset: "local", "lan" oder "wan". |
+| `peers` | []string | - | Memberlist-Adressen fuer Peer-Erkennung. Verwendet Port bind_addr + 2. |
+| `replica_count` | int | 1 | Anzahl der Kopien pro Schluessel. 1 = keine Replikation. |
+| `read_quorum` | int | 1 | Minimale erfolgreiche Lesevorgaenge fuer Antwort. |
+| `write_quorum` | int | 1 | Minimale erfolgreiche Schreibvorgaenge fuer Antwort. |
+| `member_count_quorum` | int32 | 1 | Minimale Cluster-Mitglieder erforderlich zum Betrieb. |
+| `leave_timeout` | duration | 5s | Zeit zum Senden der Leave-Nachricht vor dem Herunterfahren. |
+
+**Wichtig:** Olric verwendet zwei Ports - den `bind_addr`-Port fuer Client-Verbindungen und `bind_addr + 2` fuer Memberlist-Gossip. Stellen Sie sicher, dass beide Ports in Ihrer Firewall geoeffnet sind.
+
+### HA-Modus (Olric) - Client-Modus
+
+Verbinden Sie sich mit einem externen Olric-Cluster anstatt eingebettete Knoten auszufuehren:
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: false
+    addresses:
+      - "olric-node-1:3320"
+      - "olric-node-2:3320"
+    dmap_name: "cc-relay"
+```
+
+| Feld | Typ | Beschreibung |
+|------|-----|--------------|
+| `embedded` | bool | Auf `false` setzen fuer Client-Modus. |
+| `addresses` | []string | Externe Olric-Cluster-Adressen. |
+| `dmap_name` | string | Name der verteilten Map (muss mit Cluster-Konfiguration uebereinstimmen). |
+
+### Deaktivierter Modus
+
+Caching vollstaendig deaktivieren fuer Debugging oder wenn Caching anderswo behandelt wird:
+
+```yaml
+cache:
+  mode: disabled
+```
+
+Fuer umfassende Cache-Dokumentation einschliesslich Cache-Schluessel-Konventionen, Cache-Busting-Strategien, HA-Clustering-Anleitungen und Fehlerbehebung, siehe die [Cache-System-Dokumentation](/de/docs/caching/).
 
 ## Beispielkonfigurationen
 
