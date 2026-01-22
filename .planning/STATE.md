@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 1.3 Complete - Site Documentation Update
+**Current focus:** Phase 2 - Multi-Key Pooling
 
 ## Current Position
 
-Phase: 1.3 of 11 (Site Documentation Update)
-Plan: 6 of 6 in current phase (COMPLETE)
-Status: Phase 1.3 complete
-Last activity: 2026-01-21 - Completed Phase 1.3 Site Documentation Update
+Phase: 2 of 11 (Multi-Key Pooling)
+Plan: 2 of 5 in current phase
+Status: In progress
+Last activity: 2026-01-21 - Completed 02-02-PLAN.md (Key metadata and selectors)
 
-Progress: [████████░░] 100% (19/19 plans through Phase 1.3)
+Progress: [████████░░] 83% (20/24 plans total)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
-- Average duration: 7.5 min
-- Total execution time: 2.4 hours
+- Total plans completed: 20
+- Average duration: 7.4 min
+- Total execution time: 2.6 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: [████████░░] 100% (19/19 plans through Phase 1.3)
 | 01.1 (HA Cache) | 4 | 40 min | 10 min |
 | 01.2 (Cache Docs) | 1 | 3 min | 3 min |
 | 01.3 (Site Docs) | 6 | 21 min | 3.5 min |
+| 02 (Multi-Key Pool) | 1 | 11 min | 11 min |
 
 **Recent Trend:**
-- Last 6 plans: 01.3-01 (2min), 01.3-02 (4min), 01.3-03 (5min), 01.3-04 (3min), 01.3-05 (3min), 01.3-06 (4min)
-- Trend: Documentation/translation plans executed quickly (parallel waves)
+- Last 6 plans: 01.3-02 (4min), 01.3-03 (5min), 01.3-04 (3min), 01.3-05 (3min), 01.3-06 (4min), 02-02 (11min)
+- Trend: Phase 2 implementation slightly slower than documentation (more complex logic)
 
 *Updated after each plan completion*
 
@@ -126,6 +127,14 @@ Recent decisions affecting current work:
 - Technical terms (Olric, Ristretto, memberlist, etc.) preserved in English
 - Use language-specific URL prefixes in cross-references (/de/docs/, /es/docs/, etc.)
 
+**From 02-02 (Key Metadata and Selectors):**
+- Field alignment optimized for time.Time grouping over strict memory optimization (8-byte overhead acceptable)
+- Capacity score combines RPM and TPM equally (50/50 weight) for balanced selection
+- Cooldown and health checks unified in IsAvailable() for simple availability logic
+- Thread-safe with RWMutex for read-heavy workload optimization
+- Header parsing tolerates invalid values for graceful degradation
+- Extract helper functions to reduce cognitive complexity (parseRPMLimits, parseInputTokenLimits, parseOutputTokenLimits)
+
 ### Pending Todos
 
 None.
@@ -154,8 +163,13 @@ None.
   - Hugo site builds successfully with all languages
   - 10/10 must-haves verified against actual codebase
 
-- Phase 2 NEXT: Multi-Key Pooling
-  - Enable multiple API keys per provider with rate limit tracking
+- Phase 2 IN PROGRESS: Multi-Key Pooling (2/5 plans complete)
+  - 02-02 COMPLETE: Key metadata and selector strategies
+    - KeyMetadata tracks RPM/ITPM/OTPM limits with health and cooldown
+    - Parses anthropic-ratelimit-* headers dynamically
+    - KeySelector interface with LeastLoadedSelector and RoundRobinSelector
+    - Thread-safe operations, comprehensive test coverage
+  - NEXT: 02-03 Pool integration, 02-04 Failover logic, 02-05 Metrics
 
 ### Blockers/Concerns
 
@@ -164,17 +178,17 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Phase 1.3 execution complete, all verification passed
+Stopped at: Completed 02-02-PLAN.md execution
 Resume file: None
 
-**Phase 1.3 Complete (VERIFIED):**
-- 6 plans executed in 2 waves
-- Wave 1: English caching.md and configuration.md updated
-- Wave 2: All 5 other languages translated (DE, ES, JA, ZH-CN, KO)
-- All 10 must-haves verified against actual codebase
-- Hugo build successful (17 EN pages + 16 pages per translation)
-- VERIFICATION.md created in phase directory
+**02-02 Complete:**
+- Key metadata struct with rate limit tracking (RPM, ITPM, OTPM)
+- Dynamic header learning from anthropic-ratelimit-* headers
+- KeySelector interface with two strategies (least-loaded, round-robin)
+- All tests pass with race detector
+- SUMMARY.md created: .planning/phases/02-multi-key-pooling/02-02-SUMMARY.md
 
 **Next Steps:**
-- Return to Phase 1 to complete remaining plans (01-08, 01-09)
-- Or proceed to Phase 2: Multi-Key Pooling
+- 02-03: Integrate selectors into KeyPool.GetKey() logic
+- 02-04: Implement failover when all keys exhausted
+- 02-05: Add capacity metrics and monitoring
