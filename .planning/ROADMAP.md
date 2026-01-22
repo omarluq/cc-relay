@@ -122,7 +122,7 @@ Plans:
 - [x] 02-03-PLAN.md - Key pool coordination (pool.go)
 - [x] 02-04-PLAN.md - Config extension for multi-key pooling
 - [x] 02-05-PLAN.md - Integration with proxy handler and 429 handling
-- [ ] 02-06-PLAN.md - Gap closure: Wire KeyPool in serve.go and routes.go with integration tests
+- [x] 02-06-PLAN.md - Gap closure: Wire KeyPool in serve.go and routes.go with integration tests
 
 ### Phase 3: Routing Strategies
 **Goal**: Implement pluggable routing strategies (round-robin, shuffle, failover) selected via configuration
