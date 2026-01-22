@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 2.3 - Codebase Refactor with Samber Libraries (INSERTED)
+**Current focus:** Phase 2.3 - Codebase Refactor with Samber Libraries (IN PROGRESS)
 
 ## Current Position
 
 Phase: 2.3 of 11 (Codebase Refactor with Samber Libraries)
-Plan: 0 of 8 in current phase
-Status: NOT STARTED
-Last activity: 2026-01-22 - Phase 2.3 inserted (URGENT)
+Plan: 2 of 12 in current phase
+Status: In progress
+Last activity: 2026-01-22 - Completed 02.3-02-PLAN.md (Install Samber Libraries)
 
-Progress: [██████████] 100% (30/38 plans total - 8 new plans added)
+Progress: [███░░░░░░░] 32/46 plans total (Phase 2.3: 2/12)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29
-- Average duration: 7.3 min
-- Total execution time: 3.5 hours
+- Total plans completed: 32
+- Average duration: 7.5 min
+- Total execution time: 4.0 hours
 
 **By Phase:**
 
@@ -34,10 +34,11 @@ Progress: [██████████] 100% (30/38 plans total - 8 new plans
 | 02 (Multi-Key Pool) | 6 | 71 min | 11.8 min |
 | 02.1 (MKP Docs) | 1 | 12 min | 12 min |
 | 02.2 (Sub Token Relay) | 1 | 8 min | 8 min |
+| 02.3 (Samber Refactor) | 2 | 15 min | 7.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-05 (12min), 02-06 (9min), 02.1-01 (12min), 02.2-01 (8min)
-- Trend: Implementation plans average 8-12 min
+- Last 5 plans: 02.1-01 (12min), 02.2-01 (8min), 02.3-01 (7min), 02.3-02 (8min)
+- Trend: Documentation and setup plans average 7-8 min
 
 *Updated after each plan completion*
 
@@ -47,6 +48,16 @@ Progress: [██████████] 100% (30/38 plans total - 8 new plans
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 02.3-02 (Install Samber Libraries):**
+- Created internal/pkg/functional package to anchor samber imports (prevents go mod tidy removal)
+- gopter added for property-based testing (RESEARCH.md recommendation)
+- samber/ro v0.2.0 included with cautious usage guidance (pre-1.0 stability)
+
+**From 02.3-01 (Codebase Architecture):**
+- ARCHITECTURE.md created documenting component architecture
+- Identified 76 for-range loops as refactoring targets for samber/lo
+- Test coverage baseline established (avg 81%, cmd at 13.6%)
 
 **From 01-01 (Config & Provider Foundation):**
 - Use gopkg.in/yaml.v3 for config parsing (standard library approach)
@@ -185,13 +196,25 @@ None.
 
 ### Roadmap Evolution
 
-- Phase 2.3 INSERTED after Phase 2.2: Codebase Refactor with Samber Libraries (URGENT)
-  - Map codebase architecture with /gsd:map-codebase
-  - Research and integrate samber/lo, samber/do, samber/ro, samber/mo
-  - Create local .claude skills/agents for samber library patterns
-  - Audit and fix tech debt, code smells, bad patterns
-  - Improve test coverage to >80% on critical paths
-  - All existing tests must pass after refactoring
+- Phase 2.3 IN PROGRESS: Codebase Refactor with Samber Libraries
+  - 02.3-01 COMPLETE: Codebase architecture mapping
+    - ARCHITECTURE.md documenting component structure
+    - Dependency graph visualized
+    - Test coverage baseline established
+  - 02.3-02 COMPLETE: Install samber libraries and create skills
+    - samber/lo v1.52.0, do/v2 v2.0.0, mo v1.16.0, ro v0.2.0 installed
+    - gopter v0.2.11 for property-based testing
+    - 4 skill files created (1857 lines total)
+    - internal/pkg/functional package anchors imports
+  - 02.3-03 NEXT: Refactor with samber/lo
+  - 02.3-04: Refactor with samber/mo
+  - 02.3-05: Refactor with samber/do
+  - 02.3-06: Tech debt audit and fixes
+  - 02.3-07a: Test coverage improvement (internal packages)
+  - 02.3-07b: Test coverage improvement (cmd package)
+  - 02.3-08: Performance benchmarking
+  - 02.3-09: Final verification and documentation
+  - 02.3-10: Phase completion and handoff
 
 - Phase 2.2 COMPLETE: Subscription Token Relay
   - 02.2-01 COMPLETE: Transparent Auth Forwarding
@@ -242,43 +265,6 @@ None.
   - Hugo site builds successfully with all languages
   - 10/10 must-haves verified against actual codebase
 
-- Phase 2 COMPLETE: Multi-Key Pooling (6/6 plans complete)
-  - 02-01 COMPLETE: Rate limiter foundation
-    - RateLimiter interface with Allow, Wait, SetLimit, GetUsage, Reserve, ConsumeTokens
-    - TokenBucketLimiter using golang.org/x/time/rate
-    - RPM and TPM tracking with burst = limit
-    - Dynamic limit updates from response headers
-    - Thread-safe, 60+ test cases, race detector verified
-  - 02-02 COMPLETE: Key metadata and selector strategies
-    - KeyMetadata tracks RPM/ITPM/OTPM limits with health and cooldown
-    - Parses anthropic-ratelimit-* headers dynamically
-    - KeySelector interface with LeastLoadedSelector and RoundRobinSelector
-    - Thread-safe operations, comprehensive test coverage
-  - 02-03 COMPLETE: KeyPool integration
-    - KeyPool coordinates rate limiters and key selectors
-    - GetKey() selects best key with automatic failover on rate limit
-    - UpdateKeyFromHeaders() synchronizes metadata and limiters
-    - MarkKeyExhausted() handles 429 cooldown periods
-    - GetEarliestResetTime() for retry-after calculation
-    - GetStats() for pool capacity monitoring
-    - 100+ test cases, concurrent access verified with race detector
-  - 02-04 COMPLETE: Multi-key pooling configuration
-    - Extended KeyConfig with ITPMLimit, OTPMLimit, Priority, Weight
-    - Added PoolingConfig with strategy selection and auto-enable
-    - GetEffectiveTPM() for backwards compatibility with TPMLimit
-    - KeyConfig.Validate() with InvalidPriorityError, InvalidWeightError
-    - config/example.yaml with comprehensive multi-key examples
-  - 02-05 COMPLETE: Handler KeyPool integration
-    - Handler uses KeyPool.GetKey() for key selection
-    - UpdateKeyFromHeaders() called from response director
-    - 429 with Retry-After when all keys exhausted
-    - x-cc-relay-* headers expose capacity
-  - 02-06 COMPLETE: Production wiring and integration tests
-    - KeyPool initialized in serve.go from config
-    - routes.go passes pool to handler
-    - Integration tests verify distribution, fallback, 429 handling
-    - All verification gaps closed
-
 ### Blockers/Concerns
 
 None.
@@ -286,20 +272,26 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Session resumed, proceeding to Phase 3 planning
+Stopped at: Completed 02.3-02-PLAN.md
 Resume file: None
 
-**Phase 02.2-01 Complete:**
-- handler.go: Conditional auth forwarding in Rewrite function
-- handler.go: Skip KeyPool in ServeHTTP when client has auth
-- handler_test.go: 7 new tests for transparent and fallback modes
-- configuration.md: Transparent Authentication section with usage guides
-- 4 commits made (feat, test, docs, docs)
-- SUMMARY.md created: .planning/phases/02.2-subscription-token-relay/02.2-01-SUMMARY.md
+**Phase 02.3-02 Complete:**
+- go.mod: Added samber/lo, do/v2, mo, ro + gopter dependencies
+- internal/pkg/functional/functional.go: Import anchor package
+- .claude/skills/samber-lo.md: 371 lines of collection processing patterns
+- .claude/skills/samber-mo.md: 525 lines of monad patterns
+- .claude/skills/samber-do.md: 562 lines of DI patterns
+- .claude/skills/samber-ro.md: 399 lines of reactive stream patterns
+- 3 commits made (chore, docs, docs)
+- SUMMARY.md created: .planning/phases/02.3-codebase-refactor-samber-libs/02.3-02-SUMMARY.md
 
-**Key Behavior:**
-- Client sends Authorization/x-api-key → Forward unchanged (transparent mode)
-- Client sends no auth → Use configured keys (fallback mode)
-- KeyPool only used in fallback mode (rate limiting for our keys only)
+**Samber Libraries Installed:**
+| Library | Version | Purpose |
+|---------|---------|---------|
+| samber/lo | v1.52.0 | Functional collection utilities |
+| samber/do/v2 | v2.0.0 | Dependency injection |
+| samber/mo | v1.16.0 | Monads (Option, Result) |
+| samber/ro | v0.2.0 | Reactive streams (pre-1.0) |
+| gopter | v0.2.11 | Property-based testing |
 
-**Next:** Phase 3 - Routing Strategies
+**Next:** 02.3-03 - Refactor with samber/lo
