@@ -1,6 +1,39 @@
 # Architecture
 
-**Analysis Date:** 2026-01-20
+**Analysis Date:** 2026-01-22 (Updated)
+**Previous Analysis:** 2026-01-20
+
+## Package Dependency Graph (Current Implementation)
+
+```
+                              +---------------+
+                              |  cmd/cc-relay |
+                              |   (CLI/Main)  |
+                              +-------+-------+
+                                      |
+                    +-----------------+-----------------+
+                    |                 |                 |
+                    v                 v                 v
+            +-------+-------+ +-------+-------+ +-------+-------+
+            | internal/proxy| |internal/config| |internal/keypool|
+            |  (HTTP/SSE)   | | (YAML loader) | | (Multi-key)   |
+            +-------+-------+ +-------+-------+ +-------+-------+
+                    |                 |                 |
+        +-----------+-----+           |                 |
+        |           |     |           v                 v
+        v           v     v    +------+------+   +------+------+
++-------+--+ +------+--+ +--+--+internal/cache| |internal/rate |
+|internal/ | |internal/ | |    | (Ristretto/ | |    limit     |
+|   auth   | |providers | |    |   Olric)    | |(Token bucket)|
++----------+ +---------+ |    +-------------+ +-------------+
+                         |
+                    +----+----+
+                    |internal/|
+                    | version |
+                    +---------+
+```
+
+**Circular Dependency Status:** None detected.
 
 ## Pattern Overview
 
@@ -245,6 +278,103 @@
 - Traces visible in TUI request log stream
 - Useful for debugging routing decisions
 
+## Singleton vs Request-Scoped Services
+
+### Singletons (Application Lifetime)
+| Service | Location | Initialization |
+|---------|----------|----------------|
+| Logger | proxy/logger.go | serve.go startup |
+| KeyPool | keypool/pool.go | serve.go startup |
+| Cache | cache/factory.go | (future) serve.go |
+| Provider instances | providers/*.go | serve.go startup |
+| HTTP Server | proxy/server.go | serve.go startup |
+
+### Request-Scoped
+| Component | Location | Per-Request |
+|-----------|----------|-------------|
+| Request context | proxy/handler.go | New per request |
+| Request ID | proxy/middleware.go | Generated/extracted |
+| Selected API key | keypool/pool.go | Selected per request |
+| Response writer wrapper | proxy/middleware.go | Created per request |
+
+## Concurrency Patterns
+
+### Thread-Safe Components
+| Component | Protection | Pattern |
+|-----------|------------|---------|
+| KeyPool | sync.RWMutex | Read-heavy optimization |
+| KeyMetadata | sync.RWMutex | Per-key locking |
+| RateLimiter | golang.org/x/time/rate | Atomic operations |
+| Cache (Ristretto) | Internal sync | Built-in thread safety |
+| Cache (Olric) | sync.RWMutex + atomic.Bool | Double-check locking |
+
+### Graceful Shutdown
+1. Signal handler (SIGINT/SIGTERM)
+2. 30-second timeout context
+3. HTTP server Shutdown()
+4. Cache Close() (Olric leave timeout)
+
+## Test Coverage Summary
+
+| Package | Coverage | Status |
+|---------|----------|--------|
+| cmd/cc-relay | 13.6% | **Needs improvement** |
+| internal/auth | ~60% | Adequate |
+| internal/cache | 77.3% | Good, minor gaps |
+| internal/config | ~80% | Good |
+| internal/keypool | ~85% | Good |
+| internal/providers | ~70% | Adequate |
+| internal/proxy | ~75% | Good |
+| internal/ratelimit | ~90% | Excellent |
+
+## Refactoring Targets
+
+### High Cognitive Complexity Functions
+| Function | Location | Issue |
+|----------|----------|-------|
+| runServe | cmd/cc-relay/serve.go | Multiple responsibilities (marked nolint) |
+| buildOlricConfig | internal/cache/olric.go | Many conditionals |
+
+### Potential God Objects
+| Struct | Location | Responsibilities |
+|--------|----------|------------------|
+| Handler | proxy/handler.go | Request handling, key selection, error formatting |
+| KeyPool | keypool/pool.go | Key management, selection, rate limiting |
+
+### Code Smells
+| Issue | Location | Suggestion |
+|-------|----------|------------|
+| Duplicated findConfigFile | serve.go, status.go, config.go | Extract to shared helper |
+| Magic strings | Various | Define constants for header names |
+| Error wrapping inconsistency | Various | Standardize error patterns |
+
+### Samber Library Opportunities
+| Current Pattern | Samber Replacement | Benefit |
+|-----------------|-------------------|---------|
+| Manual slice filtering | lo.Filter | Cleaner, tested |
+| Manual map operations | lo.Map, lo.Reduce | Functional style |
+| Error handling boilerplate | mo.Result/mo.Option | Monadic composition |
+| Service initialization | do.Provide/do.Invoke | DI container |
+| Readonly collections | ro.Slice/ro.Map | Immutability |
+
+## External Dependencies
+
+### Production
+- `github.com/spf13/cobra` - CLI framework
+- `github.com/rs/zerolog` - Structured logging
+- `gopkg.in/yaml.v3` - YAML parsing
+- `github.com/google/uuid` - Request ID generation
+- `golang.org/x/time/rate` - Token bucket rate limiting
+- `github.com/dgraph-io/ristretto/v2` - In-memory cache
+- `github.com/olric-data/olric` - Distributed cache
+- `golang.org/x/net/http2` - HTTP/2 support
+
+### Samber Libraries (Planned)
+- `github.com/samber/lo` - Functional programming utilities
+- `github.com/samber/do/v2` - Dependency injection
+- `github.com/samber/mo` - Monadic error handling
+- `github.com/samber/ro` - Readonly collections
+
 ---
 
-*Architecture analysis: 2026-01-20*
+*Architecture analysis: 2026-01-22 (updated from 2026-01-20)*

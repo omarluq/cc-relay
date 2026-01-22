@@ -1,91 +1,116 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-01-20
+**Analysis Date:** 2026-01-22 (Updated)
+**Previous Analysis:** 2026-01-20
 
-## Directory Layout
+## Current Directory Layout (Implemented)
 
 ```
 cc-relay/
 ├── .claude/                           # Claude Code development guidance
 │   ├── CLAUDE.md                     # Development commands, architecture overview
-│   └── settings.local.json           # Local IDE settings
+│   ├── INDEX.md                      # Skills and commands index
+│   ├── skills/                       # Reusable skills
+│   ├── commands/                     # Custom commands
+│   └── agents/                       # Agent configurations
 ├── .github/
 │   └── workflows/
-│       └── test.yml                  # CI/CD pipeline (run tests on PR)
+│       └── ci.yml                    # CI/CD pipeline (test, lint, build)
 ├── .planning/
-│   └── codebase/                     # Generated architecture docs (this location)
-│       ├── ARCHITECTURE.md           # Pattern, layers, data flow
-│       └── STRUCTURE.md              # This file
+│   ├── codebase/                     # Architecture documentation
+│   │   ├── ARCHITECTURE.md           # Pattern, layers, data flow
+│   │   ├── STRUCTURE.md              # This file
+│   │   └── TESTING.md                # Test strategy
+│   ├── phases/                       # Phase-based planning
+│   │   ├── 01-core-proxy/            # Phase 1: Core proxy
+│   │   ├── 01.1-embedded-ha-cache/   # Phase 1.1: HA cache
+│   │   ├── 02-multi-key-pooling/     # Phase 2: Multi-key pooling
+│   │   └── 02.3-codebase-refactor/   # Phase 2.3: Samber refactor
+│   ├── STATE.md                      # Current project state
+│   ├── ROADMAP.md                    # Project roadmap
+│   └── PROJECT.md                    # Project overview
 ├── cmd/
 │   └── cc-relay/
-│       └── main.go                   # CLI entry point (planned: not yet implemented)
+│       ├── main.go                   # CLI entry point
+│       ├── serve.go                  # serve command (server startup)
+│       ├── config.go                 # config validate command
+│       ├── config_init.go            # config init command
+│       ├── config_cc.go              # config cc subcommands
+│       ├── config_cc_init.go         # config cc init command
+│       ├── config_cc_remove.go       # config cc remove command
+│       ├── status.go                 # status command
+│       └── version.go                # version command
 ├── internal/
-│   ├── proxy/
-│   │   ├── server.go                # HTTP proxy server (POST /v1/messages)
-│   │   ├── middleware.go            # Logging, auth, metrics middleware
-│   │   └── sse.go                   # Server-Sent Events streaming handler
-│   ├── router/
-│   │   ├── router.go                # Core routing interface & selector
-│   │   ├── keypool.go               # API key pool with rate limit tracking
-│   │   └── strategies/              # Routing strategy implementations
-│   │       ├── shuffle.go           # Weighted random (default)
-│   │       ├── round_robin.go       # Sequential distribution
-│   │       ├── least_busy.go        # Fewest in-flight requests
-│   │       ├── cost_based.go        # Prefer cheaper providers
-│   │       ├── latency_based.go     # Track latencies, prefer faster
-│   │       ├── failover.go          # Primary + fallback chain
-│   │       └── model_based.go       # Route by model prefix
-│   ├── providers/
-│   │   ├── interface.go             # ProviderTransformer interface
-│   │   ├── anthropic.go             # Anthropic direct API (native)
-│   │   ├── zai.go                   # Z.AI / Zhipu GLM (Anthropic-compatible)
-│   │   ├── ollama.go                # Local Ollama (limited features)
-│   │   ├── bedrock.go               # AWS Bedrock (model in URL, SigV4)
-│   │   ├── azure.go                 # Azure AI Foundry (x-api-key header)
-│   │   └── vertex.go                # Google Vertex AI (model in URL, OAuth)
-│   ├── health/
-│   │   ├── tracker.go               # Health tracking per backend
-│   │   └── circuit.go               # Circuit breaker (CLOSED/OPEN/HALF-OPEN)
+│   ├── auth/
+│   │   ├── auth.go                   # Authenticator interface
+│   │   ├── apikey.go                 # API key authenticator
+│   │   ├── oauth.go                  # OAuth/Bearer authenticator
+│   │   └── chain.go                  # Chain authenticator
+│   ├── cache/
+│   │   ├── cache.go                  # Cache interface
+│   │   ├── config.go                 # Cache configuration
+│   │   ├── errors.go                 # Cache errors
+│   │   ├── factory.go                # Cache factory (New function)
+│   │   ├── logging.go                # Cache logging
+│   │   ├── noop.go                   # No-op cache
+│   │   ├── olric.go                  # Olric distributed cache
+│   │   ├── ristretto.go              # Ristretto local cache
+│   │   └── testutil.go               # Test utilities
 │   ├── config/
-│   │   ├── config.go                # Configuration structs
-│   │   ├── loader.go                # YAML/TOML parsing & validation
-│   │   └── watcher.go               # File watcher for hot-reload (fsnotify)
-│   ├── grpc/
-│   │   ├── server.go                # gRPC server implementation
-│   │   └── handlers.go              # RPC handlers (stats, providers, keys, config)
-│   ├── types/
-│   │   └── types.go                 # Common types (Request, Response, etc.)
-│   └── util/
-│       └── util.go                  # Helper functions (logging, errors)
-├── ui/
-│   └── tui/
-│       ├── app.go                   # Bubble Tea application (TUI main)
-│       ├── models.go                # TUI state model
-│       ├── views/
-│       │   ├── dashboard.go         # Real-time stats view
-│       │   ├── providers.go         # Provider list and management
-│       │   ├── keys.go              # API key management view
-│       │   └── logs.go              # Request log stream view
-│       └── utils/
-│           └── tui_utils.go         # TUI formatting helpers
-├── proto/
-│   └── relay.proto                   # gRPC service definitions (355 lines)
-│       └── Generates: internal/grpc/relay.pb.go, relay_grpc.pb.go
+│   │   ├── config.go                 # Config structs
+│   │   └── loader.go                 # YAML loading with env expansion
+│   ├── keypool/
+│   │   ├── pool.go                   # KeyPool implementation
+│   │   ├── key.go                    # KeyMetadata, header parsing
+│   │   ├── selector.go               # KeySelector interface
+│   │   ├── least_loaded.go           # Least loaded selector
+│   │   └── round_robin.go            # Round robin selector
+│   ├── pkg/
+│   │   └── functional/
+│   │       └── functional.go         # Samber library imports
+│   ├── providers/
+│   │   ├── provider.go               # Provider interface
+│   │   ├── base.go                   # Base provider
+│   │   ├── anthropic.go              # Anthropic provider
+│   │   └── zai.go                    # Z.AI provider
+│   ├── proxy/
+│   │   ├── handler.go                # Main request handler
+│   │   ├── routes.go                 # Route setup
+│   │   ├── middleware.go             # Auth, logging middleware
+│   │   ├── server.go                 # HTTP server
+│   │   ├── sse.go                    # SSE event handling
+│   │   ├── models.go                 # Model listing handler
+│   │   ├── providers_handler.go      # Providers endpoint
+│   │   ├── logger.go                 # Zerolog configuration
+│   │   ├── debug.go                  # Debug options
+│   │   └── errors.go                 # Error handling
+│   ├── ratelimit/
+│   │   ├── limiter.go                # RateLimiter interface
+│   │   └── token_bucket.go           # Token bucket implementation
+│   └── version/
+│       └── version.go                # Build version info
 ├── config/
-│   └── (not yet used in Phase 1)
+│   └── example.yaml                  # Example configuration
+├── docs/
+│   ├── cache.md                      # Cache documentation
+│   └── configuration.md              # Configuration docs
+├── docs-site/                        # Hugo documentation site
+│   └── content/                      # Multi-language content
+│       ├── en/                       # English
+│       ├── de/                       # German
+│       ├── es/                       # Spanish
+│       ├── ja/                       # Japanese
+│       ├── ko/                       # Korean
+│       └── zh-cn/                    # Chinese (Simplified)
 ├── scripts/
-│   └── (not yet used in Phase 1)
-├── .planning/
-│   └── codebase/                    # This directory for generated docs
-├── pkg/                              # Packages directory (empty, placeholder)
+│   └── setup-tools.sh                # Development tools setup
+├── Taskfile.yml                      # Task runner configuration
 ├── go.mod                            # Go module definition
-├── example.yaml                      # Example configuration (216 lines)
-├── relay.proto                       # Protobuf definitions (355 lines)
-├── SPEC.md                           # Complete technical specification (614 lines)
-├── PROJECT_INDEX.md                  # Project overview and index
-├── README.md                         # User-facing documentation
-├── llms.txt                          # LLM-optimized project context
-└── lefthook.yml                      # Git hooks (pre-commit, pre-push)
+├── go.sum                            # Go module checksums
+├── lefthook.yml                      # Git hooks (pre-commit, pre-push)
+├── .golangci.yml                     # Linter configuration
+├── .air.toml                         # Live reload configuration
+└── README.md                         # Project README
 ```
 
 ## Directory Purposes
@@ -296,6 +321,78 @@ cc-relay/
 - Currently: Empty
 - Usage: If code needs to be reusable/importable by other projects
 
+## Key Files Per Package
+
+### cmd/cc-relay (CLI Commands)
+| File | Lines | Purpose |
+|------|-------|---------|
+| main.go | 37 | Entry point, root command |
+| serve.go | 235 | Server startup, signal handling |
+| config.go | 105 | Config validate command |
+| config_init.go | ~150 | Generate default config |
+| config_cc_init.go | 85 | Claude Code integration |
+| config_cc_remove.go | 98 | Remove CC integration |
+| status.go | 90 | Health check command |
+
+### internal/proxy (HTTP Server)
+| File | Lines | Purpose |
+|------|-------|---------|
+| handler.go | ~140 | Main request handler |
+| routes.go | ~80 | Route setup |
+| middleware.go | ~200 | Auth, logging middleware |
+| server.go | ~100 | HTTP server config |
+| sse.go | ~100 | SSE event handling |
+| logger.go | ~150 | Zerolog configuration |
+| debug.go | ~100 | Debug options |
+
+### internal/keypool (Multi-Key Management)
+| File | Lines | Purpose |
+|------|-------|---------|
+| pool.go | ~350 | KeyPool implementation |
+| key.go | ~300 | KeyMetadata, header parsing |
+| selector.go | ~50 | KeySelector interface |
+| least_loaded.go | ~100 | Least loaded selector |
+| round_robin.go | ~80 | Round robin selector |
+
+### internal/cache (Caching)
+| File | Lines | Purpose |
+|------|-------|---------|
+| olric.go | 670 | Distributed cache |
+| ristretto.go | 280 | Local cache |
+| factory.go | 71 | Cache factory |
+| config.go | ~200 | Configuration types |
+
+## Public API Surface Per Package
+
+### internal/proxy
+- `SetupRoutes(cfg, provider, key) http.Handler`
+- `SetupRoutesWithProviders(cfg, provider, key, pool, providers) http.Handler`
+- `NewServer(addr, handler, http2) *http.Server`
+- `NewLogger(cfg) (zerolog.Logger, error)`
+
+### internal/keypool
+- `NewKeyPool(name, cfg) (*KeyPool, error)`
+- `pool.GetKey(ctx) (string, error)`
+- `pool.UpdateKeyFromHeaders(key, headers)`
+- `pool.MarkKeyExhausted(key)`
+- `pool.GetStats() PoolStats`
+
+### internal/cache
+- `New(ctx, cfg) (Cache, error)`
+- `Cache` interface: Get, Set, SetWithTTL, Delete, Exists, Close
+- `StatsProvider` interface: Stats()
+- `Pinger` interface: Ping(ctx)
+- `ClusterInfo` interface: MemberlistAddr, ClusterMembers, IsEmbedded
+
+### internal/config
+- `Load(path) (*Config, error)`
+- `Config` struct with Server, Providers, Logging, Cache fields
+
+### internal/auth
+- `Authenticator` interface: Authenticate(r) error
+- `NewAPIKeyAuthenticator(key) Authenticator`
+- `NewChainAuthenticator(auths...) Authenticator`
+
 ---
 
-*Structure analysis: 2026-01-20*
+*Structure analysis: 2026-01-22 (updated from 2026-01-20)*
