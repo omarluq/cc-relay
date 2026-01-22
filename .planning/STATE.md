@@ -10,17 +10,17 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 2 of 11 (Multi-Key Pooling)
-Plan: 2 of 5 in current phase
+Plan: 1 of 5 in current phase (completed)
 Status: In progress
-Last activity: 2026-01-21 - Completed 02-02-PLAN.md (Key metadata and selectors)
+Last activity: 2026-01-22 - Completed 02-01-PLAN.md (Rate limiter foundation)
 
-Progress: [████████░░] 83% (20/24 plans total)
+Progress: [████████░░] 88% (21/24 plans total)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
-- Average duration: 7.4 min
+- Total plans completed: 21
+- Average duration: 7.3 min
 - Total execution time: 2.6 hours
 
 **By Phase:**
@@ -31,11 +31,11 @@ Progress: [████████░░] 83% (20/24 plans total)
 | 01.1 (HA Cache) | 4 | 40 min | 10 min |
 | 01.2 (Cache Docs) | 1 | 3 min | 3 min |
 | 01.3 (Site Docs) | 6 | 21 min | 3.5 min |
-| 02 (Multi-Key Pool) | 1 | 11 min | 11 min |
+| 02 (Multi-Key Pool) | 2 | 32 min | 16 min |
 
 **Recent Trend:**
-- Last 6 plans: 01.3-02 (4min), 01.3-03 (5min), 01.3-04 (3min), 01.3-05 (3min), 01.3-06 (4min), 02-02 (11min)
-- Trend: Phase 2 implementation slightly slower than documentation (more complex logic)
+- Last 6 plans: 01.3-03 (5min), 01.3-04 (3min), 01.3-05 (3min), 01.3-06 (4min), 02-02 (11min), 02-01 (21min)
+- Trend: Phase 2 implementation significantly slower than documentation (more complex logic, TDD cycles)
 
 *Updated after each plan completion*
 
@@ -127,6 +127,14 @@ Recent decisions affecting current work:
 - Technical terms (Olric, Ristretto, memberlist, etc.) preserved in English
 - Use language-specific URL prefixes in cross-references (/de/docs/, /es/docs/, etc.)
 
+**From 02-01 (Rate Limiter Foundation):**
+- Use golang.org/x/time/rate for token bucket (battle-tested, stdlib-backed)
+- Set burst = limit to avoid rejecting legitimate bursts
+- Treat zero/negative limits as unlimited (1M rate) for flexibility
+- Use RWMutex for GetUsage (read-heavy workload optimization)
+- Track RPM and TPM separately with independent limiters
+- Support dynamic limit updates via SetLimit for learning from response headers
+
 **From 02-02 (Key Metadata and Selectors):**
 - Field alignment optimized for time.Time grouping over strict memory optimization (8-byte overhead acceptable)
 - Capacity score combines RPM and TPM equally (50/50 weight) for balanced selection
@@ -164,6 +172,12 @@ None.
   - 10/10 must-haves verified against actual codebase
 
 - Phase 2 IN PROGRESS: Multi-Key Pooling (2/5 plans complete)
+  - 02-01 COMPLETE: Rate limiter foundation
+    - RateLimiter interface with Allow, Wait, SetLimit, GetUsage, Reserve, ConsumeTokens
+    - TokenBucketLimiter using golang.org/x/time/rate
+    - RPM and TPM tracking with burst = limit
+    - Dynamic limit updates from response headers
+    - Thread-safe, 60+ test cases, race detector verified
   - 02-02 COMPLETE: Key metadata and selector strategies
     - KeyMetadata tracks RPM/ITPM/OTPM limits with health and cooldown
     - Parses anthropic-ratelimit-* headers dynamically
@@ -177,18 +191,19 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-01-21
-Stopped at: Completed 02-02-PLAN.md execution
+Last session: 2026-01-22
+Stopped at: Completed 02-01-PLAN.md execution
 Resume file: None
 
-**02-02 Complete:**
-- Key metadata struct with rate limit tracking (RPM, ITPM, OTPM)
-- Dynamic header learning from anthropic-ratelimit-* headers
-- KeySelector interface with two strategies (least-loaded, round-robin)
-- All tests pass with race detector
-- SUMMARY.md created: .planning/phases/02-multi-key-pooling/02-02-SUMMARY.md
+**02-01 Complete:**
+- RateLimiter interface with 6 methods for rate limiting operations
+- TokenBucketLimiter implementation using golang.org/x/time/rate
+- RPM and TPM tracking with separate limiters
+- Dynamic limit updates via SetLimit() for response header learning
+- Comprehensive test suite with 60+ test cases, race detector verified
+- SUMMARY.md created: .planning/phases/02-multi-key-pooling/02-01-SUMMARY.md
 
 **Next Steps:**
-- 02-03: Integrate selectors into KeyPool.GetKey() logic
-- 02-04: Implement failover when all keys exhausted
-- 02-05: Add capacity metrics and monitoring
+- 02-03: KeyPool with selector integration
+- 02-04: Failover logic when all keys exhausted
+- 02-05: Metrics and capacity reporting
