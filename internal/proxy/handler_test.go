@@ -425,20 +425,18 @@ func TestHandler_SingleKeyMode(t *testing.T) {
 	assert.Empty(t, w.Header().Get(HeaderRelayKeysTotal))
 }
 
-// TestHandler_StripsClientAuthHeaders tests that client Authorization headers are NOT forwarded.
-// This is critical for Claude Code subscription users - their bearer token should not be
-// forwarded to backend providers, we use our own API keys.
-func TestHandler_StripsClientAuthHeaders(t *testing.T) {
+// TestHandler_UsesFallbackKeyWhenNoClientAuth tests that configured provider keys
+// are used when client provides no auth headers.
+func TestHandler_UsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	t.Parallel()
 
 	var receivedAuthHeader string
-	var receivedBearerHeader string
+	var receivedAPIKeyHeader string
 
 	// Create mock backend that captures headers
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Capture what headers were received
 		receivedAuthHeader = r.Header.Get("Authorization")
-		receivedBearerHeader = r.Header.Get("x-api-key")
+		receivedAPIKeyHeader = r.Header.Get("x-api-key")
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -446,16 +444,55 @@ func TestHandler_StripsClientAuthHeaders(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	// Create handler
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "our-backend-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, "our-fallback-key", nil, config.DebugOptions{})
 	require.NoError(t, err)
 
-	// Create request WITH client auth headers (simulating Claude Code subscription)
+	// Create request WITHOUT any auth headers
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("Authorization", "Bearer sk-ant-client-subscription-token-12345")
-	req.Header.Set("x-api-key", "client-provided-api-key")
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Anthropic-Version", "2024-01-01")
+	// NO Authorization, NO x-api-key
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Client Authorization should be empty (none provided)
+	assert.Empty(t, receivedAuthHeader)
+
+	// Our fallback key should be used
+	assert.Equal(t, "our-fallback-key", receivedAPIKeyHeader)
+}
+
+// TestHandler_ForwardsClientAuthWhenPresent tests that client Authorization header
+// is forwarded unchanged when present (transparent proxy mode).
+func TestHandler_ForwardsClientAuthWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	var receivedAuthHeader string
+	var receivedAPIKeyHeader string
+
+	// Create mock backend that captures headers
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuthHeader = r.Header.Get("Authorization")
+		receivedAPIKeyHeader = r.Header.Get("x-api-key")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	// Create handler with a configured fallback key
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	handler, err := NewHandler(provider, "fallback-key", nil, config.DebugOptions{})
+	require.NoError(t, err)
+
+	// Create request WITH client Authorization header
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req.Header.Set("Authorization", "Bearer sub_12345")
+	req.Header.Set("Anthropic-Version", "2024-01-01")
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -463,11 +500,162 @@ func TestHandler_StripsClientAuthHeaders(t *testing.T) {
 	// Verify response OK
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// CRITICAL: Verify client's Authorization header was NOT forwarded
-	assert.Empty(t, receivedAuthHeader, "Client Authorization header should be stripped, not forwarded")
+	// CRITICAL: Client Authorization header should be forwarded UNCHANGED
+	assert.Equal(t, "Bearer sub_12345", receivedAuthHeader)
 
-	// CRITICAL: Verify our backend API key was used, not client's
-	assert.Equal(t, "our-backend-key", receivedBearerHeader, "Should use our configured API key")
+	// Our fallback key should NOT be added
+	assert.Empty(t, receivedAPIKeyHeader, "fallback key should not be added when client has auth")
+}
+
+// TestHandler_ForwardsClientAPIKeyWhenPresent tests that client x-api-key header
+// is forwarded unchanged when present (transparent proxy mode).
+func TestHandler_ForwardsClientAPIKeyWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	var receivedAuthHeader string
+	var receivedAPIKeyHeader string
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuthHeader = r.Header.Get("Authorization")
+		receivedAPIKeyHeader = r.Header.Get("x-api-key")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	handler, err := NewHandler(provider, "fallback-key", nil, config.DebugOptions{})
+	require.NoError(t, err)
+
+	// Create request WITH client x-api-key header
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req.Header.Set("x-api-key", "sk-ant-client-key")
+	req.Header.Set("Anthropic-Version", "2024-01-01")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Client x-api-key should be forwarded UNCHANGED
+	assert.Equal(t, "sk-ant-client-key", receivedAPIKeyHeader)
+
+	// No Authorization header should be added
+	assert.Empty(t, receivedAuthHeader)
+}
+
+// TestHandler_TransparentModeSkipsKeyPool tests that key pool is skipped
+// when client provides auth (rate limiting is their problem).
+func TestHandler_TransparentModeSkipsKeyPool(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	// Create key pool with test keys
+	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+		Strategy: "least_loaded",
+		Keys: []keypool.KeyConfig{
+			{APIKey: "pool-key-1", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
+		},
+	})
+	require.NoError(t, err)
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	require.NoError(t, err)
+
+	// Create request WITH client auth
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req.Header.Set("Authorization", "Bearer client-token")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// x-cc-relay-* headers should NOT be set (key pool was skipped)
+	assert.Empty(t, w.Header().Get(HeaderRelayKeyID), "key pool should be skipped in transparent mode")
+	assert.Empty(t, w.Header().Get(HeaderRelayKeysTotal))
+}
+
+// TestHandler_FallbackModeUsesKeyPool tests that key pool is used
+// when client provides no auth.
+func TestHandler_FallbackModeUsesKeyPool(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+		Strategy: "least_loaded",
+		Keys: []keypool.KeyConfig{
+			{APIKey: "pool-key-1", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
+		},
+	})
+	require.NoError(t, err)
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	require.NoError(t, err)
+
+	// Create request WITHOUT client auth
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	// NO Authorization, NO x-api-key
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// x-cc-relay-* headers SHOULD be set (key pool was used)
+	assert.NotEmpty(t, w.Header().Get(HeaderRelayKeyID), "key pool should be used in fallback mode")
+	assert.Equal(t, "1", w.Header().Get(HeaderRelayKeysTotal))
+}
+
+// TestHandler_TransparentModeForwardsAnthropicHeaders tests that anthropic-* headers
+// are forwarded in transparent mode.
+func TestHandler_TransparentModeForwardsAnthropicHeaders(t *testing.T) {
+	t.Parallel()
+
+	var receivedVersion string
+	var receivedBeta string
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedVersion = r.Header.Get("Anthropic-Version")
+		receivedBeta = r.Header.Get("Anthropic-Beta")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	handler, err := NewHandler(provider, "fallback-key", nil, config.DebugOptions{})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req.Header.Set("Authorization", "Bearer client-token")
+	req.Header.Set("Anthropic-Version", "2024-01-01")
+	req.Header.Set("Anthropic-Beta", "extended-thinking-2024-01-01")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "2024-01-01", receivedVersion)
+	assert.Equal(t, "extended-thinking-2024-01-01", receivedBeta)
 }
 
 // TestParseRetryAfter tests the parseRetryAfter helper function.
