@@ -121,6 +121,33 @@ logging:
     log_response_headers: false
     log_tls_metrics: false
     max_body_log_size: 1000
+
+# ==========================================================================
+# キャッシュ設定
+# ==========================================================================
+cache:
+  # キャッシュモード: single, ha, disabled
+  mode: single
+
+  # シングルモード (Ristretto) 設定
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+
+  # HAモード (Olric) 設定
+  olric:
+    embedded: true                 # Run embedded Olric node
+    bind_addr: "0.0.0.0:3320"      # Olric client port
+    dmap_name: "cc-relay"          # Distributed map name
+    environment: lan               # local, lan, or wan
+    peers:                         # Memberlist addresses (bind_addr + 2)
+      - "other-node:3322"
+    replica_count: 2               # Copies per key
+    read_quorum: 1                 # Min reads for success
+    write_quorum: 1                # Min writes for success
+    member_count_quorum: 2         # Min cluster members
+    leave_timeout: 5s              # Leave broadcast duration
 ```
 
 ## サーバー設定
@@ -313,6 +340,105 @@ logging:
     log_tls_metrics: true       # TLS 接続情報をログ
     max_body_log_size: 1000     # ボディからログする最大バイト数
 ```
+
+## キャッシュ設定
+
+CC-Relay は、さまざまなデプロイメントシナリオに対応する複数のバックエンドオプションを備えた統合キャッシュレイヤーを提供します。
+
+### キャッシュモード
+
+| モード | バックエンド | 用途 |
+|--------|---------|----------|
+| `single` | [Ristretto](https://github.com/dgraph-io/ristretto) | シングルインスタンスデプロイメント、高性能 |
+| `ha` | [Olric](https://github.com/buraksezer/olric) | マルチインスタンスデプロイメント、共有状態 |
+| `disabled` | Noop | キャッシングなし、パススルー |
+
+### シングルモード (Ristretto)
+
+Ristretto は、高性能で並行処理対応のインメモリキャッシュです。シングルインスタンスデプロイメントのデフォルトモードです。
+
+```yaml
+cache:
+  mode: single
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+```
+
+| フィールド | タイプ | デフォルト | 説明 |
+|-------|------|---------|-------------|
+| `num_counters` | int64 | 1,000,000 | 4ビットアクセスカウンターの数。推奨: 予想最大アイテム数の10倍。 |
+| `max_cost` | int64 | 104,857,600 (100 MB) | キャッシュが保持できる最大メモリ（バイト）。 |
+| `buffer_items` | int64 | 64 | Get バッファあたりのキー数。アドミッションバッファサイズを制御。 |
+
+### HAモード (Olric) - 埋め込み
+
+共有キャッシュ状態を必要とするマルチインスタンスデプロイメントには、各 cc-relay インスタンスが Olric ノードを実行する埋め込み Olric モードを使用します。
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "other-node:3322"  # Memberlist port = bind_addr + 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+| フィールド | タイプ | デフォルト | 説明 |
+|-------|------|---------|-------------|
+| `embedded` | bool | false | 埋め込み Olric ノードを実行 (true) vs. 外部クラスターに接続 (false)。 |
+| `bind_addr` | string | 必須 | Olric クライアント接続用アドレス（例: "0.0.0.0:3320"）。 |
+| `dmap_name` | string | "cc-relay" | 分散マップの名前。すべてのノードで同じ名前を使用する必要があります。 |
+| `environment` | string | "local" | Memberlist プリセット: "local"、"lan"、または "wan"。 |
+| `peers` | []string | - | ピア検出用の Memberlist アドレス。bind_addr + 2 のポートを使用。 |
+| `replica_count` | int | 1 | キーあたりのコピー数。1 = レプリケーションなし。 |
+| `read_quorum` | int | 1 | 応答に必要な最小読み取り成功数。 |
+| `write_quorum` | int | 1 | 応答に必要な最小書き込み成功数。 |
+| `member_count_quorum` | int32 | 1 | 動作に必要な最小クラスターメンバー数。 |
+| `leave_timeout` | duration | 5s | シャットダウン前の離脱メッセージブロードキャスト時間。 |
+
+**重要:** Olric は2つのポートを使用します - クライアント接続用の `bind_addr` ポートと memberlist ゴシップ用の `bind_addr + 2`。ファイアウォールで両方のポートを開いてください。
+
+### HAモード (Olric) - クライアントモード
+
+埋め込みノードを実行する代わりに、外部 Olric クラスターに接続します：
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: false
+    addresses:
+      - "olric-node-1:3320"
+      - "olric-node-2:3320"
+    dmap_name: "cc-relay"
+```
+
+| フィールド | タイプ | 説明 |
+|-------|------|-------------|
+| `embedded` | bool | クライアントモードでは `false` に設定。 |
+| `addresses` | []string | 外部 Olric クラスターアドレス。 |
+| `dmap_name` | string | 分散マップ名（クラスター設定と一致する必要があります）。 |
+
+### 無効モード
+
+デバッグ用または他の場所でキャッシングが処理される場合、キャッシングを完全に無効にします：
+
+```yaml
+cache:
+  mode: disabled
+```
+
+HAクラスタリングガイドとトラブルシューティングを含む詳細なキャッシュドキュメントについては、[キャッシング](/ja/docs/caching/)を参照してください。
 
 ## 設定例
 
