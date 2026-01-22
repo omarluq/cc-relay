@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 3 - Routing Strategies (next)
+**Current focus:** Phase 2.3 - Codebase Refactor with Samber Libraries (INSERTED)
 
 ## Current Position
 
-Phase: 3 of 11 (Routing Strategies)
-Plan: 0 of TBD in current phase
-Status: READY TO PLAN
-Last activity: 2026-01-22 - Starting Phase 3 planning
+Phase: 2.3 of 11 (Codebase Refactor with Samber Libraries)
+Plan: 0 of 8 in current phase
+Status: NOT STARTED
+Last activity: 2026-01-22 - Phase 2.3 inserted (URGENT)
 
-Progress: [██████████] 100% (29/29 plans total)
+Progress: [██████████] 100% (30/38 plans total - 8 new plans added)
 
 ## Performance Metrics
 
@@ -184,6 +184,14 @@ None.
 - **Phase 2.1 Translation Gap**: Multi-key pooling docs only in English. DE, ES, JA, KO, ZH-CN missing. Fix later.
 
 ### Roadmap Evolution
+
+- Phase 2.3 INSERTED after Phase 2.2: Codebase Refactor with Samber Libraries (URGENT)
+  - Map codebase architecture with /gsd:map-codebase
+  - Research and integrate samber/lo, samber/do, samber/ro, samber/mo
+  - Create local .claude skills/agents for samber library patterns
+  - Audit and fix tech debt, code smells, bad patterns
+  - Improve test coverage to >80% on critical paths
+  - All existing tests must pass after refactoring
 
 - Phase 2.2 COMPLETE: Subscription Token Relay
   - 02.2-01 COMPLETE: Transparent Auth Forwarding

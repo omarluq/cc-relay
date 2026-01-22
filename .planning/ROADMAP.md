@@ -18,7 +18,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1.3: Site Documentation Update** - Update all site docs in all languages (INSERTED)
 - [x] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
 - [x] **Phase 2.1: Multi-Key Pooling Site Documentation** - Update all site docs in all languages (INSERTED)
-- [ ] **Phase 2.2: Subscription Token Relay** - Implement transparent proxy for client auth forwarding (INSERTED)
+- [x] **Phase 2.2: Subscription Token Relay** - Implement transparent proxy for client auth forwarding (INSERTED)
+- [ ] **Phase 2.3: Codebase Refactor with Samber Libraries** - Map codebase, integrate samber/lo/do/ro/mo, fix tech debt, improve coverage (INSERTED)
 - [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
@@ -154,7 +155,33 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 02.2-01-PLAN.md - Transparent auth forwarding in handler.go with tests and documentation
+- [x] 02.2-01-PLAN.md - Transparent auth forwarding in handler.go with tests and documentation
+
+### Phase 2.3: Codebase Refactor with Samber Libraries (INSERTED)
+**Goal**: Comprehensive codebase improvement using samber/lo, samber/do, samber/ro, samber/mo libraries. Map codebase, fix tech debt, improve test coverage, and modernize patterns.
+**Depends on**: Phase 2.2 (transparent auth complete)
+**Requirements**: QUALITY-01, QUALITY-02, QUALITY-03
+**Success Criteria** (what must be TRUE):
+  1. Codebase mapped with /gsd:map-codebase (architecture documented)
+  2. samber/lo integrated for functional collection utilities (map, filter, reduce, etc.)
+  3. samber/do integrated for dependency injection container
+  4. samber/ro integrated for immutable readonly types
+  5. samber/mo integrated for Option/Result monads (better error handling)
+  6. Local .claude skills/agents created for samber library usage patterns
+  7. Tech debt identified and resolved (code smells, bad patterns fixed)
+  8. Test coverage improved (target: >80% on critical paths)
+  9. All existing tests pass after refactoring
+**Plans**: TBD (8-12 plans estimated)
+
+Plans:
+- [ ] 02.3-01-PLAN.md - Map codebase and document architecture
+- [ ] 02.3-02-PLAN.md - Research samber libraries, create local skills/agents
+- [ ] 02.3-03-PLAN.md - Integrate samber/lo for collection utilities
+- [ ] 02.3-04-PLAN.md - Integrate samber/do for dependency injection
+- [ ] 02.3-05-PLAN.md - Integrate samber/ro for immutable types
+- [ ] 02.3-06-PLAN.md - Integrate samber/mo for Option/Result monads
+- [ ] 02.3-07-PLAN.md - Tech debt audit and fixes
+- [ ] 02.3-08-PLAN.md - Test coverage improvement
 
 ### Phase 3: Routing Strategies
 **Goal**: Implement pluggable routing strategies (round-robin, shuffle, failover) selected via configuration
@@ -311,7 +338,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -321,7 +348,8 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 3 
 | 1.3 Site Docs Update (INSERTED) | 6/6 | Complete | 2026-01-21 |
 | 2. Multi-Key Pooling | 6/6 | Complete | 2026-01-22 |
 | 2.1 Multi-Key Pooling Docs (INSERTED) | 1/1 | Complete | 2026-01-21 |
-| 2.2 Subscription Token Relay (INSERTED) | 0/1 | Planned | - |
+| 2.2 Subscription Token Relay (INSERTED) | 1/1 | Complete | 2026-01-22 |
+| 2.3 Samber Libs Refactor (INSERTED) | 0/8 | Not started | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
