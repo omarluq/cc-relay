@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 2 - Multi-Key Pooling
+**Current focus:** Phase 3 - Routing Strategies (next)
 
 ## Current Position
 
-Phase: 2 of 11 (Multi-Key Pooling)
-Plan: 6 of 6 in current phase (completed)
+Phase: 2.1 of 11 (Multi-Key Pooling Site Documentation)
+Plan: 1 of 1 in current phase (completed)
 Status: Phase complete
-Last activity: 2026-01-22 - Completed 02-06-PLAN.md (KeyPool Production Wiring)
+Last activity: 2026-01-21 - Completed 02.1-01-PLAN.md (Multi-Key Pooling Docs)
 
-Progress: [██████████] 100% (25/25 plans total)
+Progress: [██████████] 100% (26/26 plans total)
 
 ## Performance Metrics
 
@@ -32,10 +32,11 @@ Progress: [██████████] 100% (25/25 plans total)
 | 01.2 (Cache Docs) | 1 | 3 min | 3 min |
 | 01.3 (Site Docs) | 6 | 21 min | 3.5 min |
 | 02 (Multi-Key Pool) | 6 | 71 min | 11.8 min |
+| 02.1 (MKP Docs) | 1 | 12 min | 12 min |
 
 **Recent Trend:**
-- Last 6 plans: 02-01 (21min), 02-02 (11min), 02-03 (9min), 02-04 (9min), 02-05 (12min), 02-06 (9min)
-- Trend: Phase 2 complete with consistent 9-12 min velocity
+- Last 7 plans: 02-01 (21min), 02-02 (11min), 02-03 (9min), 02-04 (9min), 02-05 (12min), 02-06 (9min), 02.1-01 (12min)
+- Trend: Phases 2 and 2.1 complete with consistent 9-12 min velocity
 
 *Updated after each plan completion*
 
@@ -172,6 +173,12 @@ None.
 
 ### Roadmap Evolution
 
+- Phase 2.1 COMPLETE: Multi-Key Pooling Site Documentation
+  - All 6 languages updated with Multi-Key Pooling configuration section
+  - x-cc-relay-* response headers documented
+  - Configuration examples with priorities, rate limits, strategies
+  - Hugo builds verified for all languages
+
 - Phase 2 COMPLETE: Multi-Key Pooling
   - All 6 plans complete: RateLimiter, KeyMetadata, KeyPool, Config, Handler integration, Production wiring
   - Rate limiting with RPM, ITPM, OTPM tracking per key
@@ -250,25 +257,23 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-01-22
-Stopped at: Completed 02-06-PLAN.md execution (Phase 2 complete - all gaps closed)
+Last session: 2026-01-21
+Stopped at: Completed 02.1-01-PLAN.md execution (Phase 2.1 complete)
 Resume file: None
 
-**Phase 2 Complete:**
-- All 6 plans executed successfully (including gap closure plan 02-06)
-- Multi-key pooling fully integrated into proxy handler
-- KeyPool initialized from config in serve.go
-- Handler uses KeyPool for intelligent key selection
-- 429 errors with Retry-After when all keys exhausted
-- Dynamic rate limit learning from response headers
-- x-cc-relay-* headers expose capacity information
-- Backwards compatible single-key mode
-- Integration tests verify end-to-end wiring (distribution, fallback, 429 handling)
-- All verification gaps closed
-- SUMMARY.md created: .planning/phases/02-multi-key-pooling/02-06-SUMMARY.md
+**Phase 2.1 Complete:**
+- All 6 language configuration.md files updated with Multi-Key Pooling section
+- Hugo builds verified for all languages (en, de, es, ja, zh-cn, ko)
+- ~510 lines of documentation added across all languages
+- 7 commits made (6 per language + 1 SUMMARY)
+- SUMMARY.md created: .planning/phases/02.1-site-docs-multi-key-pooling/02.1-01-SUMMARY.md
 
-**Production deployment ready:**
-- KeyPool wired into production code path
-- Integration tests prove functionality
-- Race detector confirms thread safety
-- No breaking changes to existing configs
+**Documentation delivered:**
+- Key configuration fields (key, rpm_limit, itpm_limit, otpm_limit, priority, weight)
+- Pooling configuration with YAML examples
+- Key selection strategies (least_loaded, round_robin)
+- Rate limit learning from response headers
+- x-cc-relay-* headers documentation
+- 429 behavior with Retry-After headers
+
+**Next:** Phase 3 - Routing Strategies
