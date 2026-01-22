@@ -121,6 +121,33 @@ logging:
     log_response_headers: false
     log_tls_metrics: false
     max_body_log_size: 1000
+
+# ==========================================================================
+# 캐시 설정
+# ==========================================================================
+cache:
+  # 캐시 모드: single, ha, disabled
+  mode: single
+
+  # 싱글 모드 (Ristretto) 설정
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+
+  # HA 모드 (Olric) 설정
+  olric:
+    embedded: true                 # Run embedded Olric node
+    bind_addr: "0.0.0.0:3320"      # Olric client port
+    dmap_name: "cc-relay"          # Distributed map name
+    environment: lan               # local, lan, or wan
+    peers:                         # Memberlist addresses (bind_addr + 2)
+      - "other-node:3322"
+    replica_count: 2               # Copies per key
+    read_quorum: 1                 # Min reads for success
+    write_quorum: 1                # Min writes for success
+    member_count_quorum: 2         # Min cluster members
+    leave_timeout: 5s              # Leave broadcast duration
 ```
 
 ## 서버 설정
@@ -313,6 +340,105 @@ logging:
     log_tls_metrics: true       # TLS 연결 정보 로깅
     max_body_log_size: 1000     # 본문에서 로깅할 최대 바이트
 ```
+
+## 캐시 설정
+
+CC-Relay는 다양한 배포 시나리오에 맞는 여러 백엔드 옵션을 지원하는 통합 캐시 레이어를 제공합니다.
+
+### 캐시 모드
+
+| 모드 | 백엔드 | 사용 사례 |
+|------|---------|----------|
+| `single` | [Ristretto](https://github.com/dgraph-io/ristretto) | 단일 인스턴스 배포, 고성능 |
+| `ha` | [Olric](https://github.com/buraksezer/olric) | 다중 인스턴스 배포, 공유 상태 |
+| `disabled` | Noop | 캐싱 없음, 패스스루 |
+
+### 싱글 모드 (Ristretto)
+
+Ristretto는 고성능 동시성 지원 인메모리 캐시입니다. 단일 인스턴스 배포의 기본 모드입니다.
+
+```yaml
+cache:
+  mode: single
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+```
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `num_counters` | int64 | 1,000,000 | 4비트 접근 카운터 수. 권장: 예상 최대 항목의 10배. |
+| `max_cost` | int64 | 104,857,600 (100 MB) | 캐시가 보유할 수 있는 최대 메모리(바이트). |
+| `buffer_items` | int64 | 64 | Get 버퍼당 키 수. 어드미션 버퍼 크기 제어. |
+
+### HA 모드 (Olric) - 임베디드
+
+공유 캐시 상태가 필요한 다중 인스턴스 배포의 경우, 각 cc-relay 인스턴스가 Olric 노드를 실행하는 임베디드 Olric 모드를 사용합니다.
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "other-node:3322"  # Memberlist port = bind_addr + 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+| 필드 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `embedded` | bool | false | 임베디드 Olric 노드 실행 (true) vs. 외부 클러스터 연결 (false). |
+| `bind_addr` | string | 필수 | Olric 클라이언트 연결 주소 (예: "0.0.0.0:3320"). |
+| `dmap_name` | string | "cc-relay" | 분산 맵 이름. 모든 노드가 동일한 이름을 사용해야 함. |
+| `environment` | string | "local" | Memberlist 프리셋: "local", "lan", 또는 "wan". |
+| `peers` | []string | - | 피어 검색을 위한 Memberlist 주소. bind_addr + 2 포트 사용. |
+| `replica_count` | int | 1 | 키당 복제본 수. 1 = 복제 없음. |
+| `read_quorum` | int | 1 | 응답에 필요한 최소 성공 읽기 수. |
+| `write_quorum` | int | 1 | 응답에 필요한 최소 성공 쓰기 수. |
+| `member_count_quorum` | int32 | 1 | 운영에 필요한 최소 클러스터 멤버 수. |
+| `leave_timeout` | duration | 5s | 종료 전 이탈 메시지 브로드캐스트 시간. |
+
+**중요:** Olric은 두 개의 포트를 사용합니다 - 클라이언트 연결용 `bind_addr` 포트와 memberlist 가십용 `bind_addr + 2`. 방화벽에서 두 포트 모두 열어야 합니다.
+
+### HA 모드 (Olric) - 클라이언트 모드
+
+임베디드 노드를 실행하는 대신 외부 Olric 클러스터에 연결합니다:
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: false
+    addresses:
+      - "olric-node-1:3320"
+      - "olric-node-2:3320"
+    dmap_name: "cc-relay"
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `embedded` | bool | 클라이언트 모드에서는 `false`로 설정. |
+| `addresses` | []string | 외부 Olric 클러스터 주소. |
+| `dmap_name` | string | 분산 맵 이름 (클러스터 설정과 일치해야 함). |
+
+### 비활성화 모드
+
+디버깅용이거나 다른 곳에서 캐싱을 처리할 때 캐싱을 완전히 비활성화합니다:
+
+```yaml
+cache:
+  mode: disabled
+```
+
+HA 클러스터링 가이드 및 문제 해결을 포함한 전체 캐시 문서는 [캐싱](/ko/docs/caching/)을 참조하세요.
 
 ## 설정 예제
 
