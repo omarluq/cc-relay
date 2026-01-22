@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/samber/lo"
+	"github.com/samber/mo"
 )
 
 // ChainAuthenticator tries multiple authenticators in order.
@@ -59,4 +60,35 @@ func (c *ChainAuthenticator) Validate(r *http.Request) Result {
 // Type returns TypeNone since this is a meta-authenticator.
 func (c *ChainAuthenticator) Type() Type {
 	return TypeNone
+}
+
+// ValidateResult tries each authenticator and returns the result as mo.Result[Result].
+// This is an alternative API that supports Railway-Oriented Programming patterns.
+// Returns mo.Ok(Result) if any authenticator succeeds.
+// Returns mo.Err with the last error if all fail.
+func (c *ChainAuthenticator) ValidateResult(r *http.Request) mo.Result[Result] {
+	result := c.Validate(r)
+	if result.Valid {
+		return mo.Ok(result)
+	}
+	return mo.Err[Result](NewValidationError(result.Type, result.Error))
+}
+
+// ValidationError wraps authentication failure details.
+type ValidationError struct {
+	Type    Type
+	Message string
+}
+
+// Error implements the error interface.
+func (e *ValidationError) Error() string {
+	return e.Message
+}
+
+// NewValidationError creates a new ValidationError with the given type and message.
+func NewValidationError(authType Type, message string) *ValidationError {
+	return &ValidationError{
+		Type:    authType,
+		Message: message,
+	}
 }

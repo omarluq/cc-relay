@@ -2,6 +2,7 @@
 package auth_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -318,4 +319,251 @@ func TestChainAuthenticator_EmptyChain(t *testing.T) {
 	if result.Error != "no authentication configured" {
 		t.Errorf("Expected error 'no authentication configured', got %q", result.Error)
 	}
+}
+
+// Tests for mo.Result-based authentication methods
+
+// TestAPIKeyAuthenticator_ValidateResult tests the mo.Result-returning method.
+func TestAPIKeyAuthenticator_ValidateResult(t *testing.T) {
+	t.Parallel()
+
+	authenticator := auth.NewAPIKeyAuthenticator("test-api-key-12345")
+
+	t.Run("valid key returns Ok", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req.Header.Set("x-api-key", "test-api-key-12345")
+
+		result := authenticator.ValidateResult(req)
+		if result.IsError() {
+			t.Errorf("Expected Ok, got Err: %v", result.Error())
+		}
+		authResult, _ := result.Get()
+		if !authResult.Valid {
+			t.Error("Expected Valid=true in Ok result")
+		}
+		if authResult.Type != auth.TypeAPIKey {
+			t.Errorf("Expected Type=api_key, got %q", authResult.Type)
+		}
+	})
+
+	t.Run("invalid key returns Err with ValidationError", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req.Header.Set("x-api-key", "wrong-key")
+
+		result := authenticator.ValidateResult(req)
+		if result.IsOk() {
+			t.Error("Expected Err, got Ok")
+		}
+
+		err := result.Error()
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+		authErr := &auth.ValidationError{}
+		ok := errors.As(err, &authErr)
+		if !ok {
+			t.Errorf("Expected *ValidationError, got %T", err)
+		}
+		if authErr.Type != auth.TypeAPIKey {
+			t.Errorf("Expected Type=api_key, got %q", authErr.Type)
+		}
+		if authErr.Message != "invalid x-api-key" {
+			t.Errorf("Expected message 'invalid x-api-key', got %q", authErr.Message)
+		}
+	})
+
+	t.Run("missing key returns Err", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+
+		result := authenticator.ValidateResult(req)
+		if result.IsOk() {
+			t.Error("Expected Err, got Ok")
+		}
+	})
+}
+
+// TestBearerAuthenticator_ValidateResult tests the mo.Result-returning method.
+func TestBearerAuthenticator_ValidateResult(t *testing.T) {
+	t.Parallel()
+
+	authenticator := auth.NewBearerAuthenticator("my-secret-token")
+
+	t.Run("valid bearer returns Ok", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req.Header.Set("Authorization", "Bearer my-secret-token")
+
+		result := authenticator.ValidateResult(req)
+		if result.IsError() {
+			t.Errorf("Expected Ok, got Err: %v", result.Error())
+		}
+		authResult, _ := result.Get()
+		if !authResult.Valid {
+			t.Error("Expected Valid=true in Ok result")
+		}
+		if authResult.Type != auth.TypeBearer {
+			t.Errorf("Expected Type=bearer, got %q", authResult.Type)
+		}
+	})
+
+	t.Run("invalid bearer returns Err with ValidationError", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req.Header.Set("Authorization", "Bearer wrong-token")
+
+		result := authenticator.ValidateResult(req)
+		if result.IsOk() {
+			t.Error("Expected Err, got Ok")
+		}
+
+		err := result.Error()
+		authErr := &auth.ValidationError{}
+		ok := errors.As(err, &authErr)
+		if !ok {
+			t.Errorf("Expected *ValidationError, got %T", err)
+		}
+		if authErr.Type != auth.TypeBearer {
+			t.Errorf("Expected Type=bearer, got %q", authErr.Type)
+		}
+	})
+}
+
+// TestChainAuthenticator_ValidateResult tests the mo.Result-returning method.
+func TestChainAuthenticator_ValidateResult(t *testing.T) {
+	t.Parallel()
+
+	apiKeyAuth := auth.NewAPIKeyAuthenticator("secret-key")
+	bearerAuth := auth.NewBearerAuthenticator("secret-token")
+	chainAuth := auth.NewChainAuthenticator(bearerAuth, apiKeyAuth)
+
+	t.Run("valid bearer returns Ok", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req.Header.Set("Authorization", "Bearer secret-token")
+
+		result := chainAuth.ValidateResult(req)
+		if result.IsError() {
+			t.Errorf("Expected Ok, got Err: %v", result.Error())
+		}
+		authResult, _ := result.Get()
+		if authResult.Type != auth.TypeBearer {
+			t.Errorf("Expected Type=bearer, got %q", authResult.Type)
+		}
+	})
+
+	t.Run("valid api key returns Ok", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req.Header.Set("x-api-key", "secret-key")
+
+		result := chainAuth.ValidateResult(req)
+		if result.IsError() {
+			t.Errorf("Expected Ok, got Err: %v", result.Error())
+		}
+		authResult, _ := result.Get()
+		if authResult.Type != auth.TypeAPIKey {
+			t.Errorf("Expected Type=api_key, got %q", authResult.Type)
+		}
+	})
+
+	t.Run("no credentials returns Err", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+
+		result := chainAuth.ValidateResult(req)
+		if result.IsOk() {
+			t.Error("Expected Err, got Ok")
+		}
+
+		err := result.Error()
+		authErr := &auth.ValidationError{}
+		ok := errors.As(err, &authErr)
+		if !ok {
+			t.Errorf("Expected *ValidationError, got %T", err)
+		}
+		if authErr.Type != auth.TypeNone {
+			t.Errorf("Expected Type=none, got %q", authErr.Type)
+		}
+	})
+}
+
+// TestValidationError tests the ValidationError type.
+func TestValidationError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Error method returns message", func(t *testing.T) {
+		t.Parallel()
+
+		err := auth.NewValidationError(auth.TypeAPIKey, "test error message")
+		if err.Error() != "test error message" {
+			t.Errorf("Error() = %q, want %q", err.Error(), "test error message")
+		}
+	})
+
+	t.Run("fields are set correctly", func(t *testing.T) {
+		t.Parallel()
+
+		err := auth.NewValidationError(auth.TypeBearer, "bearer error")
+		if err.Type != auth.TypeBearer {
+			t.Errorf("Type = %q, want %q", err.Type, auth.TypeBearer)
+		}
+		if err.Message != "bearer error" {
+			t.Errorf("Message = %q, want %q", err.Message, "bearer error")
+		}
+	})
+}
+
+// TestValidateResult_RailwayPattern demonstrates Railway-Oriented Programming.
+func TestValidateResult_RailwayPattern(t *testing.T) {
+	t.Parallel()
+
+	apiKeyAuth := auth.NewAPIKeyAuthenticator("valid-key")
+
+	t.Run("Map transforms successful result", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req.Header.Set("x-api-key", "valid-key")
+
+		// Use Map to transform the auth result
+		transformed := apiKeyAuth.ValidateResult(req).Map(func(r auth.Result) (auth.Result, error) {
+			// Add token to result (demonstrating transformation)
+			r.Token = "transformed"
+			return r, nil
+		})
+
+		if transformed.IsError() {
+			t.Errorf("Expected Ok, got Err: %v", transformed.Error())
+		}
+
+		result, _ := transformed.Get()
+		if result.Token != "transformed" {
+			t.Errorf("Expected Token='transformed', got %q", result.Token)
+		}
+	})
+
+	t.Run("OrElse provides default on failure", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		// No credentials - will fail
+
+		defaultResult := auth.Result{Valid: false, Type: auth.TypeNone, Error: "default"}
+		result := apiKeyAuth.ValidateResult(req).OrElse(defaultResult)
+
+		if result.Error != "default" {
+			t.Errorf("Expected Error='default', got %q", result.Error)
+		}
+	})
 }

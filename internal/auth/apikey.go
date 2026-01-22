@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"net/http"
+
+	"github.com/samber/mo"
 )
 
 // APIKeyAuthenticator validates x-api-key header authentication.
@@ -55,4 +57,14 @@ func (a *APIKeyAuthenticator) Validate(r *http.Request) Result {
 // Type returns the authentication type (api_key).
 func (a *APIKeyAuthenticator) Type() Type {
 	return TypeAPIKey
+}
+
+// ValidateResult validates the x-api-key header and returns mo.Result[Result].
+// This is an alternative API that supports Railway-Oriented Programming patterns.
+func (a *APIKeyAuthenticator) ValidateResult(r *http.Request) mo.Result[Result] {
+	result := a.Validate(r)
+	if result.Valid {
+		return mo.Ok(result)
+	}
+	return mo.Err[Result](NewValidationError(result.Type, result.Error))
 }
