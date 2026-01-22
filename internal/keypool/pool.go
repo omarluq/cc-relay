@@ -11,6 +11,7 @@ import (
 
 	"github.com/omarluq/cc-relay/internal/ratelimit"
 	"github.com/rs/zerolog/log"
+	"github.com/samber/lo"
 )
 
 // Common errors returned by KeyPool.
@@ -171,12 +172,9 @@ func (p *KeyPool) GetKey(ctx context.Context) (keyID, apiKey string, err error) 
 			Msg("Key rate limited, trying next")
 
 		// Remove this key from available list and retry
-		for i, k := range availableKeys {
-			if k.ID == key.ID {
-				availableKeys = append(availableKeys[:i], availableKeys[i+1:]...)
-				break
-			}
-		}
+		availableKeys = lo.Filter(availableKeys, func(k *KeyMetadata, _ int) bool {
+			return k.ID != key.ID
+		})
 	}
 
 	// All keys exhausted
@@ -261,24 +259,22 @@ func (p *KeyPool) GetEarliestResetTime() time.Duration {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	var earliest time.Time
-	for _, key := range p.keys {
+	// Extract non-zero reset times from keys (thread-safe access)
+	resetTimes := lo.FilterMap(p.keys, func(key *KeyMetadata, _ int) (time.Time, bool) {
 		key.mu.RLock()
 		resetAt := key.RPMResetAt
 		key.mu.RUnlock()
+		return resetAt, !resetAt.IsZero()
+	})
 
-		if resetAt.IsZero() {
-			continue
-		}
-
-		if earliest.IsZero() || resetAt.Before(earliest) {
-			earliest = resetAt
-		}
-	}
-
-	if earliest.IsZero() {
+	if len(resetTimes) == 0 {
 		return 60 * time.Second // Default to 60s
 	}
+
+	// Find earliest reset time using MinBy with time comparison
+	earliest := lo.MinBy(resetTimes, func(a, b time.Time) bool {
+		return a.Before(b)
+	})
 
 	duration := time.Until(earliest)
 	if duration < 0 {
@@ -302,24 +298,21 @@ func (p *KeyPool) GetStats() PoolStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	stats := PoolStats{
-		TotalKeys: len(p.keys),
-	}
-
-	for _, key := range p.keys {
+	// Aggregate stats using lo.Reduce
+	return lo.Reduce(p.keys, func(stats PoolStats, key *KeyMetadata, _ int) PoolStats {
 		key.mu.RLock()
 		stats.TotalRPM += key.RPMLimit
 		stats.RemainingRPM += key.RPMRemaining
+		key.mu.RUnlock()
 
+		// IsAvailable() acquires its own lock, call outside key.mu
 		if key.IsAvailable() {
 			stats.AvailableKeys++
 		} else {
 			stats.ExhaustedKeys++
 		}
-		key.mu.RUnlock()
-	}
-
-	return stats
+		return stats
+	}, PoolStats{TotalKeys: len(p.keys)})
 }
 
 // Keys returns a copy of the keys slice for external iteration.
