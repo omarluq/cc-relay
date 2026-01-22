@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 )
 
@@ -15,9 +16,14 @@ import (
 //   - GET /v1/models - List available models (no auth required)
 //   - GET /health - Health check endpoint (no auth required)
 //
-// This is a convenience wrapper that calls SetupRoutesWithProviders with nil for allProviders.
-func SetupRoutes(cfg *config.Config, provider providers.Provider, providerKey string) (http.Handler, error) {
-	return SetupRoutesWithProviders(cfg, provider, providerKey, nil)
+// This is a convenience wrapper that calls SetupRoutesWithProviders with nil for pool and allProviders.
+func SetupRoutes(
+	cfg *config.Config,
+	provider providers.Provider,
+	providerKey string,
+	pool *keypool.KeyPool,
+) (http.Handler, error) {
+	return SetupRoutesWithProviders(cfg, provider, providerKey, pool, nil)
 }
 
 // SetupRoutesWithProviders creates the HTTP handler with all routes configured.
@@ -34,14 +40,15 @@ func SetupRoutesWithProviders(
 	cfg *config.Config,
 	provider providers.Provider,
 	providerKey string,
+	pool *keypool.KeyPool,
 	allProviders []providers.Provider,
 ) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	// Create proxy handler with debug options from config
 	debugOpts := cfg.Logging.DebugOptions
-	// TODO(02-05): Initialize keypool when provider has multiple keys configured
-	handler, err := NewHandler(provider, providerKey, nil, debugOpts)
+	// Use keypool for multi-key routing if provided
+	handler, err := NewHandler(provider, providerKey, pool, debugOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
