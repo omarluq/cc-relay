@@ -168,6 +168,187 @@ cache:
 
 Todas las operaciones de cache retornan inmediatamente sin almacenar datos. Las operaciones `Get` siempre retornan `ErrNotFound`.
 
+## Guia de Clustering de Alta Disponibilidad (HA)
+
+Esta seccion cubre el despliegue de cc-relay con cache distribuido en multiples nodos para alta disponibilidad.
+
+### Requisitos Previos
+
+Antes de configurar el modo HA:
+
+1. **Conectividad de red**: Todos los nodos deben poder alcanzarse mutuamente
+2. **Accesibilidad de puertos**: Tanto los puertos de Olric como de memberlist deben estar abiertos
+3. **Configuracion consistente**: Todos los nodos deben usar el mismo `dmap_name` y `environment`
+
+### Requisitos de Puertos
+
+**Critico:** Olric usa dos puertos:
+
+| Puerto | Proposito | Predeterminado |
+|--------|-----------|----------------|
+| Puerto de `bind_addr` | Conexiones de cliente Olric | 3320 |
+| Puerto de `bind_addr` + 2 | Protocolo gossip de memberlist | 3322 |
+
+**Ejemplo:** Si `bind_addr: "0.0.0.0:3320"`, memberlist automaticamente usa el puerto 3322.
+
+Asegurese de que ambos puertos esten abiertos en los firewalls:
+
+```bash
+# Permitir puerto de cliente Olric
+sudo ufw allow 3320/tcp
+
+# Permitir puerto gossip de memberlist (puerto bind_addr + 2)
+sudo ufw allow 3322/tcp
+```
+
+### Configuracion de Entorno
+
+| Configuracion | Intervalo Gossip | Intervalo Probe | Timeout Probe | Uso |
+|---------------|------------------|-----------------|---------------|-----|
+| `local` | 100ms | 100ms | 200ms | Mismo host, desarrollo |
+| `lan` | 200ms | 1s | 500ms | Mismo centro de datos |
+| `wan` | 500ms | 3s | 2s | Entre centros de datos |
+
+**Todos los nodos en un cluster deben usar la misma configuracion de entorno.**
+
+### Ejemplo de Cluster de Dos Nodos
+
+**Nodo 1 (cc-relay-1):**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"  # Puerto memberlist del nodo 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**Nodo 2 (cc-relay-2):**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-1:3322"  # Puerto memberlist del nodo 1
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+### Ejemplo de Docker Compose de Tres Nodos
+
+```yaml
+version: '3.8'
+
+services:
+  cc-relay-1:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node1.yaml:/config/config.yaml:ro
+    ports:
+      - "8787:8787"   # Proxy HTTP
+      - "3320:3320"   # Puerto cliente Olric
+      - "3322:3322"   # Puerto gossip memberlist
+    networks:
+      - cc-relay-net
+
+  cc-relay-2:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node2.yaml:/config/config.yaml:ro
+    ports:
+      - "8788:8787"
+      - "3330:3320"
+      - "3332:3322"
+    networks:
+      - cc-relay-net
+
+  cc-relay-3:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node3.yaml:/config/config.yaml:ro
+    ports:
+      - "8789:8787"
+      - "3340:3320"
+      - "3342:3322"
+    networks:
+      - cc-relay-net
+
+networks:
+  cc-relay-net:
+    driver: bridge
+```
+
+**config-node1.yaml:**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"
+      - "cc-relay-3:3322"
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**config-node2.yaml y config-node3.yaml:** Identicos a node1, pero con diferentes listas de peers apuntando a los otros nodos.
+
+### Replicacion y Quorum Explicados
+
+**replica_count:** Numero de copias de cada clave almacenadas en el cluster.
+
+| replica_count | Comportamiento |
+|---------------|----------------|
+| 1 | Sin replicacion (copia unica) |
+| 2 | Un primario + un respaldo |
+| 3 | Un primario + dos respaldos |
+
+**read_quorum / write_quorum:** Minimo de operaciones exitosas antes de retornar exito.
+
+| Configuracion | Consistencia | Disponibilidad |
+|---------------|--------------|----------------|
+| quorum = 1 | Eventual | Alta |
+| quorum = replica_count | Fuerte | Menor |
+| quorum = (replica_count/2)+1 | Mayoria | Balanceada |
+
+**Recomendaciones:**
+
+| Tamano Cluster | replica_count | read_quorum | write_quorum | Tolerancia a Fallos |
+|----------------|---------------|-------------|--------------|---------------------|
+| 2 nodos | 2 | 1 | 1 | 1 fallo de nodo |
+| 3 nodos | 2 | 1 | 1 | 1 fallo de nodo |
+| 3 nodos | 3 | 2 | 2 | 1 fallo de nodo (consistencia fuerte) |
+
 ## Comparacion de Modos de Cache
 
 | Caracteristica | Single (Ristretto) | HA (Olric) | Disabled (Noop) |
@@ -310,6 +491,62 @@ Ristretto usa una politica de admision que puede rechazar elementos para mantene
 3. **Cambiar a Olric**: Distribuir la presion de memoria entre multiples nodos.
 
 4. **Monitorear con metricas**: Rastree `BytesUsed` para entender el consumo real de memoria.
+
+### Los Nodos No Pueden Unirse al Cluster
+
+**Sintoma:** Los nodos inician pero no se descubren entre si.
+
+**Causas y Soluciones:**
+
+1. **Puerto de peer incorrecto:** Los peers deben usar el puerto memberlist (bind_addr + 2), no el puerto Olric.
+   ```yaml
+   # Incorrecto
+   peers:
+     - "other-node:3320"  # Este es el puerto Olric
+
+   # Correcto
+   peers:
+     - "other-node:3322"  # Puerto memberlist = 3320 + 2
+   ```
+
+2. **Firewall bloqueando:** Asegurese de que ambos puertos Olric y memberlist esten abiertos.
+   ```bash
+   # Verificar conectividad
+   nc -zv other-node 3320  # Puerto Olric
+   nc -zv other-node 3322  # Puerto memberlist
+   ```
+
+3. **Resolucion DNS:** Verifique que los nombres de host se resuelvan correctamente.
+   ```bash
+   getent hosts other-node
+   ```
+
+4. **Desajuste de entorno:** Todos los nodos deben usar la misma configuracion de `environment`.
+
+### Errores de Quorum
+
+**Sintoma:** "not enough members" u operaciones fallan a pesar de que los nodos estan activos.
+
+**Solucion:** Asegurese de que `member_count_quorum` sea menor o igual al numero de nodos realmente en ejecucion.
+
+```yaml
+# Para cluster de 2 nodos
+member_count_quorum: 2  # Requiere ambos nodos
+
+# Para cluster de 3 nodos con tolerancia a 1 fallo
+member_count_quorum: 2  # Permite que 1 nodo este caido
+```
+
+### Datos No Replicados
+
+**Sintoma:** Los datos desaparecen cuando un nodo cae.
+
+**Solucion:** Asegurese de que `replica_count` > 1 y tenga suficientes nodos.
+
+```yaml
+replica_count: 2          # Almacenar 2 copias
+member_count_quorum: 2    # Necesita 2 nodos para escribir
+```
 
 ## Manejo de Errores
 
