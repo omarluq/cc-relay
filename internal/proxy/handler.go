@@ -59,27 +59,47 @@ func NewHandler(
 			r.SetURL(targetURL)
 			r.SetXForwarded()
 
-			// CRITICAL: Strip client authentication headers before forwarding to backend
-			// The incoming request may have Authorization: Bearer <subscription-token>
-			// from Claude Code's subscription auth. We must not forward this to the
-			// backend provider - we use our own configured API keys instead.
-			r.Out.Header.Del("Authorization")
-			r.Out.Header.Del("x-api-key")
+			// Check if client provided auth headers
+			clientAuth := r.In.Header.Get("Authorization")
+			clientAPIKey := r.In.Header.Get("x-api-key")
 
-			// Get the selected API key from context (set in ServeHTTP)
-			selectedKey := r.In.Header.Get("X-Selected-Key")
-			if selectedKey == "" {
-				selectedKey = h.apiKey // Fallback to single-key mode
-			}
+			if clientAuth != "" || clientAPIKey != "" {
+				// TRANSPARENT MODE: Client has auth - forward it unchanged
+				// Do NOT strip Authorization, do NOT add our key
+				// Just forward anthropic-* headers alongside client auth
 
-			// Authenticate with provider using our configured API key
-			//nolint:errcheck // Provider.Authenticate error handling deferred to ErrorHandler
-			h.provider.Authenticate(r.Out, selectedKey)
+				// Forward anthropic-* headers (version, beta flags)
+				for key, values := range r.In.Header {
+					canonicalKey := http.CanonicalHeaderKey(key)
+					if len(canonicalKey) >= 10 && canonicalKey[:10] == "Anthropic-" {
+						r.Out.Header[canonicalKey] = values
+					}
+				}
+				r.Out.Header.Set("Content-Type", "application/json")
+			} else {
+				// FALLBACK MODE: Client has NO auth - use our configured keys
+				// Strip any stale headers and authenticate with our key
+				r.Out.Header.Del("Authorization")
+				r.Out.Header.Del("x-api-key")
 
-			// Forward anthropic-* headers
-			forwardHeaders := h.provider.ForwardHeaders(r.In.Header)
-			for key, values := range forwardHeaders {
-				r.Out.Header[key] = values
+				// Get the selected API key from context (set in ServeHTTP)
+				selectedKey := r.In.Header.Get("X-Selected-Key")
+				if selectedKey == "" {
+					selectedKey = h.apiKey // Fallback to single-key mode
+				}
+
+				// Only authenticate if we have a key to use
+				if selectedKey != "" {
+					//nolint:errcheck // Provider.Authenticate error handling deferred to ErrorHandler
+					h.provider.Authenticate(r.Out, selectedKey)
+				}
+				// If no key available, let backend return 401 (transparent error)
+
+				// Forward anthropic-* headers
+				forwardHeaders := h.provider.ForwardHeaders(r.In.Header)
+				for key, values := range forwardHeaders {
+					r.Out.Header[key] = values
+				}
 			}
 		},
 
@@ -143,11 +163,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Update context with provider-aware logger
 	r = r.WithContext(logger.WithContext(r.Context()))
 
-	// Select API key
+	// Check if client provided auth - skip key pool if so
+	clientAuth := r.Header.Get("Authorization")
+	clientAPIKey := r.Header.Get("x-api-key")
+	hasClientAuth := clientAuth != "" || clientAPIKey != ""
+
+	// Select API key (only needed in fallback mode)
 	var selectedKey string
 	var keyID string
 
-	if h.keyPool != nil {
+	if hasClientAuth {
+		// Transparent mode: client auth will be forwarded, skip key pool
+		logger.Debug().
+			Bool("has_authorization", clientAuth != "").
+			Bool("has_x_api_key", clientAPIKey != "").
+			Msg("transparent mode: forwarding client auth")
+	} else if h.keyPool != nil {
+		// Fallback mode with key pool
 		var err error
 		keyID, selectedKey, err = h.keyPool.GetKey(r.Context())
 		if errors.Is(err, keypool.ErrAllKeysExhausted) {
@@ -177,7 +209,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Pass selected key to Rewrite via temporary header (removed after)
 		r.Header.Set("X-Selected-Key", selectedKey)
 		defer r.Header.Del("X-Selected-Key")
-	} else {
+	} else if !hasClientAuth {
 		// Single key mode - set header directly
 		r.Header.Set("X-Selected-Key", h.apiKey)
 	}
