@@ -731,6 +731,110 @@ func TestOlricCache_HAConfiguration(t *testing.T) {
 	}
 }
 
+func TestOlricCache_PingAfterClose(t *testing.T) {
+	port := getNextPort()
+	cfg := OlricConfig{
+		DMapName: fmt.Sprintf("ping-close-test-%d", port),
+		Embedded: true,
+		BindAddr: fmt.Sprintf("127.0.0.1:%d", port),
+	}
+
+	ctx := context.Background()
+	cache, err := newOlricCache(ctx, &cfg)
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+
+	// Close the cache
+	err = cache.Close()
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	// Ping after close should return ErrClosed
+	err = cache.Ping(ctx)
+	if !errors.Is(err, ErrClosed) {
+		t.Errorf("Ping after Close returned %v, want ErrClosed", err)
+	}
+}
+
+func TestOlricCache_StatsAfterClose(t *testing.T) {
+	port := getNextPort()
+	cfg := OlricConfig{
+		DMapName: fmt.Sprintf("stats-close-test-%d", port),
+		Embedded: true,
+		BindAddr: fmt.Sprintf("127.0.0.1:%d", port),
+	}
+
+	ctx := context.Background()
+	cache, err := newOlricCache(ctx, &cfg)
+	if err != nil {
+		t.Fatalf("failed to create cache: %v", err)
+	}
+
+	// Set some data
+	err = cache.Set(ctx, "key", []byte("value"))
+	if err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	// Close the cache
+	err = cache.Close()
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	// Stats after close should return zero values (not panic)
+	stats := cache.Stats()
+	if stats.Hits != 0 || stats.Misses != 0 || stats.KeyCount != 0 {
+		t.Logf("Stats after close: hits=%d, misses=%d, keys=%d",
+			stats.Hits, stats.Misses, stats.KeyCount)
+	}
+}
+
+func TestOlricCache_PingWithCanceledContext(t *testing.T) {
+	cache := newTestOlricCache(t)
+
+	// Create already canceled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Ping with canceled context should return context error
+	err := cache.Ping(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Ping with canceled context returned %v, want context.Canceled", err)
+	}
+}
+
+func TestParseBindAddr(t *testing.T) {
+	tests := []struct {
+		name     string
+		addr     string
+		wantHost string
+		wantPort int
+	}{
+		{"host:port", "127.0.0.1:3320", "127.0.0.1", 3320},
+		{"host only", "127.0.0.1", "127.0.0.1", 0},
+		{"ipv6 with port", "[::1]:3320", "::1", 3320},
+		{"ipv6 without port", "::1", "::1", 0},
+		{"hostname with port", "localhost:3320", "localhost", 3320},
+		{"hostname only", "localhost", "localhost", 0},
+		{"invalid port", "127.0.0.1:invalid", "127.0.0.1", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			host, port := parseBindAddr(tt.addr)
+			if host != tt.wantHost {
+				t.Errorf("parseBindAddr(%q) host = %q, want %q", tt.addr, host, tt.wantHost)
+			}
+			if port != tt.wantPort {
+				t.Errorf("parseBindAddr(%q) port = %d, want %d", tt.addr, port, tt.wantPort)
+			}
+		})
+	}
+}
+
 func TestOlricCache_EnvironmentPresets(t *testing.T) {
 	testCases := []struct {
 		name        string

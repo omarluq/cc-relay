@@ -438,6 +438,84 @@ func BenchmarkRistrettoCache_Set(b *testing.B) {
 	})
 }
 
+func TestRistrettoCache_StatsAfterClose(t *testing.T) {
+	cfg := RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+	cache, err := newRistrettoCache(cfg)
+	if err != nil {
+		t.Fatalf("failed to create ristretto cache: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Set some values
+	for i := 0; i < 5; i++ {
+		key := string(rune('a' + i))
+		_ = cache.Set(ctx, key, []byte("value"))
+	}
+	cache.cache.Wait()
+
+	// Close the cache
+	err = cache.Close()
+	if err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	// Stats should return zero values after close (not panic)
+	stats := cache.Stats()
+	if stats.Hits != 0 || stats.Misses != 0 || stats.KeyCount != 0 || stats.BytesUsed != 0 {
+		t.Logf("Stats after close: hits=%d, misses=%d, keys=%d, bytes=%d",
+			stats.Hits, stats.Misses, stats.KeyCount, stats.BytesUsed)
+	}
+}
+
+func TestNewRistrettoCache_DefaultBufferItems(t *testing.T) {
+	// Test that zero buffer_items uses default
+	cfg := RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 0, // Should default to 64
+	}
+
+	cache, err := newRistrettoCache(cfg)
+	if err != nil {
+		t.Fatalf("newRistrettoCache() error = %v, want nil", err)
+	}
+	defer cache.Close()
+
+	// Verify cache works
+	ctx := context.Background()
+	err = cache.Set(ctx, "test", []byte("value"))
+	if err != nil {
+		t.Errorf("Set() error = %v, want nil", err)
+	}
+}
+
+func TestNewRistrettoCache_NegativeBufferItems(t *testing.T) {
+	// Test that negative buffer_items uses default
+	cfg := RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: -1, // Should default to 64
+	}
+
+	cache, err := newRistrettoCache(cfg)
+	if err != nil {
+		t.Fatalf("newRistrettoCache() error = %v, want nil", err)
+	}
+	defer cache.Close()
+
+	// Verify cache works
+	ctx := context.Background()
+	err = cache.Set(ctx, "test", []byte("value"))
+	if err != nil {
+		t.Errorf("Set() error = %v, want nil", err)
+	}
+}
+
 func BenchmarkRistrettoCache_Mixed(b *testing.B) {
 	cfg := RistrettoConfig{
 		NumCounters: 1_000_000,
