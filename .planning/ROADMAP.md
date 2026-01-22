@@ -16,7 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1.1: Embedded HA Cache Clustering** - Enable cc-relay to form HA clusters with embedded Olric (INSERTED)
 - [x] **Phase 1.2: Cache Documentation** - Comprehensive cache system documentation (keys, strategies, adapters, extensibility) (INSERTED)
 - [x] **Phase 1.3: Site Documentation Update** - Update all site docs in all languages (INSERTED)
-- [ ] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
+- [x] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
+- [x] **Phase 2.1: Multi-Key Pooling Site Documentation** - Update all site docs in all languages (INSERTED)
 - [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
@@ -123,6 +124,20 @@ Plans:
 - [x] 02-04-PLAN.md - Config extension for multi-key pooling
 - [x] 02-05-PLAN.md - Integration with proxy handler and 429 handling
 - [x] 02-06-PLAN.md - Gap closure: Wire KeyPool in serve.go and routes.go with integration tests
+
+### Phase 2.1: Multi-Key Pooling Site Documentation (INSERTED)
+**Goal**: Update all site documentation in all supported languages with multi-key pooling configuration and usage
+**Depends on**: Phase 2 (multi-key pooling complete)
+**Requirements**: DOC-SITE-02
+**Success Criteria** (what must be TRUE):
+  1. English documentation updated with multi-key pooling configuration
+  2. All other language translations updated (DE, ES, JA, ZH-CN, KO)
+  3. Configuration examples show multiple keys with priorities, rate limits
+  4. x-cc-relay-* response headers documented
+**Plans**: 1 plan in 1 wave
+
+Plans:
+- [x] 02.1-01-PLAN.md - Add Multi-Key Pooling documentation to all 6 language configuration.md files
 
 ### Phase 3: Routing Strategies
 **Goal**: Implement pluggable routing strategies (round-robin, shuffle, failover) selected via configuration
@@ -287,7 +302,8 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1.1 Embedded HA Cache (INSERTED) | 4/4 | Complete | 2026-01-21 |
 | 1.2 Cache Documentation (INSERTED) | 1/1 | Complete | 2026-01-21 |
 | 1.3 Site Docs Update (INSERTED) | 6/6 | Complete | 2026-01-21 |
-| 2. Multi-Key Pooling | 5/6 | Gap closure | - |
+| 2. Multi-Key Pooling | 6/6 | Complete | 2026-01-22 |
+| 2.1 Multi-Key Pooling Docs (INSERTED) | 1/1 | Complete | 2026-01-21 |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
