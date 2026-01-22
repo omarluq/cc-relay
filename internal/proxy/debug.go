@@ -14,6 +14,7 @@ import (
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 )
 
 // Sensitive patterns to redact from request bodies.
@@ -91,10 +92,9 @@ func LogRequestDetails(ctx context.Context, r *http.Request, opts config.DebugOp
 	}
 
 	// Redact sensitive fields
-	bodyStr := string(bodyBytes)
-	for _, pattern := range sensitivePatterns {
-		bodyStr = pattern.ReplaceAllString(bodyStr, `"***":"REDACTED"`)
-	}
+	bodyStr := lo.Reduce(sensitivePatterns, func(s string, pattern *regexp.Regexp, _ int) string {
+		return pattern.ReplaceAllString(s, `"***":"REDACTED"`)
+	}, string(bodyBytes))
 
 	// Log with context
 	logEvent := logger.Debug().
@@ -154,12 +154,15 @@ func LogResponseDetails(
 		"X-Request-Id",
 		"Cache-Control",
 	}
-	headerData := make(map[string]string)
-	for _, key := range importantHeaders {
-		if val := headers.Get(key); val != "" {
-			headerData[key] = val
-		}
-	}
+	headerData := lo.SliceToMap(
+		lo.FilterMap(importantHeaders, func(key string, _ int) (lo.Entry[string, string], bool) {
+			val := headers.Get(key)
+			return lo.Entry[string, string]{Key: key, Value: val}, val != ""
+		}),
+		func(entry lo.Entry[string, string]) (string, string) {
+			return entry.Key, entry.Value
+		},
+	)
 	if len(headerData) > 0 {
 		logEvent.Interface("headers", headerData)
 	}

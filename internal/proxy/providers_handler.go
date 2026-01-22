@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/samber/lo"
 )
 
 // ProviderInfo represents provider information in the API response.
@@ -37,26 +38,21 @@ func NewProvidersHandler(providerList []providers.Provider) *ProvidersHandler {
 
 // ServeHTTP handles GET /v1/providers requests.
 func (h *ProvidersHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	// Collect provider information
-	data := make([]ProviderInfo, 0, len(h.providers))
+	// Collect provider information using lo.Map
+	data := lo.Map(h.providers, func(p providers.Provider, _ int) ProviderInfo {
+		// Extract model IDs from provider's models using lo.Map
+		modelIDs := lo.Map(p.ListModels(), func(m providers.Model, _ int) string {
+			return m.ID
+		})
 
-	for _, p := range h.providers {
-		// Extract model IDs from provider's models
-		models := p.ListModels()
-		modelIDs := make([]string, 0, len(models))
-		for _, m := range models {
-			modelIDs = append(modelIDs, m.ID)
-		}
-
-		info := ProviderInfo{
+		return ProviderInfo{
 			Name:    p.Name(),
 			Type:    p.Owner(),
 			BaseURL: p.BaseURL(),
 			Models:  modelIDs,
 			Active:  true,
 		}
-		data = append(data, info)
-	}
+	})
 
 	response := ProvidersResponse{
 		Object: "list",

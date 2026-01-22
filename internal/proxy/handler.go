@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/keypool"
@@ -72,12 +73,12 @@ func NewHandler(
 				// Forward client auth unchanged alongside anthropic-* headers
 
 				// Forward anthropic-* headers (version, beta flags)
-				for key, values := range r.In.Header {
-					canonicalKey := http.CanonicalHeaderKey(key)
+				lo.ForEach(lo.Entries(r.In.Header), func(entry lo.Entry[string, []string], _ int) {
+					canonicalKey := http.CanonicalHeaderKey(entry.Key)
 					if len(canonicalKey) >= 10 && canonicalKey[:10] == "Anthropic-" {
-						r.Out.Header[canonicalKey] = values
+						r.Out.Header[canonicalKey] = entry.Value
 					}
-				}
+				})
 				r.Out.Header.Set("Content-Type", "application/json")
 			} else {
 				// CONFIGURED KEY MODE: Use our configured keys
@@ -100,9 +101,9 @@ func NewHandler(
 
 				// Forward anthropic-* headers
 				forwardHeaders := h.provider.ForwardHeaders(r.In.Header)
-				for key, values := range forwardHeaders {
-					r.Out.Header[key] = values
-				}
+				lo.ForEach(lo.Entries(forwardHeaders), func(entry lo.Entry[string, []string], _ int) {
+					r.Out.Header[entry.Key] = entry.Value
+				})
 			}
 		},
 
