@@ -1,12 +1,14 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestFindConfigFile(t *testing.T) {
+func TestFindConfigFileForStatus(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -25,7 +27,6 @@ func TestFindConfigFile(t *testing.T) {
 
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
-
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -40,13 +41,13 @@ func TestFindConfigFile(t *testing.T) {
 	}
 
 	// Test finding config in current directory
-	found := findConfigFile()
+	found := findConfigFileForStatus()
 	if found != "config.yaml" {
 		t.Errorf("Expected 'config.yaml', got %q", found)
 	}
 }
 
-func TestFindConfigFile_NotFound(t *testing.T) {
+func TestFindConfigFileForStatus_NotFound(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -73,13 +74,13 @@ func TestFindConfigFile_NotFound(t *testing.T) {
 	os.Setenv("HOME", tmpDir)
 
 	// Should return default even if not found
-	found := findConfigFile()
+	found := findConfigFileForStatus()
 	if found != "config.yaml" {
 		t.Errorf("Expected 'config.yaml' default, got %q", found)
 	}
 }
 
-func TestFindConfigFile_InHomeDir(t *testing.T) {
+func TestFindConfigFileForStatus_InHomeDir(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -117,147 +118,122 @@ func TestFindConfigFile_InHomeDir(t *testing.T) {
 	}
 
 	// Should find config in HOME/.config/cc-relay/
-	found := findConfigFile()
+	found := findConfigFileForStatus()
 	if found != configPath {
 		t.Errorf("Expected %q, got %q", configPath, found)
 	}
 }
 
-func TestRunServe_InvalidConfigPath(t *testing.T) {
+func TestRunStatus_ServerRunning(t *testing.T) {
+	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+
+	// Create a mock server that returns 200 OK on /health
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	// Extract host:port from server URL (remove http://)
+	serverAddr := server.URL[7:] // Remove "http://"
+
+	// Create temp config file pointing to our mock server
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	configContent := "server:\n  listen: " + serverAddr + "\n  api_key: test\n"
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save original cfgFile
+	origCfgFile := cfgFile
+	defer func() { cfgFile = origCfgFile }()
+
+	cfgFile = configPath
+
+	// runStatus should succeed
+	err := runStatus(nil, nil)
+	if err != nil {
+		t.Errorf("Expected success for running server, got error: %v", err)
+	}
+}
+
+func TestRunStatus_ServerNotRunning(t *testing.T) {
+	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+
+	// Create temp config file pointing to a non-existent server
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	configContent := "server:\n  listen: 127.0.0.1:19999\n  api_key: test\n"
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save original cfgFile
+	origCfgFile := cfgFile
+	defer func() { cfgFile = origCfgFile }()
+
+	cfgFile = configPath
+
+	// runStatus should fail
+	err := runStatus(nil, nil)
+	if err == nil {
+		t.Error("Expected error for non-running server")
+	}
+}
+
+func TestRunStatus_ServerUnhealthy(t *testing.T) {
+	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+
+	// Create a mock server that returns 500 on /health
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	// Extract host:port from server URL
+	serverAddr := server.URL[7:]
+
+	// Create temp config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	configContent := "server:\n  listen: " + serverAddr + "\n  api_key: test\n"
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save original cfgFile
+	origCfgFile := cfgFile
+	defer func() { cfgFile = origCfgFile }()
+
+	cfgFile = configPath
+
+	// runStatus should fail
+	err := runStatus(nil, nil)
+	if err == nil {
+		t.Error("Expected error for unhealthy server")
+	}
+}
+
+func TestRunStatus_InvalidConfig(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original cfgFile
 	origCfgFile := cfgFile
 	defer func() { cfgFile = origCfgFile }()
 
-	// Set cfgFile to a non-existent path
 	cfgFile = "/nonexistent/path/config.yaml"
 
-	// runServe should return error for invalid config path
-	err := runServe(nil, nil)
+	// runStatus should fail
+	err := runStatus(nil, nil)
 	if err == nil {
-		t.Error("Expected error for invalid config path")
-	}
-}
-
-func TestRunServe_InvalidConfig(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Create temp config file with invalid content
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "invalid.yaml")
-	if err := os.WriteFile(configPath, []byte("invalid: yaml: content"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for invalid config
-	err := runServe(nil, nil)
-	if err == nil {
-		t.Error("Expected error for invalid config content")
-	}
-}
-
-func TestRunServe_NoEnabledProvider(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Create temp config file with no enabled providers
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
-	configContent := `
-server:
-  listen: "127.0.0.1:18787"
-  api_key: "test-key"
-providers:
-  - name: "anthropic"
-    type: "anthropic"
-    enabled: false
-    base_url: "https://api.anthropic.com"
-    keys:
-      - key: "test-key"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for no enabled provider
-	err := runServe(nil, nil)
-	if err == nil {
-		t.Error("Expected error for no enabled provider")
-	}
-}
-
-func TestRunServe_UnsupportedProviderType(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Create temp config file with unsupported provider type
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
-	configContent := `
-server:
-  listen: "127.0.0.1:18787"
-  api_key: "test-key"
-providers:
-  - name: "openai"
-    type: "openai"
-    enabled: true
-    base_url: "https://api.openai.com"
-    keys:
-      - key: "test-key"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for unsupported provider type
-	err := runServe(nil, nil)
-	if err == nil {
-		t.Error("Expected error for unsupported provider type")
-	}
-}
-
-func TestRunServe_EmptyProviders(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Create temp config file with empty providers
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
-	configContent := `
-server:
-  listen: "127.0.0.1:18787"
-  api_key: "test-key"
-providers: []
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for empty providers
-	err := runServe(nil, nil)
-	if err == nil {
-		t.Error("Expected error for empty providers")
+		t.Error("Expected error for invalid config")
 	}
 }
