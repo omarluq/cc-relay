@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 2.2 of 11 (Subscription Token Relay)
-Plan: 1 of 3 in current phase
-Status: In progress
-Last activity: 2026-01-21 - Completed 02.2-01-PLAN.md (Auth Architecture Documentation)
+Plan: 1 of 1 in current phase
+Status: COMPLETE
+Last activity: 2026-01-22 - Completed 02.2-01-PLAN.md (Transparent Auth Forwarding)
 
-Progress: [██████████] 100% (27/29 plans total)
+Progress: [██████████] 100% (29/29 plans total)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27
-- Average duration: 7.6 min
-- Total execution time: 3.4 hours
+- Total plans completed: 29
+- Average duration: 7.3 min
+- Total execution time: 3.5 hours
 
 **By Phase:**
 
@@ -36,8 +36,8 @@ Progress: [██████████] 100% (27/29 plans total)
 | 02.2 (Sub Token Relay) | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 7 plans: 02-03 (9min), 02-04 (9min), 02-05 (12min), 02-06 (9min), 02.1-01 (12min), 02.2-01 (8min)
-- Trend: Consistent 8-12 min velocity for documentation and validation plans
+- Last 5 plans: 02-05 (12min), 02-06 (9min), 02.1-01 (12min), 02.2-01 (8min)
+- Trend: Implementation plans average 8-12 min
 
 *Updated after each plan completion*
 
@@ -168,11 +168,12 @@ Recent decisions affecting current work:
 - Integration tests use mock backend with httptest.Server (fast, deterministic, no API costs)
 - Skip 429 test if token bucket burst allows through (documents expected burst behavior)
 
-**From 02.2-01 (Auth Architecture Documentation):**
-- Document two-tier auth model with ASCII flow diagram
-- Config.ValidateAuthConfig() logs warning for missing provider keys
-- Pass logger by pointer to satisfy gocritic linter
-- Use index-based range loop to avoid copy
+**From 02.2-01 (Transparent Auth Forwarding):**
+- Auto-detect client auth: check Authorization/x-api-key headers
+- Transparent mode: forward client auth unchanged when present
+- Fallback mode: use configured keys when client has no auth
+- Skip KeyPool in transparent mode (rate limiting not our concern)
+- Claude Code subscription users just set ANTHROPIC_BASE_URL
 
 ### Pending Todos
 
@@ -180,13 +181,13 @@ None.
 
 ### Roadmap Evolution
 
-- Phase 2.2 IN PROGRESS: Subscription Token Relay
-  - 02.2-01 COMPLETE: Auth Architecture Documentation
-    - English configuration.md updated with two-tier auth model explanation
-    - Config.ValidateAuthConfig() warns when allow_subscription=true but no provider keys
-    - example.yaml updated with comprehensive auth architecture comments
-  - 02.2-02 PENDING: Translated documentation (DE, ES, JA, ZH-CN, KO)
-  - 02.2-03 PENDING: Test plan verification
+- Phase 2.2 COMPLETE: Subscription Token Relay
+  - 02.2-01 COMPLETE: Transparent Auth Forwarding
+    - Conditional auth handling in handler.go Rewrite function
+    - Skip KeyPool when client provides auth (transparent mode)
+    - Use configured keys when client has no auth (fallback mode)
+    - 7 new tests covering transparent and fallback modes
+    - Documentation: Transparent Authentication section in configuration.md
 
 - Phase 2.1 COMPLETE: Multi-Key Pooling Site Documentation
   - All 6 languages updated with Multi-Key Pooling configuration section
@@ -272,22 +273,21 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-01-21
-Stopped at: Completed 02.2-01-PLAN.md execution
+Last session: 2026-01-22
+Stopped at: Completed 02.2-01-PLAN.md execution (Transparent Auth Forwarding)
 Resume file: None
 
 **Phase 02.2-01 Complete:**
-- English configuration.md updated with Authentication Architecture section
-- Config.ValidateAuthConfig() method added to warn about missing provider keys
-- example.yaml updated with two-tier auth model comments
-- 3 commits made (docs, feat, docs)
+- handler.go: Conditional auth forwarding in Rewrite function
+- handler.go: Skip KeyPool in ServeHTTP when client has auth
+- handler_test.go: 7 new tests for transparent and fallback modes
+- configuration.md: Transparent Authentication section with usage guides
+- 4 commits made (feat, test, docs, docs)
 - SUMMARY.md created: .planning/phases/02.2-subscription-token-relay/02.2-01-SUMMARY.md
 
-**Documentation delivered:**
-- Two-tier authentication model explanation
-- ASCII flow diagram showing header stripping
-- Subscription token limitations (proxy-only)
-- Correct/incorrect configuration examples
-- Config validation warning for missing provider keys
+**Key Behavior:**
+- Client sends Authorization/x-api-key → Forward unchanged (transparent mode)
+- Client sends no auth → Use configured keys (fallback mode)
+- KeyPool only used in fallback mode (rate limiting for our keys only)
 
-**Next:** 02.2-02 (translated docs) or 02.2-03 (test verification)
+**Next:** Phase 3 - Routing Strategies
