@@ -135,6 +135,11 @@ Recent decisions affecting current work:
 - Use Spanish technical terminology without accents in headings
 - Maintain consistent structure with English source
 
+**From 01.3-06 (Configuration Cache Translation JA/ZH-CN/KO):**
+- Keep all YAML code blocks in English for consistency across languages
+- Translate table headers and descriptions to native language
+- Use language-specific URLs for cross-references (/ja/, /zh-cn/, /ko/)
+
 ### Pending Todos
 
 None.
@@ -159,7 +164,8 @@ None.
   - Plan 01 complete: English caching.md updated with HA Clustering Guide
   - Plan 02 complete: English configuration.md updated with cache section
   - Plan 05 complete: German and Spanish configuration.md translated
-  - Remaining: Translation updates for JA, ZH-CN, KO
+  - Plan 06 complete: Japanese, Chinese, Korean configuration.md translated
+  - Remaining: Translation updates for JA, ZH-CN, KO caching.md (HA guide)
 
 ### Blockers/Concerns
 
@@ -168,7 +174,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Plan 01.3-05 complete, ready for next plan
+Stopped at: Plan 01.3-06 complete, ready for next plan
 Resume file: None
 
 **Phase 1.3 Progress:**
@@ -194,6 +200,12 @@ Resume file: None
   - Spanish configuration.md: Configuracion de Cache section added
   - Both include translated mode tables and field descriptions
   - Hugo build verified
+- Plan 06 (JA/ZH-CN/KO Config Translation): Complete
+  - Japanese configuration.md: キャッシュ設定 section added
+  - Chinese configuration.md: 缓存配置 section added
+  - Korean configuration.md: 캐시 설정 section added
+  - All three include translated mode tables and field descriptions
+  - Hugo build verified
 
 **Next Steps:**
-- Continue Phase 1.3 with remaining translation plans (JA, ZH-CN, KO)
+- Continue Phase 1.3 with remaining translation plans (JA/ZH-CN/KO caching.md HA guides)
