@@ -121,6 +121,33 @@ logging:
     log_response_headers: false
     log_tls_metrics: false
     max_body_log_size: 1000
+
+# ==========================================================================
+# 缓存配置
+# ==========================================================================
+cache:
+  # 缓存模式: single, ha, disabled
+  mode: single
+
+  # 单机模式 (Ristretto) 配置
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+
+  # HA模式 (Olric) 配置
+  olric:
+    embedded: true                 # Run embedded Olric node
+    bind_addr: "0.0.0.0:3320"      # Olric client port
+    dmap_name: "cc-relay"          # Distributed map name
+    environment: lan               # local, lan, or wan
+    peers:                         # Memberlist addresses (bind_addr + 2)
+      - "other-node:3322"
+    replica_count: 2               # Copies per key
+    read_quorum: 1                 # Min reads for success
+    write_quorum: 1                # Min writes for success
+    member_count_quorum: 2         # Min cluster members
+    leave_timeout: 5s              # Leave broadcast duration
 ```
 
 ## 服务器配置
@@ -313,6 +340,105 @@ logging:
     log_tls_metrics: true       # 记录 TLS 连接信息
     max_body_log_size: 1000     # 记录请求体的最大字节数
 ```
+
+## 缓存配置
+
+CC-Relay 提供统一的缓存层，支持多种后端选项以适应不同的部署场景。
+
+### 缓存模式
+
+| 模式 | 后端 | 使用场景 |
+|------|---------|----------|
+| `single` | [Ristretto](https://github.com/dgraph-io/ristretto) | 单实例部署，高性能 |
+| `ha` | [Olric](https://github.com/buraksezer/olric) | 多实例部署，共享状态 |
+| `disabled` | Noop | 无缓存，直通 |
+
+### 单机模式 (Ristretto)
+
+Ristretto 是一个高性能、支持并发的内存缓存。这是单实例部署的默认模式。
+
+```yaml
+cache:
+  mode: single
+  ristretto:
+    num_counters: 1000000  # 10x expected max items
+    max_cost: 104857600    # 100 MB
+    buffer_items: 64       # Admission buffer size
+```
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `num_counters` | int64 | 1,000,000 | 4位访问计数器的数量。推荐：预期最大条目数的10倍。 |
+| `max_cost` | int64 | 104,857,600 (100 MB) | 缓存可容纳的最大内存（字节）。 |
+| `buffer_items` | int64 | 64 | 每个 Get 缓冲区的键数。控制准入缓冲区大小。 |
+
+### HA模式 (Olric) - 嵌入式
+
+对于需要共享缓存状态的多实例部署，使用嵌入式 Olric 模式，每个 cc-relay 实例运行一个 Olric 节点。
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "other-node:3322"  # Memberlist port = bind_addr + 2
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `embedded` | bool | false | 运行嵌入式 Olric 节点 (true) vs. 连接到外部集群 (false)。 |
+| `bind_addr` | string | 必需 | Olric 客户端连接地址（例如 "0.0.0.0:3320"）。 |
+| `dmap_name` | string | "cc-relay" | 分布式映射的名称。所有节点必须使用相同的名称。 |
+| `environment` | string | "local" | Memberlist 预设："local"、"lan" 或 "wan"。 |
+| `peers` | []string | - | 用于对等发现的 Memberlist 地址。使用端口 bind_addr + 2。 |
+| `replica_count` | int | 1 | 每个键的副本数。1 = 无复制。 |
+| `read_quorum` | int | 1 | 响应所需的最小成功读取数。 |
+| `write_quorum` | int | 1 | 响应所需的最小成功写入数。 |
+| `member_count_quorum` | int32 | 1 | 运行所需的最小集群成员数。 |
+| `leave_timeout` | duration | 5s | 关闭前广播离开消息的时间。 |
+
+**重要：** Olric 使用两个端口 - 用于客户端连接的 `bind_addr` 端口和用于 memberlist 通信的 `bind_addr + 2`。请确保防火墙开放这两个端口。
+
+### HA模式 (Olric) - 客户端模式
+
+连接到外部 Olric 集群，而不是运行嵌入式节点：
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: false
+    addresses:
+      - "olric-node-1:3320"
+      - "olric-node-2:3320"
+    dmap_name: "cc-relay"
+```
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `embedded` | bool | 客户端模式设置为 `false`。 |
+| `addresses` | []string | 外部 Olric 集群地址。 |
+| `dmap_name` | string | 分布式映射名称（必须与集群配置匹配）。 |
+
+### 禁用模式
+
+完全禁用缓存，用于调试或在其他地方处理缓存：
+
+```yaml
+cache:
+  mode: disabled
+```
+
+有关包括HA集群指南和故障排除在内的完整缓存文档，请参阅[缓存](/zh-cn/docs/caching/)。
 
 ## 配置示例
 
