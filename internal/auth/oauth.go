@@ -5,6 +5,8 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"strings"
+
+	"github.com/samber/mo"
 )
 
 // BearerAuthenticator validates Authorization: Bearer token authentication.
@@ -87,4 +89,14 @@ func (a *BearerAuthenticator) Validate(r *http.Request) Result {
 // Type returns the authentication type (bearer).
 func (a *BearerAuthenticator) Type() Type {
 	return TypeBearer
+}
+
+// ValidateResult validates the Bearer token and returns mo.Result[Result].
+// This is an alternative API that supports Railway-Oriented Programming patterns.
+func (a *BearerAuthenticator) ValidateResult(r *http.Request) mo.Result[Result] {
+	result := a.Validate(r)
+	if result.Valid {
+		return mo.Ok(result)
+	}
+	return mo.Err[Result](NewValidationError(result.Type, result.Error))
 }
