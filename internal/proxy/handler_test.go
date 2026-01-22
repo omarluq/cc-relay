@@ -425,6 +425,51 @@ func TestHandler_SingleKeyMode(t *testing.T) {
 	assert.Empty(t, w.Header().Get(HeaderRelayKeysTotal))
 }
 
+// TestHandler_StripsClientAuthHeaders tests that client Authorization headers are NOT forwarded.
+// This is critical for Claude Code subscription users - their bearer token should not be
+// forwarded to backend providers, we use our own API keys.
+func TestHandler_StripsClientAuthHeaders(t *testing.T) {
+	t.Parallel()
+
+	var receivedAuthHeader string
+	var receivedBearerHeader string
+
+	// Create mock backend that captures headers
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Capture what headers were received
+		receivedAuthHeader = r.Header.Get("Authorization")
+		receivedBearerHeader = r.Header.Get("x-api-key")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	// Create handler
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	handler, err := NewHandler(provider, "our-backend-key", nil, config.DebugOptions{})
+	require.NoError(t, err)
+
+	// Create request WITH client auth headers (simulating Claude Code subscription)
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req.Header.Set("Authorization", "Bearer sk-ant-client-subscription-token-12345")
+	req.Header.Set("x-api-key", "client-provided-api-key")
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	// Verify response OK
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// CRITICAL: Verify client's Authorization header was NOT forwarded
+	assert.Empty(t, receivedAuthHeader, "Client Authorization header should be stripped, not forwarded")
+
+	// CRITICAL: Verify our backend API key was used, not client's
+	assert.Equal(t, "our-backend-key", receivedBearerHeader, "Should use our configured API key")
+}
+
 // TestParseRetryAfter tests the parseRetryAfter helper function.
 func TestParseRetryAfter(t *testing.T) {
 	t.Parallel()

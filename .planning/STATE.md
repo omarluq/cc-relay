@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 2.1 of 11 (Multi-Key Pooling Site Documentation)
-Plan: 1 of 1 in current phase (completed)
-Status: Phase complete
-Last activity: 2026-01-21 - Completed 02.1-01-PLAN.md (Multi-Key Pooling Docs)
+Phase: 2.2 of 11 (Subscription Token Relay)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-21 - Completed 02.2-01-PLAN.md (Auth Architecture Documentation)
 
-Progress: [██████████] 100% (26/26 plans total)
+Progress: [██████████] 100% (27/29 plans total)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25
-- Average duration: 7.7 min
-- Total execution time: 3.2 hours
+- Total plans completed: 27
+- Average duration: 7.6 min
+- Total execution time: 3.4 hours
 
 **By Phase:**
 
@@ -33,10 +33,11 @@ Progress: [██████████] 100% (26/26 plans total)
 | 01.3 (Site Docs) | 6 | 21 min | 3.5 min |
 | 02 (Multi-Key Pool) | 6 | 71 min | 11.8 min |
 | 02.1 (MKP Docs) | 1 | 12 min | 12 min |
+| 02.2 (Sub Token Relay) | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 7 plans: 02-01 (21min), 02-02 (11min), 02-03 (9min), 02-04 (9min), 02-05 (12min), 02-06 (9min), 02.1-01 (12min)
-- Trend: Phases 2 and 2.1 complete with consistent 9-12 min velocity
+- Last 7 plans: 02-03 (9min), 02-04 (9min), 02-05 (12min), 02-06 (9min), 02.1-01 (12min), 02.2-01 (8min)
+- Trend: Consistent 8-12 min velocity for documentation and validation plans
 
 *Updated after each plan completion*
 
@@ -167,11 +168,25 @@ Recent decisions affecting current work:
 - Integration tests use mock backend with httptest.Server (fast, deterministic, no API costs)
 - Skip 429 test if token bucket burst allows through (documents expected burst behavior)
 
+**From 02.2-01 (Auth Architecture Documentation):**
+- Document two-tier auth model with ASCII flow diagram
+- Config.ValidateAuthConfig() logs warning for missing provider keys
+- Pass logger by pointer to satisfy gocritic linter
+- Use index-based range loop to avoid copy
+
 ### Pending Todos
 
 None.
 
 ### Roadmap Evolution
+
+- Phase 2.2 IN PROGRESS: Subscription Token Relay
+  - 02.2-01 COMPLETE: Auth Architecture Documentation
+    - English configuration.md updated with two-tier auth model explanation
+    - Config.ValidateAuthConfig() warns when allow_subscription=true but no provider keys
+    - example.yaml updated with comprehensive auth architecture comments
+  - 02.2-02 PENDING: Translated documentation (DE, ES, JA, ZH-CN, KO)
+  - 02.2-03 PENDING: Test plan verification
 
 - Phase 2.1 COMPLETE: Multi-Key Pooling Site Documentation
   - All 6 languages updated with Multi-Key Pooling configuration section
@@ -258,22 +273,21 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed 02.1-01-PLAN.md execution (Phase 2.1 complete)
+Stopped at: Completed 02.2-01-PLAN.md execution
 Resume file: None
 
-**Phase 2.1 Complete:**
-- All 6 language configuration.md files updated with Multi-Key Pooling section
-- Hugo builds verified for all languages (en, de, es, ja, zh-cn, ko)
-- ~510 lines of documentation added across all languages
-- 7 commits made (6 per language + 1 SUMMARY)
-- SUMMARY.md created: .planning/phases/02.1-site-docs-multi-key-pooling/02.1-01-SUMMARY.md
+**Phase 02.2-01 Complete:**
+- English configuration.md updated with Authentication Architecture section
+- Config.ValidateAuthConfig() method added to warn about missing provider keys
+- example.yaml updated with two-tier auth model comments
+- 3 commits made (docs, feat, docs)
+- SUMMARY.md created: .planning/phases/02.2-subscription-token-relay/02.2-01-SUMMARY.md
 
 **Documentation delivered:**
-- Key configuration fields (key, rpm_limit, itpm_limit, otpm_limit, priority, weight)
-- Pooling configuration with YAML examples
-- Key selection strategies (least_loaded, round_robin)
-- Rate limit learning from response headers
-- x-cc-relay-* headers documentation
-- 429 behavior with Retry-After headers
+- Two-tier authentication model explanation
+- ASCII flow diagram showing header stripping
+- Subscription token limitations (proxy-only)
+- Correct/incorrect configuration examples
+- Config validation warning for missing provider keys
 
-**Next:** Phase 3 - Routing Strategies
+**Next:** 02.2-02 (translated docs) or 02.2-03 (test verification)
