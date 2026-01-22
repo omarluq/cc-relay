@@ -114,14 +114,15 @@ Plans:
   2. Requests distribute across available keys based on rate limit capacity
   3. Proxy returns 429 when all keys are at capacity (not 5xx)
   4. Key rotation happens without service downtime or request failures
-**Plans**: 5 plans in 3 waves
+**Plans**: 6 plans (5 original + 1 gap closure)
 
 Plans:
-- [ ] 02-01-PLAN.md - Rate limiter interface and token bucket implementation
-- [ ] 02-02-PLAN.md - Key metadata and key selector interface with strategies
-- [ ] 02-03-PLAN.md - Key pool coordination (pool.go)
-- [ ] 02-04-PLAN.md - Config extension for multi-key pooling
-- [ ] 02-05-PLAN.md - Integration with proxy handler and 429 handling
+- [x] 02-01-PLAN.md - Rate limiter interface and token bucket implementation
+- [x] 02-02-PLAN.md - Key metadata and key selector interface with strategies
+- [x] 02-03-PLAN.md - Key pool coordination (pool.go)
+- [x] 02-04-PLAN.md - Config extension for multi-key pooling
+- [x] 02-05-PLAN.md - Integration with proxy handler and 429 handling
+- [ ] 02-06-PLAN.md - Gap closure: Wire KeyPool in serve.go and routes.go with integration tests
 
 ### Phase 3: Routing Strategies
 **Goal**: Implement pluggable routing strategies (round-robin, shuffle, failover) selected via configuration
@@ -286,7 +287,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 3 -> 4 -> 5 -> 6
 | 1.1 Embedded HA Cache (INSERTED) | 4/4 | Complete | 2026-01-21 |
 | 1.2 Cache Documentation (INSERTED) | 1/1 | Complete | 2026-01-21 |
 | 1.3 Site Docs Update (INSERTED) | 6/6 | Complete | 2026-01-21 |
-| 2. Multi-Key Pooling | 0/5 | Not started | - |
+| 2. Multi-Key Pooling | 5/6 | Gap closure | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
