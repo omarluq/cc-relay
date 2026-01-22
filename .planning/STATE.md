@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 2 of 11 (Multi-Key Pooling)
-Plan: 1 of 5 in current phase (completed)
+Plan: 4 of 5 in current phase (completed)
 Status: In progress
-Last activity: 2026-01-22 - Completed 02-01-PLAN.md (Rate limiter foundation)
+Last activity: 2026-01-22 - Completed 02-04-PLAN.md (Multi-key pooling configuration)
 
-Progress: [████████░░] 88% (21/24 plans total)
+Progress: [█████████░] 96% (23/24 plans total)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21
-- Average duration: 7.3 min
-- Total execution time: 2.6 hours
+- Total plans completed: 23
+- Average duration: 7.5 min
+- Total execution time: 2.9 hours
 
 **By Phase:**
 
@@ -31,11 +31,11 @@ Progress: [████████░░] 88% (21/24 plans total)
 | 01.1 (HA Cache) | 4 | 40 min | 10 min |
 | 01.2 (Cache Docs) | 1 | 3 min | 3 min |
 | 01.3 (Site Docs) | 6 | 21 min | 3.5 min |
-| 02 (Multi-Key Pool) | 2 | 32 min | 16 min |
+| 02 (Multi-Key Pool) | 4 | 50 min | 12.5 min |
 
 **Recent Trend:**
-- Last 6 plans: 01.3-03 (5min), 01.3-04 (3min), 01.3-05 (3min), 01.3-06 (4min), 02-02 (11min), 02-01 (21min)
-- Trend: Phase 2 implementation significantly slower than documentation (more complex logic, TDD cycles)
+- Last 6 plans: 01.3-05 (3min), 01.3-06 (4min), 02-01 (21min), 02-02 (11min), 02-03 (9min), 02-04 (9min)
+- Trend: Phase 2 velocity improving (21→11→9 min) as patterns established
 
 *Updated after each plan completion*
 
@@ -143,6 +143,22 @@ Recent decisions affecting current work:
 - Header parsing tolerates invalid values for graceful degradation
 - Extract helper functions to reduce cognitive complexity (parseRPMLimits, parseInputTokenLimits, parseOutputTokenLimits)
 
+
+**From 02-03 (KeyPool Implementation):**
+- Use KeySelector interface for pluggable selection strategies
+- Implement GetKey with retry logic up to 3x key count attempts
+- Use cooldown period (1 minute) after 429 responses before retrying exhausted keys
+- Track per-key rate limiters (RPM, ITPM, OTPM) with dynamic updates from headers
+- Use zerolog for debug/warn logging with structured fields
+- Thread-safe with RWMutex protecting key metadata and selectors
+
+**From 02-04 (Multi-Key Pooling Configuration):**
+- Separate ITPM/OTPM instead of single TPM for accurate Anthropic rate limit tracking
+- Priority range 0-2 (low/normal/high) for key selection preferences
+- Auto-enable pooling when multiple keys configured (reduces configuration burden)
+- Default selection strategy: least_loaded (maximizes capacity utilization)
+- Backwards compatible GetEffectiveTPM() for legacy TPMLimit field
+- Split complex tests to reduce cognitive complexity (21 → <10 per function)
 ### Pending Todos
 
 None.
@@ -171,7 +187,7 @@ None.
   - Hugo site builds successfully with all languages
   - 10/10 must-haves verified against actual codebase
 
-- Phase 2 IN PROGRESS: Multi-Key Pooling (2/5 plans complete)
+- Phase 2 IN PROGRESS: Multi-Key Pooling (4/5 plans complete)
   - 02-01 COMPLETE: Rate limiter foundation
     - RateLimiter interface with Allow, Wait, SetLimit, GetUsage, Reserve, ConsumeTokens
     - TokenBucketLimiter using golang.org/x/time/rate
@@ -183,7 +199,21 @@ None.
     - Parses anthropic-ratelimit-* headers dynamically
     - KeySelector interface with LeastLoadedSelector and RoundRobinSelector
     - Thread-safe operations, comprehensive test coverage
-  - NEXT: 02-03 Pool integration, 02-04 Failover logic, 02-05 Metrics
+  - 02-03 COMPLETE: KeyPool integration
+    - KeyPool coordinates rate limiters and key selectors
+    - GetKey() selects best key with automatic failover on rate limit
+    - UpdateKeyFromHeaders() synchronizes metadata and limiters
+    - MarkKeyExhausted() handles 429 cooldown periods
+    - GetEarliestResetTime() for retry-after calculation
+    - GetStats() for pool capacity monitoring
+    - 100+ test cases, concurrent access verified with race detector
+  - 02-04 COMPLETE: Multi-key pooling configuration
+    - Extended KeyConfig with ITPMLimit, OTPMLimit, Priority, Weight
+    - Added PoolingConfig with strategy selection and auto-enable
+    - GetEffectiveTPM() for backwards compatibility with TPMLimit
+    - KeyConfig.Validate() with InvalidPriorityError, InvalidWeightError
+    - config/example.yaml with comprehensive multi-key examples
+  - NEXT: 02-05 Final integration and example completion
 
 ### Blockers/Concerns
 
