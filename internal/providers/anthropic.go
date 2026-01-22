@@ -44,3 +44,9 @@ func NewAnthropicProviderWithModels(name, baseURL string, models []string) *Anth
 		BaseProvider: NewBaseProvider(name, baseURL, AnthropicOwner, models),
 	}
 }
+
+// SupportsTransparentAuth returns true for Anthropic.
+// Client tokens (from Claude Code subscriptions) are valid for direct Anthropic API calls.
+func (p *AnthropicProvider) SupportsTransparentAuth() bool {
+	return true
+}

@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 2.2 of 11 (Subscription Token Relay)
-Plan: 1 of 1 in current phase
-Status: COMPLETE
-Last activity: 2026-01-22 - Completed 02.2-01-PLAN.md (Transparent Auth Forwarding)
+Phase: 3 of 11 (Routing Strategies)
+Plan: 0 of TBD in current phase
+Status: READY TO PLAN
+Last activity: 2026-01-22 - Starting Phase 3 planning
 
 Progress: [██████████] 100% (29/29 plans total)
 
@@ -179,6 +179,10 @@ Recent decisions affecting current work:
 
 None.
 
+### Known Gaps
+
+- **Phase 2.1 Translation Gap**: Multi-key pooling docs only in English. DE, ES, JA, KO, ZH-CN missing. Fix later.
+
 ### Roadmap Evolution
 
 - Phase 2.2 COMPLETE: Subscription Token Relay
@@ -274,7 +278,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Completed 02.2-01-PLAN.md execution (Transparent Auth Forwarding)
+Stopped at: Session resumed, proceeding to Phase 3 planning
 Resume file: None
 
 **Phase 02.2-01 Complete:**

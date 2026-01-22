@@ -81,6 +81,12 @@ func (p *BaseProvider) SupportsStreaming() bool {
 	return true
 }
 
+// SupportsTransparentAuth returns false by default.
+// Non-Anthropic providers cannot accept Anthropic client tokens.
+func (p *BaseProvider) SupportsTransparentAuth() bool {
+	return false
+}
+
 // ListModels returns the list of available models for this provider.
 func (p *BaseProvider) ListModels() []Model {
 	if len(p.models) == 0 {

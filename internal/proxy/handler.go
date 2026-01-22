@@ -62,11 +62,14 @@ func NewHandler(
 			// Check if client provided auth headers
 			clientAuth := r.In.Header.Get("Authorization")
 			clientAPIKey := r.In.Header.Get("x-api-key")
+			hasClientAuth := clientAuth != "" || clientAPIKey != ""
 
-			if clientAuth != "" || clientAPIKey != "" {
-				// TRANSPARENT MODE: Client has auth - forward it unchanged
-				// Do NOT strip Authorization, do NOT add our key
-				// Just forward anthropic-* headers alongside client auth
+			// Transparent mode: forward client auth ONLY if provider supports it.
+			// This is true for Anthropic (client's Claude token works directly).
+			// For other providers (Z.AI, Ollama, etc.), we must use configured keys.
+			if hasClientAuth && h.provider.SupportsTransparentAuth() {
+				// TRANSPARENT MODE: Client has auth AND provider accepts it
+				// Forward client auth unchanged alongside anthropic-* headers
 
 				// Forward anthropic-* headers (version, beta flags)
 				for key, values := range r.In.Header {
@@ -77,8 +80,8 @@ func NewHandler(
 				}
 				r.Out.Header.Set("Content-Type", "application/json")
 			} else {
-				// FALLBACK MODE: Client has NO auth - use our configured keys
-				// Strip any stale headers and authenticate with our key
+				// CONFIGURED KEY MODE: Use our configured keys
+				// Either client has no auth, or provider doesn't accept client auth
 				r.Out.Header.Del("Authorization")
 				r.Out.Header.Del("x-api-key")
 
@@ -151,6 +154,41 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 	return nil
 }
 
+// selectKeyFromPool handles key selection from the pool.
+// Returns keyID, key, updated request, and success.
+// If success is false, an error response has been written and caller should return.
+func (h *Handler) selectKeyFromPool(
+	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+) (keyID, selectedKey string, updatedReq *http.Request, ok bool) {
+	var err error
+	keyID, selectedKey, err = h.keyPool.GetKey(r.Context())
+	if errors.Is(err, keypool.ErrAllKeysExhausted) {
+		retryAfter := h.keyPool.GetEarliestResetTime()
+		WriteRateLimitError(w, retryAfter)
+		logger.Warn().
+			Dur("retry_after", retryAfter).
+			Msg("all keys exhausted, returning 429")
+		return "", "", r, false
+	}
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "internal_error",
+			fmt.Sprintf("failed to select API key: %v", err))
+		logger.Error().Err(err).Msg("failed to select API key")
+		return "", "", r, false
+	}
+
+	// Add relay headers to response
+	w.Header().Set(HeaderRelayKeyID, keyID)
+	stats := h.keyPool.GetStats()
+	w.Header().Set(HeaderRelayKeysTotal, strconv.Itoa(stats.TotalKeys))
+	w.Header().Set(HeaderRelayKeysAvail, strconv.Itoa(stats.AvailableKeys))
+
+	// Store keyID in context for ModifyResponse
+	updatedReq = r.WithContext(context.WithValue(r.Context(), keyIDContextKey, keyID))
+
+	return keyID, selectedKey, updatedReq, true
+}
+
 // ServeHTTP handles the proxy request.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -163,53 +201,42 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Update context with provider-aware logger
 	r = r.WithContext(logger.WithContext(r.Context()))
 
-	// Check if client provided auth - skip key pool if so
+	// Check if client provided auth headers
 	clientAuth := r.Header.Get("Authorization")
 	clientAPIKey := r.Header.Get("x-api-key")
 	hasClientAuth := clientAuth != "" || clientAPIKey != ""
 
-	// Select API key (only needed in fallback mode)
-	var selectedKey string
-	var keyID string
+	// Transparent mode: forward client auth ONLY if provider supports it
+	// Anthropic supports it (client's Claude token works); others don't
+	useTransparentAuth := hasClientAuth && h.provider.SupportsTransparentAuth()
 
-	if hasClientAuth {
+	// Select API key (only needed if not using transparent auth)
+	var selectedKey string
+
+	if useTransparentAuth {
 		// Transparent mode: client auth will be forwarded, skip key pool
 		logger.Debug().
 			Bool("has_authorization", clientAuth != "").
 			Bool("has_x_api_key", clientAPIKey != "").
 			Msg("transparent mode: forwarding client auth")
 	} else if h.keyPool != nil {
-		// Fallback mode with key pool
-		var err error
-		keyID, selectedKey, err = h.keyPool.GetKey(r.Context())
-		if errors.Is(err, keypool.ErrAllKeysExhausted) {
-			retryAfter := h.keyPool.GetEarliestResetTime()
-			WriteRateLimitError(w, retryAfter)
-			logger.Warn().
-				Dur("retry_after", retryAfter).
-				Msg("all keys exhausted, returning 429")
-			return
-		}
-		if err != nil {
-			WriteError(w, http.StatusInternalServerError, "internal_error",
-				fmt.Sprintf("failed to select API key: %v", err))
-			logger.Error().Err(err).Msg("failed to select API key")
-			return
+		// Use key pool (handles both "client has auth but provider doesn't support it" and "no client auth")
+		if hasClientAuth {
+			logger.Debug().
+				Bool("has_authorization", clientAuth != "").
+				Bool("has_x_api_key", clientAPIKey != "").
+				Str("provider", h.provider.Name()).
+				Msg("provider does not support transparent auth, using configured keys")
 		}
 
-		// Add relay headers to response
-		w.Header().Set(HeaderRelayKeyID, keyID)
-		stats := h.keyPool.GetStats()
-		w.Header().Set(HeaderRelayKeysTotal, strconv.Itoa(stats.TotalKeys))
-		w.Header().Set(HeaderRelayKeysAvail, strconv.Itoa(stats.AvailableKeys))
-
-		// Store keyID in context for ModifyResponse
-		r = r.WithContext(context.WithValue(r.Context(), keyIDContextKey, keyID))
-
-		// Pass selected key to Rewrite via temporary header (removed after)
+		var ok bool
+		_, selectedKey, r, ok = h.selectKeyFromPool(w, r, &logger)
+		if !ok {
+			return
+		}
 		r.Header.Set("X-Selected-Key", selectedKey)
 		defer r.Header.Del("X-Selected-Key")
-	} else if !hasClientAuth {
+	} else if !useTransparentAuth {
 		// Single key mode - set header directly
 		r.Header.Set("X-Selected-Key", h.apiKey)
 	}

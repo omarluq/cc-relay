@@ -36,6 +36,12 @@ type Provider interface {
 	// SupportsStreaming indicates if the provider supports SSE streaming.
 	SupportsStreaming() bool
 
+	// SupportsTransparentAuth indicates if the provider accepts forwarded client auth.
+	// When true, client's Authorization/x-api-key headers are passed through unchanged.
+	// When false, the proxy uses configured API keys instead of client credentials.
+	// Only Anthropic provider returns true since client tokens are valid for Anthropic API.
+	SupportsTransparentAuth() bool
+
 	// ListModels returns the list of available models for this provider.
 	ListModels() []Model
 }

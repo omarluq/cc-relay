@@ -212,6 +212,10 @@ func (m *mockProvider) SupportsStreaming() bool {
 	return true
 }
 
+func (m *mockProvider) SupportsTransparentAuth() bool {
+	return false // Mock provider doesn't support transparent auth (like Z.AI)
+}
+
 func (m *mockProvider) Owner() string {
 	return "mock"
 }
@@ -656,6 +660,92 @@ func TestHandler_TransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "2024-01-01", receivedVersion)
 	assert.Equal(t, "extended-thinking-2024-01-01", receivedBeta)
+}
+
+// TestHandler_NonTransparentProviderUsesConfiguredKeys tests that providers
+// that don't support transparent auth (like Z.AI) use configured keys even
+// when client sends Authorization header.
+func TestHandler_NonTransparentProviderUsesConfiguredKeys(t *testing.T) {
+	t.Parallel()
+
+	var receivedAPIKey string
+	var receivedAuthHeader string
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAPIKey = r.Header.Get("x-api-key")
+		receivedAuthHeader = r.Header.Get("Authorization")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	// Z.AI provider does NOT support transparent auth
+	provider := providers.NewZAIProvider("test-zai", backend.URL)
+	handler, err := NewHandler(provider, "zai-configured-key", nil, config.DebugOptions{})
+	require.NoError(t, err)
+
+	// Client sends Authorization header (like Claude Code does)
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req.Header.Set("Authorization", "Bearer client-anthropic-token")
+	req.Header.Set("Anthropic-Version", "2024-01-01")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// CRITICAL: Client Authorization should NOT be forwarded to Z.AI
+	// Instead, our configured x-api-key should be used
+	assert.Empty(t, receivedAuthHeader, "client Authorization should not be forwarded to non-transparent provider")
+	assert.Equal(t, "zai-configured-key", receivedAPIKey, "configured key should be used for Z.AI")
+}
+
+// TestHandler_NonTransparentProviderWithKeyPool tests that non-transparent providers
+// use key pool even when client sends auth headers.
+func TestHandler_NonTransparentProviderWithKeyPool(t *testing.T) {
+	t.Parallel()
+
+	var receivedAPIKey string
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAPIKey = r.Header.Get("x-api-key")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	// Create key pool
+	pool, err := keypool.NewKeyPool("test-zai", keypool.PoolConfig{
+		Strategy: "least_loaded",
+		Keys: []keypool.KeyConfig{
+			{APIKey: "zai-pool-key-1", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
+		},
+	})
+	require.NoError(t, err)
+
+	// Z.AI provider does NOT support transparent auth
+	provider := providers.NewZAIProvider("test-zai", backend.URL)
+	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	require.NoError(t, err)
+
+	// Client sends Authorization header
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req.Header.Set("Authorization", "Bearer client-anthropic-token")
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Key pool should be used (relay headers present)
+	assert.NotEmpty(t, w.Header().Get(HeaderRelayKeyID), "key pool should be used for non-transparent provider")
+
+	// Configured pool key should be sent, not client auth
+	assert.Equal(t, "zai-pool-key-1", receivedAPIKey)
 }
 
 // TestParseRetryAfter tests the parseRetryAfter helper function.
