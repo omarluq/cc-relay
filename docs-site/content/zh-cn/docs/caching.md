@@ -168,6 +168,187 @@ cache:
 
 所有缓存操作立即返回而不存储数据。`Get` 操作始终返回 `ErrNotFound`。
 
+## HA集群指南
+
+本节介绍如何在多个节点上部署带有分布式缓存的 cc-relay 以实现高可用性。
+
+### 前提条件
+
+配置 HA 模式之前：
+
+1. **网络连接**：所有节点必须能够相互访问
+2. **端口可访问性**：Olric 和 memberlist 端口必须开放
+3. **一致的配置**：所有节点必须使用相同的 `dmap_name` 和 `environment`
+
+### 端口要求
+
+**重要：** Olric 使用两个端口：
+
+| 端口 | 用途 | 默认值 |
+|------|------|-------|
+| `bind_addr` 端口 | Olric 客户端连接 | 3320 |
+| `bind_addr` 端口 + 2 | Memberlist gossip 协议 | 3322 |
+
+**示例：** 如果 `bind_addr: "0.0.0.0:3320"`，memberlist 自动使用端口 3322。
+
+确保在防火墙中开放两个端口：
+
+```bash
+# 允许 Olric 客户端端口
+sudo ufw allow 3320/tcp
+
+# 允许 memberlist gossip 端口（bind_addr 端口 + 2）
+sudo ufw allow 3322/tcp
+```
+
+### 环境设置
+
+| 设置 | Gossip 间隔 | 探测间隔 | 探测超时 | 使用场景 |
+|------|------------|---------|---------|---------|
+| `local` | 100ms | 100ms | 200ms | 同一主机，开发环境 |
+| `lan` | 200ms | 1s | 500ms | 同一数据中心 |
+| `wan` | 500ms | 3s | 2s | 跨数据中心 |
+
+**集群中的所有节点必须使用相同的 environment 设置。**
+
+### 双节点集群示例
+
+**节点 1（cc-relay-1）：**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"  # 节点 2 的 memberlist 端口
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**节点 2（cc-relay-2）：**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-1:3322"  # 节点 1 的 memberlist 端口
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+### 三节点Docker Compose示例
+
+```yaml
+version: '3.8'
+
+services:
+  cc-relay-1:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node1.yaml:/config/config.yaml:ro
+    ports:
+      - "8787:8787"   # HTTP 代理
+      - "3320:3320"   # Olric 客户端端口
+      - "3322:3322"   # Memberlist gossip 端口
+    networks:
+      - cc-relay-net
+
+  cc-relay-2:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node2.yaml:/config/config.yaml:ro
+    ports:
+      - "8788:8787"
+      - "3330:3320"
+      - "3332:3322"
+    networks:
+      - cc-relay-net
+
+  cc-relay-3:
+    image: cc-relay:latest
+    environment:
+      - CC_RELAY_CONFIG=/config/config.yaml
+    volumes:
+      - ./config-node3.yaml:/config/config.yaml:ro
+    ports:
+      - "8789:8787"
+      - "3340:3320"
+      - "3342:3322"
+    networks:
+      - cc-relay-net
+
+networks:
+  cc-relay-net:
+    driver: bridge
+```
+
+**config-node1.yaml：**
+
+```yaml
+cache:
+  mode: ha
+  olric:
+    embedded: true
+    bind_addr: "0.0.0.0:3320"
+    dmap_name: "cc-relay"
+    environment: lan
+    peers:
+      - "cc-relay-2:3322"
+      - "cc-relay-3:3322"
+    replica_count: 2
+    read_quorum: 1
+    write_quorum: 1
+    member_count_quorum: 2
+    leave_timeout: 5s
+```
+
+**config-node2.yaml 和 config-node3.yaml：** 与节点 1 相同，但 peers 列表指向其他节点。
+
+### 复制和仲裁说明
+
+**replica_count：** 集群中存储的每个键的副本数。
+
+| replica_count | 行为 |
+|---------------|------|
+| 1 | 无复制（单副本） |
+| 2 | 一个主副本 + 一个备份 |
+| 3 | 一个主副本 + 两个备份 |
+
+**read_quorum / write_quorum：** 返回成功前需要的最小成功操作数。
+
+| 设置 | 一致性 | 可用性 |
+|------|-------|-------|
+| quorum = 1 | 最终一致性 | 高 |
+| quorum = replica_count | 强一致性 | 低 |
+| quorum = (replica_count/2)+1 | 多数派 | 平衡 |
+
+**建议：**
+
+| 集群大小 | replica_count | read_quorum | write_quorum | 容错能力 |
+|---------|---------------|-------------|--------------|---------|
+| 2 节点 | 2 | 1 | 1 | 1 节点故障 |
+| 3 节点 | 2 | 1 | 1 | 1 节点故障 |
+| 3 节点 | 3 | 2 | 2 | 1 节点故障（强一致性） |
+
 ## 缓存模式比较
 
 | 特性 | Single（Ristretto） | HA（Olric） | Disabled（Noop） |
@@ -310,6 +491,62 @@ Ristretto 使用可能拒绝项目以保持高命中率的准入策略。这是�
 3. **切换到 Olric**：将内存压力分布到多个节点。
 
 4. **使用指标监控**：跟踪 `BytesUsed` 以了解实际内存消耗。
+
+### 节点无法加入集群
+
+**症状：** 节点启动但彼此无法发现。
+
+**原因和解决方案：**
+
+1. **错误的对等端口：** 对等节点必须使用 memberlist 端口（bind_addr + 2），而不是 Olric 端口。
+   ```yaml
+   # 错误
+   peers:
+     - "other-node:3320"  # 这是 Olric 端口
+
+   # 正确
+   peers:
+     - "other-node:3322"  # memberlist 端口 = 3320 + 2
+   ```
+
+2. **防火墙阻止：** 确保 Olric 和 memberlist 端口都已开放。
+   ```bash
+   # 检查连接性
+   nc -zv other-node 3320  # Olric 端口
+   nc -zv other-node 3322  # memberlist 端口
+   ```
+
+3. **DNS 解析：** 验证主机名能正确解析。
+   ```bash
+   getent hosts other-node
+   ```
+
+4. **environment 不匹配：** 所有节点必须使用相同的 `environment` 设置。
+
+### 仲裁错误
+
+**症状：** "not enough members" 或节点运行正常但操作失败。
+
+**解决方案：** 确保 `member_count_quorum` 小于或等于实际运行的节点数。
+
+```yaml
+# 2 节点集群
+member_count_quorum: 2  # 需要两个节点
+
+# 允许 1 个节点故障的 3 节点集群
+member_count_quorum: 2  # 允许 1 个节点宕机
+```
+
+### 数据未复制
+
+**症状：** 节点宕机时数据消失。
+
+**解决方案：** 确保 `replica_count` > 1 且有足够的节点。
+
+```yaml
+replica_count: 2          # 存储 2 个副本
+member_count_quorum: 2    # 写入需要 2 个节点
+```
 
 ## 错误处理
 
