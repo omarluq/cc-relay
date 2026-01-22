@@ -59,13 +59,20 @@ func NewHandler(
 			r.SetURL(targetURL)
 			r.SetXForwarded()
 
+			// CRITICAL: Strip client authentication headers before forwarding to backend
+			// The incoming request may have Authorization: Bearer <subscription-token>
+			// from Claude Code's subscription auth. We must not forward this to the
+			// backend provider - we use our own configured API keys instead.
+			r.Out.Header.Del("Authorization")
+			r.Out.Header.Del("x-api-key")
+
 			// Get the selected API key from context (set in ServeHTTP)
 			selectedKey := r.In.Header.Get("X-Selected-Key")
 			if selectedKey == "" {
 				selectedKey = h.apiKey // Fallback to single-key mode
 			}
 
-			// Authenticate with provider
+			// Authenticate with provider using our configured API key
 			//nolint:errcheck // Provider.Authenticate error handling deferred to ErrorHandler
 			h.provider.Authenticate(r.Out, selectedKey)
 
