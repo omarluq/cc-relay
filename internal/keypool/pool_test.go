@@ -40,10 +40,9 @@ func newTestPool(numKeys int, strategy string) *KeyPool {
 	return pool
 }
 
-//nolint:unparam // Helper function may be called with different rpm values in future tests
-func newTestHeaders(rpm, remaining int, reset time.Time) http.Header {
+func newTestHeaders(remaining int, reset time.Time) http.Header {
 	headers := http.Header{}
-	headers.Set("anthropic-ratelimit-requests-limit", fmt.Sprintf("%d", rpm))
+	headers.Set("anthropic-ratelimit-requests-limit", "50")
 	headers.Set("anthropic-ratelimit-requests-remaining", fmt.Sprintf("%d", remaining))
 	headers.Set("anthropic-ratelimit-requests-reset", reset.Format(time.RFC3339))
 	return headers
@@ -130,7 +129,7 @@ func TestGetKey_Success(t *testing.T) {
 
 		// Deplete first key
 		firstKey := pool.keys[0]
-		headers := newTestHeaders(50, 0, time.Now().Add(time.Minute))
+		headers := newTestHeaders(0, time.Now().Add(time.Minute))
 		err := pool.UpdateKeyFromHeaders(firstKey.ID, headers)
 		require.NoError(t, err)
 
@@ -358,7 +357,7 @@ func TestGetEarliestResetTime(t *testing.T) {
 		}
 
 		for i, key := range pool.keys {
-			headers := newTestHeaders(50, 25, resetTimes[i])
+			headers := newTestHeaders(25, resetTimes[i])
 			err := pool.UpdateKeyFromHeaders(key.ID, headers)
 			require.NoError(t, err)
 		}
@@ -410,7 +409,7 @@ func TestGetStats(t *testing.T) {
 		pool := newTestPool(2, "least_loaded")
 
 		// Update one key's remaining capacity
-		headers := newTestHeaders(50, 25, time.Now().Add(time.Minute))
+		headers := newTestHeaders(25, time.Now().Add(time.Minute))
 		err := pool.UpdateKeyFromHeaders(pool.keys[0].ID, headers)
 		require.NoError(t, err)
 
@@ -461,7 +460,7 @@ func TestConcurrency(t *testing.T) {
 				keyIdx := iteration % len(pool.keys)
 				key := pool.keys[keyIdx]
 
-				headers := newTestHeaders(50, 25, time.Now().Add(time.Minute))
+				headers := newTestHeaders(25, time.Now().Add(time.Minute))
 				_ = pool.UpdateKeyFromHeaders(key.ID, headers)
 			}(i)
 		}
@@ -498,7 +497,7 @@ func TestConcurrency(t *testing.T) {
 					keyIdx := iteration % len(pool.keys)
 					key := pool.keys[keyIdx]
 
-					headers := newTestHeaders(50, 25, time.Now().Add(time.Minute))
+					headers := newTestHeaders(25, time.Now().Add(time.Minute))
 					pool.UpdateKeyFromHeaders(key.ID, headers)
 					pool.MarkKeyExhausted(key.ID, 1*time.Millisecond)
 				}
