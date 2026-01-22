@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
@@ -132,8 +133,47 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return errors.New("no enabled provider in config")
 	}
 
+	// Initialize KeyPool for primary provider if pooling is enabled
+	var pool *keypool.KeyPool
+	for i := range cfg.Providers {
+		p := &cfg.Providers[i]
+		if !p.Enabled {
+			continue
+		}
+		// Only create pool for first enabled provider (primary)
+		if p.IsPoolingEnabled() {
+			poolCfg := keypool.PoolConfig{
+				Strategy: p.GetEffectiveStrategy(),
+				Keys:     make([]keypool.KeyConfig, len(p.Keys)),
+			}
+			for j, k := range p.Keys {
+				itpm, otpm := k.GetEffectiveTPM()
+				poolCfg.Keys[j] = keypool.KeyConfig{
+					APIKey:    k.Key,
+					RPMLimit:  k.RPMLimit,
+					ITPMLimit: itpm,
+					OTPMLimit: otpm,
+					Priority:  k.Priority,
+					Weight:    k.Weight,
+				}
+			}
+			var err error
+			pool, err = keypool.NewKeyPool(p.Name, poolCfg)
+			if err != nil {
+				log.Error().Err(err).Str("provider", p.Name).Msg("failed to create key pool")
+				return err
+			}
+			log.Info().
+				Str("provider", p.Name).
+				Int("keys", len(p.Keys)).
+				Str("strategy", p.GetEffectiveStrategy()).
+				Msg("initialized key pool")
+		}
+		break // Only process first enabled provider
+	}
+
 	// Setup routes with all providers for /v1/models endpoint
-	handler, err := proxy.SetupRoutesWithProviders(cfg, primaryProvider, providerKey, allProviders)
+	handler, err := proxy.SetupRoutesWithProviders(cfg, primaryProvider, providerKey, pool, allProviders)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to setup routes")
 		return err

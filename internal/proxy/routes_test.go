@@ -21,7 +21,7 @@ func TestSetupRoutes_CreatesHandler(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestSetupRoutes_AuthMiddlewareApplied(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestSetupRoutes_AuthMiddlewareWithValidKey(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestSetupRoutes_NoAuthWhenAPIKeyEmpty(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestSetupRoutes_HealthEndpoint(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestSetupRoutes_HealthEndpointWithAuth(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestSetupRoutes_OnlyPOSTToMessages(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestSetupRoutes_OnlyGETToHealth(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestSetupRoutes_InvalidProviderBaseURL(t *testing.T) {
 	// Create provider with invalid base URL
 	provider := providers.NewAnthropicProvider("test", "://invalid-url")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err == nil {
 		t.Fatal("expected error for invalid provider base URL, got nil")
 	}
@@ -268,7 +268,7 @@ func TestSetupRoutes_404ForUnknownPath(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestSetupRoutes_MessagesPathMustBeExact(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestSetupRoutes_MultiAuthWithBearerToken(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -361,7 +361,7 @@ func TestSetupRoutes_MultiAuthWithInvalidBearerToken(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -469,7 +469,7 @@ func TestSetupRoutes_MultiAuthBearerWithoutSecret(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -506,7 +506,7 @@ func TestSetupRoutes_LegacyAPIKeyFallback(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -549,7 +549,7 @@ func TestSetupRoutes_ModelsEndpoint(t *testing.T) {
 
 	allProviders := []providers.Provider{anthropicProvider, zaiProvider}
 
-	handler, err := SetupRoutesWithProviders(cfg, anthropicProvider, "backend-key", allProviders)
+	handler, err := SetupRoutesWithProviders(cfg, anthropicProvider, "backend-key", nil, allProviders)
 	if err != nil {
 		t.Fatalf("SetupRoutesWithProviders failed: %v", err)
 	}
@@ -589,7 +589,7 @@ func TestSetupRoutes_ModelsEndpointOnlyGET(t *testing.T) {
 		[]string{"claude-sonnet-4-5-20250514"},
 	)
 
-	handler, err := SetupRoutesWithProviders(cfg, provider, "backend-key", []providers.Provider{provider})
+	handler, err := SetupRoutesWithProviders(cfg, provider, "backend-key", nil, []providers.Provider{provider})
 	if err != nil {
 		t.Fatalf("SetupRoutesWithProviders failed: %v", err)
 	}
@@ -616,7 +616,7 @@ func TestSetupRoutes_ModelsEndpointEmptyProviders(t *testing.T) {
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
 	// Call with empty allProviders
-	handler, err := SetupRoutesWithProviders(cfg, provider, "backend-key", nil)
+	handler, err := SetupRoutesWithProviders(cfg, provider, "backend-key", nil, nil)
 	if err != nil {
 		t.Fatalf("SetupRoutesWithProviders failed: %v", err)
 	}
@@ -651,7 +651,7 @@ func TestSetupRoutes_SubscriptionTokenAuth(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
@@ -690,7 +690,7 @@ func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key")
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
 	if err != nil {
 		t.Fatalf("SetupRoutes failed: %v", err)
 	}
