@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/samber/lo"
 )
 
 // BaseProvider provides common functionality for Anthropic-compatible providers.
@@ -60,15 +61,14 @@ func (p *BaseProvider) Authenticate(req *http.Request, key string) error {
 func (p *BaseProvider) ForwardHeaders(originalHeaders http.Header) http.Header {
 	headers := make(http.Header)
 
-	// Copy all anthropic-* headers from the original request
-	for key, values := range originalHeaders {
-		// Check if key starts with "anthropic-" (case-insensitive)
-		// http.Header stores keys in canonical form (Title-Case)
-		canonicalKey := http.CanonicalHeaderKey(key)
+	// Copy all anthropic-* headers from the original request using lo.ForEach
+	// http.Header stores keys in canonical form (Title-Case)
+	lo.ForEach(lo.Entries(originalHeaders), func(entry lo.Entry[string, []string], _ int) {
+		canonicalKey := http.CanonicalHeaderKey(entry.Key)
 		if len(canonicalKey) >= 10 && canonicalKey[:10] == "Anthropic-" {
-			headers[canonicalKey] = append(headers[canonicalKey], values...)
+			headers[canonicalKey] = append(headers[canonicalKey], entry.Value...)
 		}
-	}
+	})
 
 	// Always set Content-Type for JSON requests
 	headers.Set("Content-Type", "application/json")
@@ -93,18 +93,16 @@ func (p *BaseProvider) ListModels() []Model {
 		return []Model{}
 	}
 
-	result := make([]Model, len(p.models))
 	now := time.Now().Unix()
 
-	for i, modelID := range p.models {
-		result[i] = Model{
+	// Use lo.Map to transform model IDs into Model structs
+	return lo.Map(p.models, func(modelID string, _ int) Model {
+		return Model{
 			ID:       modelID,
 			Object:   "model",
 			OwnedBy:  p.owner,
 			Provider: p.name,
 			Created:  now,
 		}
-	}
-
-	return result
+	})
 }
