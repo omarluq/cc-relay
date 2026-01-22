@@ -65,7 +65,7 @@ func setupTestProxy(t *testing.T, customBackendURL string) *httptest.Server {
 	provider := providers.NewAnthropicProvider("test", backendURL)
 
 	// Setup routes
-	handler, err := proxy.SetupRoutes(cfg, provider, providerKey)
+	handler, err := proxy.SetupRoutes(cfg, provider, providerKey, nil)
 	if err != nil {
 		t.Fatalf("Failed to setup routes: %v", err)
 	}
@@ -572,7 +572,7 @@ func TestIntegration_ErrorFormatCompliance(t *testing.T) {
 				// Create provider with unreachable backend
 				provider := providers.NewAnthropicProvider("test", "http://localhost:1")
 
-				handler, err := proxy.SetupRoutes(cfg, provider, providerKey)
+				handler, err := proxy.SetupRoutes(cfg, provider, providerKey, nil)
 				if err != nil {
 					t.Fatalf("Failed to setup routes: %v", err)
 				}
