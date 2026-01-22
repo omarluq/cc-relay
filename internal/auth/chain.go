@@ -1,6 +1,10 @@
 package auth
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/samber/lo"
+)
 
 // ChainAuthenticator tries multiple authenticators in order.
 // The first authenticator to succeed is used. If all fail,
@@ -20,18 +24,7 @@ func NewChainAuthenticator(authenticators ...Authenticator) *ChainAuthenticator 
 // Validate tries each authenticator in order until one succeeds.
 // Returns the first successful result, or the last failure if all fail.
 func (c *ChainAuthenticator) Validate(r *http.Request) Result {
-	var lastResult Result
-
-	for _, auth := range c.authenticators {
-		result := auth.Validate(r)
-		if result.Valid {
-			return result
-		}
-
-		lastResult = result
-	}
-
-	// If no authenticators or all failed, return failure
+	// Handle empty chain case
 	if len(c.authenticators) == 0 {
 		return Result{
 			Valid: false,
@@ -40,12 +33,27 @@ func (c *ChainAuthenticator) Validate(r *http.Request) Result {
 		}
 	}
 
-	// Return the last result but with TypeNone if no auth method worked
-	return Result{
-		Valid: false,
-		Type:  TypeNone,
-		Error: lastResult.Error,
+	// Use lo.Reduce to find first valid result OR track last error.
+	// Once a valid result is found, it's passed through unchanged.
+	// If no valid result, the last error result is returned.
+	result := lo.Reduce(c.authenticators, func(acc Result, auth Authenticator, _ int) Result {
+		// Short-circuit: if we already have a valid result, skip remaining authenticators
+		if acc.Valid {
+			return acc
+		}
+		return auth.Validate(r)
+	}, Result{Valid: false, Type: TypeNone})
+
+	// If still not valid, normalize the error response
+	if !result.Valid {
+		return Result{
+			Valid: false,
+			Type:  TypeNone,
+			Error: result.Error,
+		}
 	}
+
+	return result
 }
 
 // Type returns TypeNone since this is a meta-authenticator.
