@@ -12,6 +12,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/ratelimit"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
+	"github.com/samber/mo"
 )
 
 // Common errors returned by KeyPool.
@@ -324,4 +325,31 @@ func (p *KeyPool) Keys() []*KeyMetadata {
 	keysCopy := make([]*KeyMetadata, len(p.keys))
 	copy(keysCopy, p.keys)
 	return keysCopy
+}
+
+// KeySelection contains the result of a successful key selection.
+type KeySelection struct {
+	KeyID  string // The unique key identifier
+	APIKey string // The actual API key value
+}
+
+// GetKeyResult selects a key from the pool and returns mo.Result[KeySelection].
+// This is an alternative API that supports Railway-Oriented Programming patterns.
+// Use GetKey() if you prefer traditional (value, error) returns.
+func (p *KeyPool) GetKeyResult(ctx context.Context) mo.Result[KeySelection] {
+	keyID, apiKey, err := p.GetKey(ctx)
+	if err != nil {
+		return mo.Err[KeySelection](err)
+	}
+	return mo.Ok(KeySelection{KeyID: keyID, APIKey: apiKey})
+}
+
+// UpdateKeyFromHeadersResult updates a key's state from response headers using mo.Result.
+// Returns mo.Ok(true) on success, mo.Err on failure.
+func (p *KeyPool) UpdateKeyFromHeadersResult(keyID string, headers http.Header) mo.Result[bool] {
+	err := p.UpdateKeyFromHeaders(keyID, headers)
+	if err != nil {
+		return mo.Err[bool](err)
+	}
+	return mo.Ok(true)
 }

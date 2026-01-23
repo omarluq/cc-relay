@@ -555,3 +555,129 @@ func TestConcurrency(t *testing.T) {
 		}
 	})
 }
+
+// Tests for mo.Result-based methods
+
+func TestKeyPool_GetKeyResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns Ok with KeySelection on success", func(t *testing.T) {
+		t.Parallel()
+
+		pool := newTestPool(2, "least_loaded")
+		ctx := context.Background()
+
+		result := pool.GetKeyResult(ctx)
+		require.True(t, result.IsOk(), "Expected Ok, got Err: %v", result.Error())
+
+		selection, err := result.Get()
+		require.NoError(t, err, "Expected Get() to succeed")
+		assert.NotEmpty(t, selection.KeyID, "KeyID should not be empty")
+		assert.NotEmpty(t, selection.APIKey, "APIKey should not be empty")
+		assert.Contains(t, selection.APIKey, "sk-test-key-", "APIKey should match test key format")
+	})
+
+	t.Run("returns Err when all keys exhausted", func(t *testing.T) {
+		t.Parallel()
+
+		// Create pool with 1 key and exhaust it
+		pool := newTestPool(1, "least_loaded")
+		ctx := context.Background()
+
+		// Mark the only key as unavailable by putting it in cooldown
+		for _, key := range pool.Keys() {
+			key.SetCooldown(time.Now().Add(1 * time.Minute))
+		}
+
+		result := pool.GetKeyResult(ctx)
+		require.True(t, result.IsError(), "Expected Err when all keys exhausted")
+
+		err := result.Error()
+		assert.ErrorIs(t, err, ErrAllKeysExhausted)
+	})
+
+	t.Run("supports Map transformation", func(t *testing.T) {
+		t.Parallel()
+
+		pool := newTestPool(2, "least_loaded")
+		ctx := context.Background()
+
+		// Use Map to add prefix to APIKey
+		transformed := pool.GetKeyResult(ctx).Map(func(s KeySelection) (KeySelection, error) {
+			s.APIKey = "transformed:" + s.APIKey
+			return s, nil
+		})
+
+		require.True(t, transformed.IsOk(), "Expected Ok after Map")
+
+		selection := transformed.MustGet()
+		assert.True(t, len(selection.APIKey) > len("transformed:"), "APIKey should be transformed")
+		assert.Contains(t, selection.APIKey, "transformed:", "APIKey should have prefix")
+	})
+
+	t.Run("supports OrElse default", func(t *testing.T) {
+		t.Parallel()
+
+		pool := newTestPool(1, "least_loaded")
+		ctx := context.Background()
+
+		// Mark key as unavailable
+		for _, key := range pool.Keys() {
+			key.SetCooldown(time.Now().Add(1 * time.Minute))
+		}
+
+		defaultSelection := KeySelection{KeyID: "default-id", APIKey: "default-key"}
+		selection := pool.GetKeyResult(ctx).OrElse(defaultSelection)
+
+		assert.Equal(t, "default-id", selection.KeyID)
+		assert.Equal(t, "default-key", selection.APIKey)
+	})
+}
+
+func TestKeyPool_UpdateKeyFromHeadersResult(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns Ok on success", func(t *testing.T) {
+		t.Parallel()
+
+		pool := newTestPool(1, "least_loaded")
+
+		// Get the key ID first
+		keyID, _, _ := pool.GetKey(context.Background())
+
+		headers := http.Header{}
+		headers.Set("anthropic-ratelimit-requests-limit", "100")
+		headers.Set("anthropic-ratelimit-requests-remaining", "50")
+
+		result := pool.UpdateKeyFromHeadersResult(keyID, headers)
+		require.True(t, result.IsOk(), "Expected Ok, got Err: %v", result.Error())
+	})
+
+	t.Run("returns Err for unknown key", func(t *testing.T) {
+		t.Parallel()
+
+		pool := newTestPool(1, "least_loaded")
+
+		headers := http.Header{}
+		result := pool.UpdateKeyFromHeadersResult("unknown-key-id", headers)
+
+		require.True(t, result.IsError(), "Expected Err for unknown key")
+		assert.ErrorIs(t, result.Error(), ErrKeyNotFound)
+	})
+}
+
+func TestKeySelection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("struct fields accessible", func(t *testing.T) {
+		t.Parallel()
+
+		selection := KeySelection{
+			KeyID:  "test-key-id",
+			APIKey: "sk-test-api-key",
+		}
+
+		assert.Equal(t, "test-key-id", selection.KeyID)
+		assert.Equal(t, "sk-test-api-key", selection.APIKey)
+	})
+}
