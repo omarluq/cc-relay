@@ -13,6 +13,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/proxy"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // Service wrapper types for DI registration.
@@ -41,6 +42,11 @@ type ProviderMapService struct {
 	AllProviders    []providers.Provider
 }
 
+// RouterService wraps the provider router for DI.
+type RouterService struct {
+	Router router.ProviderRouter
+}
+
 // HandlerService wraps the HTTP handler.
 type HandlerService struct {
 	Handler http.Handler
@@ -57,13 +63,15 @@ type ServerService struct {
 // 2. Cache (depends on Config)
 // 3. Providers (depends on Config)
 // 4. KeyPool (depends on Config)
-// 5. Handler (depends on Config, KeyPool, Providers)
-// 6. Server (depends on Handler, Config).
+// 5. Router (depends on Config)
+// 6. Handler (depends on Config, KeyPool, Providers, Router)
+// 7. Server (depends on Handler, Config).
 func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewConfig)
 	do.Provide(i, NewCache)
 	do.Provide(i, NewProviderMap)
 	do.Provide(i, NewKeyPool)
+	do.Provide(i, NewRouter)
 	do.Provide(i, NewProxyHandler)
 	do.Provide(i, NewHTTPServer)
 }
@@ -199,6 +207,22 @@ func NewKeyPool(i do.Injector) (*KeyPoolService, error) {
 
 	// No enabled providers found
 	return &KeyPoolService{Pool: nil}, nil
+}
+
+// NewRouter creates the provider router based on configuration.
+func NewRouter(i do.Injector) (*RouterService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](i)
+	routingCfg := cfgSvc.Config.Routing
+
+	// Get timeout with default fallback (5 seconds)
+	timeout := routingCfg.GetFailoverTimeoutOption().OrElse(5 * time.Second)
+
+	r, err := router.NewRouter(routingCfg.GetEffectiveStrategy(), timeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create router: %w", err)
+	}
+
+	return &RouterService{Router: r}, nil
 }
 
 // NewProxyHandler creates the HTTP handler with all middleware.
