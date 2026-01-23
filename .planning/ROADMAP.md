@@ -25,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [x] **Phase 4.1: Health Checker Wiring** - Wire Checker lifecycle to fix integration gaps (INSERTED)
 - [x] **Phase 4.2: Config File Cleanup** - Consolidate config files, ensure example.yaml is single source of truth (INSERTED)
-- [ ] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
+- [x] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
 - [ ] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
@@ -294,8 +294,8 @@ Plans:
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 04.3-01-PLAN.md - English health configuration documentation
-- [ ] 04.3-02-PLAN.md - Translate health docs to all languages
+- [x] 04.3-01-PLAN.md - English health configuration documentation
+- [x] 04.3-02-PLAN.md - Translate health docs to all languages
 
 ### Phase 5: Additional Providers
 **Goal**: Support Z.AI (Anthropic-compatible) and Ollama (local models) providers
@@ -306,11 +306,11 @@ Plans:
   2. Z.AI model name mappings work (GLM-4.7 appears as model option)
   3. User can configure Ollama provider pointing to local endpoint
   4. Ollama provider handles requests without prompt caching or PDF support
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md - Ollama provider implementation and DI wiring
+- [ ] 05-02-PLAN.md - Integration tests and provider documentation
 
 ### Phase 6: Cloud Providers
 **Goal**: Add AWS Bedrock (SigV4 signing), Azure Foundry (x-api-key auth), and Google Vertex AI (OAuth tokens) support
@@ -437,9 +437,9 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 3.1 Routing Documentation (INSERTED) | 3/3 | Complete | 2026-01-23 |
 | 4. Circuit Breaker & Health | 4/4 | Complete | 2026-01-23 |
 | 4.1 Health Checker Wiring (INSERTED) | 1/1 | Complete | 2026-01-23 |
-| 4.2 Config File Cleanup (INSERTED) | 0/1 | Not started | - |
-| 4.3 Health Config Docs (INSERTED) | 0/2 | Not started | - |
-| 5. Additional Providers | 0/TBD | Not started | - |
+| 4.2 Config File Cleanup (INSERTED) | 1/1 | Complete | 2026-01-23 |
+| 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
+| 5. Additional Providers | 0/2 | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
 | 7. Configuration Management | 0/TBD | Not started | - |
 | 8. Observability | 0/TBD | Not started | - |
