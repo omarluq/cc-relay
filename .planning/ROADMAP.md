@@ -226,9 +226,9 @@ Plans:
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 03.1-01-PLAN.md - English routing.md and configuration.md routing section
-- [ ] 03.1-02-PLAN.md - German and Spanish translations
-- [ ] 03.1-03-PLAN.md - Japanese, Chinese, and Korean translations
+- [x] 03.1-01-PLAN.md - English routing.md and configuration.md routing section
+- [x] 03.1-02-PLAN.md - German and Spanish translations
+- [x] 03.1-03-PLAN.md - Japanese, Chinese, and Korean translations
 
 ### Phase 4: Circuit Breaker & Health
 **Goal**: Add health tracking per provider with circuit breaker state machine (CLOSED/OPEN/HALF-OPEN) for automatic failure recovery
@@ -383,7 +383,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 2.2 Subscription Token Relay (INSERTED) | 1/1 | Complete | 2026-01-22 |
 | 2.3 Samber Libs Refactor (INSERTED) | 12/12 | Complete | 2026-01-23 |
 | 3. Routing Strategies | 6/6 | Complete | 2026-01-23 |
-| 3.1 Routing Documentation (INSERTED) | 0/3 | Not started | - |
+| 3.1 Routing Documentation (INSERTED) | 3/3 | Complete | 2026-01-23 |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
