@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 4 - Circuit Breaker & Health (NEXT)
+**Current focus:** Phase 4 - Circuit Breaker & Health (IN PROGRESS)
 
 ## Current Position
 
-Phase: 3.1 of 11 (Routing Documentation - INSERTED) COMPLETE ✓
-Plan: 3 of 3 in phase COMPLETE ✓
-Status: Phase 3.1 verified and complete
-Last activity: 2026-01-23 - Phase 3.1 verified (7/7 criteria passed)
+Phase: 4 of 11 (Circuit Breaker & Health)
+Plan: 1 of 4 in phase COMPLETE
+Status: In progress
+Last activity: 2026-01-23 - Completed 04-01-PLAN.md
 
-Progress: [██████████] 55/55 plans total
-Next: Phase 4 - Circuit Breaker & Health
+Progress: [██████████] 56/58 plans total (Phase 4: 1/4)
+Next: 04-02-PLAN.md (Circuit Breaker State Machine)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 55
+- Total plans completed: 56
 - Average duration: 8.4 min
-- Total execution time: 8.1 hours
+- Total execution time: 8.2 hours
 
 **By Phase:**
 
@@ -38,10 +38,11 @@ Next: Phase 4 - Circuit Breaker & Health
 | 02.3 (Samber Refactor) | 12 | 178 min | 14.8 min |
 | 03 (Routing Strategies) | 6 | 57 min | 9.5 min |
 | 03.1 (Routing Docs) | 3 | 9 min | 3 min |
+| 04 (Circuit Breaker) | 1 | 8 min | 8 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-06 (16min), 03.1-01 (2min), 03.1-02 (3min), 03.1-03 (4min)
-- Trend: Phase 3.1 routing documentation complete - all 6 languages
+- Last 5 plans: 03.1-01 (2min), 03.1-02 (3min), 03.1-03 (4min), 04-01 (8min)
+- Trend: Phase 4 started - health config foundation complete
 
 *Updated after each plan completion*
 
@@ -51,6 +52,11 @@ Next: Phase 4 - Circuit Breaker & Health
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 04-01 (Health Config Foundation):**
+- Renamed HealthConfig to Config, HealthCheckConfig to CheckConfig (avoid Go stuttering pattern)
+- Used pointer *bool for Enabled field to distinguish nil (default true) from explicit false
+- Defaults: 5 failures to open, 30s open duration, 3 half-open probes, 10s health check interval
 
 **From 03.1-02 (German/Spanish Routing Documentation):**
 - German section header: "Routing-Konfiguration" (compound word pattern)
@@ -314,6 +320,19 @@ None.
 
 ### Roadmap Evolution
 
+- Phase 4 IN PROGRESS: Circuit Breaker & Health
+  - 04-01 COMPLETE: Health Config Foundation
+    - internal/health/config.go: CircuitBreakerConfig, CheckConfig, Config structs
+    - internal/health/errors.go: ErrCircuitOpen, ErrHealthCheckFailed, ErrProviderUnhealthy
+    - internal/config/config.go: Health field added to Config struct
+    - sony/gobreaker v2.4.0 installed
+    - Test coverage: 100%
+    - Duration: 8 min
+    - 3 commits: 89775cb, bbdb2c6, 3179373
+  - 04-02: Circuit Breaker State Machine (NEXT)
+  - 04-03: Health Checker
+  - 04-04: Integration
+
 - Phase 3 COMPLETE: Routing Strategies
   - 03-01 COMPLETE: ProviderRouter Interface Foundation
     - internal/router/router.go: Interface, ProviderInfo, FilterHealthy, strategy constants
@@ -459,9 +478,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Phase 3.1 complete - all routing documentation translated
-Resume file: None
-Next action: /gsd:plan-phase 4 (Health Tracking)
+Stopped at: Completed 04-01-PLAN.md (Health Config Foundation)
+Resume file: .planning/phases/04-circuit-breaker-health/04-02-PLAN.md
+Next action: Execute 04-02-PLAN.md (Circuit Breaker State Machine)
 
 **Phase 3.1 inserted:** Routing documentation gap identified - site-docs missing routing strategy documentation in all languages.
 
