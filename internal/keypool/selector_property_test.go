@@ -1,6 +1,7 @@
 package keypool
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
