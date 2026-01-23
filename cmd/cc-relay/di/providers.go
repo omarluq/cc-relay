@@ -230,10 +230,43 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	providerSvc := do.MustInvoke[*ProviderMapService](i)
 	poolSvc := do.MustInvoke[*KeyPoolService](i)
+	routerSvc := do.MustInvoke[*RouterService](i)
 
-	handler, err := proxy.SetupRoutesWithProviders(
-		cfgSvc.Config,
+	cfg := cfgSvc.Config
+
+	// Build ProviderInfo list from config and providers
+	var providerInfos []router.ProviderInfo
+	for idx := range cfg.Providers {
+		pc := &cfg.Providers[idx]
+		if !pc.Enabled {
+			continue
+		}
+
+		prov, ok := providerSvc.Providers[pc.Name]
+		if !ok {
+			continue
+		}
+
+		// Get weight and priority from first key (provider-level defaults)
+		var weight, priority int
+		if len(pc.Keys) > 0 {
+			weight = pc.Keys[0].Weight
+			priority = pc.Keys[0].Priority
+		}
+
+		providerInfos = append(providerInfos, router.ProviderInfo{
+			Provider:  prov,
+			Weight:    weight,
+			Priority:  priority,
+			IsHealthy: func() bool { return true }, // Stub until Phase 4 (health tracking)
+		})
+	}
+
+	handler, err := proxy.SetupRoutesWithRouter(
+		cfg,
 		providerSvc.PrimaryProvider,
+		providerInfos,
+		routerSvc.Router,
 		providerSvc.PrimaryKey,
 		poolSvc.Pool,
 		providerSvc.AllProviders,
