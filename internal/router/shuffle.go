@@ -18,10 +18,10 @@ import (
 // This ensures fair distribution: each provider gets exactly one request
 // before any provider receives a second request.
 type ShuffleRouter struct {
+	shuffledOrder []int
+	position      int
+	lastLen       int
 	mu            sync.Mutex
-	shuffledOrder []int // indices into provider list
-	position      int   // current position in shuffled order
-	lastLen       int   // track if provider list changed
 }
 
 // NewShuffleRouter creates a new shuffle router.
@@ -36,7 +36,7 @@ func NewShuffleRouter() *ShuffleRouter {
 // Reshuffles when:
 // - First call (no prior state)
 // - Provider count has changed
-// - All providers have been dealt (deck exhausted)
+// - All providers have been dealt (deck exhausted).
 func (r *ShuffleRouter) Select(_ context.Context, providers []ProviderInfo) (ProviderInfo, error) {
 	if len(providers) == 0 {
 		return ProviderInfo{}, ErrNoProviders

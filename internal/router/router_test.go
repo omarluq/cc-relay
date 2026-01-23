@@ -66,8 +66,6 @@ func TestNewRouter_NotYetImplemented(t *testing.T) {
 
 	strategies := []string{
 		StrategyFailover,
-		StrategyRoundRobin,
-		StrategyShuffle,
 		"", // Empty defaults to failover
 	}
 
@@ -83,6 +81,50 @@ func TestNewRouter_NotYetImplemented(t *testing.T) {
 				t.Errorf("NewRouter(%q) expected nil router, got %v", strategy, router)
 			}
 		})
+	}
+}
+
+func TestNewRouter_RoundRobin(t *testing.T) {
+	t.Parallel()
+
+	router, err := NewRouter(StrategyRoundRobin, 5*time.Second)
+	if err != nil {
+		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyRoundRobin, err)
+	}
+	if router == nil {
+		t.Fatal("NewRouter() returned nil router")
+	}
+
+	// Verify correct type
+	if router.Name() != StrategyRoundRobin {
+		t.Errorf("NewRouter() returned router with name %q, want %q", router.Name(), StrategyRoundRobin)
+	}
+
+	// Type assertion to verify it's the right implementation
+	if _, ok := router.(*RoundRobinRouter); !ok {
+		t.Errorf("NewRouter(%q) returned wrong type: got %T", StrategyRoundRobin, router)
+	}
+}
+
+func TestNewRouter_Shuffle(t *testing.T) {
+	t.Parallel()
+
+	router, err := NewRouter(StrategyShuffle, 5*time.Second)
+	if err != nil {
+		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyShuffle, err)
+	}
+	if router == nil {
+		t.Fatal("NewRouter() returned nil router")
+	}
+
+	// Verify correct type
+	if router.Name() != StrategyShuffle {
+		t.Errorf("NewRouter() returned router with name %q, want %q", router.Name(), StrategyShuffle)
+	}
+
+	// Type assertion to verify it's the right implementation
+	if _, ok := router.(*ShuffleRouter); !ok {
+		t.Errorf("NewRouter(%q) returned wrong type: got %T", StrategyShuffle, router)
 	}
 }
 

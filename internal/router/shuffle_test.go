@@ -48,7 +48,7 @@ func TestShuffleRouter_DealingCards_EachGetsOneBeforeSeconds(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
-	providers := createShuffleTestProviders(3, true)
+	providers := createShuffleTestProviders(3)
 
 	// First round: each provider should get exactly 1 request
 	firstRound := make(map[int]int) // weight -> count
@@ -89,7 +89,7 @@ func TestShuffleRouter_ReshufflesWhenExhausted(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
-	providers := createShuffleTestProviders(2, true)
+	providers := createShuffleTestProviders(2)
 
 	// Exhaust the deck (2 requests)
 	for i := 0; i < 2; i++ {
@@ -112,14 +112,14 @@ func TestShuffleRouter_ReshufflesWhenProviderCountChanges(t *testing.T) {
 	router := NewShuffleRouter()
 
 	// Start with 2 providers
-	providers2 := createShuffleTestProviders(2, true)
+	providers2 := createShuffleTestProviders(2)
 	_, err := router.Select(context.Background(), providers2)
 	if err != nil {
 		t.Fatalf("Select() error = %v", err)
 	}
 
 	// Switch to 3 providers - should reshuffle
-	providers3 := createShuffleTestProviders(3, true)
+	providers3 := createShuffleTestProviders(3)
 
 	// Make 3 requests - should work and distribute across all 3
 	counts := make(map[int]int)
@@ -164,7 +164,7 @@ func TestShuffleRouter_ConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
-	providers := createShuffleTestProviders(3, true)
+	providers := createShuffleTestProviders(3)
 
 	var wg sync.WaitGroup
 	numGoroutines := 10
@@ -241,7 +241,7 @@ func TestShuffleRouter_EvenDistributionOverManyRounds(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
-	providers := createShuffleTestProviders(4, true)
+	providers := createShuffleTestProviders(4)
 
 	// Run 40 requests (10 complete rounds)
 	counts := make(map[int]int)
@@ -261,16 +261,14 @@ func TestShuffleRouter_EvenDistributionOverManyRounds(t *testing.T) {
 	}
 }
 
-// createShuffleTestProviders creates N providers with unique weights for identification.
-// If allHealthy is true, all providers are marked healthy.
-func createShuffleTestProviders(n int, allHealthy bool) []ProviderInfo {
+// createShuffleTestProviders creates N healthy providers with unique weights for identification.
+func createShuffleTestProviders(n int) []ProviderInfo {
 	providers := make([]ProviderInfo, n)
 	for i := 0; i < n; i++ {
-		healthy := allHealthy
 		providers[i] = ProviderInfo{
 			Weight:    i + 1, // Use weight as identifier (1, 2, 3, ...)
 			Priority:  i,
-			IsHealthy: func() bool { return healthy },
+			IsHealthy: func() bool { return true },
 		}
 	}
 	return providers
