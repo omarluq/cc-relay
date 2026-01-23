@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 3 of 11 (Routing Strategies)
-Plan: 1 of 6 in current phase COMPLETE
+Plan: 3 of 6 in current phase COMPLETE
 Status: In progress
-Last activity: 2026-01-23 - Completed 03-01-PLAN.md
+Last activity: 2026-01-23 - Completed 03-03-PLAN.md
 
-Progress: [██████████] 47/52 plans total (Phase 3: 1/6 COMPLETE)
+Progress: [██████████] 49/52 plans total (Phase 3: 3/6 COMPLETE)
 
 ## Performance Metrics
 
@@ -37,8 +37,8 @@ Progress: [██████████] 47/52 plans total (Phase 3: 1/6 COMPL
 | 02.3 (Samber Refactor) | 12 | 178 min | 14.8 min |
 
 **Recent Trend:**
-- Last 5 plans: 02.3-09 (15min), 02.3-10 (23min), 02.3-11 (14min), 02.3-12 (27min), 03-01 (8min)
-- Trend: Phase 3 started - routing strategies foundation
+- Last 5 plans: 02.3-11 (14min), 02.3-12 (27min), 03-01 (8min), 03-02 (parallel), 03-03 (9min)
+- Trend: Phase 3 routing strategies - implementations progressing
 
 *Updated after each plan completion*
 
@@ -48,6 +48,11 @@ Progress: [██████████] 47/52 plans total (Phase 3: 1/6 COMPL
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 03-03 (WeightedRoundRobinRouter):**
+- Nginx smooth algorithm for even distribution (not clustered AAAB pattern)
+- Default weight is 1 when not specified or <= 0
+- Reinitialize state when provider list changes (detected by name comparison)
 
 **From 03-01 (ProviderRouter Interface Foundation):**
 - Default routing strategy is "failover" (safest - tries providers in priority order)
