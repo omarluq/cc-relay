@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 3.1 of 11 (Routing Documentation - INSERTED)
-Plan: 1 of 3 in phase COMPLETE
-Status: In progress
-Last activity: 2026-01-23 - Completed 03.1-01-PLAN.md (English routing docs)
+Plan: 3 of 3 in phase COMPLETE
+Status: Phase complete
+Last activity: 2026-01-23 - Completed 03.1-03-PLAN.md (CJK routing docs)
 
-Progress: [██████████] 53/55 plans total
-Next: 03.1-02 (Japanese translation) and 03.1-03 (Chinese translation) - Wave 2
+Progress: [██████████] 55/56 plans total
+Next: Phase 4 (Health Tracking)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 53
-- Average duration: 8.6 min
-- Total execution time: 7.9 hours
+- Total plans completed: 54
+- Average duration: 8.5 min
+- Total execution time: 8.0 hours
 
 **By Phase:**
 
@@ -37,11 +37,11 @@ Next: 03.1-02 (Japanese translation) and 03.1-03 (Chinese translation) - Wave 2
 | 02.2 (Sub Token Relay) | 1 | 8 min | 8 min |
 | 02.3 (Samber Refactor) | 12 | 178 min | 14.8 min |
 | 03 (Routing Strategies) | 6 | 57 min | 9.5 min |
-| 03.1 (Routing Docs) | 1 | 2 min | 2 min |
+| 03.1 (Routing Docs) | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-04 (13min), 03-05 (10min), 03-06 (16min), 03.1-01 (2min)
-- Trend: Phase 3.1 documentation started
+- Last 5 plans: 03-05 (10min), 03-06 (16min), 03.1-01 (2min), 03.1-02 (3min)
+- Trend: Phase 3.1 i18n documentation wave 2 complete
 
 *Updated after each plan completion*
 
@@ -51,6 +51,12 @@ Next: 03.1-02 (Japanese translation) and 03.1-03 (Chinese translation) - Wave 2
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 03.1-02 (German/Spanish Routing Documentation):**
+- German section header: "Routing-Konfiguration" (compound word pattern)
+- Spanish section header: "Configuracion de Routing" (preposition pattern)
+- Technical terms preserved in English (round-robin, failover, shuffle)
+- Code blocks remain in English/YAML across all translations
 
 **From 03.1-01 (English Routing Documentation):**
 - routing.md has weight 4 (between configuration at 3 and architecture at 4)
