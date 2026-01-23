@@ -148,6 +148,19 @@ cache:
     write_quorum: 1                # Min writes for success
     member_count_quorum: 2         # Min cluster members
     leave_timeout: 5s              # Leave broadcast duration
+
+# ==========================================================================
+# Routing Configuration
+# ==========================================================================
+routing:
+  # Strategy: round_robin, weighted_round_robin, shuffle, failover (default)
+  strategy: failover
+
+  # Timeout for failover attempts in milliseconds (default: 5000)
+  failover_timeout: 5000
+
+  # Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+  debug: false
 ```
 
 ## Server Configuration
@@ -506,6 +519,50 @@ cache:
 
 For detailed cache configuration including cache key conventions, cache busting strategies, HA clustering guides, and troubleshooting, see the [Cache System documentation](/docs/cache/).
 
+## Routing Configuration
+
+CC-Relay supports multiple routing strategies for distributing requests across providers.
+
+```yaml
+# ==========================================================================
+# Routing Configuration
+# ==========================================================================
+routing:
+  # Strategy: round_robin, weighted_round_robin, shuffle, failover (default)
+  strategy: failover
+
+  # Timeout for failover attempts in milliseconds (default: 5000)
+  failover_timeout: 5000
+
+  # Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+  debug: false
+```
+
+### Routing Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `failover` | Try providers in priority order, fallback on failure (default) |
+| `round_robin` | Sequential rotation through providers |
+| `weighted_round_robin` | Distribute proportionally by weight |
+| `shuffle` | Fair random distribution |
+
+### Provider Weight and Priority
+
+Weight and priority are configured in the provider's first key:
+
+```yaml
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        weight: 3      # For weighted-round-robin (higher = more traffic)
+        priority: 2    # For failover (higher = tried first)
+```
+
+For detailed routing configuration including strategy explanations, debug headers, and failover triggers, see the [Routing documentation](/docs/routing/).
+
 ## Example Configurations
 
 ### Minimal Single Provider
@@ -587,5 +644,6 @@ Configuration changes require a server restart. Hot-reloading is planned for a f
 
 ## Next Steps
 
+- [Routing strategies](/docs/routing/) - Provider selection and failover
 - [Understanding the architecture](/docs/architecture/)
 - [API reference](/docs/api/)
