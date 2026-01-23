@@ -21,6 +21,7 @@ func init() {
 	configInitCmd.Flags().Bool("force", false, "overwrite existing config file")
 }
 
+//nolint:funlen // Function contains embedded YAML config template (120+ lines of template, ~40 lines of logic)
 func runConfigInit(cmd *cobra.Command, _ []string) error {
 	output, err := cmd.Flags().GetString("output")
 	if err != nil {

@@ -420,7 +420,6 @@ func TestGetStats(t *testing.T) {
 	})
 }
 
-//nolint:gocognit // Test function complexity is acceptable for comprehensive coverage
 func TestConcurrency(t *testing.T) {
 	t.Run("multiple goroutines calling GetKey", func(_ *testing.T) {
 		pool := newTestPool(5, "least_loaded")

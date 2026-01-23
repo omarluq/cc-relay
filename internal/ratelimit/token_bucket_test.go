@@ -176,7 +176,6 @@ func TestWait(t *testing.T) {
 	})
 }
 
-//nolint:gocognit // Test function complexity is acceptable
 func TestSetLimit(t *testing.T) {
 	t.Run("updates limits dynamically", func(t *testing.T) {
 		limiter := NewTokenBucketLimiter(10, 1000)
@@ -384,7 +383,6 @@ func TestReserve(t *testing.T) {
 	})
 }
 
-//nolint:gocognit // Test function complexity is acceptable
 func TestConcurrency(t *testing.T) {
 	t.Run("multiple goroutines calling Allow/Wait", func(t *testing.T) {
 		limiter := NewTokenBucketLimiter(100, 100000)
