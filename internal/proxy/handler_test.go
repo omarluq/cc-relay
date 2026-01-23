@@ -16,6 +16,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 func TestNewHandler_ValidProvider(t *testing.T) {
@@ -23,7 +24,7 @@ func TestNewHandler_ValidProvider(t *testing.T) {
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := NewHandler(provider, "test-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -38,7 +39,7 @@ func TestNewHandler_InvalidURL(t *testing.T) {
 	// Create a mock provider with invalid URL
 	provider := &mockProvider{baseURL: "://invalid-url"}
 
-	_, err := NewHandler(provider, "test-key", nil, config.DebugOptions{})
+	_, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
 	if err == nil {
 		t.Error("Expected error for invalid base URL, got nil")
 	}
@@ -65,7 +66,7 @@ func TestHandler_ForwardsAnthropicHeaders(t *testing.T) {
 	// Create provider pointing to mock backend
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := NewHandler(provider, "test-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -89,7 +90,7 @@ func TestHandler_HasErrorHandler(t *testing.T) {
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := NewHandler(provider, "test-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestHandler_StructureCorrect(t *testing.T) {
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := NewHandler(provider, "test-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -151,7 +152,7 @@ func TestHandler_PreservesToolUseId(t *testing.T) {
 	// Create provider pointing to mock backend
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := NewHandler(provider, "test-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -249,7 +250,7 @@ func TestHandler_WithKeyPool(t *testing.T) {
 
 	// Create handler with key pool
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "", pool, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Make request
@@ -285,7 +286,7 @@ func TestHandler_AllKeysExhausted(t *testing.T) {
 
 	// Create handler
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
-	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "", pool, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Make request (should return 429)
@@ -337,7 +338,7 @@ func TestHandler_KeyPoolUpdate(t *testing.T) {
 
 	// Create handler
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "", pool, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Make request
@@ -378,7 +379,7 @@ func TestHandler_Backend429(t *testing.T) {
 
 	// Create handler
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "", pool, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Make request
@@ -413,7 +414,7 @@ func TestHandler_SingleKeyMode(t *testing.T) {
 
 	// Create handler without key pool (nil)
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "test-single-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "test-single-key", nil, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Make request
@@ -449,7 +450,7 @@ func TestHandler_UsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "our-fallback-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "our-fallback-key", nil, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Create request WITHOUT any auth headers
@@ -490,7 +491,7 @@ func TestHandler_ForwardsClientAuthWhenPresent(t *testing.T) {
 
 	// Create handler with a configured fallback key
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "fallback-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "fallback-key", nil, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Create request WITH client Authorization header
@@ -530,7 +531,7 @@ func TestHandler_ForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "fallback-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "fallback-key", nil, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Create request WITH client x-api-key header
@@ -572,7 +573,7 @@ func TestHandler_TransparentModeSkipsKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "", pool, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Create request WITH client auth
@@ -610,7 +611,7 @@ func TestHandler_FallbackModeUsesKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "", pool, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Create request WITHOUT client auth
@@ -646,7 +647,7 @@ func TestHandler_TransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, "fallback-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "fallback-key", nil, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
@@ -683,7 +684,7 @@ func TestHandler_NonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 
 	// Z.AI provider does NOT support transparent auth
 	provider := providers.NewZAIProvider("test-zai", backend.URL)
-	handler, err := NewHandler(provider, "zai-configured-key", nil, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "zai-configured-key", nil, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Client sends Authorization header (like Claude Code does)
@@ -729,7 +730,7 @@ func TestHandler_NonTransparentProviderWithKeyPool(t *testing.T) {
 
 	// Z.AI provider does NOT support transparent auth
 	provider := providers.NewZAIProvider("test-zai", backend.URL)
-	handler, err := NewHandler(provider, "", pool, config.DebugOptions{})
+	handler, err := NewHandler(provider, nil, nil, "", pool, config.DebugOptions{}, false)
 	require.NoError(t, err)
 
 	// Client sends Authorization header
@@ -796,4 +797,240 @@ func TestParseRetryAfter(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// mockRouter implements router.ProviderRouter for testing.
+type mockRouter struct {
+	err      error
+	name     string
+	selected router.ProviderInfo
+}
+
+func (m *mockRouter) Select(_ context.Context, _ []router.ProviderInfo) (router.ProviderInfo, error) {
+	return m.selected, m.err
+}
+
+func (m *mockRouter) Name() string {
+	return m.name
+}
+
+// TestHandler_SingleProviderMode tests that handler works without router (backwards compat).
+func TestHandler_SingleProviderMode(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	// No router (nil), no providers list (nil) - single provider mode
+	handler, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// No routing debug headers in single provider mode
+	assert.Empty(t, w.Header().Get("X-CC-Relay-Strategy"))
+	assert.Empty(t, w.Header().Get("X-CC-Relay-Provider"))
+}
+
+// TestHandler_MultiProviderModeUsesRouter tests that handler uses router for selection.
+func TestHandler_MultiProviderModeUsesRouter(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	provider1 := providers.NewAnthropicProvider("provider1", backend.URL)
+	provider2 := providers.NewAnthropicProvider("provider2", backend.URL)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider1, IsHealthy: func() bool { return true }},
+		{Provider: provider2, IsHealthy: func() bool { return true }},
+	}
+
+	// Mock router that always selects provider2
+	mockR := &mockRouter{
+		name: "test_strategy",
+		selected: router.ProviderInfo{
+			Provider:  provider2,
+			IsHealthy: func() bool { return true },
+		},
+	}
+
+	// routingDebug=true to get debug headers
+	handler, err := NewHandler(provider1, providerInfos, mockR, "test-key", nil, config.DebugOptions{}, true)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// Debug headers should be present
+	assert.Equal(t, "test_strategy", w.Header().Get("X-CC-Relay-Strategy"))
+	assert.Equal(t, "provider2", w.Header().Get("X-CC-Relay-Provider"))
+}
+
+// TestHandler_DebugHeadersDisabledByDefault tests that debug headers are not added when disabled.
+func TestHandler_DebugHeadersDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: func() bool { return true }},
+	}
+
+	mockR := &mockRouter{
+		name: "failover",
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: func() bool { return true },
+		},
+	}
+
+	// routingDebug=false (default)
+	handler, err := NewHandler(provider, providerInfos, mockR, "test-key", nil, config.DebugOptions{}, false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// No debug headers
+	assert.Empty(t, w.Header().Get("X-CC-Relay-Strategy"))
+	assert.Empty(t, w.Header().Get("X-CC-Relay-Provider"))
+}
+
+// TestHandler_DebugHeadersWhenEnabled tests debug headers are added when routing.debug=true.
+func TestHandler_DebugHeadersWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test-provider", backend.URL)
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: func() bool { return true }},
+	}
+
+	mockR := &mockRouter{
+		name: "round_robin",
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: func() bool { return true },
+		},
+	}
+
+	handler, err := NewHandler(provider, providerInfos, mockR, "test-key", nil, config.DebugOptions{}, true)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// Debug headers present
+	assert.Equal(t, "round_robin", w.Header().Get("X-CC-Relay-Strategy"))
+	assert.Equal(t, "test-provider", w.Header().Get("X-CC-Relay-Provider"))
+}
+
+// TestHandler_RouterSelectionError tests error handling when router fails.
+func TestHandler_RouterSelectionError(t *testing.T) {
+	t.Parallel()
+
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: func() bool { return false }},
+	}
+
+	// Mock router that returns error
+	mockR := &mockRouter{
+		name: "failover",
+		err:  router.ErrAllProvidersUnhealthy,
+	}
+
+	handler, err := NewHandler(provider, providerInfos, mockR, "test-key", nil, config.DebugOptions{}, false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	// Should return 503 Service Unavailable
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	var errResp ErrorResponse
+	err = json.NewDecoder(w.Body).Decode(&errResp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", errResp.Type)
+	assert.Equal(t, "api_error", errResp.Error.Type)
+	assert.Contains(t, errResp.Error.Message, "failed to select provider")
+}
+
+// TestHandler_SelectProviderSingleMode tests selectProvider in single provider mode.
+func TestHandler_SelectProviderSingleMode(t *testing.T) {
+	t.Parallel()
+
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+
+	// No router, no providers - single provider mode
+	handler, err := NewHandler(provider, nil, nil, "test-key", nil, config.DebugOptions{}, false)
+	require.NoError(t, err)
+
+	info, err := handler.selectProvider(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "test", info.Provider.Name())
+	assert.True(t, info.Healthy()) // Always healthy in single mode
+}
+
+// TestHandler_SelectProviderMultiMode tests selectProvider uses router.
+func TestHandler_SelectProviderMultiMode(t *testing.T) {
+	t.Parallel()
+
+	provider1 := providers.NewAnthropicProvider("provider1", "https://api.anthropic.com")
+	provider2 := providers.NewAnthropicProvider("provider2", "https://api.anthropic.com")
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider1, IsHealthy: func() bool { return true }},
+		{Provider: provider2, IsHealthy: func() bool { return true }},
+	}
+
+	mockR := &mockRouter{
+		name: "test",
+		selected: router.ProviderInfo{
+			Provider:  provider2,
+			IsHealthy: func() bool { return true },
+		},
+	}
+
+	handler, err := NewHandler(provider1, providerInfos, mockR, "test-key", nil, config.DebugOptions{}, false)
+	require.NoError(t, err)
+
+	info, err := handler.selectProvider(context.Background())
+	require.NoError(t, err)
+	// Router should have selected provider2, not provider1
+	assert.Equal(t, "provider2", info.Provider.Name())
 }

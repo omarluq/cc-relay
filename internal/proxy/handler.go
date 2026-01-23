@@ -17,6 +17,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // contextKey is used for storing values in request context.
@@ -26,21 +27,29 @@ const keyIDContextKey contextKey = "keyID"
 
 // Handler proxies requests to a backend provider.
 type Handler struct {
-	provider  providers.Provider
-	proxy     *httputil.ReverseProxy
-	keyPool   *keypool.KeyPool // Key pool for multi-key routing (nil in single-key mode)
-	apiKey    string           // Single key (used when keyPool is nil)
-	debugOpts config.DebugOptions
+	provider     providers.Provider
+	router       router.ProviderRouter
+	proxy        *httputil.ReverseProxy
+	keyPool      *keypool.KeyPool
+	apiKey       string
+	providers    []router.ProviderInfo
+	debugOpts    config.DebugOptions
+	routingDebug bool
 }
 
 // NewHandler creates a new proxy handler.
+// If providerRouter is provided, it will be used for provider selection.
+// If providerRouter is nil, provider is used directly (single provider mode).
 // If pool is provided, it will be used for key selection.
 // If pool is nil, apiKey is used directly (single key mode).
 func NewHandler(
 	provider providers.Provider,
+	providerInfos []router.ProviderInfo,
+	providerRouter router.ProviderRouter,
 	apiKey string,
 	pool *keypool.KeyPool,
 	debugOpts config.DebugOptions,
+	routingDebug bool,
 ) (*Handler, error) {
 	targetURL, err := url.Parse(provider.BaseURL())
 	if err != nil {
@@ -48,10 +57,13 @@ func NewHandler(
 	}
 
 	h := &Handler{
-		provider:  provider,
-		apiKey:    apiKey,
-		keyPool:   pool,
-		debugOpts: debugOpts,
+		provider:     provider,
+		providers:    providerInfos,
+		router:       providerRouter,
+		apiKey:       apiKey,
+		keyPool:      pool,
+		debugOpts:    debugOpts,
+		routingDebug: routingDebug,
 	}
 
 	h.proxy = &httputil.ReverseProxy{
@@ -155,6 +167,19 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 	return nil
 }
 
+// selectProvider chooses a provider using the router or returns the static provider.
+// In single provider mode (router is nil or no providers), returns the static provider.
+func (h *Handler) selectProvider(ctx context.Context) (router.ProviderInfo, error) {
+	if h.router == nil || len(h.providers) == 0 {
+		// Single provider mode - wrap static provider
+		return router.ProviderInfo{
+			Provider:  h.provider,
+			IsHealthy: func() bool { return true },
+		}, nil
+	}
+	return h.router.Select(ctx, h.providers)
+}
+
 // selectKeyFromPool handles key selection from the pool.
 // Returns keyID, key, updated request, and success.
 // If success is false, an error response has been written and caller should return.
@@ -193,8 +218,33 @@ func (h *Handler) selectKeyFromPool(
 // ServeHTTP handles the proxy request.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	logger := h.createProviderLogger(r)
+
+	// Select provider using router (or use static provider)
+	selectedProviderInfo, err := h.selectProvider(r.Context())
+	if err != nil {
+		WriteError(w, http.StatusServiceUnavailable, "api_error",
+			fmt.Sprintf("failed to select provider: %v", err))
+		return
+	}
+	selectedProvider := selectedProviderInfo.Provider
+
+	// Create logger with selected provider context
+	logger := h.createProviderLoggerWithProvider(r, selectedProvider)
 	r = r.WithContext(logger.WithContext(r.Context()))
+
+	// Log routing strategy if router is available
+	if h.router != nil {
+		logger.Debug().
+			Str("strategy", h.router.Name()).
+			Str("selected_provider", selectedProvider.Name()).
+			Msg("provider selected by router")
+	}
+
+	// Add debug headers if routing debug is enabled
+	if h.routingDebug && h.router != nil {
+		w.Header().Set("X-CC-Relay-Strategy", h.router.Name())
+		w.Header().Set("X-CC-Relay-Provider", selectedProvider.Name())
+	}
 
 	// Handle auth mode selection and key selection
 	r, ok := h.handleAuthAndKeySelection(w, r, &logger)
@@ -215,11 +265,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.logMetricsIfEnabled(r, &logger, start, backendTime, getTLSMetrics)
 }
 
-// createProviderLogger creates a logger with provider context.
-func (h *Handler) createProviderLogger(r *http.Request) zerolog.Logger {
+// createProviderLoggerWithProvider creates a logger with the given provider context.
+func (h *Handler) createProviderLoggerWithProvider(r *http.Request, p providers.Provider) zerolog.Logger {
 	return zerolog.Ctx(r.Context()).With().
-		Str("provider", h.provider.Name()).
-		Str("backend_url", h.provider.BaseURL()).
+		Str("provider", p.Name()).
+		Str("backend_url", p.BaseURL()).
 		Logger()
 }
 
