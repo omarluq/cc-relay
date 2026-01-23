@@ -64,20 +64,28 @@ func MustInvokeNamed[T any](c *Container, name string) T {
 
 // Shutdown gracefully shuts down all services in reverse order of initialization.
 // Services implementing the do.Shutdowner interface will have their Shutdown method called.
+// Returns nil if shutdown succeeded, or an error if any service failed to shut down.
 func (c *Container) Shutdown() error {
-	return c.injector.Shutdown()
+	report := c.injector.Shutdown()
+	if report != nil && !report.Succeed {
+		return fmt.Errorf("shutdown failed: %s", report.Error())
+	}
+	return nil
 }
 
 // ShutdownWithContext gracefully shuts down with context for timeout control.
 func (c *Container) ShutdownWithContext(ctx context.Context) error {
-	done := make(chan error, 1)
+	done := make(chan *do.ShutdownReport, 1)
 	go func() {
-		done <- c.injector.Shutdown()
+		done <- c.injector.ShutdownWithContext(ctx)
 	}()
 
 	select {
-	case err := <-done:
-		return err
+	case report := <-done:
+		if report != nil && !report.Succeed {
+			return fmt.Errorf("shutdown failed: %s", report.Error())
+		}
+		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("shutdown timed out: %w", ctx.Err())
 	}
