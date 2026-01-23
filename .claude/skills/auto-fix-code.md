@@ -191,7 +191,7 @@ task lint-fix
 
 ```bash
 # Auto-format YAML
-yamlfmt -w config/example.yaml
+yamlfmt -w example.yaml
 
 # Fix all YAML files
 task yaml-fmt

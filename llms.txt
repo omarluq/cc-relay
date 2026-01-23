@@ -76,7 +76,7 @@ cc-relay/
 │   └── grpc/                      # Management API
 ├── ui/tui/                        # Bubble Tea TUI
 ├── proto/relay.proto              # gRPC service definitions
-└── config/example.yaml            # Example configuration
+└── example.yaml                     # Example configuration
 ```
 
 ## Configuration Example
@@ -142,7 +142,7 @@ claude
 ## Documentation
 
 - [SPEC.md](./SPEC.md) - Full technical specification
-- [config/example.yaml](./config/example.yaml) - Configuration reference
+- [example.yaml](./example.yaml) - Configuration reference
 
 ## Links
 
