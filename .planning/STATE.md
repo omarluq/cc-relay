@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 3 - Routing Strategies (IN PROGRESS)
+**Current focus:** Phase 3 - Routing Strategies (COMPLETE)
 
 ## Current Position
 
-Phase: 3 of 11 (Routing Strategies)
-Plan: 5 of 6 in current phase COMPLETE
-Status: In progress
-Last activity: 2026-01-23 - Completed 03-05-PLAN.md
+Phase: 3 of 11 (Routing Strategies) COMPLETE
+Plan: 6 of 6 in current phase COMPLETE
+Status: Phase complete
+Last activity: 2026-01-23 - Completed 03-06-PLAN.md
 
-Progress: [██████████] 51/52 plans total (Phase 3: 5/6 COMPLETE)
+Progress: [██████████] 52/52 plans total (Phase 3: 6/6 COMPLETE)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 43
-- Average duration: 8.1 min
-- Total execution time: 6.7 hours
+- Total plans completed: 44
+- Average duration: 8.3 min
+- Total execution time: 7.0 hours
 
 **By Phase:**
 
@@ -37,8 +37,8 @@ Progress: [██████████] 51/52 plans total (Phase 3: 5/6 COMPL
 | 02.3 (Samber Refactor) | 12 | 178 min | 14.8 min |
 
 **Recent Trend:**
-- Last 5 plans: 02.3-12 (27min), 03-01 (8min), 03-02 (parallel), 03-03 (9min), 03-04 (13min)
-- Trend: Phase 3 routing strategies - trigger system complete
+- Last 5 plans: 03-02 (parallel), 03-03 (9min), 03-04 (13min), 03-05 (10min), 03-06 (16min)
+- Trend: Phase 3 routing strategies COMPLETE
 
 *Updated after each plan completion*
 
@@ -48,6 +48,13 @@ Progress: [██████████] 51/52 plans total (Phase 3: 5/6 COMPL
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 03-06 (DI and Handler Integration):**
+- Router registered in DI container after KeyPool, before Handler
+- IsHealthy stub returns true (Phase 4 adds health tracking)
+- Weight/priority from first key of each provider config
+- Debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider) only when routing.debug=true
+- Default timeout 5 seconds when not configured
 
 **From 03-05 (FailoverRouter with Parallel Retry):**
 - Parallel race includes all providers (including primary) for maximum speed
@@ -294,7 +301,7 @@ None.
 
 ### Roadmap Evolution
 
-- Phase 3 IN PROGRESS: Routing Strategies
+- Phase 3 COMPLETE: Routing Strategies
   - 03-01 COMPLETE: ProviderRouter Interface Foundation
     - internal/router/router.go: Interface, ProviderInfo, FilterHealthy, strategy constants
     - internal/config/config.go: RoutingConfig struct with helpers
@@ -307,7 +314,12 @@ None.
   - 03-03 COMPLETE: WeightedRoundRobinRouter (Nginx smooth algorithm)
   - 03-04 COMPLETE: FailoverRouter with Triggers
   - 03-05 COMPLETE: FailoverRouter with Parallel Retry
-  - 03-06 PENDING: Handler integration and wiring
+  - 03-06 COMPLETE: DI and Handler Integration
+    - cmd/cc-relay/di/providers.go: RouterService, NewRouter provider, NewProxyHandler updated
+    - internal/proxy/handler.go: selectProvider method, debug headers
+    - internal/proxy/routes.go: SetupRoutesWithRouter function
+    - Duration: 16min
+    - 3 commits: 3bfa22f, d806763, 97b3e9d
 
 - Phase 2.3 VERIFIED COMPLETE: Codebase Refactor with Samber Libraries
   - 02.3-01 COMPLETE: Codebase architecture mapping
@@ -434,8 +446,17 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed 03-05-PLAN.md
+Stopped at: Completed 03-06-PLAN.md (Phase 3 COMPLETE)
 Resume file: None
+
+**Phase 03-06 Complete:**
+- cmd/cc-relay/di/providers.go: RouterService type, NewRouter provider, NewProxyHandler updated
+- internal/proxy/handler.go: selectProvider method, debug headers, router integration
+- internal/proxy/handler_test.go: Tests for routing integration and debug headers
+- internal/proxy/routes.go: SetupRoutesWithRouter function
+- 3 commits made: 3bfa22f, d806763, 97b3e9d
+- Duration: 16min
+- SUMMARY.md created: .planning/phases/03-routing-strategies/03-06-SUMMARY.md
 
 **Phase 03-05 Complete:**
 - internal/router/failover.go: FailoverRouter with Select, SelectWithRetry, parallelRace (183 lines)
