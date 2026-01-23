@@ -57,7 +57,7 @@ routing:
   #   - failover: Primary → fallback chain with circuit breaker
   #   - model-based: Route by model name prefix
   strategy: "simple-shuffle"
-  
+
   # Failover configuration (only used when strategy: failover)
   failover:
     primary: "anthropic-pool"
@@ -66,7 +66,7 @@ routing:
       - "ollama"
     cooldown_seconds: 60
     recovery_probe_interval: 30
-    
+
   # Cost-based configuration (only used when strategy: cost-based)
   # cost_based:
   #   threshold_tokens: 1000  # Use cheap providers below this token count
@@ -91,8 +91,8 @@ providers:
     # Multiple API keys for rate limit pooling
     keys:
       - key: "${ANTHROPIC_API_KEY}"
-        rpm_limit: 60          # Requests per minute
-        tpm_limit: 100000      # Tokens per minute
+        rpm_limit: 60 # Requests per minute
+        tpm_limit: 100000 # Tokens per minute
       # Add more keys to increase throughput:
       # - key: "${ANTHROPIC_API_KEY_2}"
       #   rpm_limit: 60
@@ -129,7 +129,7 @@ providers:
     type: "ollama"
     enabled: true
     base_url: "http://localhost:11434"
-    
+
     model_mapping:
       "claude-sonnet-4-5-20250929": "qwen3:32b"
       "claude-sonnet-4-5": "qwen3:32b"
@@ -143,14 +143,14 @@ providers:
     type: "bedrock"
     enabled: false
     region: "us-east-1"
-    
+
     auth:
       # Options: "iam" (uses AWS credentials), "bearer_token"
       method: "iam"
       # For bearer_token method (new July 2025 feature):
       # method: "bearer_token"
       # token: "${AWS_BEARER_TOKEN_BEDROCK}"
-    
+
     model_mapping:
       "claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0"
       "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250929-v1:0"
@@ -162,10 +162,10 @@ providers:
   - name: "azure"
     type: "azure"
     enabled: false
-    
+
     # Your Azure resource name (appears before .services.ai.azure.com)
     resource: "my-azure-resource"
-    
+
     auth:
       # Options: "api_key", "entra_id"
       method: "api_key"
@@ -175,10 +175,10 @@ providers:
       # tenant_id: "${AZURE_TENANT_ID}"
       # client_id: "${AZURE_CLIENT_ID}"
       # client_secret: "${AZURE_CLIENT_SECRET}"
-    
+
     # Azure uses deployment names as model identifiers
     model_mapping:
-      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5"  # Your deployment name
+      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5" # Your deployment name
       "claude-sonnet-4-5": "claude-sonnet-4-5"
       "claude-haiku-4-5": "claude-haiku-4-5"
 
@@ -188,13 +188,13 @@ providers:
   - name: "vertex"
     type: "vertex"
     enabled: false
-    
+
     project_id: "${GOOGLE_CLOUD_PROJECT}"
-    region: "us-east5"  # or "global" for dynamic routing
-    
+    region: "us-east5" # or "global" for dynamic routing
+
     # Auth via GOOGLE_APPLICATION_CREDENTIALS env var or gcloud CLI
     # No explicit auth config needed if using default credentials
-    
+
     model_mapping:
       "claude-sonnet-4-5-20250929": "claude-sonnet-4-5@20250929"
       "claude-sonnet-4-5": "claude-sonnet-4-5@20250929"
@@ -246,7 +246,7 @@ cache:
 grpc:
   # gRPC server for TUI/CLI management
   listen: "127.0.0.1:9090"
-  
+
   # Optional: grpc-web for browser-based WebUI
   # web_listen: "127.0.0.1:9091"
 
@@ -256,10 +256,10 @@ grpc:
 logging:
   # Options: "debug", "info", "warn", "error"
   level: "info"
-  
+
   # Options: "json", "text"
   format: "text"
-  
+
   # Log file (optional, defaults to stdout)
   # file: "/var/log/cc-relay/relay.log"
 
@@ -268,7 +268,7 @@ logging:
 # ============================================================================
 metrics:
   enabled: true
-  
+
   # Prometheus metrics endpoint
   prometheus_endpoint: "/metrics"
   prometheus_listen: "127.0.0.1:9100"
@@ -279,17 +279,17 @@ metrics:
 health:
   # How often to check provider health
   check_interval_seconds: 30
-  
+
   # Circuit breaker settings
   circuit_breaker:
     # Number of failures before opening circuit
     failure_threshold: 5
-    
+
     # Time to wait before trying again (half-open state)
     recovery_timeout_seconds: 60
-    
+
     # Triggers for circuit breaker
     triggers:
-      rate_limit_errors: 3      # 429 responses
-      timeout_errors: 2          # Request timeouts
-      server_errors: 3           # 5xx responses
+      rate_limit_errors: 3 # 429 responses
+      timeout_errors: 2 # Request timeouts
+      server_errors: 3 # 5xx responses
