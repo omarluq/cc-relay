@@ -148,6 +148,19 @@ cache:
     write_quorum: 1                # Min. Schreibvorgaenge fuer Erfolg
     member_count_quorum: 2         # Min. Cluster-Mitglieder
     leave_timeout: 5s              # Dauer der Leave-Nachricht
+
+# ==========================================================================
+# Routing-Konfiguration
+# ==========================================================================
+routing:
+  # Strategie: round_robin, weighted_round_robin, shuffle, failover (Standard)
+  strategy: failover
+
+  # Timeout fuer Failover-Versuche in Millisekunden (Standard: 5000)
+  failover_timeout: 5000
+
+  # Debug-Header aktivieren (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+  debug: false
 ```
 
 ## Server-Konfiguration
@@ -440,6 +453,50 @@ cache:
 
 Fuer umfassende Cache-Dokumentation einschliesslich Cache-Schluessel-Konventionen, Cache-Busting-Strategien, HA-Clustering-Anleitungen und Fehlerbehebung, siehe die [Cache-System-Dokumentation](/de/docs/caching/).
 
+## Routing-Konfiguration
+
+CC-Relay unterstuetzt mehrere Routing-Strategien zur Verteilung von Anfragen auf Provider.
+
+```yaml
+# ==========================================================================
+# Routing-Konfiguration
+# ==========================================================================
+routing:
+  # Strategie: round_robin, weighted_round_robin, shuffle, failover (Standard)
+  strategy: failover
+
+  # Timeout fuer Failover-Versuche in Millisekunden (Standard: 5000)
+  failover_timeout: 5000
+
+  # Debug-Header aktivieren (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+  debug: false
+```
+
+### Routing-Strategien
+
+| Strategie | Beschreibung |
+|-----------|--------------|
+| `failover` | Provider in Prioritaetsreihenfolge versuchen, bei Fehlschlag Fallback (Standard) |
+| `round_robin` | Sequentielle Rotation durch Provider |
+| `weighted_round_robin` | Proportionale Verteilung nach Gewichtung |
+| `shuffle` | Faire Zufallsverteilung |
+
+### Provider-Gewichtung und -Prioritaet
+
+Gewichtung und Prioritaet werden im ersten Schluessel des Providers konfiguriert:
+
+```yaml
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        weight: 3      # Fuer weighted-round-robin (hoeher = mehr Traffic)
+        priority: 2    # Fuer failover (hoeher = wird zuerst versucht)
+```
+
+Fuer detaillierte Routing-Konfiguration einschliesslich Strategie-Erklaerungen, Debug-Header und Failover-Ausloeser, siehe die [Routing-Dokumentation](/de/docs/routing/).
+
 ## Beispielkonfigurationen
 
 ### Minimaler Einzel-Provider
@@ -521,5 +578,6 @@ Konfigurationsaenderungen erfordern einen Server-Neustart. Hot-Reloading ist fue
 
 ## Naechste Schritte
 
+- [Routing-Strategien](/de/docs/routing/) - Provider-Auswahl und Failover
 - [Die Architektur verstehen](/de/docs/architecture/)
 - [API-Referenz](/de/docs/api/)
