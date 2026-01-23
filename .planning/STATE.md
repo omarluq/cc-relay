@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 2.3 of 11 (Codebase Refactor with Samber Libraries)
-Plan: 6 of 12 in current phase
+Plan: 7 of 12 in current phase
 Status: In progress
-Last activity: 2026-01-22 - Completed 02.3-06-PLAN.md (Mo Monads Integration)
+Last activity: 2026-01-22 - Completed 02.3-07a-PLAN.md (DI Container Foundation)
 
-Progress: [████░░░░░░] 36/46 plans total (Phase 2.3: 6/12)
+Progress: [████░░░░░░] 37/46 plans total (Phase 2.3: 7/12)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 35
-- Average duration: 7.3 min
-- Total execution time: 4.25 hours
+- Total plans completed: 36
+- Average duration: 7.4 min
+- Total execution time: 4.7 hours
 
 **By Phase:**
 
@@ -34,11 +34,11 @@ Progress: [████░░░░░░] 36/46 plans total (Phase 2.3: 6/12)
 | 02 (Multi-Key Pool) | 6 | 71 min | 11.8 min |
 | 02.1 (MKP Docs) | 1 | 12 min | 12 min |
 | 02.2 (Sub Token Relay) | 1 | 8 min | 8 min |
-| 02.3 (Samber Refactor) | 6 | 42 min | 7.0 min |
+| 02.3 (Samber Refactor) | 7 | 70 min | 10.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02.3-02 (8min), 02.3-03 (8min), 02.3-04 (4min), 02.3-05 (5min), 02.3-06 (10min)
-- Trend: Refactoring plans steady with established patterns
+- Last 5 plans: 02.3-03 (8min), 02.3-04 (4min), 02.3-05 (5min), 02.3-06 (10min), 02.3-07a (28min)
+- Trend: DI container plan took longer due to API exploration and comprehensive tests
 
 *Updated after each plan completion*
 
@@ -48,6 +48,13 @@ Progress: [████░░░░░░] 36/46 plans total (Phase 2.3: 6/12)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 02.3-07a (DI Container Foundation):**
+- Wrapper service types for type safety (ConfigService, CacheService, etc.)
+- Lazy initialization for all services (created on first request)
+- ShutdownerWithError interface for graceful cleanup (CacheService, ServerService)
+- Named value for config path (ConfigPathKey constant)
+- Coverage: 91.2% for di package
 
 **From 02.3-06 (Mo Monads Integration):**
 - Adapted plan: Config uses zero-value semantics, not pointer fields; added Option helpers instead of struct changes
@@ -250,8 +257,12 @@ None.
     - mo.Result methods for auth chain (ValidateResult, ValidationError)
     - mo.Result methods for keypool (GetKeyResult, KeySelection)
     - Coverage maintained: config 90%, auth 100%, keypool 93.6%
-  - 02.3-07a NEXT: Observability/Logging Refactoring
-  - 02.3-07b: Error Handling Refactoring
+  - 02.3-07a COMPLETE: DI Container Foundation
+    - Container wrapper with generic Invoke/MustInvoke helpers
+    - Service wrappers: ConfigService, CacheService, ProviderMapService, etc.
+    - Graceful shutdown with ShutdownerWithError interface
+    - Coverage: 91.2%
+  - 02.3-07b NEXT: Error Handling Refactoring
   - 02.3-08: Test coverage improvement (internal packages)
   - 02.3-09: Test coverage improvement (cmd package)
   - 02.3-10: Performance benchmarking
@@ -314,21 +325,17 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Completed 02.3-06-PLAN.md (Mo Monads Integration)
+Stopped at: Completed 02.3-07a-PLAN.md (DI Container Foundation)
 Resume file: None
 
-**Phase 02.3-06 Complete:**
-- internal/config/config.go: mo.Option helpers (GetTimeoutOption, GetMaxConcurrentOption, GetRPMLimitOption, etc.)
-- internal/config/config_test.go: Option method tests, OrElse pattern tests
-- internal/auth/chain.go: ValidateResult(), ValidationError type
-- internal/auth/apikey.go: ValidateResult()
-- internal/auth/oauth.go: ValidateResult()
-- internal/auth/auth_test.go: Result method tests, Railway pattern tests
-- internal/keypool/pool.go: KeySelection struct, GetKeyResult(), UpdateKeyFromHeadersResult()
-- internal/keypool/pool_test.go: Result method tests, composition pattern tests
-- 3 commits made: 1691883, 0212949, 93d0b1e
-- Coverage maintained: config 90%, auth 100%, keypool 93.6%
-- SUMMARY.md created: .planning/phases/02.3-codebase-refactor-samber-libs/02.3-06-SUMMARY.md
+**Phase 02.3-07a Complete:**
+- cmd/cc-relay/di/container.go: Container wrapper, Invoke/MustInvoke generics, Shutdown methods
+- cmd/cc-relay/di/providers.go: Service wrappers (ConfigService, CacheService, etc.), RegisterSingletons
+- cmd/cc-relay/di/container_test.go: Container creation, invoke, shutdown, health check tests
+- cmd/cc-relay/di/providers_test.go: Provider function tests, dependency order tests
+- 2 commits made: c6a4485, 02c666d
+- Coverage: 91.2%
+- SUMMARY.md created: .planning/phases/02.3-codebase-refactor-samber-libs/02.3-07a-SUMMARY.md
 
 **lo Patterns Established:**
 | Pattern | Usage | Example |
@@ -363,4 +370,16 @@ Resume file: None
 | Result.Map | Transform success | `result.Map(func(v T) (T, error) { ... })` |
 | Result.OrElse | Default on error | `result.OrElse(defaultValue)` |
 
-**Next:** 02.3-07a - Observability/Logging Refactoring
+**do Patterns Established:**
+| Pattern | Usage | Example |
+|---------|-------|---------|
+| do.New() | Create root container | `injector := do.New()` |
+| do.Provide | Register lazy service | `do.Provide(i, NewConfig)` |
+| do.ProvideValue | Register pre-built value | `do.ProvideValue(i, cfg)` |
+| do.ProvideNamedValue | Register named value | `do.ProvideNamedValue(i, "key", value)` |
+| do.Invoke | Resolve service | `svc, err := do.Invoke[*ConfigService](i)` |
+| do.MustInvoke | Resolve or panic | `svc := do.MustInvoke[*ConfigService](i)` |
+| do.InvokeNamed | Resolve by name | `val := do.MustInvokeNamed[string](i, "key")` |
+| ShutdownerWithError | Graceful cleanup | `func (s *Svc) Shutdown() error { ... }` |
+
+**Next:** 02.3-07b - Error Handling Refactoring
