@@ -21,6 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2.2: Subscription Token Relay** - Implement transparent proxy for client auth forwarding (INSERTED)
 - [x] **Phase 2.3: Codebase Refactor with Samber Libraries** - Map codebase, integrate samber/lo/do/ro/mo, fix tech debt, improve coverage (INSERTED)
 - [x] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
+- [ ] **Phase 3.1: Routing Documentation** - Add routing docs to site-docs in all languages (INSERTED)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
@@ -210,6 +211,25 @@ Plans:
 - [x] 03-05-PLAN.md - FailoverRouter with parallel retry
 - [x] 03-06-PLAN.md - DI integration and handler wiring
 
+### Phase 3.1: Routing Documentation (INSERTED)
+**Goal**: Add comprehensive routing documentation to site-docs in all supported languages (EN, DE, ES, JA, ZH-CN, KO)
+**Depends on**: Phase 3
+**Requirements**: DOC-ROUTE-01
+**Success Criteria** (what must be TRUE):
+  1. English routing.md created with complete routing strategy documentation
+  2. All routing strategies explained (round-robin, weighted-round-robin, shuffle, failover)
+  3. RoutingConfig YAML examples with all options documented
+  4. Debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider) documented
+  5. Failover triggers and timeout configuration documented
+  6. All translations updated (DE, ES, JA, ZH-CN, KO)
+  7. configuration.md updated with routing section in all languages
+**Plans**: 3 plans in 2 waves
+
+Plans:
+- [ ] 03.1-01-PLAN.md - English routing.md and configuration.md routing section
+- [ ] 03.1-02-PLAN.md - German and Spanish translations
+- [ ] 03.1-03-PLAN.md - Japanese, Chinese, and Korean translations
+
 ### Phase 4: Circuit Breaker & Health
 **Goal**: Add health tracking per provider with circuit breaker state machine (CLOSED/OPEN/HALF-OPEN) for automatic failure recovery
 **Depends on**: Phase 3
@@ -350,7 +370,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 3.1 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -363,6 +383,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 2.2 Subscription Token Relay (INSERTED) | 1/1 | Complete | 2026-01-22 |
 | 2.3 Samber Libs Refactor (INSERTED) | 12/12 | Complete | 2026-01-23 |
 | 3. Routing Strategies | 6/6 | Complete | 2026-01-23 |
+| 3.1 Routing Documentation (INSERTED) | 0/3 | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
