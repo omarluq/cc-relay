@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/router"
@@ -1033,4 +1035,234 @@ func TestHandler_SelectProviderMultiMode(t *testing.T) {
 	require.NoError(t, err)
 	// Router should have selected provider2, not provider1
 	assert.Equal(t, "provider2", info.Provider.Name())
+}
+
+// TestHandler_HealthHeaderWhenEnabled tests X-CC-Relay-Health debug header.
+func TestHandler_HealthHeaderWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	// Create mock backend
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg_123","type":"message"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	logger := zerolog.Nop()
+	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 5}, &logger)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: tracker.IsHealthyFunc("test")},
+	}
+
+	mockR := &mockRouter{
+		name: "round_robin",
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: tracker.IsHealthyFunc("test"),
+		},
+	}
+
+	// routingDebug=true to enable X-CC-Relay-Health header
+	handler, err := NewHandler(
+		provider, providerInfos, mockR, "test-key", nil,
+		config.DebugOptions{}, true, tracker,
+	)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	// Should have health header
+	healthHeader := rr.Header().Get("X-CC-Relay-Health")
+	assert.NotEmpty(t, healthHeader)
+	assert.Equal(t, "closed", healthHeader) // New provider circuit is closed (healthy)
+}
+
+// TestHandler_ReportOutcome_Success tests successful responses record to tracker.
+func TestHandler_ReportOutcome_Success(t *testing.T) {
+	t.Parallel()
+
+	// Create mock backend that returns 200
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg_123","type":"message"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	logger := zerolog.Nop()
+	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: tracker.IsHealthyFunc("test")},
+	}
+
+	mockR := &mockRouter{
+		name: "test",
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: tracker.IsHealthyFunc("test"),
+		},
+	}
+
+	handler, err := NewHandler(
+		provider, providerInfos, mockR, "test-key", nil,
+		config.DebugOptions{}, true, tracker,
+	)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	// Provider should still be healthy after successful request
+	assert.True(t, tracker.IsHealthyFunc("test")())
+}
+
+// TestHandler_ReportOutcome_Failure5xx tests 5xx responses count as failures.
+func TestHandler_ReportOutcome_Failure5xx(t *testing.T) {
+	t.Parallel()
+
+	// Create mock backend that returns 500
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"internal"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test-500", backend.URL)
+	logger := zerolog.Nop()
+	// Low threshold to trigger circuit opening quickly
+	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: tracker.IsHealthyFunc("test-500")},
+	}
+
+	mockR := &mockRouter{
+		name: "test",
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: tracker.IsHealthyFunc("test-500"),
+		},
+	}
+
+	handler, err := NewHandler(
+		provider, providerInfos, mockR, "test-key", nil,
+		config.DebugOptions{}, true, tracker,
+	)
+	require.NoError(t, err)
+
+	// Make multiple requests to trip the circuit
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	}
+
+	// After multiple 500s, circuit should be open (unhealthy)
+	assert.False(t, tracker.IsHealthyFunc("test-500")())
+}
+
+// TestHandler_ReportOutcome_Failure429 tests rate limit responses count as failures.
+func TestHandler_ReportOutcome_Failure429(t *testing.T) {
+	t.Parallel()
+
+	// Create mock backend that returns 429
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "60")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":"rate_limited"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test-429", backend.URL)
+	logger := zerolog.Nop()
+	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: tracker.IsHealthyFunc("test-429")},
+	}
+
+	mockR := &mockRouter{
+		name: "test",
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: tracker.IsHealthyFunc("test-429"),
+		},
+	}
+
+	handler, err := NewHandler(
+		provider, providerInfos, mockR, "test-key", nil,
+		config.DebugOptions{}, true, tracker,
+	)
+	require.NoError(t, err)
+
+	// Make multiple requests to trip the circuit
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	}
+
+	// After multiple 429s, circuit should be open (unhealthy)
+	assert.False(t, tracker.IsHealthyFunc("test-429")())
+}
+
+// TestHandler_ReportOutcome_4xxNotFailure tests 4xx (except 429) don't count as failures.
+func TestHandler_ReportOutcome_4xxNotFailure(t *testing.T) {
+	t.Parallel()
+
+	// Create mock backend that returns 400
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"bad_request"}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test-400", backend.URL)
+	logger := zerolog.Nop()
+	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: tracker.IsHealthyFunc("test-400")},
+	}
+
+	mockR := &mockRouter{
+		name: "test",
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: tracker.IsHealthyFunc("test-400"),
+		},
+	}
+
+	handler, err := NewHandler(
+		provider, providerInfos, mockR, "test-key", nil,
+		config.DebugOptions{}, true, tracker,
+	)
+	require.NoError(t, err)
+
+	// Make multiple 400 requests
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	}
+
+	// 400s should NOT trip the circuit - provider should remain healthy
+	assert.True(t, tracker.IsHealthyFunc("test-400")())
 }

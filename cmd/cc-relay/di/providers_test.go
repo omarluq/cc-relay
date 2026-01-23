@@ -367,3 +367,114 @@ func TestProviderMapServiceWrapper(t *testing.T) {
 		assert.Nil(t, svc.PrimaryProvider)
 	})
 }
+
+func TestLoggerService(t *testing.T) {
+	t.Run("creates logger from config", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		loggerSvc, err := do.Invoke[*LoggerService](injector)
+		require.NoError(t, err)
+		assert.NotNil(t, loggerSvc)
+		assert.NotNil(t, loggerSvc.Logger)
+	})
+
+	t.Run("singleton returns same instance", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		logger1, err := do.Invoke[*LoggerService](injector)
+		require.NoError(t, err)
+
+		logger2, err := do.Invoke[*LoggerService](injector)
+		require.NoError(t, err)
+
+		assert.Same(t, logger1, logger2)
+	})
+}
+
+func TestHealthTrackerService(t *testing.T) {
+	t.Run("creates tracker from config", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		trackerSvc, err := do.Invoke[*HealthTrackerService](injector)
+		require.NoError(t, err)
+		assert.NotNil(t, trackerSvc)
+		assert.NotNil(t, trackerSvc.Tracker)
+	})
+
+	t.Run("tracker IsHealthyFunc returns true for new provider", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		trackerSvc, err := do.Invoke[*HealthTrackerService](injector)
+		require.NoError(t, err)
+
+		isHealthy := trackerSvc.Tracker.IsHealthyFunc("test-provider")
+		assert.True(t, isHealthy(), "new provider should be healthy by default")
+	})
+
+	t.Run("tracker records success and failure", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		trackerSvc, err := do.Invoke[*HealthTrackerService](injector)
+		require.NoError(t, err)
+
+		// Initially healthy
+		isHealthy := trackerSvc.Tracker.IsHealthyFunc("test-provider")
+		assert.True(t, isHealthy(), "provider should be healthy initially")
+
+		// Record success - should remain healthy
+		trackerSvc.Tracker.RecordSuccess("test-provider")
+		assert.True(t, isHealthy(), "provider should remain healthy after success")
+
+		// Record failure - may or may not trip circuit depending on config
+		// This just verifies the method doesn't panic
+		trackerSvc.Tracker.RecordFailure("test-provider", nil)
+	})
+}
+
+func TestCheckerService(t *testing.T) {
+	t.Run("creates checker from config", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		checkerSvc, err := do.Invoke[*CheckerService](injector)
+		require.NoError(t, err)
+		assert.NotNil(t, checkerSvc)
+		assert.NotNil(t, checkerSvc.Checker)
+	})
+
+	t.Run("implements Shutdowner", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		checkerSvc, err := do.Invoke[*CheckerService](injector)
+		require.NoError(t, err)
+
+		// Should not panic
+		err = checkerSvc.Shutdown()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Shutdown handles nil checker", func(t *testing.T) {
+		checkerSvc := &CheckerService{Checker: nil}
+		err := checkerSvc.Shutdown()
+		assert.NoError(t, err)
+	})
+}
+
+func TestNewProxyHandler_WithHealthTracker(t *testing.T) {
+	t.Run("handler wired with tracker", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		// This verifies the full dependency chain works
+		handlerSvc, err := do.Invoke[*HandlerService](injector)
+		require.NoError(t, err)
+		assert.NotNil(t, handlerSvc)
+		assert.NotNil(t, handlerSvc.Handler)
+	})
+}
