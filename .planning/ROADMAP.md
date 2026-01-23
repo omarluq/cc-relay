@@ -24,6 +24,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3.1: Routing Documentation** - Add routing docs to site-docs in all languages (INSERTED)
 - [x] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 4.1: Health Checker Wiring** - Wire Checker lifecycle to fix integration gaps (INSERTED)
+- [ ] **Phase 4.2: Config File Cleanup** - Consolidate config files, ensure example.yaml is single source of truth (INSERTED)
+- [ ] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
 - [ ] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
@@ -264,6 +266,37 @@ Plans:
 Plans:
 - [ ] 04.1-01-PLAN.md - Wire Checker lifecycle (register providers, start checker, add tests)
 
+### Phase 4.2: Config File Cleanup (INSERTED)
+**Goal**: Consolidate config files by removing duplicate config.yaml from root, keeping example.yaml as the canonical reference
+**Depends on**: Phase 4.1
+**Requirements**: None new (closes config gap from extended audit)
+**Gap Closure**: Fixes duplicate config files issue from v0.0.1-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. Only example.yaml exists in root as canonical reference
+  2. config.yaml removed from root (development artifact)
+  3. All code/doc references to config.yaml updated appropriately
+  4. `cc-relay config init` still generates user config correctly
+**Plans**: 1 plan in 1 wave
+
+Plans:
+- [ ] 04.2-01-PLAN.md - Remove config.yaml, verify example.yaml is complete, update references
+
+### Phase 4.3: Health Configuration Documentation (INSERTED)
+**Goal**: Add comprehensive health/circuit-breaker configuration documentation to site-docs
+**Depends on**: Phase 4.2
+**Requirements**: DOC-HEALTH-01
+**Gap Closure**: Fixes documentation gap from v0.0.1-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. English docs have dedicated health configuration section
+  2. All health config options documented (check_interval_seconds, failure_threshold, recovery_timeout_seconds, triggers)
+  3. Circuit breaker behavior documented (CLOSED/OPEN/HALF-OPEN states)
+  4. All languages updated (DE, ES, JA, ZH-CN, KO)
+**Plans**: 2 plans in 2 waves
+
+Plans:
+- [ ] 04.3-01-PLAN.md - English health configuration documentation
+- [ ] 04.3-02-PLAN.md - Translate health docs to all languages
+
 ### Phase 5: Additional Providers
 **Goal**: Support Z.AI (Anthropic-compatible) and Ollama (local models) providers
 **Depends on**: Phase 4
@@ -388,7 +421,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 3.1 -> 4 -> 4.1 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 3.1 -> 4 -> 4.1 -> 4.2 -> 4.3 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -404,6 +437,8 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 3.1 Routing Documentation (INSERTED) | 3/3 | Complete | 2026-01-23 |
 | 4. Circuit Breaker & Health | 4/4 | Complete | 2026-01-23 |
 | 4.1 Health Checker Wiring (INSERTED) | 0/1 | Not started | - |
+| 4.2 Config File Cleanup (INSERTED) | 0/1 | Not started | - |
+| 4.3 Health Config Docs (INSERTED) | 0/2 | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
 | 7. Configuration Management | 0/TBD | Not started | - |

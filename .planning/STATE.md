@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 4.1 - Health Checker Wiring (gap closure)
+**Current focus:** Phase 4.1-4.3 - Gap closure phases (health wiring, config cleanup, docs)
 
 ## Current Position
 
 Phase: 4.1 of 11+ (Health Checker Wiring - INSERTED)
 Plan: 0 of 1 in phase
 Status: Ready to plan
-Last activity: 2026-01-23 - Created gap closure phase from audit
+Last activity: 2026-01-23 - Extended audit added 4.2 (config cleanup) and 4.3 (health docs)
 
-Progress: [██████████] 59/60 plans total (Phase 4.1: 0/1)
+Progress: [██████████] 59/63 plans total (Gap closure: 4.1=0/1, 4.2=0/1, 4.3=0/2)
 Next: Phase 4.1 (Health Checker Wiring) - Wire Checker lifecycle to fix integration gaps
 
 ## Performance Metrics
@@ -340,6 +340,9 @@ None.
 ### Known Gaps
 
 - **Phase 2.1 Translation Gap**: Multi-key pooling docs only in English. DE, ES, JA, KO, ZH-CN missing. Fix later.
+- **Phase 4 Integration Gap**: Checker.Start() and RegisterProvider() never called - periodic health checks don't run
+- **Config File Duplication**: config.yaml and example.yaml both exist in root - should consolidate
+- **Health Docs Gap**: docs-site missing dedicated health/circuit-breaker configuration page
 
 ### Roadmap Evolution
 
@@ -513,9 +516,15 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Milestone audit identified integration gaps - Phase 4.1 created for gap closure
+Stopped at: Extended audit identified additional gaps - Phases 4.2 (config) and 4.3 (docs) added
 Resume file: None
 Next action: Plan Phase 4.1 (Health Checker Wiring) - wire Checker.Start() and RegisterProvider()
+
+**Extended Audit Findings (2026-01-23):**
+- Config files: config.yaml (7.5KB) and example.yaml (10.4KB) both in root - example.yaml more complete
+- Runtime default: ./config.yaml or ~/.config/cc-relay/config.yaml
+- docs-site exists (not site-docs) with health endpoint docs but no dedicated config page
+- Gap closure phases added: 4.2 (config cleanup), 4.3 (health configuration docs)
 
 **Phase 3.1 inserted:** Routing documentation gap identified - site-docs missing routing strategy documentation in all languages.
 
