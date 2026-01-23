@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 4 of 11 (Circuit Breaker & Health)
-Plan: 1 of 4 in phase COMPLETE
+Plan: 2 of 4 in phase COMPLETE
 Status: In progress
-Last activity: 2026-01-23 - Completed 04-01-PLAN.md
+Last activity: 2026-01-23 - Completed 04-02-PLAN.md
 
-Progress: [██████████] 56/58 plans total (Phase 4: 1/4)
-Next: 04-02-PLAN.md (Circuit Breaker State Machine)
+Progress: [██████████] 57/58 plans total (Phase 4: 2/4)
+Next: 04-03-PLAN.md (Handler Integration)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 56
+- Total plans completed: 57
 - Average duration: 8.4 min
-- Total execution time: 8.2 hours
+- Total execution time: 8.4 hours
 
 **By Phase:**
 
@@ -38,11 +38,11 @@ Next: 04-02-PLAN.md (Circuit Breaker State Machine)
 | 02.3 (Samber Refactor) | 12 | 178 min | 14.8 min |
 | 03 (Routing Strategies) | 6 | 57 min | 9.5 min |
 | 03.1 (Routing Docs) | 3 | 9 min | 3 min |
-| 04 (Circuit Breaker) | 1 | 8 min | 8 min |
+| 04 (Circuit Breaker) | 2 | 19 min | 9.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 03.1-01 (2min), 03.1-02 (3min), 03.1-03 (4min), 04-01 (8min)
-- Trend: Phase 4 started - health config foundation complete
+- Last 5 plans: 03.1-02 (3min), 03.1-03 (4min), 04-01 (8min), 04-02 (11min)
+- Trend: Phase 4 circuit breaker state machine complete
 
 *Updated after each plan completion*
 
@@ -52,6 +52,14 @@ Next: 04-02-PLAN.md (Circuit Breaker State Machine)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 04-02 (Circuit Breaker State Machine):**
+- Renamed HealthTracker to Tracker (avoid health.HealthTracker stuttering)
+- Re-exported gobreaker.State as health.State with StateClosed/StateOpen/StateHalfOpen constants
+- Lazy initialization with double-checked locking for thread-safe circuit creation
+- IsHealthyFunc returns closure - OPEN = unhealthy, CLOSED/HALF-OPEN = healthy
+- context.Canceled does NOT count as failure (per gobreaker IsSuccessful callback)
+- ShouldCountAsFailure: 5xx and 429 = failure, 4xx (except 429) = not failure
 
 **From 04-01 (Health Config Foundation):**
 - Renamed HealthConfig to Config, HealthCheckConfig to CheckConfig (avoid Go stuttering pattern)
