@@ -9,20 +9,20 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 4.2 of 11+ (Config Cleanup)
-Plan: 0 of 1 in phase
+Phase: 4.3 of 11+ (Documentation Gaps)
+Plan: 0 of 2 in phase
 Status: Ready to plan
-Last activity: 2026-01-23 - Completed Phase 4.1 (Health Checker Wiring)
+Last activity: 2026-01-23 - Completed Phase 4.2-01 (Config File Cleanup)
 
-Progress: [██████████] 60/63 plans total (Gap closure: 4.1=1/1 COMPLETE, 4.2=0/1, 4.3=0/2)
-Next: Phase 4.2 (Config Cleanup) - Consolidate config.yaml and example.yaml
+Progress: [██████████] 61/63 plans total (Gap closure: 4.1=1/1 COMPLETE, 4.2=1/1 COMPLETE, 4.3=0/2)
+Next: Phase 4.3 (Documentation Gaps) - Health/circuit-breaker configuration docs
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 60
-- Average duration: 8.4 min
-- Total execution time: 8.8 hours
+- Total plans completed: 61
+- Average duration: 8.3 min
+- Total execution time: 8.9 hours
 
 **By Phase:**
 
@@ -40,9 +40,10 @@ Next: Phase 4.2 (Config Cleanup) - Consolidate config.yaml and example.yaml
 | 03.1 (Routing Docs) | 3 | 9 min | 3 min |
 | 04 (Circuit Breaker) | 4 | 39 min | 9.8 min |
 | 04.1 (Health Wiring) | 1 | 5 min | 5 min |
+| 04.2 (Config Cleanup) | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-02 (11min), 04-03 (7min), 04-04 (13min), 04.1-01 (5min)
+- Last 5 plans: 04-03 (7min), 04-04 (13min), 04.1-01 (5min), 04.2-01 (2min)
 - Trend: Gap closure phases executing quickly
 
 *Updated after each plan completion*
@@ -342,10 +343,17 @@ None.
 
 - **Phase 2.1 Translation Gap**: Multi-key pooling docs only in English. DE, ES, JA, KO, ZH-CN missing. Fix later.
 - ~~**Phase 4 Integration Gap**: Checker.Start() and RegisterProvider() never called~~ FIXED in 04.1-01
-- **Config File Duplication**: config.yaml and example.yaml both exist in root - should consolidate (Phase 4.2)
+- ~~**Config File Duplication**: config.yaml and example.yaml both exist in root~~ FIXED in 04.2-01
 - **Health Docs Gap**: docs-site missing dedicated health/circuit-breaker configuration page (Phase 4.3)
 
 ### Roadmap Evolution
+
+- Phase 4.2 COMPLETE: Config File Cleanup
+  - 04.2-01 COMPLETE: Remove config.yaml and update documentation
+    - config.yaml: DELETED (was duplicate of example.yaml)
+    - .claude/CLAUDE.md, llms.txt, skills files: Updated to reference example.yaml
+    - Duration: 2 min
+    - 1 commit: db20cdb
 
 - Phase 4.1 COMPLETE: Health Checker Wiring
   - 04.1-01 COMPLETE: Wire Checker lifecycle
@@ -525,9 +533,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed Phase 4.1-01 (Health Checker Wiring)
+Stopped at: Completed Phase 4.2-01 (Config File Cleanup)
 Resume file: None
-Next action: Plan Phase 4.2 (Config Cleanup) - consolidate config.yaml and example.yaml
+Next action: Plan Phase 4.3 (Documentation Gaps) - Health/circuit-breaker configuration docs
 
 **Extended Audit Findings (2026-01-23):**
 - Config files: config.yaml (7.5KB) and example.yaml (10.4KB) both in root - example.yaml more complete
