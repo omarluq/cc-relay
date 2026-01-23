@@ -67,7 +67,6 @@ func TestNewRouter_NotYetImplemented(t *testing.T) {
 	strategies := []string{
 		StrategyFailover,
 		StrategyRoundRobin,
-		StrategyWeightedRoundRobin,
 		StrategyShuffle,
 		"", // Empty defaults to failover
 	}
@@ -84,6 +83,29 @@ func TestNewRouter_NotYetImplemented(t *testing.T) {
 				t.Errorf("NewRouter(%q) expected nil router, got %v", strategy, router)
 			}
 		})
+	}
+}
+
+func TestNewRouter_WeightedRoundRobin(t *testing.T) {
+	t.Parallel()
+
+	router, err := NewRouter(StrategyWeightedRoundRobin, 5*time.Second)
+	if err != nil {
+		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyWeightedRoundRobin, err)
+	}
+	if router == nil {
+		t.Fatal("NewRouter() returned nil router")
+	}
+
+	// Verify correct type
+	wrr, ok := router.(*WeightedRoundRobinRouter)
+	if !ok {
+		t.Errorf("NewRouter() returned %T, want *WeightedRoundRobinRouter", router)
+	}
+
+	// Verify Name()
+	if wrr.Name() != StrategyWeightedRoundRobin {
+		t.Errorf("Name() = %q, want %q", wrr.Name(), StrategyWeightedRoundRobin)
 	}
 }
 
