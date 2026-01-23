@@ -309,7 +309,7 @@ Plans:
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 05-01-PLAN.md - Ollama provider implementation and DI wiring
+- [x] 05-01-PLAN.md - Ollama provider implementation and DI wiring
 - [ ] 05-02-PLAN.md - Integration tests and provider documentation
 
 ### Phase 6: Cloud Providers
@@ -439,7 +439,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 4.1 Health Checker Wiring (INSERTED) | 1/1 | Complete | 2026-01-23 |
 | 4.2 Config File Cleanup (INSERTED) | 1/1 | Complete | 2026-01-23 |
 | 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
-| 5. Additional Providers | 0/2 | Not started | - |
+| 5. Additional Providers | 1/2 | In progress | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
 | 7. Configuration Management | 0/TBD | Not started | - |
 | 8. Observability | 0/TBD | Not started | - |
