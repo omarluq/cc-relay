@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 2.3 of 11 (Codebase Refactor with Samber Libraries)
-Plan: 8 of 12 in current phase
+Plan: 9 of 12 in current phase
 Status: In progress
-Last activity: 2026-01-22 - Completed 02.3-07b-PLAN.md (DI Container Serve.go Integration)
+Last activity: 2026-01-22 - Completed 02.3-08-PLAN.md (Refactoring Agents and Pattern Skills)
 
-Progress: [████░░░░░░] 38/46 plans total (Phase 2.3: 8/12)
+Progress: [████░░░░░░] 39/46 plans total (Phase 2.3: 9/12)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 38
-- Average duration: 7.4 min
-- Total execution time: 5.0 hours
+- Total plans completed: 39
+- Average duration: 7.6 min
+- Total execution time: 5.3 hours
 
 **By Phase:**
 
@@ -34,11 +34,11 @@ Progress: [████░░░░░░] 38/46 plans total (Phase 2.3: 8/12)
 | 02 (Multi-Key Pool) | 6 | 71 min | 11.8 min |
 | 02.1 (MKP Docs) | 1 | 12 min | 12 min |
 | 02.2 (Sub Token Relay) | 1 | 8 min | 8 min |
-| 02.3 (Samber Refactor) | 8 | 81 min | 10.1 min |
+| 02.3 (Samber Refactor) | 9 | 99 min | 11.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02.3-04 (4min), 02.3-05 (5min), 02.3-06 (10min), 02.3-07a (28min), 02.3-07b (11min)
-- Trend: DI integration completing the container foundation work
+- Last 5 plans: 02.3-05 (5min), 02.3-06 (10min), 02.3-07a (28min), 02.3-07b (11min), 02.3-08 (18min)
+- Trend: Documentation phase completing pattern capture
 
 *Updated after each plan completion*
 
@@ -48,6 +48,14 @@ Progress: [████░░░░░░] 38/46 plans total (Phase 2.3: 8/12)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 02.3-08 (Refactoring Agents and Pattern Skills):**
+- Separate library skills from pattern skills (library = API, pattern = when/how)
+- Agents reference both library and pattern skills for complete guidance
+- Pattern skills reference agents for automation
+- Include cc-relay file paths in examples (makes examples verifiable)
+- Include anti-patterns section in all files (prevent common mistakes)
+- streams.md includes future use cases (ro not yet used in cc-relay)
 
 **From 02.3-07b (DI Container Serve.go Integration):**
 - Eager config validation in NewContainer (fail fast on startup errors)
@@ -273,8 +281,11 @@ None.
     - runWithGracefulShutdown helper extracted
     - Eager config validation (fail fast)
     - Coverage: serve 85.2%, di 90.4%
-  - 02.3-08 NEXT: Test coverage improvement (internal packages)
-  - 02.3-09: Test coverage improvement (cmd package)
+  - 02.3-08 COMPLETE: Refactoring Agents and Pattern Skills
+    - 3 refactoring agents: loop-to-lo, error-to-result, inject-di (904 lines)
+    - 4 pattern skills: di-patterns, error-handling, collections, streams (1834 lines)
+    - All with cc-relay code examples and cross-references
+  - 02.3-09 NEXT: Test coverage improvement (cmd package)
   - 02.3-10: Performance benchmarking
   - 02.3-11: Final verification and documentation
   - 02.3-12: Phase completion and handoff
@@ -335,8 +346,19 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Completed 02.3-07b-PLAN.md (DI Container Serve.go Integration)
+Stopped at: Completed 02.3-08-PLAN.md (Refactoring Agents and Pattern Skills)
 Resume file: None
+
+**Phase 02.3-08 Complete:**
+- .claude/agents/loop-to-lo.md: Convert for-range loops to lo functions (216 lines)
+- .claude/agents/error-to-result.md: Convert (value, error) to mo.Result (323 lines)
+- .claude/agents/inject-di.md: Wire services into DI container (365 lines)
+- .claude/skills/di-patterns.md: DI patterns with cc-relay examples (424 lines)
+- .claude/skills/error-handling.md: Result monad patterns (418 lines)
+- .claude/skills/collections.md: lo function selection guide (463 lines)
+- .claude/skills/streams.md: ro reactive patterns (529 lines)
+- 2 commits made: 811ea1e, a8e2bab
+- SUMMARY.md created: .planning/phases/02.3-codebase-refactor-samber-libs/02.3-08-SUMMARY.md
 
 **Phase 02.3-07b Complete:**
 - cmd/cc-relay/serve.go: Replaced manual wiring with di.NewContainer(), extracted runWithGracefulShutdown()
@@ -401,4 +423,19 @@ Resume file: None
 | do.InvokeNamed | Resolve by name | `val := do.MustInvokeNamed[string](i, "key")` |
 | ShutdownerWithError | Graceful cleanup | `func (s *Svc) Shutdown() error { ... }` |
 
-**Next:** 02.3-08 - Test Coverage Improvement (Internal Packages)
+**Agents Created:**
+| Agent | Purpose | Lines |
+|-------|---------|-------|
+| loop-to-lo | Convert for-range loops to lo functions | 216 |
+| error-to-result | Convert (value, error) to mo.Result | 323 |
+| inject-di | Wire services into DI container | 365 |
+
+**Pattern Skills Created:**
+| Skill | Purpose | Lines |
+|-------|---------|-------|
+| di-patterns | DI patterns (singleton, transient, request-scoped) | 424 |
+| error-handling | Result monad and Railway-Oriented Programming | 418 |
+| collections | lo function selection and patterns | 463 |
+| streams | ro reactive stream patterns | 529 |
+
+**Next:** 02.3-09 - Test Coverage Improvement (cmd package)
