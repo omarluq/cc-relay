@@ -246,7 +246,7 @@ goimports -w internal/proxy/proxy.go
 gofumpt -w internal/proxy/proxy.go
 
 # Format single YAML file
-yamlfmt -w config/example.yaml
+yamlfmt -w example.yaml
 
 # Format single Markdown file
 markdownlint --fix README.md

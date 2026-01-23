@@ -331,7 +331,7 @@ Event sequence must match Anthropic's exactly. Use `http.Flusher` interface to f
 - Default location: `~/.config/cc-relay/config.yaml`
 - Format: YAML (primary) or TOML
 - Environment variables: Use `${VAR_NAME}` syntax
-- See `config/example.yaml` for full reference
+- See `example.yaml` for full reference
 
 ### Key Config Sections
 
@@ -347,7 +347,7 @@ Event sequence must match Anthropic's exactly. Use `http.Flusher` interface to f
 
 ```bash
 # Terminal 1: Start cc-relay
-./cc-relay serve --config config/example.yaml
+./cc-relay serve --config example.yaml
 
 # Terminal 2: Point Claude Code to proxy
 export ANTHROPIC_BASE_URL="http://localhost:8787"
