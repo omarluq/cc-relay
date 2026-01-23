@@ -75,8 +75,6 @@ health:
     half_open_probes: 3
 ```
 
-**참고:** `example.yaml`에는 `recovery_timeout_seconds`와 `triggers`가 포함된 약간 다른 구조가 표시됩니다. 실제 구현은 위와 같이 `open_duration_ms`와 `half_open_probes`를 사용합니다.
-
 ## 설정 레퍼런스
 
 | 옵션 | 기본값 | 설명 |

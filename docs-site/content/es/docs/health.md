@@ -75,8 +75,6 @@ health:
     half_open_probes: 3
 ```
 
-**Nota:** El `example.yaml` muestra una estructura ligeramente diferente con `recovery_timeout_seconds` y `triggers`. La implementacion real usa `open_duration_ms` y `half_open_probes` como se muestra arriba.
-
 ## Referencia de Configuracion
 
 | Opcion | Predeterminado | Descripcion |
