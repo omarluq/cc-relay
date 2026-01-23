@@ -92,6 +92,10 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Start health checker (after all DI services initialized)
+	checkerSvc := di.MustInvoke[*di.CheckerService](container)
+	checkerSvc.Checker.Start()
+
 	// Run server with graceful shutdown
 	return runWithGracefulShutdown(serverSvc.Server, container, cfg.Server.Listen)
 }
