@@ -146,6 +146,22 @@ func NewChecker(i do.Injector) (*CheckerService, error) {
 		cfgSvc.Config.Health.HealthCheck,
 		loggerSvc.Logger,
 	)
+
+	// Register health checks for all enabled providers
+	for idx := range cfgSvc.Config.Providers {
+		pc := &cfgSvc.Config.Providers[idx]
+		if !pc.Enabled {
+			continue
+		}
+		// NewProviderHealthCheck handles empty BaseURL (returns NoOpHealthCheck)
+		healthCheck := health.NewProviderHealthCheck(pc.Name, pc.BaseURL, nil)
+		checker.RegisterProvider(healthCheck)
+		loggerSvc.Logger.Debug().
+			Str("provider", pc.Name).
+			Str("base_url", pc.BaseURL).
+			Msg("registered health check")
+	}
+
 	return &CheckerService{Checker: checker}, nil
 }
 
