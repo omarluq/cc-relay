@@ -8,11 +8,11 @@
 
 This phase adds Z.AI (Zhipu AI) and Ollama providers to cc-relay. Research reveals a key insight: both providers are now Anthropic Messages API compatible, making implementation straightforward using the existing `BaseProvider` pattern.
 
-**Z.AI Status:** Provider code exists at `internal/providers/zai.go` and is wired into the DI container. The provider is fully functional - this phase primarily validates the integration is complete.
+**Z.AI Status:** Provider code exists at `internal/providers/zai.go` and is wired into the DI container. The provider is fully functional - this phase primarily validates the integration is complete and adds end-to-end testing.
 
-**Ollama Status:** No provider code exists yet. However, Ollama v0.14+ now supports native Anthropic Messages API compatibility at `/v1/messages`, meaning we can implement Ollama using the same `BaseProvider` pattern as Z.AI with minimal differences.
+**Ollama Status:** No provider code exists yet. However, Ollama v0.14+ provides native Anthropic Messages API compatibility at `/v1/messages`, meaning we can implement Ollama using the same `BaseProvider` pattern as Z.AI with minimal differences.
 
-**Primary recommendation:** Create `OllamaProvider` embedding `BaseProvider` with Ollama-specific defaults (localhost:11434, no authentication required) and feature detection methods for unsupported capabilities (prompt caching, PDF support, extended thinking budget enforcement).
+**Primary recommendation:** Create `OllamaProvider` embedding `BaseProvider` with Ollama-specific defaults (localhost:11434, no authentication required) and wire it into the DI container alongside the existing Z.AI provider.
 
 ## Standard Stack
 
@@ -71,33 +71,13 @@ func NewOllamaProvider(name, baseURL string) *OllamaProvider {
 }
 ```
 
-### Pattern 2: Feature Detection Methods
-
-**What:** Provider methods indicate unsupported features so proxy can handle gracefully.
-**When to use:** When provider has capability gaps vs Anthropic.
-**Example:**
-```go
-// Ollama-specific feature detection
-func (p *OllamaProvider) SupportsPromptCaching() bool {
-    return false
-}
-
-func (p *OllamaProvider) SupportsPDFInput() bool {
-    return false
-}
-
-func (p *OllamaProvider) SupportsExtendedThinkingBudget() bool {
-    return false // accepts budget_tokens but doesn't enforce
-}
-```
-
-### Pattern 3: DI Container Registration
+### Pattern 2: DI Container Registration
 
 **What:** Providers registered via type switch in `NewProviderMap`.
 **When to use:** Adding new provider type.
 **Example:**
 ```go
-// Source: cmd/cc-relay/di/providers.go (existing pattern)
+// Source: cmd/cc-relay/di/providers.go NewProviderMap function
 switch p.Type {
 case "anthropic":
     prov = providers.NewAnthropicProviderWithModels(p.Name, p.BaseURL, p.Models)
@@ -107,6 +87,21 @@ case "ollama":  // NEW
     prov = providers.NewOllamaProviderWithModels(p.Name, p.BaseURL, p.Models)
 default:
     continue
+}
+```
+
+### Pattern 3: Authentication Override
+
+**What:** Ollama accepts but ignores API keys; provider can override base `Authenticate` method.
+**When to use:** When provider has different auth requirements.
+**Example:**
+```go
+// Ollama-specific: API key is accepted but not validated
+func (p *OllamaProvider) Authenticate(req *http.Request, key string) error {
+    // Ollama accepts x-api-key but doesn't validate it
+    // We still set it for consistency with BaseProvider pattern
+    req.Header.Set("x-api-key", key)
+    return nil
 }
 ```
 
@@ -140,11 +135,13 @@ default:
 **What goes wrong:** Proxy assumes all Anthropic features work, leading to silent failures or confusing errors.
 **Why it happens:** Ollama's Anthropic compatibility is partial.
 **How to avoid:** Document and detect unsupported features:
-- No prompt caching
+- No prompt caching (`cache_control` blocks ignored)
 - No PDF input support
-- No token counting endpoint
+- No token counting endpoint (`/v1/messages/count_tokens` not available)
 - Images must be base64 (no URLs)
 - Extended thinking `budget_tokens` accepted but not enforced
+- No `tool_choice` forcing specific tool usage
+- Streaming errors return HTTP status codes rather than error events
 
 **Warning signs:** Proxy sends prompt caching headers to Ollama, no errors but no caching.
 
@@ -152,7 +149,7 @@ default:
 
 **What goes wrong:** Ollama unreachable when cc-relay runs in container but Ollama on host.
 **Why it happens:** `localhost:11434` doesn't resolve from container to host.
-**How to avoid:** Support configurable base_url; document Docker networking requirements.
+**How to avoid:** Support configurable base_url; document Docker networking requirements (use `host.docker.internal:11434` or network mode host).
 **Warning signs:** Connection refused errors only in containerized deployments.
 
 ### Pitfall 4: Model Name Confusion
@@ -161,6 +158,13 @@ default:
 **Why it happens:** Ollama uses its own model naming; mapping needed.
 **How to avoid:** Use `model_mapping` config like other providers; document clearly.
 **Warning signs:** Model not found errors.
+
+### Pitfall 5: Context Length Mismatch
+
+**What goes wrong:** Models with insufficient context length produce poor results.
+**Why it happens:** Claude Code benefits from 32K+ context; some Ollama models have less.
+**How to avoid:** Recommend models with at least 32K token context length (qwen3:32b, codestral:latest).
+**Warning signs:** Truncated conversations, missing context in responses.
 
 ## Code Examples
 
@@ -192,13 +196,8 @@ func NewOllamaProviderWithModels(name, baseURL string, models []string) *OllamaP
     }
 }
 
-// Authenticate is a no-op for Ollama (accepts but ignores API key)
-func (p *OllamaProvider) Authenticate(req *http.Request, key string) error {
-    // Ollama accepts x-api-key but doesn't validate it
-    // We still set it for consistency with BaseProvider pattern
-    req.Header.Set("x-api-key", key)
-    return nil
-}
+// Authenticate is inherited from BaseProvider (sets x-api-key header)
+// Ollama accepts but ignores the API key
 ```
 
 ### DI Container Registration
@@ -230,6 +229,15 @@ case "ollama":
     "claude-haiku-4-5": "qwen3:8b"
 ```
 
+### Ollama Environment Variables for Direct Use
+
+```bash
+# When using Claude Code directly with Ollama (not via cc-relay)
+export ANTHROPIC_BASE_URL="http://localhost:11434"
+export ANTHROPIC_API_KEY="ollama"
+export ANTHROPIC_AUTH_TOKEN="ollama"
+```
+
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
@@ -250,6 +258,8 @@ Z.AI provider (`internal/providers/zai.go`) is already implemented and wired:
 - DI container handles `type: "zai"` in NewProviderMap
 - Tests exist at `internal/providers/zai_test.go`
 - Example config in `example.yaml` with model mapping
+- Default base URL: `https://api.z.ai/api/anthropic`
+- Default models: GLM-4.7, GLM-4.5-Air, GLM-4-Plus
 
 **What this phase should verify:**
 1. End-to-end test: Configure Z.AI, send request, verify response
@@ -264,10 +274,12 @@ Z.AI provider (`internal/providers/zai.go`) is already implemented and wired:
 | Streaming (SSE) | Yes | Yes | Yes | Same event sequence |
 | Tool calling | Yes | Yes | Yes | Same format |
 | Extended thinking | Yes | Yes | Yes* | *budget_tokens accepted, not enforced |
-| Prompt caching | Yes | ? | No | Not supported |
+| Prompt caching | Yes | ? | No | cache_control blocks ignored |
 | PDF input | Yes | ? | No | Not supported |
 | Image URLs | Yes | ? | No | Base64 only |
 | Token counting | Yes | ? | No | `/v1/messages/count_tokens` not available |
+| tool_choice | Yes | ? | No | Cannot force specific tool |
+| Metadata | Yes | ? | No | Request metadata fields ignored |
 
 ## Open Questions
 
@@ -276,10 +288,10 @@ Z.AI provider (`internal/providers/zai.go`) is already implemented and wired:
    - What's unclear: Whether Z.AI supports prompt caching headers
    - Recommendation: Test empirically; document findings
 
-2. **Ollama Model Discovery**
-   - What we know: Ollama has `/api/tags` for listing installed models
-   - What's unclear: Should cc-relay auto-discover or use static config?
-   - Recommendation: Use static config (user specifies models); simpler, more predictable
+2. **Z.AI Feature Parity**
+   - What we know: Z.AI provides Anthropic-compatible API
+   - What's unclear: Full feature matrix (PDF, token counting, etc.)
+   - Recommendation: Test features as needed; document discoveries
 
 3. **Feature Detection Interface**
    - What we know: Ollama lacks some features (prompt caching, PDF)
@@ -289,13 +301,13 @@ Z.AI provider (`internal/providers/zai.go`) is already implemented and wired:
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Ollama Anthropic Compatibility Docs](https://docs.ollama.com/api/anthropic-compatibility) - Endpoint format, limitations
+- [Ollama Anthropic Compatibility Docs](https://docs.ollama.com/api/anthropic-compatibility) - Endpoint format, full limitations list
 - [Ollama Blog: Claude Code](https://ollama.com/blog/claude) - Configuration, recommended models
 - [Z.AI Developer Docs](https://docs.z.ai/scenario-example/develop-tools/claude) - API format, authentication
 - Existing codebase: `internal/providers/zai.go`, `cmd/cc-relay/di/providers.go`
 
 ### Secondary (MEDIUM confidence)
-- [Ollama GitHub API docs](https://github.com/ollama/ollama/blob/main/docs/api.md) - Native API reference
+- [Ollama GitHub Releases](https://github.com/ollama/ollama/releases) - Version history, feature additions
 - Example.yaml in repository - Configuration patterns
 
 ### Tertiary (LOW confidence)
