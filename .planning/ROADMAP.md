@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Multi-Key Pooling** - Add rate limit pooling across multiple API keys per provider
 - [x] **Phase 2.1: Multi-Key Pooling Site Documentation** - Update all site docs in all languages (INSERTED)
 - [x] **Phase 2.2: Subscription Token Relay** - Implement transparent proxy for client auth forwarding (INSERTED)
-- [ ] **Phase 2.3: Codebase Refactor with Samber Libraries** - Map codebase, integrate samber/lo/do/ro/mo, fix tech debt, improve coverage (INSERTED)
+- [x] **Phase 2.3: Codebase Refactor with Samber Libraries** - Map codebase, integrate samber/lo/do/ro/mo, fix tech debt, improve coverage (INSERTED)
 - [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
@@ -162,28 +162,33 @@ Plans:
 **Depends on**: Phase 2.2 (transparent auth complete)
 **Requirements**: QUALITY-01, QUALITY-02, QUALITY-03
 **Success Criteria** (what must be TRUE):
-  1. samber/lo integrated for functional collection utilities (map, filter, reduce, etc.)
-  2. samber/do integrated for dependency injection container
-  3. samber/mo integrated for Option/Result monads (better error handling)
-  4. Local .claude skills/agents created for samber library usage patterns
-  5. Tech debt identified and resolved (code smells, bad patterns fixed)
-  6. Test coverage improved (target: >80% on all packages)
-  7. All existing tests pass after refactoring
-  8. Linter strictness increased (gocognit threshold reduced)
-  9. Property-based tests added for complex logic
-**Plans**: 10 plans in 7 waves
+  1. Codebase architecture mapped and documented
+  2. samber/lo integrated for functional collection utilities (map, filter, reduce, etc.)
+  3. samber/do integrated for dependency injection container
+  4. samber/mo integrated for Option/Result monads (better error handling)
+  5. samber/ro integrated with plugins for reactive streams
+  6. Local .claude skills/agents created for samber library usage patterns
+  7. Tech debt identified and resolved (code smells, bad patterns fixed)
+  8. Test coverage improved (target: >80% on all packages)
+  9. All existing tests pass after refactoring
+  10. Linter strictness increased (gocognit threshold reduced)
+  11. Property-based tests added for complex logic
+**Plans**: 13 plans in 12 waves
 
 Plans:
-- [ ] 02.3-01-PLAN.md - Test coverage baseline (cmd 13.6% -> >80%, cache 77% -> >80%)
-- [ ] 02.3-02-PLAN.md - Install samber libraries, create reference skills (lo, mo, do, ro)
-- [ ] 02.3-03-PLAN.md - Refactor keypool package with lo functional patterns
-- [ ] 02.3-04-PLAN.md - Refactor providers and auth packages with lo patterns
-- [ ] 02.3-05-PLAN.md - Refactor proxy and config packages with lo patterns
-- [ ] 02.3-06-PLAN.md - Integrate mo monads (Option for nullable, Result for errors)
-- [ ] 02.3-07-PLAN.md - Integrate do dependency injection (DI container for serve.go)
-- [ ] 02.3-08-PLAN.md - Create refactoring agents and pattern skills
-- [ ] 02.3-09-PLAN.md - Tech debt audit and linter strictness increase
-- [ ] 02.3-10-PLAN.md - Property-based tests for keypool, ratelimit, auth
+- [x] 02.3-01-PLAN.md - Test coverage baseline + codebase architecture mapping
+- [x] 02.3-02-PLAN.md - Install samber libraries, create reference skills (lo, mo, do, ro)
+- [x] 02.3-03-PLAN.md - Refactor keypool package with lo functional patterns
+- [x] 02.3-04-PLAN.md - Refactor providers and auth packages with lo patterns
+- [x] 02.3-05-PLAN.md - Refactor proxy and config packages with lo patterns
+- [x] 02.3-06-PLAN.md - Integrate mo monads (Option for nullable, Result for errors)
+- [x] 02.3-07a-PLAN.md - Create DI container foundation with samber/do
+- [x] 02.3-07b-PLAN.md - Integrate DI container into serve.go
+- [x] 02.3-08-PLAN.md - Create refactoring agents and pattern skills (including streams.md)
+- [x] 02.3-09-PLAN.md - Tech debt audit and linter strictness increase
+- [x] 02.3-10-PLAN.md - Property-based tests for keypool, ratelimit, auth
+- [x] 02.3-11-PLAN.md - samber/ro foundation (core + plugins installation, stream utilities)
+- [x] 02.3-12-PLAN.md - samber/ro integration (rate limiter, cache, SSE plugins)
 
 ### Phase 3: Routing Strategies
 **Goal**: Implement pluggable routing strategies (round-robin, shuffle, failover) selected via configuration
@@ -351,7 +356,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 2. Multi-Key Pooling | 6/6 | Complete | 2026-01-22 |
 | 2.1 Multi-Key Pooling Docs (INSERTED) | 1/1 | Complete | 2026-01-21 |
 | 2.2 Subscription Token Relay (INSERTED) | 1/1 | Complete | 2026-01-22 |
-| 2.3 Samber Libs Refactor (INSERTED) | 0/10 | Not started | - |
+| 2.3 Samber Libs Refactor (INSERTED) | 0/13 | Not started | - |
 | 3. Routing Strategies | 0/TBD | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
