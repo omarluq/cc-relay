@@ -50,6 +50,7 @@ require (
 	github.com/redis/go-redis/v9 v9.8.0 // indirect
 	github.com/samber/go-type-to-string v1.8.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
+	github.com/sony/gobreaker/v2 v2.4.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tidwall/btree v1.7.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
