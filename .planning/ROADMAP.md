@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2.1: Multi-Key Pooling Site Documentation** - Update all site docs in all languages (INSERTED)
 - [x] **Phase 2.2: Subscription Token Relay** - Implement transparent proxy for client auth forwarding (INSERTED)
 - [x] **Phase 2.3: Codebase Refactor with Samber Libraries** - Map codebase, integrate samber/lo/do/ro/mo, fix tech debt, improve coverage (INSERTED)
-- [ ] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
+- [x] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
@@ -203,12 +203,12 @@ Plans:
 **Plans**: 6 plans in 4 waves
 
 Plans:
-- [ ] 03-01-PLAN.md - ProviderRouter interface foundation and RoutingConfig
-- [ ] 03-02-PLAN.md - RoundRobinRouter and ShuffleRouter implementations
-- [ ] 03-03-PLAN.md - WeightedRoundRobinRouter implementation
-- [ ] 03-04-PLAN.md - Extensible failover trigger system
-- [ ] 03-05-PLAN.md - FailoverRouter with parallel retry
-- [ ] 03-06-PLAN.md - DI integration and handler wiring
+- [x] 03-01-PLAN.md - ProviderRouter interface foundation and RoutingConfig
+- [x] 03-02-PLAN.md - RoundRobinRouter and ShuffleRouter implementations
+- [x] 03-03-PLAN.md - WeightedRoundRobinRouter implementation
+- [x] 03-04-PLAN.md - Extensible failover trigger system
+- [x] 03-05-PLAN.md - FailoverRouter with parallel retry
+- [x] 03-06-PLAN.md - DI integration and handler wiring
 
 ### Phase 4: Circuit Breaker & Health
 **Goal**: Add health tracking per provider with circuit breaker state machine (CLOSED/OPEN/HALF-OPEN) for automatic failure recovery
@@ -362,7 +362,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 2.1 Multi-Key Pooling Docs (INSERTED) | 1/1 | Complete | 2026-01-21 |
 | 2.2 Subscription Token Relay (INSERTED) | 1/1 | Complete | 2026-01-22 |
 | 2.3 Samber Libs Refactor (INSERTED) | 12/12 | Complete | 2026-01-23 |
-| 3. Routing Strategies | 0/6 | Not started | - |
+| 3. Routing Strategies | 6/6 | Complete | 2026-01-23 |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
