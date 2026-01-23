@@ -150,10 +150,9 @@ func (r *FailoverRouter) parallelRace(
 			defer wg.Done()
 
 			_, err := tryProvider(raceCtx, provider)
-			select {
-			case resultCh <- RoutingResult{Provider: provider, Err: err}:
-			case <-raceCtx.Done():
-			}
+			// Always send result - buffer size equals provider count
+			// so this will never block
+			resultCh <- RoutingResult{Provider: provider, Err: err}
 		}(p)
 	}
 
@@ -171,6 +170,12 @@ func (r *FailoverRouter) parallelRace(
 			return result.Provider, nil
 		}
 		lastErr = result.Err
+	}
+
+	// If no results were collected (shouldn't happen with buffered channel),
+	// return timeout error
+	if lastErr == nil {
+		lastErr = context.DeadlineExceeded
 	}
 
 	return ProviderInfo{}, lastErr

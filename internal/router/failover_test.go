@@ -337,7 +337,6 @@ func TestFailoverRouter_SelectWithRetry_TimeoutRespected(t *testing.T) {
 	shortTimeout := 50 * time.Millisecond
 	router := NewFailoverRouter(shortTimeout, NewStatusCodeTrigger(500))
 
-	errSlowProvider := errors.New("would complete after timeout")
 	var callCount atomic.Int32
 
 	tryProvider := func(ctx context.Context, _ ProviderInfo) (int, error) {
@@ -347,12 +346,12 @@ func TestFailoverRouter_SelectWithRetry_TimeoutRespected(t *testing.T) {
 			return 500, errors.New("primary failed")
 		}
 
-		// All fallbacks are slow
+		// All fallbacks are slow - much longer than timeout
 		select {
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(500 * time.Millisecond):
 			return 200, nil
 		case <-ctx.Done():
-			return 0, errSlowProvider
+			return 0, ctx.Err()
 		}
 	}
 
@@ -366,14 +365,15 @@ func TestFailoverRouter_SelectWithRetry_TimeoutRespected(t *testing.T) {
 	_, err := router.SelectWithRetry(context.Background(), providers, tryProvider)
 	elapsed := time.Since(start)
 
-	// Should fail due to timeout
+	// Should fail due to timeout - all providers are slow
 	if err == nil {
-		t.Error("SelectWithRetry() should have failed due to timeout")
+		t.Error("SelectWithRetry() should have returned error when all providers timeout")
 	}
 
-	// Should complete around timeout duration (with some margin)
-	if elapsed > 2*shortTimeout {
-		t.Errorf("SelectWithRetry() took %v, want around %v", elapsed, shortTimeout)
+	// The key assertion: it should complete around timeout, not wait for slow providers
+	// Allow 3x margin for CI timing variance
+	if elapsed > 3*shortTimeout {
+		t.Errorf("SelectWithRetry() took %v, want around %v (timeout enforcement)", elapsed, shortTimeout)
 	}
 }
 

@@ -61,26 +61,59 @@ func TestNewRouter_UnknownStrategy(t *testing.T) {
 	}
 }
 
-func TestNewRouter_NotYetImplemented(t *testing.T) {
+func TestNewRouter_Failover(t *testing.T) {
 	t.Parallel()
 
-	strategies := []string{
-		StrategyFailover,
-		"", // Empty defaults to failover
+	router, err := NewRouter(StrategyFailover, 10*time.Second)
+	if err != nil {
+		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyFailover, err)
+	}
+	if router == nil {
+		t.Fatal("NewRouter() returned nil router")
 	}
 
-	for _, strategy := range strategies {
-		t.Run(strategy, func(t *testing.T) {
-			t.Parallel()
+	// Verify correct type
+	failover, ok := router.(*FailoverRouter)
+	if !ok {
+		t.Errorf("NewRouter() returned %T, want *FailoverRouter", router)
+	}
 
-			router, err := NewRouter(strategy, 5*time.Second)
-			if err == nil {
-				t.Errorf("NewRouter(%q) expected 'not yet implemented' error, got nil", strategy)
-			}
-			if router != nil {
-				t.Errorf("NewRouter(%q) expected nil router, got %v", strategy, router)
-			}
-		})
+	// Verify Name()
+	if failover.Name() != StrategyFailover {
+		t.Errorf("Name() = %q, want %q", failover.Name(), StrategyFailover)
+	}
+
+	// Verify timeout is passed correctly
+	if failover.Timeout() != 10*time.Second {
+		t.Errorf("Timeout() = %v, want %v", failover.Timeout(), 10*time.Second)
+	}
+}
+
+func TestNewRouter_EmptyDefaultsToFailover(t *testing.T) {
+	t.Parallel()
+
+	router, err := NewRouter("", 0)
+	if err != nil {
+		t.Fatalf("NewRouter(\"\") unexpected error: %v", err)
+	}
+	if router == nil {
+		t.Fatal("NewRouter() returned nil router")
+	}
+
+	// Verify correct type
+	failover, ok := router.(*FailoverRouter)
+	if !ok {
+		t.Errorf("NewRouter(\"\") returned %T, want *FailoverRouter", router)
+	}
+
+	// Verify Name()
+	if failover.Name() != StrategyFailover {
+		t.Errorf("Name() = %q, want %q", failover.Name(), StrategyFailover)
+	}
+
+	// Verify default timeout (5 seconds when 0 is passed)
+	if failover.Timeout() != 5*time.Second {
+		t.Errorf("Timeout() = %v, want %v (default)", failover.Timeout(), 5*time.Second)
 	}
 }
 

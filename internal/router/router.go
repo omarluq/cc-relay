@@ -91,7 +91,7 @@ func FilterHealthy(providerInfos []ProviderInfo) []ProviderInfo {
 //   - weighted_round_robin: Weighted sequential rotation
 //   - shuffle: Random selection
 //   - failover: Priority-based with fallback (default)
-func NewRouter(strategy string, _ time.Duration) (ProviderRouter, error) {
+func NewRouter(strategy string, timeout time.Duration) (ProviderRouter, error) {
 	// Normalize empty to default strategy
 	if strategy == "" {
 		strategy = StrategyFailover
@@ -105,8 +105,7 @@ func NewRouter(strategy string, _ time.Duration) (ProviderRouter, error) {
 	case StrategyWeightedRoundRobin:
 		return NewWeightedRoundRobinRouter(), nil
 	case StrategyFailover:
-		// TODO: Implement in 03-05-PLAN.md (failover strategy)
-		return nil, fmt.Errorf("router: strategy %q not yet implemented", strategy)
+		return NewFailoverRouter(timeout), nil
 	default:
 		return nil, fmt.Errorf("router: unknown strategy %q", strategy)
 	}
