@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/cache"
+	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/rs/zerolog"
 	"github.com/samber/mo"
 )
@@ -48,6 +49,7 @@ type Config struct {
 	Providers []ProviderConfig `yaml:"providers"`
 	Routing   RoutingConfig    `yaml:"routing"`
 	Logging   LoggingConfig    `yaml:"logging"`
+	Health    health.Config    `yaml:"health"`
 	Server    ServerConfig     `yaml:"server"`
 	Cache     cache.Config     `yaml:"cache"`
 }
