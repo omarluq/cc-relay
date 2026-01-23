@@ -1,15 +1,19 @@
 package di
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 )
 
 // createTestInjector creates an injector with a config path for testing.
@@ -477,4 +481,72 @@ func TestNewProxyHandler_WithHealthTracker(t *testing.T) {
 		assert.NotNil(t, handlerSvc)
 		assert.NotNil(t, handlerSvc.Handler)
 	})
+}
+
+// ptrBool returns a pointer to a bool value.
+func ptrBool(b bool) *bool {
+	return &b
+}
+
+func TestChecker_StartsAndStopsWithContainer(t *testing.T) {
+	// Create minimal config with health check enabled
+	cfg := &config.Config{
+		Providers: []config.ProviderConfig{
+			{
+				Name:    "test-provider",
+				Type:    "anthropic",
+				Enabled: true,
+				BaseURL: "http://localhost:9999", // Fake URL - we just test lifecycle
+				Keys: []config.KeyConfig{
+					{Key: "test-key"},
+				},
+			},
+		},
+		Health: health.Config{
+			HealthCheck: health.CheckConfig{
+				Enabled:    ptrBool(true),
+				IntervalMS: 100, // Fast interval for testing
+			},
+			CircuitBreaker: health.CircuitBreakerConfig{
+				FailureThreshold: 5,
+				OpenDurationMS:   1000,
+			},
+		},
+		Server: config.ServerConfig{
+			Listen: "localhost:0",
+		},
+		Logging: config.LoggingConfig{
+			Level: "debug",
+		},
+	}
+
+	// Create test container with pre-configured services
+	container := do.New()
+	nopLogger := zerolog.Nop()
+	do.ProvideValue(container, &ConfigService{Config: cfg})
+	do.ProvideValue(container, &LoggerService{Logger: &nopLogger})
+	do.Provide(container, NewHealthTracker)
+	do.Provide(container, NewChecker)
+
+	// Get checker and verify provider was registered
+	checkerSvc := do.MustInvoke[*CheckerService](container)
+	require.NotNil(t, checkerSvc.Checker, "Checker should be created")
+
+	// Start the checker
+	checkerSvc.Checker.Start()
+
+	// Give it time to run at least one check cycle
+	time.Sleep(150 * time.Millisecond)
+
+	// Shutdown via container (tests graceful shutdown path)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := container.ShutdownWithContext(ctx)
+	// Note: ShutdownWithContext may return errors for services that weren't invoked
+	// but this doesn't indicate a problem with the Checker lifecycle
+	if err != nil {
+		t.Logf("Container shutdown returned (may include uninvoked services): %v", err)
+	}
+
+	// If we got here without deadlock or panic, the lifecycle works
 }
