@@ -148,6 +148,19 @@ cache:
     write_quorum: 1                # Min. escrituras para exito
     member_count_quorum: 2         # Min. miembros del cluster
     leave_timeout: 5s              # Duracion del mensaje de salida
+
+# ==========================================================================
+# Configuracion de Routing
+# ==========================================================================
+routing:
+  # Estrategia: round_robin, weighted_round_robin, shuffle, failover (predeterminado)
+  strategy: failover
+
+  # Timeout para intentos de failover en milisegundos (predeterminado: 5000)
+  failover_timeout: 5000
+
+  # Habilitar headers de debug (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+  debug: false
 ```
 
 ## Configuracion del Servidor
@@ -440,6 +453,50 @@ cache:
 
 Para documentacion completa de cache incluyendo convenciones de claves de cache, estrategias de invalidacion de cache, guias de clustering HA y solucion de problemas, vea la [documentacion del Sistema de Cache](/es/docs/caching/).
 
+## Configuracion de Routing
+
+CC-Relay soporta multiples estrategias de routing para distribuir solicitudes entre proveedores.
+
+```yaml
+# ==========================================================================
+# Configuracion de Routing
+# ==========================================================================
+routing:
+  # Estrategia: round_robin, weighted_round_robin, shuffle, failover (predeterminado)
+  strategy: failover
+
+  # Timeout para intentos de failover en milisegundos (predeterminado: 5000)
+  failover_timeout: 5000
+
+  # Habilitar headers de debug (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+  debug: false
+```
+
+### Estrategias de Routing
+
+| Estrategia | Descripcion |
+|------------|-------------|
+| `failover` | Intentar proveedores en orden de prioridad, fallback en caso de fallo (predeterminado) |
+| `round_robin` | Rotacion secuencial a traves de proveedores |
+| `weighted_round_robin` | Distribucion proporcional por peso |
+| `shuffle` | Distribucion aleatoria justa |
+
+### Peso y Prioridad de Proveedor
+
+El peso y la prioridad se configuran en la primera clave del proveedor:
+
+```yaml
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        weight: 3      # Para weighted-round-robin (mayor = mas trafico)
+        priority: 2    # Para failover (mayor = se intenta primero)
+```
+
+Para configuracion detallada de routing incluyendo explicaciones de estrategias, cabeceras de depuracion y disparadores de failover, vea la [documentacion de Routing](/es/docs/routing/).
+
 ## Configuraciones de Ejemplo
 
 ### Minima con Un Solo Proveedor
@@ -521,5 +578,6 @@ Los cambios de configuracion requieren reiniciar el servidor. La recarga en cali
 
 ## Siguientes Pasos
 
+- [Estrategias de routing](/es/docs/routing/) - Seleccion de proveedor y failover
 - [Entender la arquitectura](/es/docs/architecture/)
 - [Referencia de API](/es/docs/api/)
