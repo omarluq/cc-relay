@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/samber/do/v2"
 
 	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/proxy"
@@ -47,6 +49,21 @@ type RouterService struct {
 	Router router.ProviderRouter
 }
 
+// LoggerService wraps the zerolog logger for DI.
+type LoggerService struct {
+	Logger *zerolog.Logger
+}
+
+// HealthTrackerService wraps the health tracker for DI.
+type HealthTrackerService struct {
+	Tracker *health.Tracker
+}
+
+// CheckerService wraps the health checker for DI.
+type CheckerService struct {
+	Checker *health.Checker
+}
+
 // HandlerService wraps the HTTP handler.
 type HandlerService struct {
 	Handler http.Handler
@@ -60,18 +77,24 @@ type ServerService struct {
 // RegisterSingletons registers all service providers as singletons.
 // Services are registered in dependency order:
 // 1. Config (no dependencies)
-// 2. Cache (depends on Config)
-// 3. Providers (depends on Config)
-// 4. KeyPool (depends on Config)
-// 5. Router (depends on Config)
-// 6. Handler (depends on Config, KeyPool, Providers, Router)
-// 7. Server (depends on Handler, Config).
+// 2. Logger (depends on Config)
+// 3. Cache (depends on Config)
+// 4. Providers (depends on Config)
+// 5. KeyPool (depends on Config)
+// 6. Router (depends on Config)
+// 7. HealthTracker (depends on Config, Logger)
+// 8. Checker (depends on HealthTracker, Config, Logger)
+// 9. Handler (depends on Config, KeyPool, Providers, Router, HealthTracker)
+// 10. Server (depends on Handler, Config).
 func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewConfig)
+	do.Provide(i, NewLogger)
 	do.Provide(i, NewCache)
 	do.Provide(i, NewProviderMap)
 	do.Provide(i, NewKeyPool)
 	do.Provide(i, NewRouter)
+	do.Provide(i, NewHealthTracker)
+	do.Provide(i, NewChecker)
 	do.Provide(i, NewProxyHandler)
 	do.Provide(i, NewHTTPServer)
 }
@@ -86,6 +109,52 @@ func NewConfig(i do.Injector) (*ConfigService, error) {
 	}
 
 	return &ConfigService{Config: cfg}, nil
+}
+
+// NewLogger creates the zerolog logger from configuration.
+func NewLogger(i do.Injector) (*LoggerService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](i)
+
+	logger, err := proxy.NewLogger(cfgSvc.Config.Logging)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+
+	return &LoggerService{Logger: &logger}, nil
+}
+
+// NewHealthTracker creates the health tracker from configuration.
+func NewHealthTracker(i do.Injector) (*HealthTrackerService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](i)
+	loggerSvc := do.MustInvoke[*LoggerService](i)
+
+	tracker := health.NewTracker(
+		cfgSvc.Config.Health.CircuitBreaker,
+		loggerSvc.Logger,
+	)
+	return &HealthTrackerService{Tracker: tracker}, nil
+}
+
+// NewChecker creates the health checker from configuration.
+func NewChecker(i do.Injector) (*CheckerService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](i)
+	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
+	loggerSvc := do.MustInvoke[*LoggerService](i)
+
+	checker := health.NewChecker(
+		trackerSvc.Tracker,
+		cfgSvc.Config.Health.HealthCheck,
+		loggerSvc.Logger,
+	)
+	return &CheckerService{Checker: checker}, nil
+}
+
+// Shutdown implements do.Shutdowner for graceful checker cleanup.
+func (h *CheckerService) Shutdown() error {
+	if h.Checker != nil {
+		h.Checker.Stop()
+	}
+	return nil
 }
 
 // NewCache creates the cache based on configuration.
@@ -231,6 +300,7 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	providerSvc := do.MustInvoke[*ProviderMapService](i)
 	poolSvc := do.MustInvoke[*KeyPoolService](i)
 	routerSvc := do.MustInvoke[*RouterService](i)
+	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
 
 	cfg := cfgSvc.Config
 
@@ -254,11 +324,13 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 			priority = pc.Keys[0].Priority
 		}
 
+		// Wire IsHealthy from tracker (replaces stub)
+		providerName := pc.Name
 		providerInfos = append(providerInfos, router.ProviderInfo{
 			Provider:  prov,
 			Weight:    weight,
 			Priority:  priority,
-			IsHealthy: func() bool { return true }, // Stub until Phase 4 (health tracking)
+			IsHealthy: trackerSvc.Tracker.IsHealthyFunc(providerName),
 		})
 	}
 
