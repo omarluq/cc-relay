@@ -56,8 +56,8 @@ func TestNewContainer(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("container creation succeeds even with lazy loading", func(t *testing.T) {
-		// Container creation should succeed - actual config load is lazy
+	t.Run("container creation validates config eagerly", func(t *testing.T) {
+		// Container creation validates config to fail fast
 		configPath := createTempConfigFile(t)
 
 		container, err := NewContainer(configPath)
@@ -173,15 +173,11 @@ func TestContainerHealthCheck(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("health check fails with invalid config path", func(t *testing.T) {
-		// Create container with non-existent config path
+	t.Run("container creation fails with invalid config path", func(t *testing.T) {
+		// NewContainer now eagerly loads config to fail fast
 		container, err := NewContainer("/nonexistent/config.yaml")
-		require.NoError(t, err) // Container creation succeeds (lazy loading)
-		defer container.Shutdown()
-
-		// Health check should fail when trying to load config
-		err = container.HealthCheck()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "config service unhealthy")
+		assert.Nil(t, container)
+		assert.Contains(t, err.Error(), "failed to load config")
 	})
 }

@@ -21,6 +21,7 @@ type Container struct {
 // NewContainer creates and configures the DI container.
 // The configPath parameter specifies the path to the configuration file.
 // All service providers are registered during container creation.
+// The config is eagerly loaded to catch errors early.
 func NewContainer(configPath string) (*Container, error) {
 	injector := do.New()
 
@@ -29,6 +30,11 @@ func NewContainer(configPath string) (*Container, error) {
 
 	// Register all service providers
 	RegisterSingletons(injector)
+
+	// Eagerly load config to catch errors early (fail fast)
+	if _, err := do.Invoke[*ConfigService](injector); err != nil {
+		return nil, err
+	}
 
 	return &Container{
 		injector: injector,

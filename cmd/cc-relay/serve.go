@@ -14,9 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/omarluq/cc-relay/internal/keypool"
-	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/cmd/cc-relay/di"
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
@@ -46,7 +44,6 @@ func init() {
 		"enable debug mode (sets log level to debug and enables all debug options)")
 }
 
-//nolint:gocognit,gocyclo // main server startup has necessary complexity
 func runServe(_ *cobra.Command, _ []string) error {
 	// Determine config path
 	configPath := cfgFile
@@ -54,13 +51,16 @@ func runServe(_ *cobra.Command, _ []string) error {
 		configPath = findConfigFile()
 	}
 
-	// Load config
-	cfg, err := config.Load(configPath)
+	// Create DI container with all services
+	container, err := di.NewContainer(configPath)
 	if err != nil {
-		// Use fallback logger for config load error
-		log.Error().Err(err).Str("path", configPath).Msg("failed to load config")
+		log.Error().Err(err).Str("path", configPath).Msg("failed to initialize services")
 		return err
 	}
+
+	// Get config service to apply CLI overrides and setup logging
+	cfgSvc := di.MustInvoke[*di.ConfigService](container)
+	cfg := cfgSvc.Config
 
 	// Apply CLI flag overrides to logging config
 	if debugMode {
@@ -79,109 +79,25 @@ func runServe(_ *cobra.Command, _ []string) error {
 	// Setup logging from config
 	logger, err := proxy.NewLogger(cfg.Logging)
 	if err != nil {
-		// Fallback to console logger for error reporting
 		log.Fatal().Err(err).Msg("failed to initialize logger")
 	}
 
 	log.Logger = logger
 	zerolog.DefaultContextLogger = &logger
 
-	// Collect all enabled providers
-	var allProviders []providers.Provider
-	var primaryProvider providers.Provider
-	var providerKey string
-
-	for i := range cfg.Providers {
-		p := &cfg.Providers[i]
-		if !p.Enabled {
-			continue
-		}
-
-		var prov providers.Provider
-		switch p.Type {
-		case "anthropic":
-			prov = providers.NewAnthropicProviderWithModels(p.Name, p.BaseURL, p.Models)
-		case "zai":
-			prov = providers.NewZAIProviderWithModels(p.Name, p.BaseURL, p.Models)
-		default:
-			continue
-		}
-
-		allProviders = append(allProviders, prov)
-
-		// First enabled provider becomes the primary (for routing requests)
-		if primaryProvider == nil {
-			primaryProvider = prov
-			if len(p.Keys) > 0 {
-				providerKey = p.Keys[0].Key
-			}
-			log.Info().
-				Str("provider", p.Name).
-				Str("type", p.Type).
-				Msg("using primary provider")
-		} else {
-			log.Info().
-				Str("provider", p.Name).
-				Str("type", p.Type).
-				Int("models", len(p.Models)).
-				Msg("registered provider for /v1/models")
-		}
-	}
-
-	if primaryProvider == nil {
-		log.Error().Msg("no enabled provider found in config (supported types: anthropic, zai)")
-		return errors.New("no enabled provider in config")
-	}
-
-	// Initialize KeyPool for primary provider if pooling is enabled
-	var pool *keypool.KeyPool
-	for i := range cfg.Providers {
-		p := &cfg.Providers[i]
-		if !p.Enabled {
-			continue
-		}
-		// Only create pool for first enabled provider (primary)
-		if p.IsPoolingEnabled() {
-			poolCfg := keypool.PoolConfig{
-				Strategy: p.GetEffectiveStrategy(),
-				Keys:     make([]keypool.KeyConfig, len(p.Keys)),
-			}
-			for j, k := range p.Keys {
-				itpm, otpm := k.GetEffectiveTPM()
-				poolCfg.Keys[j] = keypool.KeyConfig{
-					APIKey:    k.Key,
-					RPMLimit:  k.RPMLimit,
-					ITPMLimit: itpm,
-					OTPMLimit: otpm,
-					Priority:  k.Priority,
-					Weight:    k.Weight,
-				}
-			}
-			var err error
-			pool, err = keypool.NewKeyPool(p.Name, poolCfg)
-			if err != nil {
-				log.Error().Err(err).Str("provider", p.Name).Msg("failed to create key pool")
-				return err
-			}
-			log.Info().
-				Str("provider", p.Name).
-				Int("keys", len(p.Keys)).
-				Str("strategy", p.GetEffectiveStrategy()).
-				Msg("initialized key pool")
-		}
-		break // Only process first enabled provider
-	}
-
-	// Setup routes with all providers for /v1/models endpoint
-	handler, err := proxy.SetupRoutesWithProviders(cfg, primaryProvider, providerKey, pool, allProviders)
+	// Get server from DI container (lazy initialization of all dependencies)
+	serverSvc, err := di.Invoke[*di.ServerService](container)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to setup routes")
+		log.Error().Err(err).Msg("failed to create server")
 		return err
 	}
 
-	// Create server
-	server := proxy.NewServer(cfg.Server.Listen, handler, cfg.Server.EnableHTTP2)
+	// Run server with graceful shutdown
+	return runWithGracefulShutdown(serverSvc.Server, container, cfg.Server.Listen)
+}
 
+// runWithGracefulShutdown handles signal-based graceful shutdown.
+func runWithGracefulShutdown(server *proxy.Server, container *di.Container, listenAddr string) error {
 	// Graceful shutdown on SIGINT/SIGTERM
 	done := make(chan struct{})
 	go func() {
@@ -191,18 +107,24 @@ func runServe(_ *cobra.Command, _ []string) error {
 
 		log.Info().Msg("shutting down...")
 
+		// Shutdown server first (drain connections)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		if err := server.Shutdown(ctx); err != nil {
-			log.Error().Err(err).Msg("shutdown error")
+			log.Error().Err(err).Msg("server shutdown error")
+		}
+
+		// Then shutdown all DI container services (cache, etc.)
+		if err := container.ShutdownWithContext(ctx); err != nil {
+			log.Error().Err(err).Msg("service shutdown error")
 		}
 
 		close(done)
 	}()
 
 	// Start server
-	log.Info().Str("listen", cfg.Server.Listen).Msg("starting cc-relay")
+	log.Info().Str("listen", listenAddr).Msg("starting cc-relay")
 
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error().Err(err).Msg("server error")
