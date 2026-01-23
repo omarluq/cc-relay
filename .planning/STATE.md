@@ -9,20 +9,20 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 4.1 of 11+ (Health Checker Wiring - INSERTED)
+Phase: 4.2 of 11+ (Config Cleanup)
 Plan: 0 of 1 in phase
 Status: Ready to plan
-Last activity: 2026-01-23 - Extended audit added 4.2 (config cleanup) and 4.3 (health docs)
+Last activity: 2026-01-23 - Completed Phase 4.1 (Health Checker Wiring)
 
-Progress: [██████████] 59/63 plans total (Gap closure: 4.1=0/1, 4.2=0/1, 4.3=0/2)
-Next: Phase 4.1 (Health Checker Wiring) - Wire Checker lifecycle to fix integration gaps
+Progress: [██████████] 60/63 plans total (Gap closure: 4.1=1/1 COMPLETE, 4.2=0/1, 4.3=0/2)
+Next: Phase 4.2 (Config Cleanup) - Consolidate config.yaml and example.yaml
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 59
-- Average duration: 8.5 min
-- Total execution time: 8.7 hours
+- Total plans completed: 60
+- Average duration: 8.4 min
+- Total execution time: 8.8 hours
 
 **By Phase:**
 
@@ -39,10 +39,11 @@ Next: Phase 4.1 (Health Checker Wiring) - Wire Checker lifecycle to fix integrat
 | 03 (Routing Strategies) | 6 | 57 min | 9.5 min |
 | 03.1 (Routing Docs) | 3 | 9 min | 3 min |
 | 04 (Circuit Breaker) | 4 | 39 min | 9.8 min |
+| 04.1 (Health Wiring) | 1 | 5 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 (8min), 04-02 (11min), 04-03 (7min), 04-04 (13min)
-- Trend: Phase 4 complete with full health tracking operational
+- Last 5 plans: 04-02 (11min), 04-03 (7min), 04-04 (13min), 04.1-01 (5min)
+- Trend: Gap closure phases executing quickly
 
 *Updated after each plan completion*
 
@@ -340,11 +341,19 @@ None.
 ### Known Gaps
 
 - **Phase 2.1 Translation Gap**: Multi-key pooling docs only in English. DE, ES, JA, KO, ZH-CN missing. Fix later.
-- **Phase 4 Integration Gap**: Checker.Start() and RegisterProvider() never called - periodic health checks don't run
-- **Config File Duplication**: config.yaml and example.yaml both exist in root - should consolidate
-- **Health Docs Gap**: docs-site missing dedicated health/circuit-breaker configuration page
+- ~~**Phase 4 Integration Gap**: Checker.Start() and RegisterProvider() never called~~ FIXED in 04.1-01
+- **Config File Duplication**: config.yaml and example.yaml both exist in root - should consolidate (Phase 4.2)
+- **Health Docs Gap**: docs-site missing dedicated health/circuit-breaker configuration page (Phase 4.3)
 
 ### Roadmap Evolution
+
+- Phase 4.1 COMPLETE: Health Checker Wiring
+  - 04.1-01 COMPLETE: Wire Checker lifecycle
+    - cmd/cc-relay/di/providers.go: Provider registration loop in NewChecker
+    - cmd/cc-relay/serve.go: Checker.Start() call after DI initialization
+    - cmd/cc-relay/di/providers_test.go: TestChecker_StartsAndStopsWithContainer
+    - Duration: 5 min
+    - 3 commits: 08a89cb, f69aa96, d474a64
 
 - Phase 4 COMPLETE: Circuit Breaker & Health
   - 04-01 COMPLETE: Health Config Foundation
@@ -516,9 +525,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Extended audit identified additional gaps - Phases 4.2 (config) and 4.3 (docs) added
+Stopped at: Completed Phase 4.1-01 (Health Checker Wiring)
 Resume file: None
-Next action: Plan Phase 4.1 (Health Checker Wiring) - wire Checker.Start() and RegisterProvider()
+Next action: Plan Phase 4.2 (Config Cleanup) - consolidate config.yaml and example.yaml
 
 **Extended Audit Findings (2026-01-23):**
 - Config files: config.yaml (7.5KB) and example.yaml (10.4KB) both in root - example.yaml more complete
