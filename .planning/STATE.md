@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 4 - Circuit Breaker & Health (NEXT)
+**Current focus:** Phase 3.1 - Routing Documentation (IN PROGRESS)
 
 ## Current Position
 
-Phase: 3 of 11 (Routing Strategies) COMPLETE ✓
-Plan: 6 of 6 in phase COMPLETE ✓
-Status: Phase 3 verified and complete
-Last activity: 2026-01-23 - Phase 3 verified (5/5 criteria passed)
+Phase: 3.1 of 11 (Routing Documentation - INSERTED)
+Plan: 1 of 3 in phase COMPLETE
+Status: In progress
+Last activity: 2026-01-23 - Completed 03.1-01-PLAN.md (English routing docs)
 
-Progress: [██████████] 52/52 plans total
-Next: Phase 4 - Circuit Breaker & Health
+Progress: [██████████] 53/55 plans total
+Next: 03.1-02 (Japanese translation) and 03.1-03 (Chinese translation) - Wave 2
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 52
-- Average duration: 8.7 min
+- Total plans completed: 53
+- Average duration: 8.6 min
 - Total execution time: 7.9 hours
 
 **By Phase:**
@@ -37,10 +37,11 @@ Next: Phase 4 - Circuit Breaker & Health
 | 02.2 (Sub Token Relay) | 1 | 8 min | 8 min |
 | 02.3 (Samber Refactor) | 12 | 178 min | 14.8 min |
 | 03 (Routing Strategies) | 6 | 57 min | 9.5 min |
+| 03.1 (Routing Docs) | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (11min), 03-03 (9min), 03-04 (13min), 03-05 (10min), 03-06 (16min)
-- Trend: Phase 3 complete with parallel wave execution
+- Last 5 plans: 03-04 (13min), 03-05 (10min), 03-06 (16min), 03.1-01 (2min)
+- Trend: Phase 3.1 documentation started
 
 *Updated after each plan completion*
 
@@ -50,6 +51,10 @@ Next: Phase 4 - Circuit Breaker & Health
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 03.1-01 (English Routing Documentation):**
+- routing.md has weight 4 (between configuration at 3 and architecture at 4)
+- Hugo handles weight ties alphabetically
 
 **From 03-06 (DI and Handler Integration):**
 - Router registered in DI container after KeyPool, before Handler
@@ -450,7 +455,9 @@ None.
 Last session: 2026-01-23
 Stopped at: Phase 3 verified and complete
 Resume file: None
-Next action: /gsd:plan-phase 4 (Circuit Breaker & Health)
+Next action: /gsd:plan-phase 3.1 (Routing Documentation)
+
+**Phase 3.1 inserted:** Routing documentation gap identified - site-docs missing routing strategy documentation in all languages.
 
 **Phase 03-06 Complete:**
 - cmd/cc-relay/di/providers.go: RouterService type, NewRouter provider, NewProxyHandler updated
