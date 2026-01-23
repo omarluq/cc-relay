@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4.1: Health Checker Wiring** - Wire Checker lifecycle to fix integration gaps (INSERTED)
 - [x] **Phase 4.2: Config File Cleanup** - Consolidate config files, ensure example.yaml is single source of truth (INSERTED)
 - [x] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
-- [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
+- [x] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
 - [ ] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
 - [ ] **Phase 8: Observability** - Structured logging and Prometheus metrics
@@ -310,7 +310,7 @@ Plans:
 
 Plans:
 - [x] 05-01-PLAN.md - Ollama provider implementation and DI wiring
-- [ ] 05-02-PLAN.md - Integration tests and provider documentation
+- [x] 05-02-PLAN.md - Integration tests and provider documentation
 
 ### Phase 6: Cloud Providers
 **Goal**: Add AWS Bedrock (SigV4 signing), Azure Foundry (x-api-key auth), and Google Vertex AI (OAuth tokens) support
@@ -439,7 +439,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 4.1 Health Checker Wiring (INSERTED) | 1/1 | Complete | 2026-01-23 |
 | 4.2 Config File Cleanup (INSERTED) | 1/1 | Complete | 2026-01-23 |
 | 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
-| 5. Additional Providers | 1/2 | In progress | - |
+| 5. Additional Providers | 2/2 | Complete | 2026-01-23 |
 | 6. Cloud Providers | 0/TBD | Not started | - |
 | 7. Configuration Management | 0/TBD | Not started | - |
 | 8. Observability | 0/TBD | Not started | - |

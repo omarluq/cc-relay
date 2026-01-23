@@ -184,8 +184,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SSE-05 | Phase 1 | Pending |
 | SSE-06 | Phase 1 | Pending |
 | PROV-01 | Phase 1 | Pending |
-| PROV-02 | Phase 5 | Pending |
-| PROV-03 | Phase 5 | Pending |
+| PROV-02 | Phase 5 | Complete |
+| PROV-03 | Phase 5 | Complete |
 | PROV-04 | Phase 6 | Pending |
 | PROV-05 | Phase 6 | Pending |
 | PROV-06 | Phase 6 | Pending |
@@ -263,4 +263,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 ---
 
 *Requirements defined: 2026-01-20*
-*Last updated: 2026-01-23 after Phase 4 completion*
+*Last updated: 2026-01-23 after Phase 5 completion*
