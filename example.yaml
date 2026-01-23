@@ -277,19 +277,21 @@ metrics:
 # Health Checking
 # ============================================================================
 health:
-  # How often to check provider health
-  check_interval_seconds: 30
+  # Health check settings
+  health_check:
+    # Enable periodic health checks (default: true)
+    enabled: true
+    # Check interval in milliseconds (default: 10000 = 10s)
+    interval_ms: 10000
 
   # Circuit breaker settings
   circuit_breaker:
-    # Number of failures before opening circuit
+    # Number of consecutive failures before opening circuit (default: 5)
     failure_threshold: 5
 
-    # Time to wait before trying again (half-open state)
-    recovery_timeout_seconds: 60
+    # Duration circuit stays open before half-open, in milliseconds (default: 30000 = 30s)
+    open_duration_ms: 30000
 
-    # Triggers for circuit breaker
-    triggers:
-      rate_limit_errors: 3 # 429 responses
-      timeout_errors: 2 # Request timeouts
-      server_errors: 3 # 5xx responses
+    # Number of probe requests allowed in half-open state (default: 3)
+    # If all succeed, circuit closes. If any fails, circuit reopens.
+    half_open_probes: 3
