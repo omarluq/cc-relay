@@ -440,6 +440,50 @@ cache:
 
 HA 클러스터링 가이드 및 문제 해결을 포함한 전체 캐시 문서는 [캐싱](/ko/docs/caching/)을 참조하세요.
 
+## 라우팅 설정
+
+CC-Relay는 프로바이더 간에 요청을 분배하기 위한 여러 라우팅 전략을 지원합니다.
+
+```yaml
+# ==========================================================================
+# 라우팅 설정
+# ==========================================================================
+routing:
+  # 전략: round_robin, weighted_round_robin, shuffle, failover (기본값)
+  strategy: failover
+
+  # 장애 조치 시도의 타임아웃 (밀리초, 기본값: 5000)
+  failover_timeout: 5000
+
+  # 디버그 헤더 활성화 (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+  debug: false
+```
+
+### 라우팅 전략
+
+| 전략 | 설명 |
+|------|------|
+| `failover` | 우선순위 순서로 프로바이더 시도, 실패 시 대체 (기본값) |
+| `round_robin` | 프로바이더 간 순차 로테이션 |
+| `weighted_round_robin` | 가중치에 따른 비례 분배 |
+| `shuffle` | 공정한 무작위 분배 |
+
+### 프로바이더 가중치 및 우선순위
+
+가중치와 우선순위는 프로바이더의 첫 번째 키에서 설정합니다:
+
+```yaml
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        weight: 3      # weighted-round-robin용 (높을수록 = 더 많은 트래픽)
+        priority: 2    # failover용 (높을수록 = 먼저 시도)
+```
+
+전략 설명, 디버그 헤더, 장애 조치 트리거를 포함한 자세한 라우팅 설정은 [라우팅](/ko/docs/routing/)을 참조하세요.
+
 ## 설정 예제
 
 ### 최소 단일 프로바이더
@@ -521,5 +565,6 @@ cc-relay config validate
 
 ## 다음 단계
 
+- [라우팅 전략](/ko/docs/routing/) - 프로바이더 선택 및 장애 조치
 - [아키텍처 이해](/ko/docs/architecture/)
 - [API 레퍼런스](/ko/docs/api/)

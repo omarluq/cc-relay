@@ -440,6 +440,50 @@ cache:
 
 有关包括HA集群指南和故障排除在内的完整缓存文档，请参阅[缓存](/zh-cn/docs/caching/)。
 
+## 路由配置
+
+CC-Relay 支持多种路由策略来分配跨供应商的请求。
+
+```yaml
+# ==========================================================================
+# 路由配置
+# ==========================================================================
+routing:
+  # 策略: round_robin, weighted_round_robin, shuffle, failover（默认）
+  strategy: failover
+
+  # 故障转移尝试的超时时间（毫秒，默认: 5000）
+  failover_timeout: 5000
+
+  # 启用调试头（X-CC-Relay-Strategy, X-CC-Relay-Provider）
+  debug: false
+```
+
+### 路由策略
+
+| 策略 | 描述 |
+|------|------|
+| `failover` | 按优先级顺序尝试供应商，失败时回退（默认） |
+| `round_robin` | 顺序轮换供应商 |
+| `weighted_round_robin` | 按权重比例分配 |
+| `shuffle` | 公平随机分配 |
+
+### 供应商权重和优先级
+
+权重和优先级在供应商的第一个密钥中配置：
+
+```yaml
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        weight: 3      # 用于 weighted-round-robin（数值越高 = 更多流量）
+        priority: 2    # 用于 failover（数值越高 = 优先尝试）
+```
+
+有关策略说明、调试头和故障转移触发器的详细路由配置，请参阅[路由](/zh-cn/docs/routing/)。
+
 ## 配置示例
 
 ### 最小单供应商配置
@@ -521,5 +565,6 @@ cc-relay config validate
 
 ## 下一步
 
-- [了解架构](/zh/docs/architecture/)
-- [API 参考](/zh/docs/api/)
+- [路由策略](/zh-cn/docs/routing/) - 供应商选择和故障转移
+- [了解架构](/zh-cn/docs/architecture/)
+- [API 参考](/zh-cn/docs/api/)
