@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/router"
@@ -50,7 +51,8 @@ func SetupRoutesWithProviders(
 	debugOpts := cfg.Logging.DebugOptions
 	// Use keypool for multi-key routing if provided
 	// Note: SetupRoutesWithProviders doesn't use router - for DI integration use NewProxyHandler
-	handler, err := NewHandler(provider, nil, nil, providerKey, pool, debugOpts, false)
+	// Pass nil for healthTracker - this legacy function doesn't support health tracking
+	handler, err := NewHandler(provider, nil, nil, providerKey, pool, debugOpts, false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
@@ -114,6 +116,7 @@ func SetupRoutesWithRouter(
 	providerKey string,
 	pool *keypool.KeyPool,
 	allProviders []providers.Provider,
+	healthTracker *health.Tracker,
 ) (http.Handler, error) {
 	mux := http.NewServeMux()
 
@@ -121,7 +124,10 @@ func SetupRoutesWithRouter(
 	debugOpts := cfg.Logging.DebugOptions
 	routingDebug := cfg.Routing.IsDebugEnabled()
 
-	handler, err := NewHandler(provider, providerInfos, providerRouter, providerKey, pool, debugOpts, routingDebug)
+	handler, err := NewHandler(
+		provider, providerInfos, providerRouter,
+		providerKey, pool, debugOpts, routingDebug, healthTracker,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}

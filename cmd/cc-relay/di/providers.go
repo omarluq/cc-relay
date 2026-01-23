@@ -342,6 +342,7 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 		providerSvc.PrimaryKey,
 		poolSvc.Pool,
 		providerSvc.AllProviders,
+		trackerSvc.Tracker,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup proxy handler: %w", err)
