@@ -15,6 +15,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/router"
@@ -23,18 +24,22 @@ import (
 // contextKey is used for storing values in request context.
 type contextKey string
 
-const keyIDContextKey contextKey = "keyID"
+const (
+	keyIDContextKey        contextKey = "keyID"
+	providerNameContextKey contextKey = "providerName"
+)
 
 // Handler proxies requests to a backend provider.
 type Handler struct {
-	provider     providers.Provider
-	router       router.ProviderRouter
-	proxy        *httputil.ReverseProxy
-	keyPool      *keypool.KeyPool
-	apiKey       string
-	providers    []router.ProviderInfo
-	debugOpts    config.DebugOptions
-	routingDebug bool
+	provider      providers.Provider
+	router        router.ProviderRouter
+	proxy         *httputil.ReverseProxy
+	keyPool       *keypool.KeyPool
+	healthTracker *health.Tracker
+	apiKey        string
+	providers     []router.ProviderInfo
+	debugOpts     config.DebugOptions
+	routingDebug  bool
 }
 
 // NewHandler creates a new proxy handler.
@@ -42,6 +47,7 @@ type Handler struct {
 // If providerRouter is nil, provider is used directly (single provider mode).
 // If pool is provided, it will be used for key selection.
 // If pool is nil, apiKey is used directly (single key mode).
+// If healthTracker is provided, success/failure will be reported to circuit breakers.
 func NewHandler(
 	provider providers.Provider,
 	providerInfos []router.ProviderInfo,
@@ -50,6 +56,7 @@ func NewHandler(
 	pool *keypool.KeyPool,
 	debugOpts config.DebugOptions,
 	routingDebug bool,
+	healthTracker *health.Tracker,
 ) (*Handler, error) {
 	targetURL, err := url.Parse(provider.BaseURL())
 	if err != nil {
@@ -57,13 +64,14 @@ func NewHandler(
 	}
 
 	h := &Handler{
-		provider:     provider,
-		providers:    providerInfos,
-		router:       providerRouter,
-		apiKey:       apiKey,
-		keyPool:      pool,
-		debugOpts:    debugOpts,
-		routingDebug: routingDebug,
+		provider:      provider,
+		providers:     providerInfos,
+		router:        providerRouter,
+		apiKey:        apiKey,
+		keyPool:       pool,
+		debugOpts:     debugOpts,
+		routingDebug:  routingDebug,
+		healthTracker: healthTracker,
 	}
 
 	h.proxy = &httputil.ReverseProxy{
@@ -164,7 +172,29 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 		}
 	}
 
+	// Report outcome to circuit breaker
+	h.reportOutcome(resp)
+
 	return nil
+}
+
+// reportOutcome records success or failure to the circuit breaker.
+func (h *Handler) reportOutcome(resp *http.Response) {
+	if h.healthTracker == nil {
+		return // No health tracking configured
+	}
+
+	// Get provider name from context
+	providerName, ok := resp.Request.Context().Value(providerNameContextKey).(string)
+	if !ok || providerName == "" {
+		return // No provider name in context (single provider mode without routing)
+	}
+
+	if health.ShouldCountAsFailure(resp.StatusCode, nil) {
+		h.healthTracker.RecordFailure(providerName, fmt.Errorf("HTTP %d", resp.StatusCode))
+	} else {
+		h.healthTracker.RecordSuccess(providerName)
+	}
 }
 
 // selectProvider chooses a provider using the router or returns the static provider.
@@ -232,6 +262,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := h.createProviderLoggerWithProvider(r, selectedProvider)
 	r = r.WithContext(logger.WithContext(r.Context()))
 
+	// Store provider name in context for modifyResponse to report to circuit breaker
+	r = r.WithContext(context.WithValue(r.Context(), providerNameContextKey, selectedProvider.Name()))
+
 	// Log routing strategy if router is available
 	if h.router != nil {
 		logger.Debug().
@@ -244,6 +277,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.routingDebug && h.router != nil {
 		w.Header().Set("X-CC-Relay-Strategy", h.router.Name())
 		w.Header().Set("X-CC-Relay-Provider", selectedProvider.Name())
+	}
+
+	// Add health debug header if routing debug is enabled
+	if h.routingDebug && h.healthTracker != nil {
+		state := h.healthTracker.GetState(selectedProvider.Name())
+		w.Header().Set("X-CC-Relay-Health", state.String())
 	}
 
 	// Handle auth mode selection and key selection
