@@ -24,7 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3.1: Routing Documentation** - Add routing docs to site-docs in all languages (INSERTED)
 - [x] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [x] **Phase 4.1: Health Checker Wiring** - Wire Checker lifecycle to fix integration gaps (INSERTED)
-- [ ] **Phase 4.2: Config File Cleanup** - Consolidate config files, ensure example.yaml is single source of truth (INSERTED)
+- [x] **Phase 4.2: Config File Cleanup** - Consolidate config files, ensure example.yaml is single source of truth (INSERTED)
 - [ ] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
@@ -264,7 +264,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 04.1-01-PLAN.md - Wire Checker lifecycle (register providers, start checker, add tests)
+- [x] 04.1-01-PLAN.md - Wire Checker lifecycle (register providers, start checker, add tests)
 
 ### Phase 4.2: Config File Cleanup (INSERTED)
 **Goal**: Consolidate config files by removing duplicate config.yaml from root, keeping example.yaml as the canonical reference
@@ -279,7 +279,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 04.2-01-PLAN.md - Remove config.yaml, verify example.yaml is complete, update references
+- [x] 04.2-01-PLAN.md - Remove config.yaml and update documentation references
 
 ### Phase 4.3: Health Configuration Documentation (INSERTED)
 **Goal**: Add comprehensive health/circuit-breaker configuration documentation to site-docs
