@@ -23,6 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [x] **Phase 3.1: Routing Documentation** - Add routing docs to site-docs in all languages (INSERTED)
 - [x] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
+- [ ] **Phase 4.1: Health Checker Wiring** - Wire Checker lifecycle to fix integration gaps (INSERTED)
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
 - [ ] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
@@ -248,6 +249,21 @@ Plans:
 - [x] 04-03-PLAN.md - Periodic health checker for OPEN state recovery
 - [x] 04-04-PLAN.md - DI integration and handler wiring
 
+### Phase 4.1: Health Checker Wiring (INSERTED)
+**Goal**: Wire Checker.Start() and RegisterProvider() to make periodic health checks operational
+**Depends on**: Phase 4
+**Requirements**: None new (closes integration gaps from Phase 4 audit)
+**Gap Closure**: Fixes 2 integration gaps and 1 broken E2E flow from v0.0.1-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. Checker.Start() called during application startup
+  2. All configured providers registered with Checker via RegisterProvider()
+  3. Periodic health checks run for providers with OPEN circuits
+  4. Integration test verifies Checker lifecycle works end-to-end
+**Plans**: 1 plan in 1 wave
+
+Plans:
+- [ ] 04.1-01-PLAN.md - Wire Checker lifecycle (register providers, start checker, add tests)
+
 ### Phase 5: Additional Providers
 **Goal**: Support Z.AI (Anthropic-compatible) and Ollama (local models) providers
 **Depends on**: Phase 4
@@ -372,7 +388,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 3.1 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 3.1 -> 4 -> 4.1 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -387,6 +403,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 3. Routing Strategies | 6/6 | Complete | 2026-01-23 |
 | 3.1 Routing Documentation (INSERTED) | 3/3 | Complete | 2026-01-23 |
 | 4. Circuit Breaker & Health | 4/4 | Complete | 2026-01-23 |
+| 4.1 Health Checker Wiring (INSERTED) | 0/1 | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
 | 7. Configuration Management | 0/TBD | Not started | - |

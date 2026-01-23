@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 5 - Additional Providers (upcoming)
+**Current focus:** Phase 4.1 - Health Checker Wiring (gap closure)
 
 ## Current Position
 
-Phase: 4 of 11 (Circuit Breaker & Health) ✓ COMPLETE
-Plan: 4 of 4 in phase ✓ COMPLETE
-Status: Ready for Phase 5
-Last activity: 2026-01-23 - Completed Phase 4 execution
+Phase: 4.1 of 11+ (Health Checker Wiring - INSERTED)
+Plan: 0 of 1 in phase
+Status: Ready to plan
+Last activity: 2026-01-23 - Created gap closure phase from audit
 
-Progress: [██████████] 59/59 plans total (Phase 4: 4/4 ✓)
-Next: Phase 5 (Additional Providers) - Z.AI and Ollama provider implementations
+Progress: [██████████] 59/60 plans total (Phase 4.1: 0/1)
+Next: Phase 4.1 (Health Checker Wiring) - Wire Checker lifecycle to fix integration gaps
 
 ## Performance Metrics
 
@@ -513,9 +513,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Phase 4 verified complete - all 4 plans executed, 10/10 requirements satisfied
+Stopped at: Milestone audit identified integration gaps - Phase 4.1 created for gap closure
 Resume file: None
-Next action: Begin Phase 5 (Additional Providers) - implement Z.AI and Ollama providers
+Next action: Plan Phase 4.1 (Health Checker Wiring) - wire Checker.Start() and RegisterProvider()
 
 **Phase 3.1 inserted:** Routing documentation gap identified - site-docs missing routing strategy documentation in all languages.
 
