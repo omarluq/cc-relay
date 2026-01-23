@@ -191,19 +191,24 @@ Plans:
 - [x] 02.3-12-PLAN.md - samber/ro integration (rate limiter, cache, SSE plugins)
 
 ### Phase 3: Routing Strategies
-**Goal**: Implement pluggable routing strategies (round-robin, shuffle, failover) selected via configuration
+**Goal**: Implement pluggable routing strategies (round-robin, weighted-round-robin, shuffle, failover) selected via configuration
 **Depends on**: Phase 2
 **Requirements**: ROUT-01, ROUT-02, ROUT-03, ROUT-07
 **Success Criteria** (what must be TRUE):
-  1. User can select routing strategy in config file (round-robin/shuffle/failover)
+  1. User can select routing strategy in config file (round-robin/weighted-round-robin/shuffle/failover)
   2. Round-robin distributes requests evenly across providers in sequence
-  3. Shuffle randomizes provider selection for balanced load
-  4. Failover tries primary provider first, falls back to secondary on failure
-**Plans**: TBD
+  3. Weighted-round-robin distributes proportionally to configured weights
+  4. Shuffle randomizes provider selection like dealing cards
+  5. Failover tries primary provider first, falls back to secondary on failure
+**Plans**: 6 plans in 4 waves
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md - ProviderRouter interface foundation and RoutingConfig
+- [ ] 03-02-PLAN.md - RoundRobinRouter and ShuffleRouter implementations
+- [ ] 03-03-PLAN.md - WeightedRoundRobinRouter implementation
+- [ ] 03-04-PLAN.md - Extensible failover trigger system
+- [ ] 03-05-PLAN.md - FailoverRouter with parallel retry
+- [ ] 03-06-PLAN.md - DI integration and handler wiring
 
 ### Phase 4: Circuit Breaker & Health
 **Goal**: Add health tracking per provider with circuit breaker state machine (CLOSED/OPEN/HALF-OPEN) for automatic failure recovery
@@ -356,8 +361,8 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 2. Multi-Key Pooling | 6/6 | Complete | 2026-01-22 |
 | 2.1 Multi-Key Pooling Docs (INSERTED) | 1/1 | Complete | 2026-01-21 |
 | 2.2 Subscription Token Relay (INSERTED) | 1/1 | Complete | 2026-01-22 |
-| 2.3 Samber Libs Refactor (INSERTED) | 0/13 | Not started | - |
-| 3. Routing Strategies | 0/TBD | Not started | - |
+| 2.3 Samber Libs Refactor (INSERTED) | 12/12 | Complete | 2026-01-23 |
+| 3. Routing Strategies | 0/6 | Not started | - |
 | 4. Circuit Breaker & Health | 0/TBD | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
