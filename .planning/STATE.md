@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 3 of 11 (Routing Strategies)
-Plan: 4 of 6 in current phase COMPLETE
+Plan: 5 of 6 in current phase COMPLETE
 Status: In progress
-Last activity: 2026-01-23 - Completed 03-04-PLAN.md
+Last activity: 2026-01-23 - Completed 03-05-PLAN.md
 
-Progress: [██████████] 50/52 plans total (Phase 3: 4/6 COMPLETE)
+Progress: [██████████] 51/52 plans total (Phase 3: 5/6 COMPLETE)
 
 ## Performance Metrics
 
@@ -48,6 +48,12 @@ Progress: [██████████] 50/52 plans total (Phase 3: 4/6 COMPL
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 03-05 (FailoverRouter with Parallel Retry):**
+- Parallel race includes all providers (including primary) for maximum speed
+- Buffered channel avoids goroutine leaks (buffer size = provider count)
+- sortByPriority uses slices.SortStableFunc for stable ordering
+- Default timeout 5 seconds when 0 passed to constructor
 
 **From 03-04 (Failover Trigger System):**
 - context.DeadlineExceeded satisfies net.Error in Go stdlib - ConnectionTrigger fires on both
@@ -300,7 +306,7 @@ None.
     - Duration: 11 min
   - 03-03 COMPLETE: WeightedRoundRobinRouter (Nginx smooth algorithm)
   - 03-04 COMPLETE: FailoverRouter with Triggers
-  - 03-05 PENDING: Additional strategies if needed
+  - 03-05 COMPLETE: FailoverRouter with Parallel Retry
   - 03-06 PENDING: Handler integration and wiring
 
 - Phase 2.3 VERIFIED COMPLETE: Codebase Refactor with Samber Libraries
@@ -428,8 +434,17 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed 03-04-PLAN.md
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None
+
+**Phase 03-05 Complete:**
+- internal/router/failover.go: FailoverRouter with Select, SelectWithRetry, parallelRace (183 lines)
+- internal/router/failover_test.go: 24 test functions covering all scenarios (570 lines)
+- internal/router/router.go: NewRouter factory returns FailoverRouter for "failover" and ""
+- internal/router/router_test.go: Tests for NewRouter with failover and empty defaults
+- 2 commits made: cc934a8, e46bab0
+- Duration: 10min
+- SUMMARY.md created: .planning/phases/03-routing-strategies/03-05-SUMMARY.md
 
 **Phase 03-04 Complete:**
 - internal/router/triggers.go: FailoverTrigger interface and implementations (140 lines)
