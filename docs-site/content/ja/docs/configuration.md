@@ -440,6 +440,50 @@ cache:
 
 HAクラスタリングガイドとトラブルシューティングを含む詳細なキャッシュドキュメントについては、[キャッシング](/ja/docs/caching/)を参照してください。
 
+## ルーティング設定
+
+CC-Relay は、プロバイダー間でリクエストを分配するための複数のルーティング戦略をサポートしています。
+
+```yaml
+# ==========================================================================
+# ルーティング設定
+# ==========================================================================
+routing:
+  # 戦略: round_robin, weighted_round_robin, shuffle, failover（デフォルト）
+  strategy: failover
+
+  # フェイルオーバー試行のタイムアウト（ミリ秒、デフォルト: 5000）
+  failover_timeout: 5000
+
+  # デバッグヘッダーを有効化（X-CC-Relay-Strategy, X-CC-Relay-Provider）
+  debug: false
+```
+
+### ルーティング戦略
+
+| 戦略 | 説明 |
+|------|------|
+| `failover` | 優先度順にプロバイダーを試行、失敗時にフォールバック（デフォルト） |
+| `round_robin` | プロバイダー間を順番にローテーション |
+| `weighted_round_robin` | 重みに基づいて比例配分 |
+| `shuffle` | フェアランダム分配 |
+
+### プロバイダーの重みと優先度
+
+重みと優先度はプロバイダーの最初のキーで設定します：
+
+```yaml
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+        weight: 3      # weighted-round-robin 用（高い = より多くのトラフィック）
+        priority: 2    # failover 用（高い = 最初に試行）
+```
+
+戦略の説明、デバッグヘッダー、フェイルオーバートリガーを含む詳細なルーティング設定については、[ルーティング](/ja/docs/routing/)を参照してください。
+
 ## 設定例
 
 ### 最小限のシングルプロバイダー
@@ -521,5 +565,6 @@ cc-relay config validate
 
 ## 次のステップ
 
+- [ルーティング戦略](/ja/docs/routing/) - プロバイダー選択とフェイルオーバー
 - [アーキテクチャを理解する](/ja/docs/architecture/)
 - [API リファレンス](/ja/docs/api/)
