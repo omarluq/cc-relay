@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [x] **Phase 3.1: Routing Documentation** - Add routing docs to site-docs in all languages (INSERTED)
 - [x] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
-- [ ] **Phase 4.1: Health Checker Wiring** - Wire Checker lifecycle to fix integration gaps (INSERTED)
+- [x] **Phase 4.1: Health Checker Wiring** - Wire Checker lifecycle to fix integration gaps (INSERTED)
 - [ ] **Phase 4.2: Config File Cleanup** - Consolidate config files, ensure example.yaml is single source of truth (INSERTED)
 - [ ] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
@@ -436,7 +436,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 3. Routing Strategies | 6/6 | Complete | 2026-01-23 |
 | 3.1 Routing Documentation (INSERTED) | 3/3 | Complete | 2026-01-23 |
 | 4. Circuit Breaker & Health | 4/4 | Complete | 2026-01-23 |
-| 4.1 Health Checker Wiring (INSERTED) | 0/1 | Not started | - |
+| 4.1 Health Checker Wiring (INSERTED) | 1/1 | Complete | 2026-01-23 |
 | 4.2 Config File Cleanup (INSERTED) | 0/1 | Not started | - |
 | 4.3 Health Config Docs (INSERTED) | 0/2 | Not started | - |
 | 5. Additional Providers | 0/TBD | Not started | - |
