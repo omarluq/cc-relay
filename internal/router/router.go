@@ -105,8 +105,7 @@ func NewRouter(strategy string, _ time.Duration) (ProviderRouter, error) {
 		// TODO: Implement in 03-03-PLAN.md
 		return nil, fmt.Errorf("router: strategy %q not yet implemented", strategy)
 	case StrategyWeightedRoundRobin:
-		// TODO: Implement in 03-04-PLAN.md
-		return nil, fmt.Errorf("router: strategy %q not yet implemented", strategy)
+		return NewWeightedRoundRobinRouter(), nil
 	case StrategyShuffle:
 		// TODO: Implement in 03-05-PLAN.md
 		return nil, fmt.Errorf("router: strategy %q not yet implemented", strategy)
