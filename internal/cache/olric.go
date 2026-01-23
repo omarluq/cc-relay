@@ -36,26 +36,48 @@ func parseBindAddr(addr string) (h string, p int) {
 // buildOlricConfig creates an Olric config from the cache OlricConfig.
 // It applies environment presets and HA clustering settings.
 func buildOlricConfig(cfg *OlricConfig) *olricconfig.Config {
-	// Select environment preset - determines memberlist timeouts, gossip intervals
-	env := cfg.Environment
-	if env == "" {
-		env = EnvLocal
-	}
-
+	env := getEnvironment(cfg.Environment)
 	c := olricconfig.New(env)
 
-	// Parse bind address - may contain host:port or just host
+	// Parse and apply bind address
 	bindAddr, bindPort := parseBindAddr(cfg.BindAddr)
 	c.BindAddr = bindAddr
-	if bindPort > 0 {
-		c.BindPort = bindPort
-	}
+	applyBindPort(c, bindPort)
 
-	// Configure memberlist to also bind to the same address.
-	// By default, memberlist picks the first non-loopback interface,
-	// which can cause issues in tests and containers.
-	// Note: Olric uses two ports - one for client connections (BindPort)
-	// and one for memberlist discovery (BindPort + 2 by default).
+	// Configure memberlist
+	configureMemberlist(c, bindAddr, bindPort)
+
+	// Set peers and HA clustering settings
+	applyClusterSettings(c, cfg)
+
+	// Suppress verbose Olric logging
+	c.LogOutput = io.Discard
+	c.Logger = log.New(io.Discard, "", 0)
+
+	return c
+}
+
+// getEnvironment returns the environment or default to local.
+func getEnvironment(env string) string {
+	if env == "" {
+		return EnvLocal
+	}
+	return env
+}
+
+// applyBindPort sets the bind port if specified.
+func applyBindPort(c *olricconfig.Config, port int) {
+	if port > 0 {
+		c.BindPort = port
+	}
+}
+
+// configureMemberlist configures the memberlist settings for cluster discovery.
+// By default, memberlist picks the first non-loopback interface,
+// which can cause issues in tests and containers.
+// Note: Olric uses two ports - one for client connections (BindPort)
+// and one for memberlist discovery (BindPort + 2 by default).
+func configureMemberlist(c *olricconfig.Config, bindAddr string, bindPort int) {
 	if c.MemberlistConfig == nil {
 		c.MemberlistConfig = memberlist.DefaultLocalConfig()
 	}
@@ -65,13 +87,13 @@ func buildOlricConfig(cfg *OlricConfig) *olricconfig.Config {
 		c.MemberlistConfig.BindPort = bindPort + 2
 		c.MemberlistConfig.AdvertisePort = bindPort + 2
 	}
+}
 
-	// Set peers for cluster discovery
+// applyClusterSettings applies HA clustering settings (only if non-zero to preserve Olric defaults).
+func applyClusterSettings(c *olricconfig.Config, cfg *OlricConfig) {
 	if len(cfg.Peers) > 0 {
 		c.Peers = cfg.Peers
 	}
-
-	// Apply HA clustering settings (only if non-zero to preserve Olric defaults)
 	if cfg.ReplicaCount > 0 {
 		c.ReplicaCount = cfg.ReplicaCount
 	}
@@ -87,12 +109,6 @@ func buildOlricConfig(cfg *OlricConfig) *olricconfig.Config {
 	if cfg.LeaveTimeout > 0 {
 		c.LeaveTimeout = cfg.LeaveTimeout
 	}
-
-	// Suppress verbose Olric logging
-	c.LogOutput = io.Discard
-	c.Logger = log.New(io.Discard, "", 0)
-
-	return c
 }
 
 // olricCache implements Cache using Olric as the backend.

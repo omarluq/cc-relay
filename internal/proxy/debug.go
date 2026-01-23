@@ -59,47 +59,83 @@ func LogRequestDetails(ctx context.Context, r *http.Request, opts config.DebugOp
 		return
 	}
 
-	// Read body
-	var bodyBytes []byte
-	if r.Body != nil {
-		var err error
-		bodyBytes, err = io.ReadAll(r.Body)
-		if err != nil {
-			logger.Debug().Err(err).Msg("failed to read request body")
-			return
-		}
-		// Restore body for downstream handlers
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	bodyBytes := readAndRestoreBody(r, logger)
+	if bodyBytes == nil {
+		return
 	}
 
 	// Truncate to max size
-	maxSize := opts.GetMaxBodyLogSize()
-	if len(bodyBytes) > maxSize {
-		bodyBytes = bodyBytes[:maxSize]
-	}
+	bodyBytes = truncateBody(bodyBytes, opts.GetMaxBodyLogSize())
 
 	// Parse JSON to extract model and tokens if present
-	var bodyMap map[string]interface{}
-	model := ""
-	maxTokens := 0
-	if len(bodyBytes) > 0 && json.Unmarshal(bodyBytes, &bodyMap) == nil {
-		if m, ok := bodyMap["model"].(string); ok {
-			model = m
-		}
-		if mt, ok := bodyMap["max_tokens"].(float64); ok {
-			maxTokens = int(mt)
-		}
-	}
+	model, maxTokens := extractModelInfo(bodyBytes)
 
 	// Redact sensitive fields
-	bodyStr := lo.Reduce(sensitivePatterns, func(s string, pattern *regexp.Regexp, _ int) string {
-		return pattern.ReplaceAllString(s, `"***":"REDACTED"`)
-	}, string(bodyBytes))
+	bodyStr := redactSensitiveFields(string(bodyBytes))
 
 	// Log with context
+	logRequestBody(logger, r.Header.Get("Content-Type"), bodyBytes, model, maxTokens, bodyStr)
+}
+
+// readAndRestoreBody reads the request body and restores it for downstream handlers.
+func readAndRestoreBody(r *http.Request, logger *zerolog.Logger) []byte {
+	if r.Body == nil {
+		return nil
+	}
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		logger.Debug().Err(err).Msg("failed to read request body")
+		return nil
+	}
+
+	// Restore body for downstream handlers
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	return bodyBytes
+}
+
+// truncateBody truncates body to max size.
+func truncateBody(body []byte, maxSize int) []byte {
+	if len(body) > maxSize {
+		return body[:maxSize]
+	}
+	return body
+}
+
+// extractModelInfo parses JSON body to extract model and max_tokens.
+func extractModelInfo(bodyBytes []byte) (model string, maxTokens int) {
+	if len(bodyBytes) == 0 {
+		return "", 0
+	}
+
+	var bodyMap map[string]interface{}
+	if json.Unmarshal(bodyBytes, &bodyMap) != nil {
+		return "", 0
+	}
+
+	if m, ok := bodyMap["model"].(string); ok {
+		model = m
+	}
+	if mt, ok := bodyMap["max_tokens"].(float64); ok {
+		maxTokens = int(mt)
+	}
+	return model, maxTokens
+}
+
+// redactSensitiveFields redacts sensitive information from body string.
+func redactSensitiveFields(body string) string {
+	return lo.Reduce(sensitivePatterns, func(s string, pattern *regexp.Regexp, _ int) string {
+		return pattern.ReplaceAllString(s, `"***":"REDACTED"`)
+	}, body)
+}
+
+// logRequestBody logs the request body with extracted metadata.
+func logRequestBody(
+	logger *zerolog.Logger, contentType string, body []byte, model string, maxTokens int, bodyStr string,
+) {
 	logEvent := logger.Debug().
-		Str("content_type", r.Header.Get("Content-Type")).
-		Int("body_length", len(bodyBytes))
+		Str("content_type", contentType).
+		Int("body_length", len(body))
 
 	if model != "" {
 		logEvent.Str("model", model)
@@ -107,7 +143,7 @@ func LogRequestDetails(ctx context.Context, r *http.Request, opts config.DebugOp
 	if maxTokens > 0 {
 		logEvent.Int("max_tokens", maxTokens)
 	}
-	if len(bodyBytes) > 0 {
+	if len(body) > 0 {
 		logEvent.Str("body_preview", bodyStr)
 	}
 

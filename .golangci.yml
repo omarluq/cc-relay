@@ -1,5 +1,13 @@
 # golangci-lint configuration for cc-relay
 # v2 format for golangci-lint v2.8.0+
+#
+# Strictness increased in Phase 02.3-09 (Tech Debt Audit):
+# - gocognit: 20 -> 15 (enforces simpler functions)
+# - gocyclo: 15 -> 10 (enforces lower cyclomatic complexity)
+# - funlen: enabled with 80/50 limits (relaxed for production code)
+#
+# The codebase passes all checks at these strict thresholds after
+# samber libraries refactoring (Plans 02.3-01 through 02.3-08).
 
 version: "2"
 
@@ -36,6 +44,7 @@ linters:
     - errname
     - errorlint
     - exhaustive
+    - funlen        # Function length checker (enabled for production code)
     - gocognit
     - goprintffuncname
     - lll
@@ -57,11 +66,10 @@ linters:
     - nilnil
 
   disable:
-    - exhaustruct
-    - varnamelen
-    - forbidigo
-    - funlen
-    - cyclop
+    - exhaustruct   # Too noisy - requires all struct fields to be set
+    - varnamelen    # Conflicts with Go conventions (i, j, ok, etc.)
+    - forbidigo     # We need fmt.Printf for CLI output
+    - cyclop        # Redundant with gocyclo
 
   exclusions:
     rules:
@@ -69,7 +77,8 @@ linters:
         path: ".*\\.pb\\.go$"
       - linters: [all]
         path: ".*_generated\\.go$"
-      - linters: [gocyclo, errcheck, dupl, gosec, goconst, testpackage, paralleltest, thelper, noctx]
+      # Test files: exclude noisy linters (table-driven tests are naturally long)
+      - linters: [gocyclo, gocognit, errcheck, dupl, gosec, goconst, testpackage, paralleltest, thelper, noctx, funlen]
         path: "_test\\.go$"
       - linters: [lll]
         source: "^//go:generate "
@@ -89,10 +98,19 @@ linters:
         - shadow
 
     gocyclo:
-      min-complexity: 15
+      # Reduced from 15 to 10 (stricter) - Phase 02.3-09
+      min-complexity: 10
 
     gocognit:
-      min-complexity: 20
+      # Reduced from 20 to 15 (stricter) - Phase 02.3-09
+      min-complexity: 15
+
+    funlen:
+      # Enabled in Phase 02.3-09 with relaxed limits for production code
+      # 80 lines / 50 statements balances readability with practical needs
+      # Test files are excluded via exclusions.rules
+      lines: 80
+      statements: 50
 
     dupl:
       threshold: 100

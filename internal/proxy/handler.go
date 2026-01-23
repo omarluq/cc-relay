@@ -193,85 +193,109 @@ func (h *Handler) selectKeyFromPool(
 // ServeHTTP handles the proxy request.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-
-	logger := zerolog.Ctx(r.Context()).With().
-		Str("provider", h.provider.Name()).
-		Str("backend_url", h.provider.BaseURL()).
-		Logger()
-
-	// Update context with provider-aware logger
+	logger := h.createProviderLogger(r)
 	r = r.WithContext(logger.WithContext(r.Context()))
 
-	// Check if client provided auth headers
-	clientAuth := r.Header.Get("Authorization")
-	clientAPIKey := r.Header.Get("x-api-key")
-	hasClientAuth := clientAuth != "" || clientAPIKey != ""
-
-	// Transparent mode: forward client auth ONLY if provider supports it
-	// Anthropic supports it (client's Claude token works); others don't
-	useTransparentAuth := hasClientAuth && h.provider.SupportsTransparentAuth()
-
-	// Select API key (only needed if not using transparent auth)
-	var selectedKey string
-
-	if useTransparentAuth {
-		// Transparent mode: client auth will be forwarded, skip key pool
-		logger.Debug().
-			Bool("has_authorization", clientAuth != "").
-			Bool("has_x_api_key", clientAPIKey != "").
-			Msg("transparent mode: forwarding client auth")
-	} else if h.keyPool != nil {
-		// Use key pool (handles both "client has auth but provider doesn't support it" and "no client auth")
-		if hasClientAuth {
-			logger.Debug().
-				Bool("has_authorization", clientAuth != "").
-				Bool("has_x_api_key", clientAPIKey != "").
-				Str("provider", h.provider.Name()).
-				Msg("provider does not support transparent auth, using configured keys")
-		}
-
-		var ok bool
-		_, selectedKey, r, ok = h.selectKeyFromPool(w, r, &logger)
-		if !ok {
-			return
-		}
-		r.Header.Set("X-Selected-Key", selectedKey)
-		defer r.Header.Del("X-Selected-Key")
-	} else if !useTransparentAuth {
-		// Single key mode - set header directly
-		r.Header.Set("X-Selected-Key", h.apiKey)
+	// Handle auth mode selection and key selection
+	r, ok := h.handleAuthAndKeySelection(w, r, &logger)
+	if !ok {
+		return
 	}
 
 	// Attach TLS trace if debug metrics enabled
-	var getTLSMetrics func() TLSMetrics
-	if h.debugOpts.LogTLSMetrics {
-		newCtx, metricsFunc := AttachTLSTrace(r.Context(), r)
-		r = r.WithContext(newCtx)
-		getTLSMetrics = metricsFunc
-	}
-
-	// Log proxy start
-	logger.Debug().Msg("proxying request to backend")
+	r, getTLSMetrics := h.attachTLSTraceIfEnabled(r)
 
 	// Proxy request
+	logger.Debug().Msg("proxying request to backend")
 	backendStart := time.Now()
 	h.proxy.ServeHTTP(w, r)
 	backendTime := time.Since(backendStart)
 
-	// Log TLS metrics if collected
+	// Log metrics
+	h.logMetricsIfEnabled(r, &logger, start, backendTime, getTLSMetrics)
+}
+
+// createProviderLogger creates a logger with provider context.
+func (h *Handler) createProviderLogger(r *http.Request) zerolog.Logger {
+	return zerolog.Ctx(r.Context()).With().
+		Str("provider", h.provider.Name()).
+		Str("backend_url", h.provider.BaseURL()).
+		Logger()
+}
+
+// handleAuthAndKeySelection handles transparent auth mode detection and key selection.
+// Returns the updated request and success status.
+func (h *Handler) handleAuthAndKeySelection(
+	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+) (*http.Request, bool) {
+	clientAuth := r.Header.Get("Authorization")
+	clientAPIKey := r.Header.Get("x-api-key")
+	hasClientAuth := clientAuth != "" || clientAPIKey != ""
+	useTransparentAuth := hasClientAuth && h.provider.SupportsTransparentAuth()
+
+	if useTransparentAuth {
+		logger.Debug().
+			Bool("has_authorization", clientAuth != "").
+			Bool("has_x_api_key", clientAPIKey != "").
+			Msg("transparent mode: forwarding client auth")
+		return r, true
+	}
+
+	if h.keyPool != nil {
+		return h.handleKeyPoolSelection(w, r, logger, hasClientAuth, clientAuth, clientAPIKey)
+	}
+
+	// Single key mode - set header directly
+	r.Header.Set("X-Selected-Key", h.apiKey)
+	return r, true
+}
+
+// handleKeyPoolSelection handles key selection from the pool.
+func (h *Handler) handleKeyPoolSelection(
+	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+	hasClientAuth bool, clientAuth, clientAPIKey string,
+) (*http.Request, bool) {
+	if hasClientAuth {
+		logger.Debug().
+			Bool("has_authorization", clientAuth != "").
+			Bool("has_x_api_key", clientAPIKey != "").
+			Str("provider", h.provider.Name()).
+			Msg("provider does not support transparent auth, using configured keys")
+	}
+
+	_, selectedKey, updatedReq, ok := h.selectKeyFromPool(w, r, logger)
+	if !ok {
+		return r, false
+	}
+
+	updatedReq.Header.Set("X-Selected-Key", selectedKey)
+	// Note: defer cleanup not needed since header is only used within this request
+	return updatedReq, true
+}
+
+// attachTLSTraceIfEnabled attaches TLS trace if debug metrics are enabled.
+func (h *Handler) attachTLSTraceIfEnabled(r *http.Request) (req *http.Request, getMetrics func() TLSMetrics) {
+	if !h.debugOpts.LogTLSMetrics {
+		return r, nil
+	}
+	newCtx, metricsFunc := AttachTLSTrace(r.Context(), r)
+	return r.WithContext(newCtx), metricsFunc
+}
+
+// logMetricsIfEnabled logs TLS and proxy metrics if debug mode is enabled.
+func (h *Handler) logMetricsIfEnabled(
+	r *http.Request, logger *zerolog.Logger, start time.Time,
+	backendTime time.Duration, getTLSMetrics func() TLSMetrics,
+) {
 	if getTLSMetrics != nil {
 		tlsMetrics := getTLSMetrics()
 		LogTLSMetrics(r.Context(), tlsMetrics, h.debugOpts)
 	}
 
-	// Log proxy metrics
 	if h.debugOpts.IsEnabled() || logger.GetLevel() <= zerolog.DebugLevel {
 		proxyMetrics := Metrics{
 			BackendTime: backendTime,
 			TotalTime:   time.Since(start),
-			// BytesSent/BytesReceived would require wrapping http.ResponseWriter
-			// StreamingEvents would require parsing SSE stream
-			// Defer these to future enhancement
 		}
 		LogProxyMetrics(r.Context(), proxyMetrics, h.debugOpts)
 	}

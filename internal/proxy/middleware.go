@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/auth"
@@ -250,13 +249,7 @@ func getBodyPreview(r *http.Request) string {
 	return preview
 }
 
-// Match "api_key": "value" or "key": "value" patterns.
-var apiKeyPattern = regexp.MustCompile(`("api_key"\s*:\s*")[^"]*(")|("key"\s*:\s*")[^"]*(")"`)
-
-// redactSensitiveFields replaces api_key and key values with [REDACTED].
-func redactSensitiveFields(s string) string {
-	return apiKeyPattern.ReplaceAllString(s, `${1}[REDACTED]${2}${3}[REDACTED]${4}`)
-}
+// Note: redactSensitiveFields is defined in debug.go and used here via getBodyPreview
 
 // responseWriter wraps http.ResponseWriter to capture status code and SSE events.
 type responseWriter struct {

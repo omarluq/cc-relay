@@ -423,7 +423,6 @@ func TestKeyConfig_GetEffectiveTPM(t *testing.T) {
 	}
 }
 
-//nolint:gocognit // Test function complexity is acceptable for comprehensive coverage
 func TestKeyConfig_Validate(t *testing.T) {
 	t.Parallel()
 
