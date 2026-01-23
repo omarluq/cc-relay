@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/4bb497d4-d9ba-426e-8488-926e4f4cc2ad" alt="goophers" width="500" height="500"/>
+  <img src="ai-gophers.svg" alt="goophers" width="500" height="500"/>
 </p>
-
-
 
 <h1 align="center">CC-Relay</h1>
 
@@ -10,10 +8,9 @@
 Boost Claude Code by routing to multiple Anthropic-compatible providers simultaneously
 </h4>
 
-
 <p align="center">  
   <a href="https://cc-relay.ai/"><img src="https://img.shields.io/badge/-cc--relay.ai-5e5086?style=flat&labelColor=24292e&logo=safari&logoColor=white" alt="Website"></a>
-  <a href="https://cc-relay.ai/docs"><img src="https://img.shields.io/badge/-Read%20the%20Docs-blue?style=flat&labelColor=24292e&logo=readthedocs&logoColor=white" alt="Documentation"></a>
+  <a href="https://cc-relay.ai/en/docs/"><img src="https://img.shields.io/badge/-Read%20the%20Docs-blue?style=flat&labelColor=24292e&logo=readthedocs&logoColor=white" alt="Documentation"></a>
   <a href="https://github.com/omarluq/cc-relay/releases"><img src="https://img.shields.io/badge/-Latest%20Release-28a745?style=flat&labelColor=24292e&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAxNWw1LTUtMS40MS0xLjQxTDEzIDExLjE3VjRoLTJ2Ny4xN0w4LjQxIDguNTkgNyAxMGw1IDV6bTcgMnY0SDV2LTRIMy42OHY0LjMzYzAgLjczNC41OTYgMS4zMyAxLjMzIDEuMzNoMTMuOThjLjczNCAwIDEuMzMtLjU5NiAxLjMzLTEuMzNWMTdIMTl6Ii8+PC9zdmc+" alt="Download"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/-%3E%3D1.18-00ADD8?style=flat&labelColor=24292e&logo=go&logoColor=white" alt="Go Version"></a>
   <br/>
@@ -24,7 +21,6 @@ Boost Claude Code by routing to multiple Anthropic-compatible providers simultan
   <a href="https://codecov.io/gh/omarluq/cc-relay"><img src="https://img.shields.io/codecov/c/github/omarluq/cc-relay?style=flat&labelColor=24292e&logo=codecov&logoColor=white&token=YW23EDL5T5" alt="codecov"></a>
   <a href="https://github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/Maintained%3F-yes-28a745?style=flat&labelColor=24292e&logo=checkmarx&logoColor=white" alt="Maintained"></a>
 </p>
-
 
 <h2>Why?</h2>
 
@@ -51,7 +47,7 @@ Boost Claude Code by routing to multiple Anthropic-compatible providers simultan
 flowchart LR
     CC["👾 Claude Code"]
     RELAY["⚡ CC-Relay"]
-    
+
     subgraph providers[" "]
         direction TB
         ANT["🤖 Anthropic"]
@@ -61,7 +57,7 @@ flowchart LR
         AZU["🤖 Azure Foundry"]
         VTX["🤖 Vertex AI"]
     end
-    
+
     CC --> RELAY
     RELAY --> ANT
     RELAY --> ZAI
@@ -82,8 +78,6 @@ flowchart LR
 ```
 
 </p>
-
-
 
 ## License
 
