@@ -46,9 +46,50 @@ const (
 // Config represents the complete cc-relay configuration.
 type Config struct {
 	Providers []ProviderConfig `yaml:"providers"`
+	Routing   RoutingConfig    `yaml:"routing"`
 	Logging   LoggingConfig    `yaml:"logging"`
 	Server    ServerConfig     `yaml:"server"`
 	Cache     cache.Config     `yaml:"cache"`
+}
+
+// RoutingConfig defines provider-level routing strategy behavior.
+// This controls how requests are distributed across multiple providers.
+type RoutingConfig struct {
+	// Strategy defines the provider selection algorithm.
+	// Options: round_robin, weighted_round_robin, shuffle, failover (default)
+	Strategy string `yaml:"strategy"`
+
+	// FailoverTimeout is the timeout in milliseconds for failover attempts.
+	// When a provider fails, the router will try the next provider within this timeout.
+	// Default: 5000ms (5 seconds)
+	FailoverTimeout int `yaml:"failover_timeout"`
+
+	// Debug enables routing debug headers (X-CC-Relay-Provider, X-CC-Relay-Strategy).
+	// Useful for debugging routing decisions but may leak internal info.
+	Debug bool `yaml:"debug"`
+}
+
+// GetEffectiveStrategy returns the routing strategy with default fallback.
+// Returns "failover" if Strategy is empty string.
+func (r *RoutingConfig) GetEffectiveStrategy() string {
+	if r.Strategy == "" {
+		return "failover"
+	}
+	return r.Strategy
+}
+
+// GetFailoverTimeoutOption returns the failover timeout as a duration Option.
+// Returns None if FailoverTimeout is zero or negative.
+func (r *RoutingConfig) GetFailoverTimeoutOption() mo.Option[time.Duration] {
+	if r.FailoverTimeout <= 0 {
+		return mo.None[time.Duration]()
+	}
+	return mo.Some(time.Duration(r.FailoverTimeout) * time.Millisecond)
+}
+
+// IsDebugEnabled returns true if routing debug headers are enabled.
+func (r *RoutingConfig) IsDebugEnabled() bool {
+	return r.Debug
 }
 
 // ServerConfig defines server-level settings.

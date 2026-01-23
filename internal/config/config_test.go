@@ -1012,3 +1012,169 @@ func TestOption_OrElse_Pattern(t *testing.T) {
 		}
 	})
 }
+
+// Tests for RoutingConfig
+
+func TestRoutingConfig_GetEffectiveStrategy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		expected string
+		config   RoutingConfig
+	}{
+		{
+			name:     "empty strategy defaults to failover",
+			config:   RoutingConfig{Strategy: ""},
+			expected: "failover",
+		},
+		{
+			name:     "zero value defaults to failover",
+			config:   RoutingConfig{},
+			expected: "failover",
+		},
+		{
+			name:     "configured failover",
+			config:   RoutingConfig{Strategy: "failover"},
+			expected: "failover",
+		},
+		{
+			name:     "configured round_robin",
+			config:   RoutingConfig{Strategy: "round_robin"},
+			expected: "round_robin",
+		},
+		{
+			name:     "configured weighted_round_robin",
+			config:   RoutingConfig{Strategy: "weighted_round_robin"},
+			expected: "weighted_round_robin",
+		},
+		{
+			name:     "configured shuffle",
+			config:   RoutingConfig{Strategy: "shuffle"},
+			expected: "shuffle",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.config.GetEffectiveStrategy()
+			if got != tt.expected {
+				t.Errorf("GetEffectiveStrategy() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRoutingConfig_GetFailoverTimeoutOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		config    RoutingConfig
+		wantSome  bool
+		wantValue time.Duration
+	}{
+		{
+			name:     "zero returns None",
+			config:   RoutingConfig{FailoverTimeout: 0},
+			wantSome: false,
+		},
+		{
+			name:     "negative returns None",
+			config:   RoutingConfig{FailoverTimeout: -100},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some with milliseconds",
+			config:    RoutingConfig{FailoverTimeout: 5000},
+			wantSome:  true,
+			wantValue: 5 * time.Second,
+		},
+		{
+			name:      "small value returns correct duration",
+			config:    RoutingConfig{FailoverTimeout: 100},
+			wantSome:  true,
+			wantValue: 100 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.config.GetFailoverTimeoutOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %v, want %v", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
+func TestRoutingConfig_IsDebugEnabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   RoutingConfig
+		expected bool
+	}{
+		{
+			name:     "default is false",
+			config:   RoutingConfig{},
+			expected: false,
+		},
+		{
+			name:     "explicit false",
+			config:   RoutingConfig{Debug: false},
+			expected: false,
+		},
+		{
+			name:     "explicit true",
+			config:   RoutingConfig{Debug: true},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.config.IsDebugEnabled()
+			if got != tt.expected {
+				t.Errorf("IsDebugEnabled() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// Test Option usage with OrElse pattern for RoutingConfig.
+func TestRoutingConfig_Option_OrElse_Pattern(t *testing.T) {
+	t.Parallel()
+
+	t.Run("failover timeout with OrElse", func(t *testing.T) {
+		t.Parallel()
+
+		defaultTimeout := 5 * time.Second
+
+		// Zero timeout uses default
+		cfg := RoutingConfig{FailoverTimeout: 0}
+		timeout := cfg.GetFailoverTimeoutOption().OrElse(defaultTimeout)
+		if timeout != defaultTimeout {
+			t.Errorf("Expected default timeout %v, got %v", defaultTimeout, timeout)
+		}
+
+		// Explicit timeout uses config value
+		cfg2 := RoutingConfig{FailoverTimeout: 10000}
+		timeout2 := cfg2.GetFailoverTimeoutOption().OrElse(defaultTimeout)
+		if timeout2 != 10*time.Second {
+			t.Errorf("Expected 10s timeout, got %v", timeout2)
+		}
+	})
+}
