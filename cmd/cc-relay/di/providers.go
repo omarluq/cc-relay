@@ -219,6 +219,8 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 			prov = providers.NewAnthropicProviderWithModels(p.Name, p.BaseURL, p.Models)
 		case "zai":
 			prov = providers.NewZAIProviderWithModels(p.Name, p.BaseURL, p.Models)
+		case "ollama":
+			prov = providers.NewOllamaProviderWithModels(p.Name, p.BaseURL, p.Models)
 		default:
 			continue // Skip unknown provider types
 		}
@@ -236,7 +238,7 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	}
 
 	if primaryProvider == nil {
-		return nil, fmt.Errorf("no enabled provider found (supported types: anthropic, zai)")
+		return nil, fmt.Errorf("no enabled provider found (supported types: anthropic, zai, ollama)")
 	}
 
 	return &ProviderMapService{
