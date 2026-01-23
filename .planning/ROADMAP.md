@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2.3: Codebase Refactor with Samber Libraries** - Map codebase, integrate samber/lo/do/ro/mo, fix tech debt, improve coverage (INSERTED)
 - [x] **Phase 3: Routing Strategies** - Implement pluggable routing algorithms (round-robin, shuffle, failover)
 - [x] **Phase 3.1: Routing Documentation** - Add routing docs to site-docs in all languages (INSERTED)
-- [ ] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
+- [x] **Phase 4: Circuit Breaker & Health** - Add health tracking and automatic failover with state machine
 - [ ] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
 - [ ] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
@@ -243,10 +243,10 @@ Plans:
 **Plans**: 4 plans in 3 waves
 
 Plans:
-- [ ] 04-01-PLAN.md - Health config foundation (gobreaker install, config structs, errors)
-- [ ] 04-02-PLAN.md - Circuit breaker state machine with HealthTracker
-- [ ] 04-03-PLAN.md - Periodic health checker for OPEN state recovery
-- [ ] 04-04-PLAN.md - DI integration and handler wiring
+- [x] 04-01-PLAN.md - Health config foundation (gobreaker install, config structs, errors)
+- [x] 04-02-PLAN.md - Circuit breaker state machine with HealthTracker
+- [x] 04-03-PLAN.md - Periodic health checker for OPEN state recovery
+- [x] 04-04-PLAN.md - DI integration and handler wiring
 
 ### Phase 5: Additional Providers
 **Goal**: Support Z.AI (Anthropic-compatible) and Ollama (local models) providers
@@ -386,7 +386,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 2.3 Samber Libs Refactor (INSERTED) | 12/12 | Complete | 2026-01-23 |
 | 3. Routing Strategies | 6/6 | Complete | 2026-01-23 |
 | 3.1 Routing Documentation (INSERTED) | 3/3 | Complete | 2026-01-23 |
-| 4. Circuit Breaker & Health | 0/4 | Not started | - |
+| 4. Circuit Breaker & Health | 4/4 | Complete | 2026-01-23 |
 | 5. Additional Providers | 0/TBD | Not started | - |
 | 6. Cloud Providers | 0/TBD | Not started | - |
 | 7. Configuration Management | 0/TBD | Not started | - |

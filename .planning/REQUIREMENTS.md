@@ -189,8 +189,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROV-04 | Phase 6 | Pending |
 | PROV-05 | Phase 6 | Pending |
 | PROV-06 | Phase 6 | Pending |
-| PROV-07 | Phase 4 | Pending |
-| PROV-08 | Phase 4 | Pending |
+| PROV-07 | Phase 4 | Complete |
+| PROV-08 | Phase 4 | Complete |
 | ROUT-01 | Phase 3 | Pending |
 | ROUT-02 | Phase 3 | Pending |
 | ROUT-03 | Phase 3 | Pending |
@@ -198,20 +198,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ROUT-05 | Phase 11 | Pending |
 | ROUT-06 | Phase 11 | Pending |
 | ROUT-07 | Phase 3 | Pending |
-| ROUT-08 | Phase 4 | Pending |
+| ROUT-08 | Phase 4 | Complete |
 | POOL-01 | Phase 2 | Complete |
 | POOL-02 | Phase 2 | Complete |
 | POOL-03 | Phase 2 | Complete |
 | POOL-04 | Phase 2 | Complete |
 | POOL-05 | Phase 2 | Complete |
 | POOL-06 | Phase 2 | Complete |
-| CIRC-01 | Phase 4 | Pending |
-| CIRC-02 | Phase 4 | Pending |
-| CIRC-03 | Phase 4 | Pending |
-| CIRC-04 | Phase 4 | Pending |
-| CIRC-05 | Phase 4 | Pending |
-| CIRC-06 | Phase 4 | Pending |
-| CIRC-07 | Phase 4 | Pending |
+| CIRC-01 | Phase 4 | Complete |
+| CIRC-02 | Phase 4 | Complete |
+| CIRC-03 | Phase 4 | Complete |
+| CIRC-04 | Phase 4 | Complete |
+| CIRC-05 | Phase 4 | Complete |
+| CIRC-06 | Phase 4 | Complete |
+| CIRC-07 | Phase 4 | Complete |
 | AUTH-01 | Phase 1 | Pending |
 | AUTH-02 | Phase 1 | Pending |
 | AUTH-03 | Phase 1 | Pending |
@@ -263,4 +263,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 ---
 
 *Requirements defined: 2026-01-20*
-*Last updated: 2026-01-22 after Phase 2 completion*
+*Last updated: 2026-01-23 after Phase 4 completion*
