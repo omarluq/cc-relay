@@ -181,7 +181,7 @@ providers:
 2. Versucht das laengste Praefix-Match in `model_mapping` zu finden
 3. Leitet an den entsprechenden Provider weiter
 4. Faellt auf `default_provider` zurueck, wenn kein Match gefunden wird
-5. Gibt einen Fehler zurueck, wenn weder Match noch Standard existiert
+5. Wenn weder Match noch Standard existiert, werden alle Provider beibehalten (kein Filtering / Graceful Fallback)
 
 **Beispiele fuer Praefix-Matching:**
 

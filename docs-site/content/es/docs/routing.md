@@ -181,7 +181,7 @@ providers:
 2. Intenta encontrar la coincidencia de prefijo mas largo en `model_mapping`
 3. Enruta al proveedor correspondiente
 4. Recurre a `default_provider` si no se encuentra coincidencia
-5. Devuelve un error si no hay coincidencia ni predeterminado
+5. Si no hay coincidencia ni `default_provider`, se usan todos los proveedores disponibles (sin filtrado) como comportamiento de reserva
 
 **Ejemplos de coincidencia de prefijo:**
 

@@ -53,11 +53,16 @@ func (r *ModelRewriter) RewriteRequest(req *http.Request, logger *zerolog.Logger
 	}
 
 	bodyBytes, err := io.ReadAll(req.Body)
+	//nolint:errcheck // Best effort close
+	req.Body.Close()
+	// Always restore the body (and ContentLength) using the bytes read,
+	// even if io.ReadAll returned an error, so upstream handlers see
+	// the same body that was available to us.
+	req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	req.ContentLength = int64(len(bodyBytes))
 	if err != nil {
 		return err
 	}
-	//nolint:errcheck // Best effort close
-	req.Body.Close()
 
 	// Try to rewrite using railway-oriented pipeline
 	result := r.tryRewrite(bodyBytes)
