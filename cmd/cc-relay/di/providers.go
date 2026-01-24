@@ -70,6 +70,11 @@ type CheckerService struct {
 	Checker *health.Checker
 }
 
+// SignatureCacheService wraps the thinking signature cache for DI.
+type SignatureCacheService struct {
+	Cache *proxy.SignatureCache
+}
+
 // HandlerService wraps the HTTP handler.
 type HandlerService struct {
 	Handler http.Handler
@@ -91,8 +96,9 @@ type ServerService struct {
 // 7. Router (depends on Config)
 // 8. HealthTracker (depends on Config, Logger)
 // 9. Checker (depends on HealthTracker, Config, Logger)
-// 10. Handler (depends on Config, KeyPool, KeyPoolMap, Providers, Router, HealthTracker)
-// 11. Server (depends on Handler, Config).
+// 10. SignatureCache (depends on Cache)
+// 11. Handler (depends on Config, KeyPool, KeyPoolMap, Providers, Router, HealthTracker, SignatureCache)
+// 12. Server (depends on Handler, Config).
 func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewConfig)
 	do.Provide(i, NewLogger)
@@ -103,6 +109,7 @@ func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewRouter)
 	do.Provide(i, NewHealthTracker)
 	do.Provide(i, NewChecker)
+	do.Provide(i, NewSignatureCache)
 	do.Provide(i, NewProxyHandler)
 	do.Provide(i, NewHTTPServer)
 }
@@ -179,6 +186,16 @@ func (h *CheckerService) Shutdown() error {
 		h.Checker.Stop()
 	}
 	return nil
+}
+
+// NewSignatureCache creates the thinking signature cache using the main cache backend.
+func NewSignatureCache(i do.Injector) (*SignatureCacheService, error) {
+	cacheSvc := do.MustInvoke[*CacheService](i)
+
+	// SignatureCache wraps the main cache for thinking block signatures
+	sigCache := proxy.NewSignatureCache(cacheSvc.Cache)
+
+	return &SignatureCacheService{Cache: sigCache}, nil
 }
 
 // NewCache creates the cache based on configuration.
@@ -382,6 +399,7 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	poolMapSvc := do.MustInvoke[*KeyPoolMapService](i)
 	routerSvc := do.MustInvoke[*RouterService](i)
 	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
+	sigCacheSvc := do.MustInvoke[*SignatureCacheService](i)
 
 	cfg := cfgSvc.Config
 
@@ -426,6 +444,7 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 		poolMapSvc.Keys,
 		providerSvc.AllProviders,
 		trackerSvc.Tracker,
+		sigCacheSvc.Cache,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup proxy handler: %w", err)

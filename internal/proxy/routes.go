@@ -120,6 +120,7 @@ func SetupRoutesWithRouter(
 	providerKeys map[string]string,
 	allProviders []providers.Provider,
 	healthTracker *health.Tracker,
+	signatureCache *SignatureCache,
 ) (http.Handler, error) {
 	mux := http.NewServeMux()
 
@@ -130,7 +131,7 @@ func SetupRoutesWithRouter(
 	handler, err := NewHandler(
 		provider, providerInfos, providerRouter,
 		providerKey, pool, providerPools, providerKeys,
-		&cfg.Routing, debugOpts, routingDebug, healthTracker, nil,
+		&cfg.Routing, debugOpts, routingDebug, healthTracker, signatureCache,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
