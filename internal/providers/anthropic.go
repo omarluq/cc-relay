@@ -31,6 +31,17 @@ func NewAnthropicProvider(name, baseURL string) *AnthropicProvider {
 // If baseURL is empty, DefaultAnthropicBaseURL is used.
 // If models is empty, DefaultAnthropicModels are used.
 func NewAnthropicProviderWithModels(name, baseURL string, models []string) *AnthropicProvider {
+	return NewAnthropicProviderWithMapping(name, baseURL, models, nil)
+}
+
+// NewAnthropicProviderWithMapping creates a new Anthropic provider with model mapping.
+// If baseURL is empty, DefaultAnthropicBaseURL is used.
+// If models is empty, DefaultAnthropicModels are used.
+func NewAnthropicProviderWithMapping(
+	name, baseURL string,
+	models []string,
+	modelMapping map[string]string,
+) *AnthropicProvider {
 	if baseURL == "" {
 		baseURL = DefaultAnthropicBaseURL
 	}
@@ -41,7 +52,7 @@ func NewAnthropicProviderWithModels(name, baseURL string, models []string) *Anth
 	}
 
 	return &AnthropicProvider{
-		BaseProvider: NewBaseProvider(name, baseURL, AnthropicOwner, models),
+		BaseProvider: NewBaseProviderWithMapping(name, baseURL, AnthropicOwner, models, modelMapping),
 	}
 }
 

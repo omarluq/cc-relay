@@ -44,4 +44,13 @@ type Provider interface {
 
 	// ListModels returns the list of available models for this provider.
 	ListModels() []Model
+
+	// GetModelMapping returns the model name mapping for this provider.
+	// Maps incoming model names to provider-specific model names.
+	// Returns nil if no mapping is configured.
+	GetModelMapping() map[string]string
+
+	// MapModel maps an incoming model name to the provider-specific model name.
+	// Returns the mapped name if found, otherwise returns the original name unchanged.
+	MapModel(model string) string
 }

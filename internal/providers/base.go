@@ -11,20 +11,33 @@ import (
 
 // BaseProvider provides common functionality for Anthropic-compatible providers.
 // It implements the shared methods that are identical across Anthropic and Z.AI.
+//
+//nolint:govet // Field alignment optimized for readability over memory
 type BaseProvider struct {
-	name    string
-	baseURL string
-	owner   string
-	models  []string
+	modelMapping map[string]string
+	models       []string
+	name         string
+	baseURL      string
+	owner        string
 }
 
 // NewBaseProvider creates a new base provider with the given parameters.
 func NewBaseProvider(name, baseURL, owner string, models []string) BaseProvider {
+	return NewBaseProviderWithMapping(name, baseURL, owner, models, nil)
+}
+
+// NewBaseProviderWithMapping creates a new base provider with model mapping.
+func NewBaseProviderWithMapping(
+	name, baseURL, owner string,
+	models []string,
+	modelMapping map[string]string,
+) BaseProvider {
 	return BaseProvider{
-		name:    name,
-		baseURL: baseURL,
-		models:  models,
-		owner:   owner,
+		name:         name,
+		baseURL:      baseURL,
+		models:       models,
+		owner:        owner,
+		modelMapping: modelMapping,
 	}
 }
 
@@ -105,4 +118,21 @@ func (p *BaseProvider) ListModels() []Model {
 			Created:  now,
 		}
 	})
+}
+
+// GetModelMapping returns the model name mapping for this provider.
+func (p *BaseProvider) GetModelMapping() map[string]string {
+	return p.modelMapping
+}
+
+// MapModel maps an incoming model name to the provider-specific model name.
+// Returns the mapped name if found, otherwise returns the original name unchanged.
+func (p *BaseProvider) MapModel(model string) string {
+	if p.modelMapping == nil {
+		return model
+	}
+	if mapped, ok := p.modelMapping[model]; ok {
+		return mapped
+	}
+	return model
 }

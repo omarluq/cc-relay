@@ -291,6 +291,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Rewrite model name if provider has model mapping configured
+	if mapping := selectedProvider.GetModelMapping(); len(mapping) > 0 {
+		rewriter := NewModelRewriter(mapping)
+		if err := rewriter.RewriteRequest(r, &logger); err != nil {
+			logger.Warn().Err(err).Msg("failed to rewrite model in request body")
+			// Continue with original request - don't fail on rewrite errors
+		}
+	}
+
 	// Attach TLS trace if debug metrics enabled
 	r, getTLSMetrics := h.attachTLSTraceIfEnabled(r)
 

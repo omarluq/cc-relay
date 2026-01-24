@@ -23,6 +23,8 @@ func (m *mockProvider) ForwardHeaders(_ http.Header) http.Header     { return ht
 func (m *mockProvider) SupportsStreaming() bool                      { return true }
 func (m *mockProvider) SupportsTransparentAuth() bool                { return false }
 func (m *mockProvider) ListModels() []providers.Model                { return nil }
+func (m *mockProvider) GetModelMapping() map[string]string           { return nil }
+func (m *mockProvider) MapModel(model string) string                 { return model }
 
 func TestWeightedRoundRobinRouter_Select_NoProviders(t *testing.T) {
 	t.Parallel()

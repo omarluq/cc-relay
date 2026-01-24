@@ -273,3 +273,109 @@ func TestOllamaSupportsTransparentAuth(t *testing.T) {
 		t.Error("Expected SupportsTransparentAuth to return false for Ollama")
 	}
 }
+
+func TestOllamaGetModelMapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns nil when no mapping configured", func(t *testing.T) {
+		t.Parallel()
+		provider := NewOllamaProvider("test-ollama", "")
+		if provider.GetModelMapping() != nil {
+			t.Error("Expected nil model mapping when not configured")
+		}
+	})
+
+	t.Run("returns mapping when configured", func(t *testing.T) {
+		t.Parallel()
+		mapping := map[string]string{
+			"claude-opus-4-5-20251101": "qwen3:8b",
+		}
+		provider := NewOllamaProviderWithMapping("test-ollama", "", nil, mapping)
+		result := provider.GetModelMapping()
+		if result == nil {
+			t.Fatal("Expected non-nil model mapping")
+		}
+		if result["claude-opus-4-5-20251101"] != "qwen3:8b" {
+			t.Errorf("Expected mapping for claude-opus-4-5-20251101, got %v", result)
+		}
+	})
+}
+
+func TestOllamaMapModel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		mapping  map[string]string
+		input    string
+		expected string
+	}{
+		{
+			name:     "returns original when no mapping",
+			mapping:  nil,
+			input:    "claude-opus-4-5-20251101",
+			expected: "claude-opus-4-5-20251101",
+		},
+		{
+			name: "maps when found",
+			mapping: map[string]string{
+				"claude-opus-4-5-20251101": "qwen3:8b",
+			},
+			input:    "claude-opus-4-5-20251101",
+			expected: "qwen3:8b",
+		},
+		{
+			name: "returns original when not found",
+			mapping: map[string]string{
+				"claude-opus-4-5-20251101": "qwen3:8b",
+			},
+			input:    "some-other-model",
+			expected: "some-other-model",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			provider := NewOllamaProviderWithMapping("test-ollama", "", nil, tt.mapping)
+			result := provider.MapModel(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestNewOllamaProviderWithMapping(t *testing.T) {
+	t.Parallel()
+
+	mapping := map[string]string{
+		"claude-opus-4-5-20251101":  "qwen3:8b",
+		"claude-sonnet-4-20250514":  "qwen3:4b",
+		"claude-haiku-3-5-20241022": "qwen3:1b",
+	}
+	models := []string{"qwen3:8b", "qwen3:4b", "qwen3:1b"}
+
+	provider := NewOllamaProviderWithMapping("ollama-primary", "http://192.168.1.100:11434", models, mapping)
+
+	if provider.Name() != "ollama-primary" {
+		t.Errorf("Expected name=ollama-primary, got %s", provider.Name())
+	}
+
+	if provider.BaseURL() != "http://192.168.1.100:11434" {
+		t.Errorf("Expected custom base URL, got %s", provider.BaseURL())
+	}
+
+	if len(provider.ListModels()) != 3 {
+		t.Errorf("Expected 3 models, got %d", len(provider.ListModels()))
+	}
+
+	if len(provider.GetModelMapping()) != 3 {
+		t.Errorf("Expected 3 mappings, got %d", len(provider.GetModelMapping()))
+	}
+
+	// Verify mapping works
+	if provider.MapModel("claude-opus-4-5-20251101") != "qwen3:8b" {
+		t.Error("Expected model mapping to work")
+	}
+}
