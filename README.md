@@ -11,15 +11,17 @@ Boost Claude Code by routing to multiple Anthropic-compatible providers simultan
 <p align="center">  
   <a href="https://cc-relay.ai/"><img src="https://img.shields.io/badge/-cc--relay.ai-5e5086?style=flat&labelColor=24292e&logo=safari&logoColor=white" alt="Website"></a>
   <a href="https://cc-relay.ai/en/docs/"><img src="https://img.shields.io/badge/-Read%20the%20Docs-blue?style=flat&labelColor=24292e&logo=readthedocs&logoColor=white" alt="Documentation"></a>
-  <a href="https://github.com/omarluq/cc-relay/releases"><img src="https://img.shields.io/badge/-Latest%20Release-28a745?style=flat&labelColor=24292e&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAxNWw1LTUtMS40MS0xLjQxTDEzIDExLjE3VjRoLTJ2Ny4xN0w4LjQxIDguNTkgNyAxMGw1IDV6bTcgMnY0SDV2LTRIMy42OHY0LjMzYzAgLjczNC41OTYgMS4zMyAxLjMzIDEuMzNoMTMuOThjLjczNCAwIDEuMzMtLjU5NiAxLjMzLTEuMzNWMTdIMTl6Ii8+PC9zdmc+" alt="Download"></a>
+  <a href="https://pkg.go.dev/github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/reference-007d9c?style=flat&labelColor=24292e&logo=go&logoColor=white" alt="Go Reference"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/-%3E%3D1.18-00ADD8?style=flat&labelColor=24292e&logo=go&logoColor=white" alt="Go Version"></a>
+  <a href="https://goreportcard.com/report/github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/report-A%2B-00ADD8?style=flat&labelColor=24292e&logo=go&logoColor=white" alt="Go Report Card"></a>
+  <a href="https://github.com/omarluq/cc-relay/releases"><img src="https://img.shields.io/badge/-Latest%20Release-28a745?style=flat&labelColor=24292e&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAxNWw1LTUtMS40MS0xLjQxTDEzIDExLjE3VjRoLTJ2Ny4xN0w4LjQxIDguNTkgNyAxMGw1IDV6bTcgMnY0SDV2LTRIMy42OHY0LjMzYzAgLjczNC41OTYgMS4zMyAxLjMzIDEuMzNoMTMuOThjLjczNCAwIDEuMzMtLjU5NiAxLjMzLTEuMzNWMTdIMTl6Ii8+PC9zdmc+" alt="Download"></a>
   <br/>
-  <a href="https://github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/Made%20with-Love-ff69b4?style=flat&labelColor=24292e&logo=githubsponsors&logoColor=white" alt="Made with Love"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat&labelColor=24292e&logo=opensourceinitiative&logoColor=white" alt="License: AGPL-3.0"></a>
   <a href="https://github.com/omarluq/cc-relay/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/omarluq/cc-relay/ci.yml?style=flat&labelColor=24292e&label=Tests&logo=github&logoColor=white" alt="Tests"></a>
   <a href="https://github.com/omarluq/cc-relay/releases"><img src="https://img.shields.io/github/v/release/omarluq/cc-relay?style=flat&labelColor=24292e&color=28a745&label=Version&logo=semver&logoColor=white" alt="Version"></a>
   <a href="https://codecov.io/gh/omarluq/cc-relay"><img src="https://img.shields.io/codecov/c/github/omarluq/cc-relay?style=flat&labelColor=24292e&logo=codecov&logoColor=white&token=YW23EDL5T5" alt="codecov"></a>
   <a href="https://github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/Maintained%3F-yes-28a745?style=flat&labelColor=24292e&logo=checkmarx&logoColor=white" alt="Maintained"></a>
+  <a href="https://github.com/omarluq/cc-relay"><img src="https://img.shields.io/badge/Made%20with-Love-ff69b4?style=flat&labelColor=24292e&logo=githubsponsors&logoColor=white" alt="Made with Love"></a>
 </p>
 
 <h2>Why?</h2>
