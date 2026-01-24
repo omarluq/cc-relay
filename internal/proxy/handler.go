@@ -165,7 +165,11 @@ func (h *Handler) reportOutcome(resp *http.Response) {
 // selectProvider chooses a provider using the router or returns the static provider.
 // In single provider mode (router is nil or no providers), returns the static provider.
 // If model is provided and model-based routing is enabled, filters providers first.
-func (h *Handler) selectProvider(ctx context.Context, model string) (router.ProviderInfo, error) {
+// If hasThinkingAffinity is true, uses deterministic selection (first healthy provider)
+// to ensure thinking signature validation works across conversation turns.
+func (h *Handler) selectProvider(
+	ctx context.Context, model string, hasThinkingAffinity bool,
+) (router.ProviderInfo, error) {
 	if h.router == nil || len(h.providers) == 0 {
 		// Single provider mode - wrap static provider
 		return router.ProviderInfo{
@@ -183,6 +187,17 @@ func (h *Handler) selectProvider(ctx context.Context, model string) (router.Prov
 			h.routingConfig.ModelMapping,
 			h.routingConfig.DefaultProvider,
 		)
+	}
+
+	// If thinking affinity is required, use deterministic selection.
+	// This ensures that thinking-enabled conversations always route to the same
+	// provider (the first healthy one), preventing signature validation failures.
+	if hasThinkingAffinity && len(candidates) > 1 {
+		healthy := router.FilterHealthy(candidates)
+		if len(healthy) > 0 {
+			// Force single candidate - first healthy provider (deterministic)
+			candidates = healthy[:1]
+		}
 	}
 
 	return h.router.Select(ctx, candidates)
@@ -243,9 +258,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(CacheModelInContext(r.Context(), model))
 	}
 
+	// Check for thinking signatures in request body for sticky provider routing.
+	// When extended thinking is enabled, the provider's signature must be validated
+	// by the same provider on subsequent turns.
+	hasThinking := HasThinkingSignature(r)
+	if hasThinking {
+		r = r.WithContext(CacheThinkingAffinityInContext(r.Context(), true))
+	}
+
 	// Select provider using router (or use static provider)
 	// Model is passed for model-based routing filtering
-	selectedProviderInfo, err := h.selectProvider(r.Context(), model)
+	// hasThinking forces deterministic (sticky) selection
+	selectedProviderInfo, err := h.selectProvider(r.Context(), model, hasThinking)
 	if err != nil {
 		WriteError(w, http.StatusServiceUnavailable, "api_error",
 			fmt.Sprintf("failed to select provider: %v", err))
@@ -269,7 +293,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(context.WithValue(r.Context(), providerNameContextKey, selectedProvider.Name()))
 
 	// Log routing strategy and set debug headers
-	h.logAndSetDebugHeaders(w, &logger, selectedProvider)
+	h.logAndSetDebugHeaders(w, r, &logger, selectedProvider)
 
 	// Handle auth mode selection and key selection (using provider's pool)
 	r, ok = h.handleAuthAndKeySelection(w, r, &logger, providerProxy)
@@ -295,14 +319,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // logAndSetDebugHeaders logs routing strategy and sets debug headers if enabled.
 func (h *Handler) logAndSetDebugHeaders(
-	w http.ResponseWriter, logger *zerolog.Logger, selectedProvider providers.Provider,
+	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger, selectedProvider providers.Provider,
 ) {
+	hasThinking := GetThinkingAffinityFromContext(r.Context())
+
 	// Log routing strategy if router is available
 	if h.router != nil {
-		logger.Debug().
+		event := logger.Debug().
 			Str("strategy", h.router.Name()).
-			Str("selected_provider", selectedProvider.Name()).
-			Msg("provider selected by router")
+			Str("selected_provider", selectedProvider.Name())
+		if hasThinking {
+			event.Bool("thinking_affinity", true)
+		}
+		event.Msg("provider selected by router")
 	}
 
 	if !h.routingDebug {
@@ -313,6 +342,9 @@ func (h *Handler) logAndSetDebugHeaders(
 	if h.router != nil {
 		w.Header().Set("X-CC-Relay-Strategy", h.router.Name())
 		w.Header().Set("X-CC-Relay-Provider", selectedProvider.Name())
+		if hasThinking {
+			w.Header().Set("X-CC-Relay-Thinking-Affinity", "true")
+		}
 	}
 
 	// Add health debug header

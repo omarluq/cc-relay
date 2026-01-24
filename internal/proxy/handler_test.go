@@ -1058,7 +1058,7 @@ func TestHandler_SelectProviderSingleMode(t *testing.T) {
 	handler, err := NewHandler(provider, nil, nil, "test-key", nil, nil, nil, nil, config.DebugOptions{}, false, nil)
 	require.NoError(t, err)
 
-	info, err := handler.selectProvider(context.Background(), "")
+	info, err := handler.selectProvider(context.Background(), "", false)
 	require.NoError(t, err)
 	assert.Equal(t, "test", info.Provider.Name())
 	assert.True(t, info.Healthy()) // Always healthy in single mode
@@ -1086,7 +1086,7 @@ func TestHandler_SelectProviderMultiMode(t *testing.T) {
 
 	handler := newTestHandler(t, provider1, providerInfos, mockR, "test-key", nil, false, nil)
 
-	info, err := handler.selectProvider(context.Background(), "")
+	info, err := handler.selectProvider(context.Background(), "", false)
 	require.NoError(t, err)
 	// Router should have selected provider2, not provider1
 	assert.Equal(t, "provider2", info.Provider.Name())
