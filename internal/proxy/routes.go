@@ -53,7 +53,7 @@ func SetupRoutesWithProviders(
 	// Note: SetupRoutesWithProviders doesn't use router - for DI integration use NewProxyHandler
 	// Pass nil for healthTracker - this legacy function doesn't support health tracking
 	// Single-provider mode: nil maps for providerPools, providerKeys, and routingConfig
-	handler, err := NewHandler(provider, nil, nil, providerKey, pool, nil, nil, nil, debugOpts, false, nil)
+	handler, err := NewHandler(provider, nil, nil, providerKey, pool, nil, nil, nil, debugOpts, false, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
@@ -130,7 +130,7 @@ func SetupRoutesWithRouter(
 	handler, err := NewHandler(
 		provider, providerInfos, providerRouter,
 		providerKey, pool, providerPools, providerKeys,
-		&cfg.Routing, debugOpts, routingDebug, healthTracker,
+		&cfg.Routing, debugOpts, routingDebug, healthTracker, nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)

@@ -2,14 +2,17 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/tidwall/gjson"
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/health"
@@ -22,8 +25,10 @@ import (
 type contextKey string
 
 const (
-	keyIDContextKey        contextKey = "keyID"
-	providerNameContextKey contextKey = "providerName"
+	keyIDContextKey           contextKey = "keyID"
+	providerNameContextKey    contextKey = "providerName"
+	modelNameContextKey       contextKey = "modelName"
+	thinkingContextContextKey contextKey = "thinkingContext"
 )
 
 // Handler proxies requests to a backend provider.
@@ -32,7 +37,8 @@ type Handler struct {
 	defaultProvider providers.Provider        // Fallback for single-provider mode
 	router          router.ProviderRouter
 	healthTracker   *health.Tracker
-	routingConfig   *config.RoutingConfig // For model-based routing configuration
+	signatureCache  *SignatureCache           // Thinking signature cache (may be nil)
+	routingConfig   *config.RoutingConfig     // For model-based routing configuration
 	providers       []router.ProviderInfo
 	debugOpts       config.DebugOptions
 	routingDebug    bool
@@ -45,6 +51,7 @@ type Handler struct {
 // providerKeys maps provider names to their fallback API keys.
 // routingConfig contains model-based routing configuration (may be nil).
 // If healthTracker is provided, success/failure will be reported to circuit breakers.
+// If signatureCache is provided, thinking signatures are cached for cross-provider reuse.
 func NewHandler(
 	provider providers.Provider,
 	providerInfos []router.ProviderInfo,
@@ -57,6 +64,7 @@ func NewHandler(
 	debugOpts config.DebugOptions,
 	routingDebug bool,
 	healthTracker *health.Tracker,
+	signatureCache *SignatureCache,
 ) (*Handler, error) {
 	h := &Handler{
 		providerProxies: make(map[string]*ProviderProxy),
@@ -67,6 +75,7 @@ func NewHandler(
 		debugOpts:       debugOpts,
 		routingDebug:    routingDebug,
 		healthTracker:   healthTracker,
+		signatureCache:  signatureCache,
 	}
 
 	// Create ProviderProxy for each provider in providerInfos (multi-provider mode)
@@ -257,6 +266,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if modelOpt.IsPresent() {
 		r = r.WithContext(CacheModelInContext(r.Context(), model))
 	}
+
+	// Store model name in context for response processing (signature caching)
+	if model != "" {
+		r = r.WithContext(context.WithValue(r.Context(), modelNameContextKey, model))
+	}
+
+	// Process thinking signatures if cache is enabled and request has thinking blocks
+	r = h.processThinkingSignatures(r, model)
 
 	// Check for thinking signatures in request body for sticky provider routing.
 	// When extended thinking is enabled, the provider's signature must be validated
@@ -477,4 +494,80 @@ func parseRetryAfter(headers http.Header) time.Duration {
 	}
 
 	return 60 * time.Second // Default if parsing failed
+}
+
+// processThinkingSignatures processes thinking block signatures in the request.
+// Looks up cached signatures and replaces/drops blocks as needed.
+// Returns the potentially modified request.
+func (h *Handler) processThinkingSignatures(r *http.Request, model string) *http.Request {
+	// Skip if no signature cache configured
+	if h.signatureCache == nil {
+		return r
+	}
+
+	// Read body for thinking detection
+	if r.Body == nil {
+		return r
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return r
+	}
+	//nolint:errcheck // Best effort close
+	r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewReader(body))
+
+	// Fast path: check if request has thinking blocks
+	if !HasThinkingBlocks(body) {
+		return r
+	}
+
+	// Extract model from body if not already known
+	modelName := model
+	if modelName == "" {
+		modelName = gjson.GetBytes(body, "model").String()
+	}
+
+	// Process thinking blocks
+	logger := zerolog.Ctx(r.Context())
+	modifiedBody, thinkingCtx, err := ProcessRequestThinking(
+		r.Context(), body, modelName, h.signatureCache,
+	)
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to process thinking signatures")
+		return r
+	}
+
+	// Log processing results
+	if thinkingCtx.DroppedBlocks > 0 {
+		logger.Debug().
+			Int("dropped_blocks", thinkingCtx.DroppedBlocks).
+			Msg("dropped unsigned thinking blocks")
+	}
+	if thinkingCtx.ReorderedBlocks {
+		logger.Debug().Msg("reordered content blocks (thinking first)")
+	}
+
+	// Update request body
+	r.Body = io.NopCloser(bytes.NewReader(modifiedBody))
+	r.ContentLength = int64(len(modifiedBody))
+
+	// Store thinking context for response processing
+	r = r.WithContext(context.WithValue(r.Context(), thinkingContextContextKey, thinkingCtx))
+
+	return r
+}
+
+// GetModelNameFromContext retrieves the model name from context.
+func GetModelNameFromContext(ctx context.Context) string {
+	//nolint:errcheck // Type assertion failure returns empty string, which is safe
+	model, _ := ctx.Value(modelNameContextKey).(string)
+	return model
+}
+
+// GetThinkingContextFromContext retrieves the thinking context from context.
+func GetThinkingContextFromContext(ctx context.Context) *ThinkingContext {
+	//nolint:errcheck // Type assertion failure returns nil, which is safe
+	thinkingCtx, _ := ctx.Value(thinkingContextContextKey).(*ThinkingContext)
+	return thinkingCtx
 }
