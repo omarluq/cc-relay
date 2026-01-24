@@ -216,11 +216,11 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 		var prov providers.Provider
 		switch p.Type {
 		case "anthropic":
-			prov = providers.NewAnthropicProviderWithModels(p.Name, p.BaseURL, p.Models)
+			prov = providers.NewAnthropicProviderWithMapping(p.Name, p.BaseURL, p.Models, p.ModelMapping)
 		case "zai":
-			prov = providers.NewZAIProviderWithModels(p.Name, p.BaseURL, p.Models)
+			prov = providers.NewZAIProviderWithMapping(p.Name, p.BaseURL, p.Models, p.ModelMapping)
 		case "ollama":
-			prov = providers.NewOllamaProviderWithModels(p.Name, p.BaseURL, p.Models)
+			prov = providers.NewOllamaProviderWithMapping(p.Name, p.BaseURL, p.Models, p.ModelMapping)
 		default:
 			continue // Skip unknown provider types
 		}

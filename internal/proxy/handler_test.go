@@ -227,6 +227,14 @@ func (m *mockProvider) ListModels() []providers.Model {
 	return nil
 }
 
+func (m *mockProvider) GetModelMapping() map[string]string {
+	return nil
+}
+
+func (m *mockProvider) MapModel(model string) string {
+	return model
+}
+
 // TestHandler_WithKeyPool tests handler with key pool integration.
 func TestHandler_WithKeyPool(t *testing.T) {
 	t.Parallel()

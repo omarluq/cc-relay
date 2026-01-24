@@ -34,6 +34,17 @@ func NewZAIProvider(name, baseURL string) *ZAIProvider {
 // If baseURL is empty, DefaultZAIBaseURL is used.
 // If models is empty, DefaultZAIModels are used.
 func NewZAIProviderWithModels(name, baseURL string, models []string) *ZAIProvider {
+	return NewZAIProviderWithMapping(name, baseURL, models, nil)
+}
+
+// NewZAIProviderWithMapping creates a new Z.AI provider with model mapping.
+// If baseURL is empty, DefaultZAIBaseURL is used.
+// If models is empty, DefaultZAIModels are used.
+func NewZAIProviderWithMapping(
+	name, baseURL string,
+	models []string,
+	modelMapping map[string]string,
+) *ZAIProvider {
 	if baseURL == "" {
 		baseURL = DefaultZAIBaseURL
 	}
@@ -44,6 +55,6 @@ func NewZAIProviderWithModels(name, baseURL string, models []string) *ZAIProvide
 	}
 
 	return &ZAIProvider{
-		BaseProvider: NewBaseProvider(name, baseURL, ZAIOwner, models),
+		BaseProvider: NewBaseProviderWithMapping(name, baseURL, ZAIOwner, models, modelMapping),
 	}
 }
