@@ -123,7 +123,7 @@ func (p *SSESignatureProcessor) GetCurrentSignature() string {
 }
 
 // extractSSEData extracts the data field from an SSE event line.
-// Returns nil if no data field is found.
+// Returns nil if no data field is found or if data is empty.
 func extractSSEData(eventLine []byte) []byte {
 	// Find "data:" prefix
 	idx := bytes.Index(eventLine, eventDataPrefix)
@@ -137,6 +137,11 @@ func extractSSEData(eventLine []byte) []byte {
 	// Handle multi-line data (lines joined by \n)
 	if bytes.HasSuffix(data, []byte("\n")) {
 		data = bytes.TrimSuffix(data, []byte("\n"))
+	}
+
+	// Return nil for empty data to match documented contract
+	if len(data) == 0 {
+		return nil
 	}
 
 	return data
