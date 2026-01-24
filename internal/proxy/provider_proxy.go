@@ -3,6 +3,7 @@ package proxy
 
 import (
 	"fmt"
+	"mime"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -70,9 +71,11 @@ func NewProviderProxy(
 
 // modifyResponse handles SSE headers and calls the optional hook for additional processing.
 func (pp *ProviderProxy) modifyResponse(resp *http.Response) error {
-	// Add SSE headers if streaming response
-	if resp.Header.Get("Content-Type") == "text/event-stream" {
-		SetSSEHeaders(resp.Header)
+	// Add SSE headers if streaming response (handles "text/event-stream; charset=utf-8" etc.)
+	if ct := resp.Header.Get("Content-Type"); ct != "" {
+		if mediaType, _, err := mime.ParseMediaType(ct); err == nil && mediaType == "text/event-stream" {
+			SetSSEHeaders(resp.Header)
+		}
 	}
 
 	// Call the hook for additional processing (key pool updates, circuit breaker)
