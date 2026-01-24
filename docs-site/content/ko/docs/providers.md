@@ -100,10 +100,12 @@ providers:
 
 ### API 키 설정
 
-1. [open.bigmodel.cn](https://open.bigmodel.cn)(Zhipu AI 개발자 포털)에서 계정 생성
+1. [z.ai/model-api](https://z.ai/model-api)에서 계정 생성
 2. API Keys 섹션으로 이동
 3. 새 API 키 생성
 4. 환경 변수에 저장: `export ZAI_API_KEY="..."`
+
+> **10% 할인:** 구독 시 [이 초대 링크](https://z.ai/subscribe?ic=HT5TQVSOZP)를 사용하면 본인과 추천인 모두 10% 할인을 받을 수 있습니다.
 
 ### Model Mapping
 

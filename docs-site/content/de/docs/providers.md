@@ -100,10 +100,12 @@ providers:
 
 ### API-Schluessel Einrichtung
 
-1. Erstellen Sie ein Konto unter [open.bigmodel.cn](https://open.bigmodel.cn) (Zhipu AI Developer Portal)
+1. Erstellen Sie ein Konto unter [z.ai/model-api](https://z.ai/model-api)
 2. Navigieren Sie zum API Keys Bereich
 3. Erstellen Sie einen neuen API-Schluessel
 4. Speichern Sie ihn als Umgebungsvariable: `export ZAI_API_KEY="..."`
+
+> **10% Rabatt:** Verwenden Sie [diesen Einladungslink](https://z.ai/subscribe?ic=HT5TQVSOZP) bei der Anmeldung — sowohl Sie als auch der Empfehlende erhalten 10% Rabatt.
 
 ### Model Mapping
 
