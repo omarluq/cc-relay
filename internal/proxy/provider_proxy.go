@@ -88,6 +88,9 @@ func (pp *ProviderProxy) rewrite(r *httputil.ProxyRequest) {
 	r.SetURL(pp.targetURL)
 	r.SetXForwarded()
 
+	// Remove internal header before proxying to avoid key leakage
+	r.Out.Header.Del("X-Selected-Key")
+
 	clientAuth := r.In.Header.Get("Authorization")
 	clientAPIKey := r.In.Header.Get("x-api-key")
 	hasClientAuth := clientAuth != "" || clientAPIKey != ""
