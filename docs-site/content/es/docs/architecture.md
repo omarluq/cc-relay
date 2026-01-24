@@ -1,37 +1,37 @@
 ---
-title: Architecture
+title: Arquitectura
 weight: 4
 ---
 
-CC-Relay is a high-performance, multi-provider HTTP proxy designed for LLM applications. It provides intelligent routing, thinking signature caching, and seamless failover between providers.
+CC-Relay es un proxy HTTP de alto rendimiento y multi-proveedor diseñado para aplicaciones LLM. Proporciona enrutamiento inteligente, caché de firmas de pensamiento y conmutación por error sin interrupciones entre proveedores.
 
-## System Overview
+## Descripción General del Sistema
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
+    subgraph "Capa de Cliente"
         A[Claude Code]
-        B[Custom LLM Client]
+        B[Cliente LLM Personalizado]
     end
 
-    subgraph "CC-Relay Proxy"
-        D[HTTP Server<br/>:8787]
-        E[Middleware Stack]
+    subgraph "Proxy CC-Relay"
+        D[Servidor HTTP<br/>:8787]
+        E[Pila de Middleware]
         F[Handler]
         G[Router]
-        H[Signature Cache]
+        H[Caché de Firmas]
     end
 
-    subgraph "Provider Proxies"
+    subgraph "Proxies de Proveedores"
         I[ProviderProxy<br/>Anthropic]
         J[ProviderProxy<br/>Z.AI]
         K[ProviderProxy<br/>Ollama]
     end
 
-    subgraph "Backend Providers"
-        L[Anthropic API]
-        M[Z.AI API]
-        N[Ollama API]
+    subgraph "Proveedores Backend"
+        L[API Anthropic]
+        M[API Z.AI]
+        N[API Ollama]
     end
 
     A --> D
@@ -54,167 +54,167 @@ graph TB
     style H fill:#8b5cf6,stroke:#7c3aed,color:#fff
 ```
 
-## Core Components
+## Componentes Principales
 
 ### 1. Handler
 
-**Location**: `internal/proxy/handler.go`
+**Ubicación**: `internal/proxy/handler.go`
 
-The Handler is the central coordinator for request processing:
+El Handler es el coordinador central para el procesamiento de solicitudes:
 
 ```go
 type Handler struct {
-    providerProxies map[string]*ProviderProxy  // Per-provider reverse proxies
-    defaultProvider providers.Provider          // Fallback for single-provider mode
-    router          router.ProviderRouter       // Routing strategy implementation
-    healthTracker   *health.Tracker             // Circuit breaker tracking
-    signatureCache  *SignatureCache             // Thinking signature cache
-    routingConfig   *config.RoutingConfig       // Model-based routing config
-    providers       []router.ProviderInfo       // Available providers
+    providerProxies map[string]*ProviderProxy  // Proxies inversos por proveedor
+    defaultProvider providers.Provider          // Respaldo para modo de proveedor único
+    router          router.ProviderRouter       // Implementación de estrategia de enrutamiento
+    healthTracker   *health.Tracker             // Seguimiento de circuit breaker
+    signatureCache  *SignatureCache             // Caché de firmas de pensamiento
+    routingConfig   *config.RoutingConfig       // Configuración de enrutamiento basado en modelo
+    providers       []router.ProviderInfo       // Proveedores disponibles
 }
 ```
 
-**Responsibilities:**
-- Extract model name from request body
-- Detect thinking signatures for provider affinity
-- Select provider via router
-- Delegate to appropriate ProviderProxy
-- Process thinking blocks and cache signatures
+**Responsabilidades:**
+- Extraer nombre del modelo del cuerpo de la solicitud
+- Detectar firmas de pensamiento para afinidad de proveedor
+- Seleccionar proveedor a través del router
+- Delegar al ProviderProxy apropiado
+- Procesar bloques de pensamiento y cachear firmas
 
 ### 2. ProviderProxy
 
-**Location**: `internal/proxy/provider_proxy.go`
+**Ubicación**: `internal/proxy/provider_proxy.go`
 
-Each provider gets a dedicated reverse proxy with pre-configured URL and authentication:
+Cada proveedor obtiene un proxy inverso dedicado con URL y autenticación preconfiguradas:
 
 ```go
 type ProviderProxy struct {
     Provider           providers.Provider
     Proxy              *httputil.ReverseProxy
-    KeyPool            *keypool.KeyPool  // For multi-key rotation
-    APIKey             string            // Fallback single key
-    targetURL          *url.URL          // Provider's base URL
+    KeyPool            *keypool.KeyPool  // Para rotación multi-clave
+    APIKey             string            // Clave única de respaldo
+    targetURL          *url.URL          // URL base del proveedor
     modifyResponseHook ModifyResponseFunc
 }
 ```
 
-**Key Features:**
-- URL parsing happens once at initialization (not per-request)
-- Supports transparent auth (forward client credentials) or configured auth
-- Automatic SSE header injection for streaming responses
-- Key pool integration for rate limit distribution
+**Características Principales:**
+- El análisis de URL ocurre una vez en la inicialización (no por solicitud)
+- Soporta autenticación transparente (reenvío de credenciales del cliente) o autenticación configurada
+- Inyección automática de cabeceras SSE para respuestas en streaming
+- Integración de pool de claves para distribución de límites de tasa
 
 ### 3. Router
 
-**Location**: `internal/router/`
+**Ubicación**: `internal/router/`
 
-The router selects which provider handles each request:
+El router selecciona qué proveedor maneja cada solicitud:
 
-| Strategy | Description |
+| Estrategia | Descripción |
 |----------|-------------|
-| `failover` | Priority-based with automatic retry (default) |
-| `round_robin` | Sequential rotation |
-| `weighted_round_robin` | Proportional by weight |
-| `shuffle` | Fair random distribution |
-| `model_based` | Route by model name prefix |
+| `failover` | Basado en prioridad con reintento automático (predeterminado) |
+| `round_robin` | Rotación secuencial |
+| `weighted_round_robin` | Proporcional por peso |
+| `shuffle` | Distribución aleatoria justa |
+| `model_based` | Enrutar por prefijo de nombre de modelo |
 
-### 4. Signature Cache
+### 4. Caché de Firmas
 
-**Location**: `internal/proxy/signature_cache.go`
+**Ubicación**: `internal/proxy/signature_cache.go`
 
-Caches thinking block signatures for cross-provider compatibility:
+Cachea firmas de bloques de pensamiento para compatibilidad entre proveedores:
 
 ```go
 type SignatureCache struct {
-    cache cache.Cache  // Ristretto-backed cache
+    cache cache.Cache  // Caché respaldado por Ristretto
 }
 
-// Cache key format: "sig:{modelGroup}:{textHash}"
-// TTL: 3 hours (matches Claude API)
+// Formato de clave de caché: "sig:{modelGroup}:{textHash}"
+// TTL: 3 horas (coincide con API de Claude)
 ```
 
-## Request Flow
+## Flujo de Solicitudes
 
-### Multi-Provider Routing
+### Enrutamiento Multi-Proveedor
 
 ```mermaid
 sequenceDiagram
-    participant Client
+    participant Client as Cliente
     participant Handler
     participant Router
     participant ModelFilter
     participant ProviderProxy
     participant Backend
 
-    Client->>Handler: HTTP Request (with model field)
-    Handler->>Handler: Extract model from body
-    Handler->>Handler: Check thinking signature presence
+    Client->>Handler: Solicitud HTTP (con campo model)
+    Handler->>Handler: Extraer modelo del cuerpo
+    Handler->>Handler: Verificar presencia de firma de pensamiento
     Handler->>ModelFilter: FilterProvidersByModel(model, providers, mapping)
-    ModelFilter->>ModelFilter: Longest-prefix match against modelMapping
-    ModelFilter->>Router: Return filtered provider list
-    Handler->>Router: Select provider (failover/round-robin on filtered list)
-    Router->>Router: Apply routing strategy to filtered providers
-    Router->>Handler: Return selected ProviderInfo
+    ModelFilter->>ModelFilter: Coincidencia de prefijo más largo contra modelMapping
+    ModelFilter->>Router: Devolver lista filtrada de proveedores
+    Handler->>Router: Seleccionar proveedor (failover/round-robin en lista filtrada)
+    Router->>Router: Aplicar estrategia de enrutamiento a proveedores filtrados
+    Router->>Handler: Devolver ProviderInfo seleccionado
 
-    Handler->>Handler: Retrieve ProviderProxy for selected provider
-    Handler->>ProviderProxy: Prepare request with auth/headers
-    ProviderProxy->>ProviderProxy: Determine transparent vs configured auth mode
-    ProviderProxy->>Backend: Forward request to provider's target URL
-    Backend->>ProviderProxy: Response (with signature headers)
-    ProviderProxy->>Handler: Response with signature info
-    Handler->>Handler: Cache signature if thinking present
-    Handler->>Client: Response
+    Handler->>Handler: Obtener ProviderProxy para proveedor seleccionado
+    Handler->>ProviderProxy: Preparar solicitud con auth/cabeceras
+    ProviderProxy->>ProviderProxy: Determinar modo de auth transparente vs configurado
+    ProviderProxy->>Backend: Reenviar solicitud a URL destino del proveedor
+    Backend->>ProviderProxy: Respuesta (con cabeceras de firma)
+    ProviderProxy->>Handler: Respuesta con info de firma
+    Handler->>Handler: Cachear firma si hay pensamiento presente
+    Handler->>Client: Respuesta
 ```
 
-### Thinking Signature Processing
+### Procesamiento de Firmas de Pensamiento
 
-When extended thinking is enabled, providers return signed thinking blocks. These signatures must be validated by the same provider on subsequent turns. CC-Relay solves cross-provider signature issues through caching:
+Cuando el pensamiento extendido está habilitado, los proveedores devuelven bloques de pensamiento firmados. Estas firmas deben ser validadas por el mismo proveedor en turnos subsecuentes. CC-Relay resuelve problemas de firmas entre proveedores mediante caché:
 
 ```mermaid
 sequenceDiagram
-    participant Request
+    participant Request as Solicitud
     participant Handler
-    participant SignatureCache
+    participant SignatureCache as Caché de Firmas
     participant Backend
-    participant ResponseStream as Response Stream (SSE)
+    participant ResponseStream as Stream de Respuesta (SSE)
 
-    Request->>Handler: HTTP with thinking blocks
-    Handler->>Handler: HasThinkingSignature check
+    Request->>Handler: HTTP con bloques de pensamiento
+    Handler->>Handler: Verificación HasThinkingSignature
     Handler->>Handler: ProcessRequestThinking
     Handler->>SignatureCache: Get(modelGroup, thinkingText)
-    SignatureCache-->>Handler: Cached signature or empty
-    Handler->>Handler: Drop unsigned blocks / Apply cached signature
-    Handler->>Backend: Forward cleaned request
+    SignatureCache-->>Handler: Firma cacheada o vacío
+    Handler->>Handler: Descartar bloques sin firma / Aplicar firma cacheada
+    Handler->>Backend: Reenviar solicitud limpia
 
-    Backend->>ResponseStream: Streaming response (thinking_delta events)
-    ResponseStream->>Handler: thinking_delta event
-    Handler->>Handler: Accumulate thinking text
-    ResponseStream->>Handler: signature_delta event
+    Backend->>ResponseStream: Respuesta en streaming (eventos thinking_delta)
+    ResponseStream->>Handler: evento thinking_delta
+    Handler->>Handler: Acumular texto de pensamiento
+    ResponseStream->>Handler: evento signature_delta
     Handler->>SignatureCache: Set(modelGroup, thinking_text, signature)
-    SignatureCache-->>Handler: Cached
-    Handler->>ResponseStream: Transform signature with modelGroup prefix
-    ResponseStream->>Request: Return SSE event with prefixed signature
+    SignatureCache-->>Handler: Cacheado
+    Handler->>ResponseStream: Transformar firma con prefijo modelGroup
+    ResponseStream->>Request: Devolver evento SSE con firma prefijada
 ```
 
-**Model Groups for Signature Sharing:**
+**Grupos de Modelos para Compartir Firmas:**
 
-| Model Pattern | Group | Signatures Shared |
+| Patrón de Modelo | Grupo | Firmas Compartidas |
 |--------------|-------|-------------------|
-| `claude-*` | `claude` | Yes, across all Claude models |
-| `gpt-*` | `gpt` | Yes, across all GPT models |
-| `gemini-*` | `gemini` | Yes, uses sentinel value |
-| Other | Exact name | No sharing |
+| `claude-*` | `claude` | Sí, entre todos los modelos Claude |
+| `gpt-*` | `gpt` | Sí, entre todos los modelos GPT |
+| `gemini-*` | `gemini` | Sí, usa valor centinela |
+| Otro | Nombre exacto | Sin compartir |
 
-### SSE Streaming Flow
+### Flujo de Streaming SSE
 
 ```mermaid
 sequenceDiagram
-    participant Client
+    participant Client as Cliente
     participant Proxy
-    participant Provider
+    participant Provider as Proveedor
 
     Client->>Proxy: POST /v1/messages (stream=true)
-    Proxy->>Provider: Forward request
+    Proxy->>Provider: Reenviar solicitud
 
     Provider-->>Proxy: event: message_start
     Proxy-->>Client: event: message_start
@@ -222,7 +222,7 @@ sequenceDiagram
     Provider-->>Proxy: event: content_block_start
     Proxy-->>Client: event: content_block_start
 
-    loop Content Streaming
+    loop Streaming de Contenido
         Provider-->>Proxy: event: content_block_delta
         Proxy-->>Client: event: content_block_delta
     end
@@ -237,7 +237,7 @@ sequenceDiagram
     Proxy-->>Client: event: message_stop
 ```
 
-**Required SSE Headers:**
+**Cabeceras SSE Requeridas:**
 ```
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
@@ -245,20 +245,20 @@ X-Accel-Buffering: no
 Connection: keep-alive
 ```
 
-## Middleware Stack
+## Pila de Middleware
 
-**Location**: `internal/proxy/middleware.go`
+**Ubicación**: `internal/proxy/middleware.go`
 
-| Middleware | Purpose |
+| Middleware | Propósito |
 |------------|---------|
-| `RequestIDMiddleware` | Generates/extracts X-Request-ID for tracing |
-| `LoggingMiddleware` | Logs request/response with timing |
-| `AuthMiddleware` | Validates x-api-key header |
-| `MultiAuthMiddleware` | Supports API key and Bearer token auth |
+| `RequestIDMiddleware` | Genera/extrae X-Request-ID para trazabilidad |
+| `LoggingMiddleware` | Registra solicitud/respuesta con tiempos |
+| `AuthMiddleware` | Valida cabecera x-api-key |
+| `MultiAuthMiddleware` | Soporta autenticación por API key y Bearer token |
 
-## Provider Interface
+## Interfaz de Proveedor
 
-**Location**: `internal/providers/provider.go`
+**Ubicación**: `internal/providers/provider.go`
 
 ```go
 type Provider interface {
@@ -275,117 +275,117 @@ type Provider interface {
 }
 ```
 
-**Implemented Providers:**
+**Proveedores Implementados:**
 
-| Provider | Type | Features |
+| Proveedor | Tipo | Características |
 |----------|------|----------|
-| `AnthropicProvider` | `anthropic` | Native format, full feature support |
-| `ZAIProvider` | `zai` | Anthropic-compatible, GLM models |
-| `OllamaProvider` | `ollama` | Local models, no prompt caching |
+| `AnthropicProvider` | `anthropic` | Formato nativo, soporte completo de funciones |
+| `ZAIProvider` | `zai` | Compatible con Anthropic, modelos GLM |
+| `OllamaProvider` | `ollama` | Modelos locales, sin caché de prompts |
 
-## Authentication Modes
+## Modos de Autenticación
 
-### Transparent Auth
-When the client provides credentials and the provider supports it:
-- Client's `Authorization` or `x-api-key` headers forwarded unchanged
-- CC-Relay acts as a pure proxy
+### Autenticación Transparente
+Cuando el cliente proporciona credenciales y el proveedor lo soporta:
+- Las cabeceras `Authorization` o `x-api-key` del cliente se reenvían sin cambios
+- CC-Relay actúa como un proxy puro
 
-### Configured Auth
-When using CC-Relay's managed keys:
-- Client credentials stripped
-- CC-Relay injects configured API key
-- Supports key pool rotation for rate limit distribution
+### Autenticación Configurada
+Al usar claves gestionadas por CC-Relay:
+- Se eliminan las credenciales del cliente
+- CC-Relay inyecta la clave API configurada
+- Soporta rotación de pool de claves para distribución de límites de tasa
 
 ```mermaid
 graph TD
-    A[Request Arrives] --> B{Has Client Auth?}
-    B -->|Yes| C{Provider Supports<br/>Transparent Auth?}
-    B -->|No| D[Use Configured Key]
-    C -->|Yes| E[Forward Client Auth]
+    A[Solicitud Entrante] --> B{¿Tiene Auth de Cliente?}
+    B -->|Sí| C{¿Proveedor Soporta<br/>Auth Transparente?}
+    B -->|No| D[Usar Clave Configurada]
+    C -->|Sí| E[Reenviar Auth de Cliente]
     C -->|No| D
-    D --> F{Key Pool Available?}
-    F -->|Yes| G[Select Key from Pool]
-    F -->|No| H[Use Single API Key]
-    E --> I[Forward to Provider]
+    D --> F{¿Pool de Claves Disponible?}
+    F -->|Sí| G[Seleccionar Clave del Pool]
+    F -->|No| H[Usar Clave API Única]
+    E --> I[Reenviar a Proveedor]
     G --> I
     H --> I
 ```
 
-## Health Tracking & Circuit Breaker
+## Seguimiento de Salud & Circuit Breaker
 
-**Location**: `internal/health/`
+**Ubicación**: `internal/health/`
 
-CC-Relay tracks provider health and implements circuit breaker patterns:
+CC-Relay rastrea la salud de los proveedores e implementa patrones de circuit breaker:
 
-| State | Behavior |
-|-------|----------|
-| CLOSED | Normal operation, requests flow through |
-| OPEN | Provider marked unhealthy, requests fail fast |
-| HALF-OPEN | Probing with limited requests after cooldown |
+| Estado | Comportamiento |
+|--------|----------|
+| CLOSED | Operación normal, las solicitudes fluyen |
+| OPEN | Proveedor marcado como no saludable, solicitudes fallan rápido |
+| HALF-OPEN | Sondeo con solicitudes limitadas después de enfriamiento |
 
-**Triggers for OPEN state:**
-- HTTP 429 (rate limited)
-- HTTP 5xx (server errors)
-- Connection timeouts
-- Consecutive failures exceed threshold
+**Disparadores para estado OPEN:**
+- HTTP 429 (límite de tasa)
+- HTTP 5xx (errores de servidor)
+- Timeouts de conexión
+- Fallos consecutivos exceden umbral
 
-## Directory Structure
+## Estructura de Directorios
 
 ```
 cc-relay/
-├── cmd/cc-relay/           # CLI entry point
-│   ├── main.go             # Root command
-│   ├── serve.go            # Serve command
-│   └── di/                 # Dependency injection
-│       └── providers.go    # Service wiring
+├── cmd/cc-relay/           # Punto de entrada CLI
+│   ├── main.go             # Comando raíz
+│   ├── serve.go            # Comando serve
+│   └── di/                 # Inyección de dependencias
+│       └── providers.go    # Cableado de servicios
 ├── internal/
-│   ├── config/             # Configuration loading
-│   ├── providers/          # Provider implementations
-│   │   ├── provider.go     # Provider interface
-│   │   ├── base.go         # Base provider
-│   │   ├── anthropic.go    # Anthropic provider
-│   │   ├── zai.go          # Z.AI provider
-│   │   └── ollama.go       # Ollama provider
-│   ├── proxy/              # HTTP proxy server
-│   │   ├── handler.go      # Main request handler
-│   │   ├── provider_proxy.go # Per-provider proxy
-│   │   ├── thinking.go     # Thinking block processing
-│   │   ├── signature_cache.go # Signature caching
-│   │   ├── sse.go          # SSE utilities
-│   │   └── middleware.go   # Middleware chain
-│   ├── router/             # Routing strategies
-│   │   ├── router.go       # Router interface
-│   │   ├── failover.go     # Failover strategy
-│   │   ├── round_robin.go  # Round-robin strategy
-│   │   └── model_filter.go # Model-based filtering
-│   ├── health/             # Health tracking
+│   ├── config/             # Carga de configuración
+│   ├── providers/          # Implementaciones de proveedores
+│   │   ├── provider.go     # Interfaz de proveedor
+│   │   ├── base.go         # Proveedor base
+│   │   ├── anthropic.go    # Proveedor Anthropic
+│   │   ├── zai.go          # Proveedor Z.AI
+│   │   └── ollama.go       # Proveedor Ollama
+│   ├── proxy/              # Servidor proxy HTTP
+│   │   ├── handler.go      # Handler principal de solicitudes
+│   │   ├── provider_proxy.go # Proxy por proveedor
+│   │   ├── thinking.go     # Procesamiento de bloques de pensamiento
+│   │   ├── signature_cache.go # Caché de firmas
+│   │   ├── sse.go          # Utilidades SSE
+│   │   └── middleware.go   # Cadena de middleware
+│   ├── router/             # Estrategias de enrutamiento
+│   │   ├── router.go       # Interfaz de router
+│   │   ├── failover.go     # Estrategia de failover
+│   │   ├── round_robin.go  # Estrategia round-robin
+│   │   └── model_filter.go # Filtrado basado en modelo
+│   ├── health/             # Seguimiento de salud
 │   │   └── tracker.go      # Circuit breaker
-│   ├── keypool/            # API key pooling
-│   │   └── keypool.go      # Key rotation
-│   └── cache/              # Caching layer
-│       └── cache.go        # Ristretto wrapper
-└── docs-site/              # Documentation
+│   ├── keypool/            # Pooling de claves API
+│   │   └── keypool.go      # Rotación de claves
+│   └── cache/              # Capa de caché
+│       └── cache.go        # Wrapper de Ristretto
+└── docs-site/              # Documentación
 ```
 
-## Performance Considerations
+## Consideraciones de Rendimiento
 
-### Connection Handling
-- **Connection pooling**: HTTP connections reused to backends
-- **HTTP/2 support**: Multiplexed requests where supported
-- **Immediate flush**: SSE events flushed without buffering
+### Manejo de Conexiones
+- **Connection pooling**: Conexiones HTTP reutilizadas hacia backends
+- **Soporte HTTP/2**: Solicitudes multiplexadas donde se soporta
+- **Flush inmediato**: Eventos SSE enviados sin buffering
 
-### Concurrency
-- **Goroutine per request**: Lightweight Go concurrency
-- **Context propagation**: Proper timeout and cancellation
-- **Thread-safe caching**: Ristretto provides concurrent access
+### Concurrencia
+- **Goroutine por solicitud**: Concurrencia ligera de Go
+- **Propagación de contexto**: Timeout y cancelación apropiados
+- **Caché thread-safe**: Ristretto proporciona acceso concurrente
 
-### Memory
-- **Streaming responses**: No buffering of response bodies
-- **Signature cache**: Bounded size with LRU eviction
-- **Request body restoration**: Efficient body re-reading
+### Memoria
+- **Respuestas en streaming**: Sin buffering de cuerpos de respuesta
+- **Caché de firmas**: Tamaño limitado con evicción LRU
+- **Restauración de cuerpo de solicitud**: Re-lectura eficiente del cuerpo
 
-## Next Steps
+## Próximos Pasos
 
-- [Configuration reference](/docs/configuration/)
-- [Routing strategies](/docs/routing/)
-- [Provider setup](/docs/providers/)
+- [Referencia de configuración](/docs/configuration/)
+- [Estrategias de enrutamiento](/docs/routing/)
+- [Configuración de proveedores](/docs/providers/)

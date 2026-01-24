@@ -1,34 +1,34 @@
 ---
-title: Architecture
+title: Architektur
 weight: 4
 ---
 
-CC-Relay is a high-performance, multi-provider HTTP proxy designed for LLM applications. It provides intelligent routing, thinking signature caching, and seamless failover between providers.
+CC-Relay ist ein hochperformanter, Multi-Provider HTTP-Proxy, der für LLM-Anwendungen entwickelt wurde. Er bietet intelligentes Routing, Caching von Thinking-Signaturen und nahtloses Failover zwischen Providern.
 
-## System Overview
+## Systemübersicht
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
+    subgraph "Client-Schicht"
         A[Claude Code]
-        B[Custom LLM Client]
+        B[Eigener LLM-Client]
     end
 
     subgraph "CC-Relay Proxy"
         D[HTTP Server<br/>:8787]
-        E[Middleware Stack]
+        E[Middleware-Stack]
         F[Handler]
         G[Router]
-        H[Signature Cache]
+        H[Signatur-Cache]
     end
 
-    subgraph "Provider Proxies"
+    subgraph "Provider-Proxies"
         I[ProviderProxy<br/>Anthropic]
         J[ProviderProxy<br/>Z.AI]
         K[ProviderProxy<br/>Ollama]
     end
 
-    subgraph "Backend Providers"
+    subgraph "Backend-Provider"
         L[Anthropic API]
         M[Z.AI API]
         N[Ollama API]
@@ -54,88 +54,88 @@ graph TB
     style H fill:#8b5cf6,stroke:#7c3aed,color:#fff
 ```
 
-## Core Components
+## Kernkomponenten
 
 ### 1. Handler
 
-**Location**: `internal/proxy/handler.go`
+**Speicherort**: `internal/proxy/handler.go`
 
-The Handler is the central coordinator for request processing:
+Der Handler ist der zentrale Koordinator für die Anfrageverarbeitung:
 
 ```go
 type Handler struct {
-    providerProxies map[string]*ProviderProxy  // Per-provider reverse proxies
-    defaultProvider providers.Provider          // Fallback for single-provider mode
-    router          router.ProviderRouter       // Routing strategy implementation
-    healthTracker   *health.Tracker             // Circuit breaker tracking
-    signatureCache  *SignatureCache             // Thinking signature cache
-    routingConfig   *config.RoutingConfig       // Model-based routing config
-    providers       []router.ProviderInfo       // Available providers
+    providerProxies map[string]*ProviderProxy  // Reverse-Proxies pro Provider
+    defaultProvider providers.Provider          // Fallback für Single-Provider-Modus
+    router          router.ProviderRouter       // Implementierung der Routing-Strategie
+    healthTracker   *health.Tracker             // Circuit-Breaker-Tracking
+    signatureCache  *SignatureCache             // Thinking-Signatur-Cache
+    routingConfig   *config.RoutingConfig       // Modellbasierte Routing-Konfiguration
+    providers       []router.ProviderInfo       // Verfügbare Provider
 }
 ```
 
-**Responsibilities:**
-- Extract model name from request body
-- Detect thinking signatures for provider affinity
-- Select provider via router
-- Delegate to appropriate ProviderProxy
-- Process thinking blocks and cache signatures
+**Verantwortlichkeiten:**
+- Extrahieren des Modellnamens aus dem Request-Body
+- Erkennen von Thinking-Signaturen für Provider-Affinität
+- Auswählen des Providers über den Router
+- Delegieren an den entsprechenden ProviderProxy
+- Verarbeiten von Thinking-Blöcken und Cachen von Signaturen
 
 ### 2. ProviderProxy
 
-**Location**: `internal/proxy/provider_proxy.go`
+**Speicherort**: `internal/proxy/provider_proxy.go`
 
-Each provider gets a dedicated reverse proxy with pre-configured URL and authentication:
+Jeder Provider erhält einen dedizierten Reverse-Proxy mit vorkonfigurierter URL und Authentifizierung:
 
 ```go
 type ProviderProxy struct {
     Provider           providers.Provider
     Proxy              *httputil.ReverseProxy
-    KeyPool            *keypool.KeyPool  // For multi-key rotation
-    APIKey             string            // Fallback single key
-    targetURL          *url.URL          // Provider's base URL
+    KeyPool            *keypool.KeyPool  // Für Multi-Key-Rotation
+    APIKey             string            // Fallback-Einzelschlüssel
+    targetURL          *url.URL          // Basis-URL des Providers
     modifyResponseHook ModifyResponseFunc
 }
 ```
 
-**Key Features:**
-- URL parsing happens once at initialization (not per-request)
-- Supports transparent auth (forward client credentials) or configured auth
-- Automatic SSE header injection for streaming responses
-- Key pool integration for rate limit distribution
+**Hauptmerkmale:**
+- URL-Parsing erfolgt einmalig bei der Initialisierung (nicht pro Anfrage)
+- Unterstützt transparente Authentifizierung (Weiterleitung von Client-Credentials) oder konfigurierte Authentifizierung
+- Automatische SSE-Header-Injektion für Streaming-Antworten
+- Key-Pool-Integration für Rate-Limit-Verteilung
 
 ### 3. Router
 
-**Location**: `internal/router/`
+**Speicherort**: `internal/router/`
 
-The router selects which provider handles each request:
+Der Router wählt aus, welcher Provider jede Anfrage bearbeitet:
 
-| Strategy | Description |
+| Strategie | Beschreibung |
 |----------|-------------|
-| `failover` | Priority-based with automatic retry (default) |
-| `round_robin` | Sequential rotation |
-| `weighted_round_robin` | Proportional by weight |
-| `shuffle` | Fair random distribution |
-| `model_based` | Route by model name prefix |
+| `failover` | Prioritätsbasiert mit automatischem Retry (Standard) |
+| `round_robin` | Sequentielle Rotation |
+| `weighted_round_robin` | Proportional nach Gewichtung |
+| `shuffle` | Faire Zufallsverteilung |
+| `model_based` | Routing nach Modellnamen-Präfix |
 
-### 4. Signature Cache
+### 4. Signatur-Cache
 
-**Location**: `internal/proxy/signature_cache.go`
+**Speicherort**: `internal/proxy/signature_cache.go`
 
-Caches thinking block signatures for cross-provider compatibility:
+Cached Thinking-Block-Signaturen für Cross-Provider-Kompatibilität:
 
 ```go
 type SignatureCache struct {
-    cache cache.Cache  // Ristretto-backed cache
+    cache cache.Cache  // Ristretto-gestützter Cache
 }
 
-// Cache key format: "sig:{modelGroup}:{textHash}"
-// TTL: 3 hours (matches Claude API)
+// Cache-Schlüsselformat: "sig:{modelGroup}:{textHash}"
+// TTL: 3 Stunden (entspricht Claude API)
 ```
 
-## Request Flow
+## Anfragefluss
 
-### Multi-Provider Routing
+### Multi-Provider-Routing
 
 ```mermaid
 sequenceDiagram
@@ -146,66 +146,66 @@ sequenceDiagram
     participant ProviderProxy
     participant Backend
 
-    Client->>Handler: HTTP Request (with model field)
-    Handler->>Handler: Extract model from body
-    Handler->>Handler: Check thinking signature presence
+    Client->>Handler: HTTP-Anfrage (mit model-Feld)
+    Handler->>Handler: Modell aus Body extrahieren
+    Handler->>Handler: Thinking-Signatur-Präsenz prüfen
     Handler->>ModelFilter: FilterProvidersByModel(model, providers, mapping)
-    ModelFilter->>ModelFilter: Longest-prefix match against modelMapping
-    ModelFilter->>Router: Return filtered provider list
-    Handler->>Router: Select provider (failover/round-robin on filtered list)
-    Router->>Router: Apply routing strategy to filtered providers
-    Router->>Handler: Return selected ProviderInfo
+    ModelFilter->>ModelFilter: Längste-Präfix-Übereinstimmung gegen modelMapping
+    ModelFilter->>Router: Gefilterte Provider-Liste zurückgeben
+    Handler->>Router: Provider auswählen (Failover/Round-Robin auf gefilterter Liste)
+    Router->>Router: Routing-Strategie auf gefilterte Provider anwenden
+    Router->>Handler: Ausgewählte ProviderInfo zurückgeben
 
-    Handler->>Handler: Retrieve ProviderProxy for selected provider
-    Handler->>ProviderProxy: Prepare request with auth/headers
-    ProviderProxy->>ProviderProxy: Determine transparent vs configured auth mode
-    ProviderProxy->>Backend: Forward request to provider's target URL
-    Backend->>ProviderProxy: Response (with signature headers)
-    ProviderProxy->>Handler: Response with signature info
-    Handler->>Handler: Cache signature if thinking present
-    Handler->>Client: Response
+    Handler->>Handler: ProviderProxy für ausgewählten Provider abrufen
+    Handler->>ProviderProxy: Anfrage mit Auth/Headers vorbereiten
+    ProviderProxy->>ProviderProxy: Transparenten vs. konfigurierten Auth-Modus bestimmen
+    ProviderProxy->>Backend: Anfrage an Provider-Ziel-URL weiterleiten
+    Backend->>ProviderProxy: Antwort (mit Signatur-Headern)
+    ProviderProxy->>Handler: Antwort mit Signatur-Info
+    Handler->>Handler: Signatur cachen wenn Thinking vorhanden
+    Handler->>Client: Antwort
 ```
 
-### Thinking Signature Processing
+### Verarbeitung von Thinking-Signaturen
 
-When extended thinking is enabled, providers return signed thinking blocks. These signatures must be validated by the same provider on subsequent turns. CC-Relay solves cross-provider signature issues through caching:
+Wenn erweitertes Thinking aktiviert ist, geben Provider signierte Thinking-Blöcke zurück. Diese Signaturen müssen vom selben Provider bei nachfolgenden Turns validiert werden. CC-Relay löst Cross-Provider-Signatur-Probleme durch Caching:
 
 ```mermaid
 sequenceDiagram
-    participant Request
+    participant Request as Anfrage
     participant Handler
-    participant SignatureCache
+    participant SignatureCache as Signatur-Cache
     participant Backend
-    participant ResponseStream as Response Stream (SSE)
+    participant ResponseStream as Antwort-Stream (SSE)
 
-    Request->>Handler: HTTP with thinking blocks
-    Handler->>Handler: HasThinkingSignature check
+    Request->>Handler: HTTP mit Thinking-Blöcken
+    Handler->>Handler: HasThinkingSignature-Prüfung
     Handler->>Handler: ProcessRequestThinking
     Handler->>SignatureCache: Get(modelGroup, thinkingText)
-    SignatureCache-->>Handler: Cached signature or empty
-    Handler->>Handler: Drop unsigned blocks / Apply cached signature
-    Handler->>Backend: Forward cleaned request
+    SignatureCache-->>Handler: Gecachte Signatur oder leer
+    Handler->>Handler: Unsignierte Blöcke entfernen / Gecachte Signatur anwenden
+    Handler->>Backend: Bereinigte Anfrage weiterleiten
 
-    Backend->>ResponseStream: Streaming response (thinking_delta events)
-    ResponseStream->>Handler: thinking_delta event
-    Handler->>Handler: Accumulate thinking text
-    ResponseStream->>Handler: signature_delta event
+    Backend->>ResponseStream: Streaming-Antwort (thinking_delta-Events)
+    ResponseStream->>Handler: thinking_delta-Event
+    Handler->>Handler: Thinking-Text akkumulieren
+    ResponseStream->>Handler: signature_delta-Event
     Handler->>SignatureCache: Set(modelGroup, thinking_text, signature)
-    SignatureCache-->>Handler: Cached
-    Handler->>ResponseStream: Transform signature with modelGroup prefix
-    ResponseStream->>Request: Return SSE event with prefixed signature
+    SignatureCache-->>Handler: Gecacht
+    Handler->>ResponseStream: Signatur mit modelGroup-Präfix transformieren
+    ResponseStream->>Request: SSE-Event mit präfixierter Signatur zurückgeben
 ```
 
-**Model Groups for Signature Sharing:**
+**Modellgruppen für Signatur-Sharing:**
 
-| Model Pattern | Group | Signatures Shared |
+| Modell-Pattern | Gruppe | Signaturen geteilt |
 |--------------|-------|-------------------|
-| `claude-*` | `claude` | Yes, across all Claude models |
-| `gpt-*` | `gpt` | Yes, across all GPT models |
-| `gemini-*` | `gemini` | Yes, uses sentinel value |
-| Other | Exact name | No sharing |
+| `claude-*` | `claude` | Ja, über alle Claude-Modelle |
+| `gpt-*` | `gpt` | Ja, über alle GPT-Modelle |
+| `gemini-*` | `gemini` | Ja, verwendet Sentinel-Wert |
+| Andere | Exakter Name | Kein Sharing |
 
-### SSE Streaming Flow
+### SSE-Streaming-Ablauf
 
 ```mermaid
 sequenceDiagram
@@ -214,7 +214,7 @@ sequenceDiagram
     participant Provider
 
     Client->>Proxy: POST /v1/messages (stream=true)
-    Proxy->>Provider: Forward request
+    Proxy->>Provider: Anfrage weiterleiten
 
     Provider-->>Proxy: event: message_start
     Proxy-->>Client: event: message_start
@@ -222,7 +222,7 @@ sequenceDiagram
     Provider-->>Proxy: event: content_block_start
     Proxy-->>Client: event: content_block_start
 
-    loop Content Streaming
+    loop Content-Streaming
         Provider-->>Proxy: event: content_block_delta
         Proxy-->>Client: event: content_block_delta
     end
@@ -237,7 +237,7 @@ sequenceDiagram
     Proxy-->>Client: event: message_stop
 ```
 
-**Required SSE Headers:**
+**Erforderliche SSE-Header:**
 ```
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
@@ -245,20 +245,20 @@ X-Accel-Buffering: no
 Connection: keep-alive
 ```
 
-## Middleware Stack
+## Middleware-Stack
 
-**Location**: `internal/proxy/middleware.go`
+**Speicherort**: `internal/proxy/middleware.go`
 
-| Middleware | Purpose |
-|------------|---------|
-| `RequestIDMiddleware` | Generates/extracts X-Request-ID for tracing |
-| `LoggingMiddleware` | Logs request/response with timing |
-| `AuthMiddleware` | Validates x-api-key header |
-| `MultiAuthMiddleware` | Supports API key and Bearer token auth |
+| Middleware | Zweck |
+|------------|-------|
+| `RequestIDMiddleware` | Generiert/extrahiert X-Request-ID für Tracing |
+| `LoggingMiddleware` | Protokolliert Anfrage/Antwort mit Timing |
+| `AuthMiddleware` | Validiert x-api-key-Header |
+| `MultiAuthMiddleware` | Unterstützt API-Key- und Bearer-Token-Auth |
 
-## Provider Interface
+## Provider-Schnittstelle
 
-**Location**: `internal/providers/provider.go`
+**Speicherort**: `internal/providers/provider.go`
 
 ```go
 type Provider interface {
@@ -275,117 +275,117 @@ type Provider interface {
 }
 ```
 
-**Implemented Providers:**
+**Implementierte Provider:**
 
-| Provider | Type | Features |
+| Provider | Typ | Funktionen |
 |----------|------|----------|
-| `AnthropicProvider` | `anthropic` | Native format, full feature support |
-| `ZAIProvider` | `zai` | Anthropic-compatible, GLM models |
-| `OllamaProvider` | `ollama` | Local models, no prompt caching |
+| `AnthropicProvider` | `anthropic` | Natives Format, volle Funktionsunterstützung |
+| `ZAIProvider` | `zai` | Anthropic-kompatibel, GLM-Modelle |
+| `OllamaProvider` | `ollama` | Lokale Modelle, kein Prompt-Caching |
 
-## Authentication Modes
+## Authentifizierungsmodi
 
-### Transparent Auth
-When the client provides credentials and the provider supports it:
-- Client's `Authorization` or `x-api-key` headers forwarded unchanged
-- CC-Relay acts as a pure proxy
+### Transparente Authentifizierung
+Wenn der Client Credentials bereitstellt und der Provider es unterstützt:
+- `Authorization`- oder `x-api-key`-Header des Clients werden unverändert weitergeleitet
+- CC-Relay agiert als reiner Proxy
 
-### Configured Auth
-When using CC-Relay's managed keys:
-- Client credentials stripped
-- CC-Relay injects configured API key
-- Supports key pool rotation for rate limit distribution
+### Konfigurierte Authentifizierung
+Bei Verwendung von CC-Relays verwalteten Schlüsseln:
+- Client-Credentials werden entfernt
+- CC-Relay injiziert konfigurierten API-Schlüssel
+- Unterstützt Key-Pool-Rotation für Rate-Limit-Verteilung
 
 ```mermaid
 graph TD
-    A[Request Arrives] --> B{Has Client Auth?}
-    B -->|Yes| C{Provider Supports<br/>Transparent Auth?}
-    B -->|No| D[Use Configured Key]
-    C -->|Yes| E[Forward Client Auth]
-    C -->|No| D
-    D --> F{Key Pool Available?}
-    F -->|Yes| G[Select Key from Pool]
-    F -->|No| H[Use Single API Key]
-    E --> I[Forward to Provider]
+    A[Anfrage eingehend] --> B{Hat Client Auth?}
+    B -->|Ja| C{Provider unterstützt<br/>transparente Auth?}
+    B -->|Nein| D[Konfigurierten Key verwenden]
+    C -->|Ja| E[Client Auth weiterleiten]
+    C -->|Nein| D
+    D --> F{Key Pool verfügbar?}
+    F -->|Ja| G[Key aus Pool wählen]
+    F -->|Nein| H[Einzelnen API Key verwenden]
+    E --> I[An Provider weiterleiten]
     G --> I
     H --> I
 ```
 
-## Health Tracking & Circuit Breaker
+## Health-Tracking & Circuit Breaker
 
-**Location**: `internal/health/`
+**Speicherort**: `internal/health/`
 
-CC-Relay tracks provider health and implements circuit breaker patterns:
+CC-Relay verfolgt Provider-Gesundheit und implementiert Circuit-Breaker-Muster:
 
-| State | Behavior |
-|-------|----------|
-| CLOSED | Normal operation, requests flow through |
-| OPEN | Provider marked unhealthy, requests fail fast |
-| HALF-OPEN | Probing with limited requests after cooldown |
+| Status | Verhalten |
+|--------|----------|
+| CLOSED | Normalbetrieb, Anfragen fließen durch |
+| OPEN | Provider als ungesund markiert, Anfragen scheitern schnell |
+| HALF-OPEN | Prüfung mit begrenzten Anfragen nach Abkühlung |
 
-**Triggers for OPEN state:**
-- HTTP 429 (rate limited)
-- HTTP 5xx (server errors)
-- Connection timeouts
-- Consecutive failures exceed threshold
+**Auslöser für OPEN-Status:**
+- HTTP 429 (Rate-limitiert)
+- HTTP 5xx (Server-Fehler)
+- Verbindungs-Timeouts
+- Aufeinanderfolgende Fehler überschreiten Schwellenwert
 
-## Directory Structure
+## Verzeichnisstruktur
 
 ```
 cc-relay/
-├── cmd/cc-relay/           # CLI entry point
-│   ├── main.go             # Root command
-│   ├── serve.go            # Serve command
-│   └── di/                 # Dependency injection
-│       └── providers.go    # Service wiring
+├── cmd/cc-relay/           # CLI-Einstiegspunkt
+│   ├── main.go             # Root-Befehl
+│   ├── serve.go            # Serve-Befehl
+│   └── di/                 # Dependency Injection
+│       └── providers.go    # Service-Verdrahtung
 ├── internal/
-│   ├── config/             # Configuration loading
-│   ├── providers/          # Provider implementations
-│   │   ├── provider.go     # Provider interface
-│   │   ├── base.go         # Base provider
-│   │   ├── anthropic.go    # Anthropic provider
-│   │   ├── zai.go          # Z.AI provider
-│   │   └── ollama.go       # Ollama provider
-│   ├── proxy/              # HTTP proxy server
-│   │   ├── handler.go      # Main request handler
-│   │   ├── provider_proxy.go # Per-provider proxy
-│   │   ├── thinking.go     # Thinking block processing
-│   │   ├── signature_cache.go # Signature caching
-│   │   ├── sse.go          # SSE utilities
-│   │   └── middleware.go   # Middleware chain
-│   ├── router/             # Routing strategies
-│   │   ├── router.go       # Router interface
-│   │   ├── failover.go     # Failover strategy
-│   │   ├── round_robin.go  # Round-robin strategy
-│   │   └── model_filter.go # Model-based filtering
-│   ├── health/             # Health tracking
-│   │   └── tracker.go      # Circuit breaker
-│   ├── keypool/            # API key pooling
-│   │   └── keypool.go      # Key rotation
-│   └── cache/              # Caching layer
-│       └── cache.go        # Ristretto wrapper
-└── docs-site/              # Documentation
+│   ├── config/             # Konfiguration laden
+│   ├── providers/          # Provider-Implementierungen
+│   │   ├── provider.go     # Provider-Schnittstelle
+│   │   ├── base.go         # Basis-Provider
+│   │   ├── anthropic.go    # Anthropic-Provider
+│   │   ├── zai.go          # Z.AI-Provider
+│   │   └── ollama.go       # Ollama-Provider
+│   ├── proxy/              # HTTP-Proxy-Server
+│   │   ├── handler.go      # Haupt-Request-Handler
+│   │   ├── provider_proxy.go # Pro-Provider-Proxy
+│   │   ├── thinking.go     # Thinking-Block-Verarbeitung
+│   │   ├── signature_cache.go # Signatur-Caching
+│   │   ├── sse.go          # SSE-Hilfsfunktionen
+│   │   └── middleware.go   # Middleware-Kette
+│   ├── router/             # Routing-Strategien
+│   │   ├── router.go       # Router-Schnittstelle
+│   │   ├── failover.go     # Failover-Strategie
+│   │   ├── round_robin.go  # Round-Robin-Strategie
+│   │   └── model_filter.go # Modellbasierte Filterung
+│   ├── health/             # Health-Tracking
+│   │   └── tracker.go      # Circuit Breaker
+│   ├── keypool/            # API-Key-Pooling
+│   │   └── keypool.go      # Key-Rotation
+│   └── cache/              # Caching-Schicht
+│       └── cache.go        # Ristretto-Wrapper
+└── docs-site/              # Dokumentation
 ```
 
-## Performance Considerations
+## Leistungsüberlegungen
 
-### Connection Handling
-- **Connection pooling**: HTTP connections reused to backends
-- **HTTP/2 support**: Multiplexed requests where supported
-- **Immediate flush**: SSE events flushed without buffering
+### Verbindungshandling
+- **Connection Pooling**: HTTP-Verbindungen zu Backends werden wiederverwendet
+- **HTTP/2-Unterstützung**: Multiplexed Requests wo unterstützt
+- **Sofortiges Flushing**: SSE-Events werden ohne Pufferung geflusht
 
-### Concurrency
-- **Goroutine per request**: Lightweight Go concurrency
-- **Context propagation**: Proper timeout and cancellation
-- **Thread-safe caching**: Ristretto provides concurrent access
+### Nebenläufigkeit
+- **Goroutine pro Anfrage**: Leichtgewichtige Go-Nebenläufigkeit
+- **Context-Propagierung**: Korrektes Timeout und Abbruch
+- **Thread-sicheres Caching**: Ristretto bietet nebenläufigen Zugriff
 
-### Memory
-- **Streaming responses**: No buffering of response bodies
-- **Signature cache**: Bounded size with LRU eviction
-- **Request body restoration**: Efficient body re-reading
+### Speicher
+- **Streaming-Antworten**: Keine Pufferung von Response-Bodies
+- **Signatur-Cache**: Begrenzte Größe mit LRU-Eviction
+- **Request-Body-Wiederherstellung**: Effizientes Body-Neulesen
 
-## Next Steps
+## Nächste Schritte
 
-- [Configuration reference](/docs/configuration/)
-- [Routing strategies](/docs/routing/)
-- [Provider setup](/docs/providers/)
+- [Konfigurationsreferenz](/docs/configuration/)
+- [Routing-Strategien](/docs/routing/)
+- [Provider-Einrichtung](/docs/providers/)

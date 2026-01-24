@@ -1,34 +1,34 @@
 ---
-title: Architecture
+title: アーキテクチャ
 weight: 4
 ---
 
-CC-Relay is a high-performance, multi-provider HTTP proxy designed for LLM applications. It provides intelligent routing, thinking signature caching, and seamless failover between providers.
+CC-Relayは、LLMアプリケーション向けに設計された高性能なマルチプロバイダーHTTPプロキシです。インテリジェントなルーティング、思考シグネチャのキャッシュ、プロバイダー間のシームレスなフェイルオーバーを提供します。
 
-## System Overview
+## システム概要
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
+    subgraph "クライアント層"
         A[Claude Code]
-        B[Custom LLM Client]
+        B[カスタムLLMクライアント]
     end
 
-    subgraph "CC-Relay Proxy"
-        D[HTTP Server<br/>:8787]
-        E[Middleware Stack]
-        F[Handler]
-        G[Router]
-        H[Signature Cache]
+    subgraph "CC-Relay プロキシ"
+        D[HTTPサーバー<br/>:8787]
+        E[ミドルウェアスタック]
+        F[ハンドラー]
+        G[ルーター]
+        H[シグネチャキャッシュ]
     end
 
-    subgraph "Provider Proxies"
+    subgraph "プロバイダープロキシ"
         I[ProviderProxy<br/>Anthropic]
         J[ProviderProxy<br/>Z.AI]
         K[ProviderProxy<br/>Ollama]
     end
 
-    subgraph "Backend Providers"
+    subgraph "バックエンドプロバイダー"
         L[Anthropic API]
         M[Z.AI API]
         N[Ollama API]
@@ -54,167 +54,167 @@ graph TB
     style H fill:#8b5cf6,stroke:#7c3aed,color:#fff
 ```
 
-## Core Components
+## コアコンポーネント
 
-### 1. Handler
+### 1. ハンドラー
 
-**Location**: `internal/proxy/handler.go`
+**場所**: `internal/proxy/handler.go`
 
-The Handler is the central coordinator for request processing:
+ハンドラーはリクエスト処理の中央コーディネーターです：
 
 ```go
 type Handler struct {
-    providerProxies map[string]*ProviderProxy  // Per-provider reverse proxies
-    defaultProvider providers.Provider          // Fallback for single-provider mode
-    router          router.ProviderRouter       // Routing strategy implementation
-    healthTracker   *health.Tracker             // Circuit breaker tracking
-    signatureCache  *SignatureCache             // Thinking signature cache
-    routingConfig   *config.RoutingConfig       // Model-based routing config
-    providers       []router.ProviderInfo       // Available providers
+    providerProxies map[string]*ProviderProxy  // プロバイダーごとのリバースプロキシ
+    defaultProvider providers.Provider          // シングルプロバイダーモードのフォールバック
+    router          router.ProviderRouter       // ルーティング戦略の実装
+    healthTracker   *health.Tracker             // サーキットブレーカートラッキング
+    signatureCache  *SignatureCache             // 思考シグネチャキャッシュ
+    routingConfig   *config.RoutingConfig       // モデルベースルーティング設定
+    providers       []router.ProviderInfo       // 利用可能なプロバイダー
 }
 ```
 
-**Responsibilities:**
-- Extract model name from request body
-- Detect thinking signatures for provider affinity
-- Select provider via router
-- Delegate to appropriate ProviderProxy
-- Process thinking blocks and cache signatures
+**責務:**
+- リクエストボディからモデル名を抽出
+- プロバイダーアフィニティのための思考シグネチャを検出
+- ルーター経由でプロバイダーを選択
+- 適切なProviderProxyに委譲
+- 思考ブロックを処理しシグネチャをキャッシュ
 
 ### 2. ProviderProxy
 
-**Location**: `internal/proxy/provider_proxy.go`
+**場所**: `internal/proxy/provider_proxy.go`
 
-Each provider gets a dedicated reverse proxy with pre-configured URL and authentication:
+各プロバイダーは、事前設定されたURLと認証を持つ専用のリバースプロキシを取得します：
 
 ```go
 type ProviderProxy struct {
     Provider           providers.Provider
     Proxy              *httputil.ReverseProxy
-    KeyPool            *keypool.KeyPool  // For multi-key rotation
-    APIKey             string            // Fallback single key
-    targetURL          *url.URL          // Provider's base URL
+    KeyPool            *keypool.KeyPool  // マルチキーローテーション用
+    APIKey             string            // フォールバック単一キー
+    targetURL          *url.URL          // プロバイダーのベースURL
     modifyResponseHook ModifyResponseFunc
 }
 ```
 
-**Key Features:**
-- URL parsing happens once at initialization (not per-request)
-- Supports transparent auth (forward client credentials) or configured auth
-- Automatic SSE header injection for streaming responses
-- Key pool integration for rate limit distribution
+**主な機能:**
+- URL解析は初期化時に一度だけ実行（リクエストごとではない）
+- 透過認証（クライアント資格情報の転送）または設定された認証をサポート
+- ストリーミングレスポンス用のSSEヘッダー自動注入
+- レート制限分散のためのキープール統合
 
-### 3. Router
+### 3. ルーター
 
-**Location**: `internal/router/`
+**場所**: `internal/router/`
 
-The router selects which provider handles each request:
+ルーターは各リクエストを処理するプロバイダーを選択します：
 
-| Strategy | Description |
+| 戦略 | 説明 |
 |----------|-------------|
-| `failover` | Priority-based with automatic retry (default) |
-| `round_robin` | Sequential rotation |
-| `weighted_round_robin` | Proportional by weight |
-| `shuffle` | Fair random distribution |
-| `model_based` | Route by model name prefix |
+| `failover` | 自動リトライ付きの優先度ベース（デフォルト） |
+| `round_robin` | 順次ローテーション |
+| `weighted_round_robin` | 重み付けに基づく比例配分 |
+| `shuffle` | 公平なランダム分散 |
+| `model_based` | モデル名プレフィックスによるルーティング |
 
-### 4. Signature Cache
+### 4. シグネチャキャッシュ
 
-**Location**: `internal/proxy/signature_cache.go`
+**場所**: `internal/proxy/signature_cache.go`
 
-Caches thinking block signatures for cross-provider compatibility:
+クロスプロバイダー互換性のために思考ブロックシグネチャをキャッシュします：
 
 ```go
 type SignatureCache struct {
-    cache cache.Cache  // Ristretto-backed cache
+    cache cache.Cache  // Ristrettoベースのキャッシュ
 }
 
-// Cache key format: "sig:{modelGroup}:{textHash}"
-// TTL: 3 hours (matches Claude API)
+// キャッシュキーフォーマット: "sig:{modelGroup}:{textHash}"
+// TTL: 3時間（Claude APIに合わせて）
 ```
 
-## Request Flow
+## リクエストフロー
 
-### Multi-Provider Routing
+### マルチプロバイダールーティング
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Handler
-    participant Router
-    participant ModelFilter
+    participant Client as クライアント
+    participant Handler as ハンドラー
+    participant Router as ルーター
+    participant ModelFilter as モデルフィルター
     participant ProviderProxy
-    participant Backend
+    participant Backend as バックエンド
 
-    Client->>Handler: HTTP Request (with model field)
-    Handler->>Handler: Extract model from body
-    Handler->>Handler: Check thinking signature presence
+    Client->>Handler: HTTPリクエスト（modelフィールド付き）
+    Handler->>Handler: ボディからモデルを抽出
+    Handler->>Handler: 思考シグネチャの存在を確認
     Handler->>ModelFilter: FilterProvidersByModel(model, providers, mapping)
-    ModelFilter->>ModelFilter: Longest-prefix match against modelMapping
-    ModelFilter->>Router: Return filtered provider list
-    Handler->>Router: Select provider (failover/round-robin on filtered list)
-    Router->>Router: Apply routing strategy to filtered providers
-    Router->>Handler: Return selected ProviderInfo
+    ModelFilter->>ModelFilter: modelMappingに対する最長プレフィックスマッチ
+    ModelFilter->>Router: フィルタリングされたプロバイダーリストを返す
+    Handler->>Router: プロバイダーを選択（フィルタリングされたリストでfailover/round-robin）
+    Router->>Router: フィルタリングされたプロバイダーにルーティング戦略を適用
+    Router->>Handler: 選択されたProviderInfoを返す
 
-    Handler->>Handler: Retrieve ProviderProxy for selected provider
-    Handler->>ProviderProxy: Prepare request with auth/headers
-    ProviderProxy->>ProviderProxy: Determine transparent vs configured auth mode
-    ProviderProxy->>Backend: Forward request to provider's target URL
-    Backend->>ProviderProxy: Response (with signature headers)
-    ProviderProxy->>Handler: Response with signature info
-    Handler->>Handler: Cache signature if thinking present
-    Handler->>Client: Response
+    Handler->>Handler: 選択されたプロバイダーのProviderProxyを取得
+    Handler->>ProviderProxy: auth/ヘッダー付きでリクエストを準備
+    ProviderProxy->>ProviderProxy: 透過vs設定済み認証モードを決定
+    ProviderProxy->>Backend: プロバイダーのターゲットURLにリクエストを転送
+    Backend->>ProviderProxy: レスポンス（シグネチャヘッダー付き）
+    ProviderProxy->>Handler: シグネチャ情報付きレスポンス
+    Handler->>Handler: 思考が存在する場合はシグネチャをキャッシュ
+    Handler->>Client: レスポンス
 ```
 
-### Thinking Signature Processing
+### 思考シグネチャ処理
 
-When extended thinking is enabled, providers return signed thinking blocks. These signatures must be validated by the same provider on subsequent turns. CC-Relay solves cross-provider signature issues through caching:
+拡張思考が有効な場合、プロバイダーは署名された思考ブロックを返します。これらのシグネチャは後続のターンで同じプロバイダーによって検証される必要があります。CC-Relayはキャッシュによってクロスプロバイダーシグネチャの問題を解決します：
 
 ```mermaid
 sequenceDiagram
-    participant Request
-    participant Handler
-    participant SignatureCache
-    participant Backend
-    participant ResponseStream as Response Stream (SSE)
+    participant Request as リクエスト
+    participant Handler as ハンドラー
+    participant SignatureCache as シグネチャキャッシュ
+    participant Backend as バックエンド
+    participant ResponseStream as レスポンスストリーム (SSE)
 
-    Request->>Handler: HTTP with thinking blocks
-    Handler->>Handler: HasThinkingSignature check
+    Request->>Handler: 思考ブロック付きHTTP
+    Handler->>Handler: HasThinkingSignatureチェック
     Handler->>Handler: ProcessRequestThinking
     Handler->>SignatureCache: Get(modelGroup, thinkingText)
-    SignatureCache-->>Handler: Cached signature or empty
-    Handler->>Handler: Drop unsigned blocks / Apply cached signature
-    Handler->>Backend: Forward cleaned request
+    SignatureCache-->>Handler: キャッシュされたシグネチャまたは空
+    Handler->>Handler: 未署名ブロックを削除 / キャッシュされたシグネチャを適用
+    Handler->>Backend: クリーンなリクエストを転送
 
-    Backend->>ResponseStream: Streaming response (thinking_delta events)
-    ResponseStream->>Handler: thinking_delta event
-    Handler->>Handler: Accumulate thinking text
-    ResponseStream->>Handler: signature_delta event
+    Backend->>ResponseStream: ストリーミングレスポンス（thinking_deltaイベント）
+    ResponseStream->>Handler: thinking_deltaイベント
+    Handler->>Handler: 思考テキストを蓄積
+    ResponseStream->>Handler: signature_deltaイベント
     Handler->>SignatureCache: Set(modelGroup, thinking_text, signature)
-    SignatureCache-->>Handler: Cached
-    Handler->>ResponseStream: Transform signature with modelGroup prefix
-    ResponseStream->>Request: Return SSE event with prefixed signature
+    SignatureCache-->>Handler: キャッシュ完了
+    Handler->>ResponseStream: modelGroupプレフィックスでシグネチャを変換
+    ResponseStream->>Request: プレフィックス付きシグネチャを含むSSEイベントを返す
 ```
 
-**Model Groups for Signature Sharing:**
+**シグネチャ共有のためのモデルグループ:**
 
-| Model Pattern | Group | Signatures Shared |
+| モデルパターン | グループ | シグネチャ共有 |
 |--------------|-------|-------------------|
-| `claude-*` | `claude` | Yes, across all Claude models |
-| `gpt-*` | `gpt` | Yes, across all GPT models |
-| `gemini-*` | `gemini` | Yes, uses sentinel value |
-| Other | Exact name | No sharing |
+| `claude-*` | `claude` | はい、すべてのClaudeモデル間で |
+| `gpt-*` | `gpt` | はい、すべてのGPTモデル間で |
+| `gemini-*` | `gemini` | はい、センチネル値を使用 |
+| その他 | 正確な名前 | 共有なし |
 
-### SSE Streaming Flow
+### SSEストリーミングフロー
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Proxy
-    participant Provider
+    participant Client as クライアント
+    participant Proxy as プロキシ
+    participant Provider as プロバイダー
 
     Client->>Proxy: POST /v1/messages (stream=true)
-    Proxy->>Provider: Forward request
+    Proxy->>Provider: リクエストを転送
 
     Provider-->>Proxy: event: message_start
     Proxy-->>Client: event: message_start
@@ -222,7 +222,7 @@ sequenceDiagram
     Provider-->>Proxy: event: content_block_start
     Proxy-->>Client: event: content_block_start
 
-    loop Content Streaming
+    loop コンテンツストリーミング
         Provider-->>Proxy: event: content_block_delta
         Proxy-->>Client: event: content_block_delta
     end
@@ -237,7 +237,7 @@ sequenceDiagram
     Proxy-->>Client: event: message_stop
 ```
 
-**Required SSE Headers:**
+**必須SSEヘッダー:**
 ```
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
@@ -245,20 +245,20 @@ X-Accel-Buffering: no
 Connection: keep-alive
 ```
 
-## Middleware Stack
+## ミドルウェアスタック
 
-**Location**: `internal/proxy/middleware.go`
+**場所**: `internal/proxy/middleware.go`
 
-| Middleware | Purpose |
+| ミドルウェア | 目的 |
 |------------|---------|
-| `RequestIDMiddleware` | Generates/extracts X-Request-ID for tracing |
-| `LoggingMiddleware` | Logs request/response with timing |
-| `AuthMiddleware` | Validates x-api-key header |
-| `MultiAuthMiddleware` | Supports API key and Bearer token auth |
+| `RequestIDMiddleware` | トレーシング用のX-Request-IDを生成/抽出 |
+| `LoggingMiddleware` | タイミング付きでリクエスト/レスポンスをログ |
+| `AuthMiddleware` | x-api-keyヘッダーを検証 |
+| `MultiAuthMiddleware` | APIキーとBearerトークン認証をサポート |
 
-## Provider Interface
+## プロバイダーインターフェース
 
-**Location**: `internal/providers/provider.go`
+**場所**: `internal/providers/provider.go`
 
 ```go
 type Provider interface {
@@ -275,117 +275,117 @@ type Provider interface {
 }
 ```
 
-**Implemented Providers:**
+**実装されたプロバイダー:**
 
-| Provider | Type | Features |
+| プロバイダー | タイプ | 機能 |
 |----------|------|----------|
-| `AnthropicProvider` | `anthropic` | Native format, full feature support |
-| `ZAIProvider` | `zai` | Anthropic-compatible, GLM models |
-| `OllamaProvider` | `ollama` | Local models, no prompt caching |
+| `AnthropicProvider` | `anthropic` | ネイティブフォーマット、フル機能サポート |
+| `ZAIProvider` | `zai` | Anthropic互換、GLMモデル |
+| `OllamaProvider` | `ollama` | ローカルモデル、プロンプトキャッシュなし |
 
-## Authentication Modes
+## 認証モード
 
-### Transparent Auth
-When the client provides credentials and the provider supports it:
-- Client's `Authorization` or `x-api-key` headers forwarded unchanged
-- CC-Relay acts as a pure proxy
+### 透過認証
+クライアントが資格情報を提供し、プロバイダーがサポートしている場合：
+- クライアントの`Authorization`または`x-api-key`ヘッダーがそのまま転送される
+- CC-Relayは純粋なプロキシとして動作
 
-### Configured Auth
-When using CC-Relay's managed keys:
-- Client credentials stripped
-- CC-Relay injects configured API key
-- Supports key pool rotation for rate limit distribution
+### 設定済み認証
+CC-Relayの管理キーを使用する場合：
+- クライアント資格情報が削除される
+- CC-Relayが設定されたAPIキーを注入
+- レート制限分散のためのキープールローテーションをサポート
 
 ```mermaid
 graph TD
-    A[Request Arrives] --> B{Has Client Auth?}
-    B -->|Yes| C{Provider Supports<br/>Transparent Auth?}
-    B -->|No| D[Use Configured Key]
-    C -->|Yes| E[Forward Client Auth]
-    C -->|No| D
-    D --> F{Key Pool Available?}
-    F -->|Yes| G[Select Key from Pool]
-    F -->|No| H[Use Single API Key]
-    E --> I[Forward to Provider]
+    A[リクエスト到着] --> B{クライアント認証あり?}
+    B -->|はい| C{プロバイダーが<br/>透過認証をサポート?}
+    B -->|いいえ| D[設定済みキーを使用]
+    C -->|はい| E[クライアント認証を転送]
+    C -->|いいえ| D
+    D --> F{キープール利用可能?}
+    F -->|はい| G[プールからキーを選択]
+    F -->|いいえ| H[単一APIキーを使用]
+    E --> I[プロバイダーに転送]
     G --> I
     H --> I
 ```
 
-## Health Tracking & Circuit Breaker
+## ヘルストラッキング & サーキットブレーカー
 
-**Location**: `internal/health/`
+**場所**: `internal/health/`
 
-CC-Relay tracks provider health and implements circuit breaker patterns:
+CC-Relayはプロバイダーの健全性を追跡し、サーキットブレーカーパターンを実装します：
 
-| State | Behavior |
-|-------|----------|
-| CLOSED | Normal operation, requests flow through |
-| OPEN | Provider marked unhealthy, requests fail fast |
-| HALF-OPEN | Probing with limited requests after cooldown |
+| 状態 | 動作 |
+|--------|----------|
+| CLOSED | 通常動作、リクエストは流れる |
+| OPEN | プロバイダーが不健全とマーク、リクエストは即座に失敗 |
+| HALF-OPEN | クールダウン後に限定的なリクエストでプローブ |
 
-**Triggers for OPEN state:**
-- HTTP 429 (rate limited)
-- HTTP 5xx (server errors)
-- Connection timeouts
-- Consecutive failures exceed threshold
+**OPEN状態のトリガー:**
+- HTTP 429（レート制限）
+- HTTP 5xx（サーバーエラー）
+- 接続タイムアウト
+- 連続失敗がしきい値を超過
 
-## Directory Structure
+## ディレクトリ構造
 
 ```
 cc-relay/
-├── cmd/cc-relay/           # CLI entry point
-│   ├── main.go             # Root command
-│   ├── serve.go            # Serve command
-│   └── di/                 # Dependency injection
-│       └── providers.go    # Service wiring
+├── cmd/cc-relay/           # CLIエントリポイント
+│   ├── main.go             # ルートコマンド
+│   ├── serve.go            # サーブコマンド
+│   └── di/                 # 依存性注入
+│       └── providers.go    # サービスワイヤリング
 ├── internal/
-│   ├── config/             # Configuration loading
-│   ├── providers/          # Provider implementations
-│   │   ├── provider.go     # Provider interface
-│   │   ├── base.go         # Base provider
-│   │   ├── anthropic.go    # Anthropic provider
-│   │   ├── zai.go          # Z.AI provider
-│   │   └── ollama.go       # Ollama provider
-│   ├── proxy/              # HTTP proxy server
-│   │   ├── handler.go      # Main request handler
-│   │   ├── provider_proxy.go # Per-provider proxy
-│   │   ├── thinking.go     # Thinking block processing
-│   │   ├── signature_cache.go # Signature caching
-│   │   ├── sse.go          # SSE utilities
-│   │   └── middleware.go   # Middleware chain
-│   ├── router/             # Routing strategies
-│   │   ├── router.go       # Router interface
-│   │   ├── failover.go     # Failover strategy
-│   │   ├── round_robin.go  # Round-robin strategy
-│   │   └── model_filter.go # Model-based filtering
-│   ├── health/             # Health tracking
-│   │   └── tracker.go      # Circuit breaker
-│   ├── keypool/            # API key pooling
-│   │   └── keypool.go      # Key rotation
-│   └── cache/              # Caching layer
-│       └── cache.go        # Ristretto wrapper
-└── docs-site/              # Documentation
+│   ├── config/             # 設定の読み込み
+│   ├── providers/          # プロバイダー実装
+│   │   ├── provider.go     # プロバイダーインターフェース
+│   │   ├── base.go         # ベースプロバイダー
+│   │   ├── anthropic.go    # Anthropicプロバイダー
+│   │   ├── zai.go          # Z.AIプロバイダー
+│   │   └── ollama.go       # Ollamaプロバイダー
+│   ├── proxy/              # HTTPプロキシサーバー
+│   │   ├── handler.go      # メインリクエストハンドラー
+│   │   ├── provider_proxy.go # プロバイダーごとのプロキシ
+│   │   ├── thinking.go     # 思考ブロック処理
+│   │   ├── signature_cache.go # シグネチャキャッシュ
+│   │   ├── sse.go          # SSEユーティリティ
+│   │   └── middleware.go   # ミドルウェアチェーン
+│   ├── router/             # ルーティング戦略
+│   │   ├── router.go       # ルーターインターフェース
+│   │   ├── failover.go     # フェイルオーバー戦略
+│   │   ├── round_robin.go  # ラウンドロビン戦略
+│   │   └── model_filter.go # モデルベースフィルタリング
+│   ├── health/             # ヘルストラッキング
+│   │   └── tracker.go      # サーキットブレーカー
+│   ├── keypool/            # APIキープーリング
+│   │   └── keypool.go      # キーローテーション
+│   └── cache/              # キャッシュレイヤー
+│       └── cache.go        # Ristrettoラッパー
+└── docs-site/              # ドキュメント
 ```
 
-## Performance Considerations
+## パフォーマンスの考慮事項
 
-### Connection Handling
-- **Connection pooling**: HTTP connections reused to backends
-- **HTTP/2 support**: Multiplexed requests where supported
-- **Immediate flush**: SSE events flushed without buffering
+### 接続ハンドリング
+- **コネクションプーリング**: バックエンドへのHTTP接続を再利用
+- **HTTP/2サポート**: サポートされている場所での多重化リクエスト
+- **即時フラッシュ**: SSEイベントはバッファリングなしでフラッシュ
 
-### Concurrency
-- **Goroutine per request**: Lightweight Go concurrency
-- **Context propagation**: Proper timeout and cancellation
-- **Thread-safe caching**: Ristretto provides concurrent access
+### 並行性
+- **リクエストごとのゴルーチン**: 軽量なGoの並行性
+- **コンテキスト伝播**: 適切なタイムアウトとキャンセル
+- **スレッドセーフなキャッシュ**: Ristrettoが並行アクセスを提供
 
-### Memory
-- **Streaming responses**: No buffering of response bodies
-- **Signature cache**: Bounded size with LRU eviction
-- **Request body restoration**: Efficient body re-reading
+### メモリ
+- **ストリーミングレスポンス**: レスポンスボディのバッファリングなし
+- **シグネチャキャッシュ**: LRU削除による制限されたサイズ
+- **リクエストボディの復元**: 効率的なボディの再読み込み
 
-## Next Steps
+## 次のステップ
 
-- [Configuration reference](/docs/configuration/)
-- [Routing strategies](/docs/routing/)
-- [Provider setup](/docs/providers/)
+- [設定リファレンス](/docs/configuration/)
+- [ルーティング戦略](/docs/routing/)
+- [プロバイダーセットアップ](/docs/providers/)
