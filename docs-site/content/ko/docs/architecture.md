@@ -1,208 +1,211 @@
 ---
-title: 아키텍처
+title: Architecture
 weight: 4
 ---
 
-CC-Relay는 LLM 클라이언트(Claude Code 등)와 백엔드 프로바이더 사이에 위치하는 고성능 멀티 프로바이더 HTTP 프록시로 설계되었습니다.
+CC-Relay is a high-performance, multi-provider HTTP proxy designed for LLM applications. It provides intelligent routing, thinking signature caching, and seamless failover between providers.
 
-## 시스템 개요
+## System Overview
 
 ```mermaid
 graph TB
-    subgraph "클라이언트 레이어"
+    subgraph "Client Layer"
         A[Claude Code]
-        B[커스텀 LLM 클라이언트]
-        C[기타 클라이언트]
+        B[Custom LLM Client]
     end
 
-    subgraph "CC-Relay 프록시"
-        D[HTTP 서버<br/>:8787]
-        E[미들웨어 스택]
-        F[프록시 핸들러]
-        G[프로바이더 매니저]
+    subgraph "CC-Relay Proxy"
+        D[HTTP Server<br/>:8787]
+        E[Middleware Stack]
+        F[Handler]
+        G[Router]
+        H[Signature Cache]
     end
 
-    subgraph "프로바이더 레이어"
-        H[Anthropic]
-        I[Z.AI]
+    subgraph "Provider Proxies"
+        I[ProviderProxy<br/>Anthropic]
+        J[ProviderProxy<br/>Z.AI]
+        K[ProviderProxy<br/>Ollama]
+    end
+
+    subgraph "Backend Providers"
+        L[Anthropic API]
+        M[Z.AI API]
+        N[Ollama API]
     end
 
     A --> D
     B --> D
-    C --> D
-
     D --> E
     E --> F
     F --> G
-    G --> H
+    F <--> H
     G --> I
+    G --> J
+    G --> K
+    I --> L
+    J --> M
+    K --> N
 
     style A fill:#6366f1,stroke:#4f46e5,color:#fff
     style D fill:#ec4899,stroke:#db2777,color:#fff
     style F fill:#f59e0b,stroke:#d97706,color:#000
     style G fill:#10b981,stroke:#059669,color:#fff
     style H fill:#8b5cf6,stroke:#7c3aed,color:#fff
-    style I fill:#3b82f6,stroke:#2563eb,color:#fff
 ```
 
-## 핵심 컴포넌트
+## Core Components
 
-### 1. HTTP 프록시 서버
+### 1. Handler
 
-**위치**: `internal/proxy/`
+**Location**: `internal/proxy/handler.go`
 
-HTTP 서버는 Claude Code와 정확하게 호환되는 Anthropic Messages API (`/v1/messages`)를 구현합니다.
-
-**기능:**
-- 적절한 이벤트 순서로 SSE 스트리밍
-- 요청 검증 및 변환
-- 미들웨어 체인 (요청 ID, 로깅, 인증)
-- 타임아웃 및 취소를 위한 컨텍스트 전파
-- 동시 요청을 위한 HTTP/2 지원
-
-**엔드포인트:**
-
-| 엔드포인트 | 메서드 | 설명 |
-|----------|--------|-------------|
-| `/v1/messages` | POST | 백엔드 프로바이더로 요청 프록시 |
-| `/v1/models` | GET | 모든 프로바이더에서 사용 가능한 모델 목록 |
-| `/v1/providers` | GET | 메타데이터와 함께 활성 프로바이더 목록 |
-| `/health` | GET | 헬스 체크 엔드포인트 |
-
-### 2. 미들웨어 스택
-
-**위치**: `internal/proxy/middleware.go`
-
-미들웨어 체인은 요청을 순서대로 처리합니다:
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant RequestID
-    participant Logging
-    participant Auth
-    participant Handler
-    participant Provider
-
-    Client->>RequestID: 요청
-    RequestID->>RequestID: X-Request-ID 생성/추출
-    RequestID->>Logging: 요청 + ID
-    Logging->>Logging: 요청 시작 로깅
-    Logging->>Auth: 요청
-    Auth->>Auth: 자격 증명 검증
-    Auth->>Handler: 인증된 요청
-    Handler->>Provider: 백엔드로 전달
-    Provider-->>Handler: 응답
-    Handler-->>Logging: 응답
-    Logging->>Logging: 완료 로깅
-    Logging-->>Client: 응답 + X-Request-ID
-```
-
-**미들웨어 컴포넌트:**
-
-| 미들웨어 | 목적 |
-|------------|---------|
-| `RequestIDMiddleware` | 추적을 위한 X-Request-ID 생성/추출 |
-| `LoggingMiddleware` | 타이밍과 함께 요청/응답 로깅 |
-| `AuthMiddleware` | x-api-key 헤더 검증 |
-| `MultiAuthMiddleware` | API 키 및 Bearer 토큰 인증 지원 |
-
-### 3. 프로바이더 매니저
-
-**위치**: `internal/providers/`
-
-각 프로바이더는 `Provider` 인터페이스를 구현합니다:
-
-```go
-type Provider interface {
-    // Name은 프로바이더 식별자를 반환합니다
-    Name() string
-
-    // BaseURL은 백엔드 API base URL을 반환합니다
-    BaseURL() string
-
-    // Owner는 소유자 식별자를 반환합니다 (예: "anthropic", "zhipu")
-    Owner() string
-
-    // Authenticate는 프로바이더 특정 인증을 추가합니다
-    Authenticate(req *http.Request, key string) error
-
-    // ForwardHeaders는 백엔드로 전달할 헤더를 반환합니다
-    ForwardHeaders(originalHeaders http.Header) http.Header
-
-    // SupportsStreaming은 프로바이더가 SSE를 지원하는지 나타냅니다
-    SupportsStreaming() bool
-
-    // ListModels는 사용 가능한 모델을 반환합니다
-    ListModels() []Model
-}
-```
-
-**구현된 프로바이더:**
-
-| 프로바이더 | 유형 | 설명 |
-|----------|------|-------------|
-| `AnthropicProvider` | `anthropic` | Anthropic 직접 API |
-| `ZAIProvider` | `zai` | Z.AI/Zhipu GLM (Anthropic 호환) |
-
-### 4. 프록시 핸들러
-
-**위치**: `internal/proxy/handler.go`
-
-프록시 핸들러는 효율적인 요청 전달을 위해 Go의 `httputil.ReverseProxy`를 사용합니다:
+The Handler is the central coordinator for request processing:
 
 ```go
 type Handler struct {
-    provider  providers.Provider
-    proxy     *httputil.ReverseProxy
-    apiKey    string
-    debugOpts config.DebugOptions
+    providerProxies map[string]*ProviderProxy  // Per-provider reverse proxies
+    defaultProvider providers.Provider          // Fallback for single-provider mode
+    router          router.ProviderRouter       // Routing strategy implementation
+    healthTracker   *health.Tracker             // Circuit breaker tracking
+    signatureCache  *SignatureCache             // Thinking signature cache
+    routingConfig   *config.RoutingConfig       // Model-based routing config
+    providers       []router.ProviderInfo       // Available providers
 }
 ```
 
-**주요 기능:**
-- SSE 스트리밍을 위한 즉시 플러시 (`FlushInterval: -1`)
-- 프로바이더별 인증
-- `anthropic-*` 헤더 전달
-- Anthropic 형식 응답으로 오류 처리
+**Responsibilities:**
+- Extract model name from request body
+- Detect thinking signatures for provider affinity
+- Select provider via router
+- Delegate to appropriate ProviderProxy
+- Process thinking blocks and cache signatures
 
-### 5. 설정 매니저
+### 2. ProviderProxy
 
-**위치**: `internal/config/`
+**Location**: `internal/proxy/provider_proxy.go`
 
-**기능:**
-- 환경 변수 확장을 포함한 YAML 파싱
-- 프로바이더 및 서버 설정 검증
-- 다중 인증 방식 지원
+Each provider gets a dedicated reverse proxy with pre-configured URL and authentication:
 
-## 요청 흐름
+```go
+type ProviderProxy struct {
+    Provider           providers.Provider
+    Proxy              *httputil.ReverseProxy
+    KeyPool            *keypool.KeyPool  // For multi-key rotation
+    APIKey             string            // Fallback single key
+    targetURL          *url.URL          // Provider's base URL
+    modifyResponseHook ModifyResponseFunc
+}
+```
 
-### 비스트리밍 요청
+**Key Features:**
+- URL parsing happens once at initialization (not per-request)
+- Supports transparent auth (forward client credentials) or configured auth
+- Automatic SSE header injection for streaming responses
+- Key pool integration for rate limit distribution
+
+### 3. Router
+
+**Location**: `internal/router/`
+
+The router selects which provider handles each request:
+
+| Strategy | Description |
+|----------|-------------|
+| `failover` | Priority-based with automatic retry (default) |
+| `round_robin` | Sequential rotation |
+| `weighted_round_robin` | Proportional by weight |
+| `shuffle` | Fair random distribution |
+| `model_based` | Route by model name prefix |
+
+### 4. Signature Cache
+
+**Location**: `internal/proxy/signature_cache.go`
+
+Caches thinking block signatures for cross-provider compatibility:
+
+```go
+type SignatureCache struct {
+    cache cache.Cache  // Ristretto-backed cache
+}
+
+// Cache key format: "sig:{modelGroup}:{textHash}"
+// TTL: 3 hours (matches Claude API)
+```
+
+## Request Flow
+
+### Multi-Provider Routing
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Proxy
-    participant Middleware
     participant Handler
-    participant Provider
+    participant Router
+    participant ModelFilter
+    participant ProviderProxy
+    participant Backend
 
-    Client->>Proxy: POST /v1/messages
-    Proxy->>Middleware: 요청
-    Middleware->>Middleware: 요청 ID 추가
-    Middleware->>Middleware: 시작 로깅
-    Middleware->>Middleware: 인증 검증
-    Middleware->>Handler: 전달
-    Handler->>Handler: 요청 변환
-    Handler->>Provider: 요청 프록시
-    Provider-->>Handler: JSON 응답
-    Handler-->>Middleware: 응답
-    Middleware->>Middleware: 완료 로깅
-    Middleware-->>Proxy: 응답
-    Proxy-->>Client: JSON 응답
+    Client->>Handler: HTTP Request (with model field)
+    Handler->>Handler: Extract model from body
+    Handler->>Handler: Check thinking signature presence
+    Handler->>ModelFilter: FilterProvidersByModel(model, providers, mapping)
+    ModelFilter->>ModelFilter: Longest-prefix match against modelMapping
+    ModelFilter->>Router: Return filtered provider list
+    Handler->>Router: Select provider (failover/round-robin on filtered list)
+    Router->>Router: Apply routing strategy to filtered providers
+    Router->>Handler: Return selected ProviderInfo
+
+    Handler->>Handler: Retrieve ProviderProxy for selected provider
+    Handler->>ProviderProxy: Prepare request with auth/headers
+    ProviderProxy->>ProviderProxy: Determine transparent vs configured auth mode
+    ProviderProxy->>Backend: Forward request to provider's target URL
+    Backend->>ProviderProxy: Response (with signature headers)
+    ProviderProxy->>Handler: Response with signature info
+    Handler->>Handler: Cache signature if thinking present
+    Handler->>Client: Response
 ```
 
-### 스트리밍 요청 (SSE)
+### Thinking Signature Processing
+
+When extended thinking is enabled, providers return signed thinking blocks. These signatures must be validated by the same provider on subsequent turns. CC-Relay solves cross-provider signature issues through caching:
+
+```mermaid
+sequenceDiagram
+    participant Request
+    participant Handler
+    participant SignatureCache
+    participant Backend
+    participant ResponseStream as Response Stream (SSE)
+
+    Request->>Handler: HTTP with thinking blocks
+    Handler->>Handler: HasThinkingSignature check
+    Handler->>Handler: ProcessRequestThinking
+    Handler->>SignatureCache: Get(modelGroup, thinkingText)
+    SignatureCache-->>Handler: Cached signature or empty
+    Handler->>Handler: Drop unsigned blocks / Apply cached signature
+    Handler->>Backend: Forward cleaned request
+
+    Backend->>ResponseStream: Streaming response (thinking_delta events)
+    ResponseStream->>Handler: thinking_delta event
+    Handler->>Handler: Accumulate thinking text
+    ResponseStream->>Handler: signature_delta event
+    Handler->>SignatureCache: Set(modelGroup, thinking_text, signature)
+    SignatureCache-->>Handler: Cached
+    Handler->>ResponseStream: Transform signature with modelGroup prefix
+    ResponseStream->>Request: Return SSE event with prefixed signature
+```
+
+**Model Groups for Signature Sharing:**
+
+| Model Pattern | Group | Signatures Shared |
+|--------------|-------|-------------------|
+| `claude-*` | `claude` | Yes, across all Claude models |
+| `gpt-*` | `gpt` | Yes, across all GPT models |
+| `gemini-*` | `gemini` | Yes, uses sentinel value |
+| Other | Exact name | No sharing |
+
+### SSE Streaming Flow
 
 ```mermaid
 sequenceDiagram
@@ -211,7 +214,7 @@ sequenceDiagram
     participant Provider
 
     Client->>Proxy: POST /v1/messages (stream=true)
-    Proxy->>Provider: 요청 전달
+    Proxy->>Provider: Forward request
 
     Provider-->>Proxy: event: message_start
     Proxy-->>Client: event: message_start
@@ -219,7 +222,7 @@ sequenceDiagram
     Provider-->>Proxy: event: content_block_start
     Proxy-->>Client: event: content_block_start
 
-    loop 콘텐츠 스트리밍
+    loop Content Streaming
         Provider-->>Proxy: event: content_block_delta
         Proxy-->>Client: event: content_block_delta
     end
@@ -232,15 +235,9 @@ sequenceDiagram
 
     Provider-->>Proxy: event: message_stop
     Proxy-->>Client: event: message_stop
-
-    Note over Client,Proxy: 연결 종료
 ```
 
-## SSE 스트리밍
-
-CC-Relay는 Claude Code 호환성을 위해 정확한 SSE 이벤트 순서를 유지합니다:
-
-**필수 헤더:**
+**Required SSE Headers:**
 ```
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
@@ -248,157 +245,147 @@ X-Accel-Buffering: no
 Connection: keep-alive
 ```
 
-**이벤트 순서:**
-1. `message_start` - 메시지 메타데이터
-2. `content_block_start` - 콘텐츠 블록 시작
-3. `content_block_delta` - 콘텐츠 청크 (반복)
-4. `content_block_stop` - 콘텐츠 블록 종료
-5. `message_delta` - 사용량 정보
-6. `message_stop` - 메시지 완료
+## Middleware Stack
 
-`X-Accel-Buffering: no` 헤더는 nginx/Cloudflare가 SSE 이벤트를 버퍼링하는 것을 방지하는 데 중요합니다.
+**Location**: `internal/proxy/middleware.go`
 
-## 인증 흐름
+| Middleware | Purpose |
+|------------|---------|
+| `RequestIDMiddleware` | Generates/extracts X-Request-ID for tracing |
+| `LoggingMiddleware` | Logs request/response with timing |
+| `AuthMiddleware` | Validates x-api-key header |
+| `MultiAuthMiddleware` | Supports API key and Bearer token auth |
 
-```mermaid
-graph TD
-    A[요청 도착] --> B{Authorization<br/>Bearer 있음?}
-    B -->|예| C{Bearer 활성화?}
-    B -->|아니오| D{x-api-key 있음?}
+## Provider Interface
 
-    C -->|예| E{Secret 설정됨?}
-    C -->|아니오| D
+**Location**: `internal/providers/provider.go`
 
-    E -->|예| F{토큰 일치?}
-    E -->|아니오| G[모든 Bearer 수락]
-
-    F -->|예| H[인증됨]
-    F -->|아니오| I[401 Unauthorized]
-
-    G --> H
-
-    D -->|예| J{키 일치?}
-    D -->|아니오| K{인증 필요?}
-
-    J -->|예| H
-    J -->|아니오| I
-
-    K -->|예| I
-    K -->|아니오| H
-
-    style A fill:#6366f1,stroke:#4f46e5,color:#fff
-    style H fill:#10b981,stroke:#059669,color:#fff
-    style I fill:#ef4444,stroke:#dc2626,color:#fff
-```
-
-## API 호환성
-
-### Anthropic API 형식
-
-CC-Relay는 Anthropic Messages API와 정확한 호환성을 구현합니다:
-
-**엔드포인트**: `POST /v1/messages`
-
-**헤더**:
-- `x-api-key`: API 키 (CC-Relay에서 관리)
-- `anthropic-version`: API 버전 (예: `2023-06-01`)
-- `content-type`: `application/json`
-
-**요청 본문**:
-```json
-{
-  "model": "claude-sonnet-4-5-20250514",
-  "max_tokens": 1024,
-  "messages": [
-    {"role": "user", "content": "Hello!"}
-  ],
-  "stream": true
+```go
+type Provider interface {
+    Name() string
+    BaseURL() string
+    Owner() string
+    Authenticate(req *http.Request, key string) error
+    ForwardHeaders(originalHeaders http.Header) http.Header
+    SupportsStreaming() bool
+    SupportsTransparentAuth() bool
+    ListModels() []Model
+    GetModelMapping() map[string]string
+    MapModel(requestModel string) string
 }
 ```
 
-### 프로바이더 변환
+**Implemented Providers:**
 
-현재 지원되는 두 프로바이더(Anthropic과 Z.AI)는 모두 동일한 Anthropic 호환 API 형식을 사용합니다:
+| Provider | Type | Features |
+|----------|------|----------|
+| `AnthropicProvider` | `anthropic` | Native format, full feature support |
+| `ZAIProvider` | `zai` | Anthropic-compatible, GLM models |
+| `OllamaProvider` | `ollama` | Local models, no prompt caching |
 
-| 프로바이더 | 변환 |
-|----------|----------------|
-| **Anthropic** | 없음 (네이티브 형식) |
-| **Z.AI** | 모델명 매핑만 |
+## Authentication Modes
 
-## 성능 고려사항
+### Transparent Auth
+When the client provides credentials and the provider supports it:
+- Client's `Authorization` or `x-api-key` headers forwarded unchanged
+- CC-Relay acts as a pure proxy
 
-### 연결 처리
+### Configured Auth
+When using CC-Relay's managed keys:
+- Client credentials stripped
+- CC-Relay injects configured API key
+- Supports key pool rotation for rate limit distribution
 
-CC-Relay는 최적화된 설정으로 Go 표준 라이브러리 HTTP 클라이언트를 사용합니다:
+```mermaid
+graph TD
+    A[Request Arrives] --> B{Has Client Auth?}
+    B -->|Yes| C{Provider Supports<br/>Transparent Auth?}
+    B -->|No| D[Use Configured Key]
+    C -->|Yes| E[Forward Client Auth]
+    C -->|No| D
+    D --> F{Key Pool Available?}
+    F -->|Yes| G[Select Key from Pool]
+    F -->|No| H[Use Single API Key]
+    E --> I[Forward to Provider]
+    G --> I
+    H --> I
+```
 
-- **연결 풀링**: 백엔드로의 HTTP 연결 재사용
-- **HTTP/2 지원**: 멀티플렉스 요청을 위한 선택적 h2c
-- **즉시 플러시**: SSE 이벤트 즉시 플러시
+## Health Tracking & Circuit Breaker
 
-### 동시성
+**Location**: `internal/health/`
 
-- **요청당 고루틴**: 경량 동시성 모델
-- **컨텍스트 전파**: 적절한 타임아웃 및 취소 처리
-- **스레드 안전 로깅**: 구조화된 로깅을 위해 zerolog 사용
+CC-Relay tracks provider health and implements circuit breaker patterns:
 
-### 메모리 관리
+| State | Behavior |
+|-------|----------|
+| CLOSED | Normal operation, requests flow through |
+| OPEN | Provider marked unhealthy, requests fail fast |
+| HALF-OPEN | Probing with limited requests after cooldown |
 
-- **스트리밍 응답**: 응답 본문 버퍼링 없음
-- **요청 본문 제한**: 설정 가능한 최대 본문 크기
-- **그레이스풀 셧다운**: 진행 중인 요청에 30초 타임아웃
+**Triggers for OPEN state:**
+- HTTP 429 (rate limited)
+- HTTP 5xx (server errors)
+- Connection timeouts
+- Consecutive failures exceed threshold
 
-## 디렉토리 구조
+## Directory Structure
 
 ```
 cc-relay/
-├── cmd/cc-relay/        # CLI 진입점
-│   ├── main.go          # 루트 명령
-│   ├── serve.go         # Serve 명령
-│   ├── status.go        # Status 명령
-│   ├── version.go       # Version 명령
-│   ├── config.go        # Config 명령
-│   ├── config_init.go   # Config init 하위 명령
-│   ├── config_cc.go     # Config cc 하위 명령
-│   ├── config_cc_init.go    # Claude Code 설정
-│   └── config_cc_remove.go  # CC 설정 제거
+├── cmd/cc-relay/           # CLI entry point
+│   ├── main.go             # Root command
+│   ├── serve.go            # Serve command
+│   └── di/                 # Dependency injection
+│       └── providers.go    # Service wiring
 ├── internal/
-│   ├── config/          # 설정 로딩
-│   │   ├── config.go    # 설정 구조체
-│   │   └── loader.go    # YAML/env 로딩
-│   ├── providers/       # 프로바이더 구현
-│   │   ├── provider.go  # 프로바이더 인터페이스
-│   │   ├── base.go      # 기본 프로바이더
-│   │   ├── anthropic.go # Anthropic 프로바이더
-│   │   └── zai.go       # Z.AI 프로바이더
-│   ├── proxy/           # HTTP 프록시 서버
-│   │   ├── server.go    # 서버 설정
-│   │   ├── routes.go    # 라우트 등록
-│   │   ├── handler.go   # 프록시 핸들러
-│   │   ├── middleware.go # 미들웨어 체인
-│   │   ├── sse.go       # SSE 유틸리티
-│   │   ├── errors.go    # 오류 응답
-│   │   └── logger.go    # 로깅 설정
-│   ├── auth/            # 인증
-│   │   ├── auth.go      # Auth 인터페이스
-│   │   ├── apikey.go    # API 키 인증
-│   │   ├── oauth.go     # Bearer 토큰 인증
-│   │   └── chain.go     # Auth 체인
-│   └── version/         # 버전 정보
-└── config.yaml          # 예제 설정
+│   ├── config/             # Configuration loading
+│   ├── providers/          # Provider implementations
+│   │   ├── provider.go     # Provider interface
+│   │   ├── base.go         # Base provider
+│   │   ├── anthropic.go    # Anthropic provider
+│   │   ├── zai.go          # Z.AI provider
+│   │   └── ollama.go       # Ollama provider
+│   ├── proxy/              # HTTP proxy server
+│   │   ├── handler.go      # Main request handler
+│   │   ├── provider_proxy.go # Per-provider proxy
+│   │   ├── thinking.go     # Thinking block processing
+│   │   ├── signature_cache.go # Signature caching
+│   │   ├── sse.go          # SSE utilities
+│   │   └── middleware.go   # Middleware chain
+│   ├── router/             # Routing strategies
+│   │   ├── router.go       # Router interface
+│   │   ├── failover.go     # Failover strategy
+│   │   ├── round_robin.go  # Round-robin strategy
+│   │   └── model_filter.go # Model-based filtering
+│   ├── health/             # Health tracking
+│   │   └── tracker.go      # Circuit breaker
+│   ├── keypool/            # API key pooling
+│   │   └── keypool.go      # Key rotation
+│   └── cache/              # Caching layer
+│       └── cache.go        # Ristretto wrapper
+└── docs-site/              # Documentation
 ```
 
-## 향후 아키텍처
+## Performance Considerations
 
-다음 기능들이 향후 릴리스에 계획되어 있습니다:
+### Connection Handling
+- **Connection pooling**: HTTP connections reused to backends
+- **HTTP/2 support**: Multiplexed requests where supported
+- **Immediate flush**: SSE events flushed without buffering
 
-- **라우터 컴포넌트**: 지능형 라우팅 전략 (라운드 로빈, 페일오버, 비용 기반)
-- **요청 제한기**: API 키별 토큰 버킷 요청 제한
-- **상태 추적기**: 자동 복구 기능이 있는 서킷 브레이커
-- **gRPC 관리 API**: 실시간 통계 및 설정
-- **TUI 대시보드**: 터미널 기반 모니터링 인터페이스
-- **추가 프로바이더**: Ollama, AWS Bedrock, Azure, Vertex AI
+### Concurrency
+- **Goroutine per request**: Lightweight Go concurrency
+- **Context propagation**: Proper timeout and cancellation
+- **Thread-safe caching**: Ristretto provides concurrent access
 
-## 다음 단계
+### Memory
+- **Streaming responses**: No buffering of response bodies
+- **Signature cache**: Bounded size with LRU eviction
+- **Request body restoration**: Efficient body re-reading
 
-- [설정 레퍼런스](/ko/docs/configuration/)
-- [API 문서](/ko/docs/api/)
+## Next Steps
+
+- [Configuration reference](/docs/configuration/)
+- [Routing strategies](/docs/routing/)
+- [Provider setup](/docs/providers/)
