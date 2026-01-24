@@ -238,7 +238,7 @@ sequenceDiagram
 ```
 
 **必需的 SSE 头:**
-```
+```text
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
 X-Accel-Buffering: no
@@ -331,7 +331,7 @@ CC-Relay 跟踪供应商健康状态并实现熔断器模式：
 
 ## 目录结构
 
-```
+```text
 cc-relay/
 ├── cmd/cc-relay/           # CLI 入口点
 │   ├── main.go             # 根命令

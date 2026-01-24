@@ -238,7 +238,7 @@ sequenceDiagram
 ```
 
 **Required SSE Headers:**
-```
+```text
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
 X-Accel-Buffering: no
@@ -331,7 +331,7 @@ CC-Relay tracks provider health and implements circuit breaker patterns:
 
 ## Directory Structure
 
-```
+```text
 cc-relay/
 ├── cmd/cc-relay/           # CLI entry point
 │   ├── main.go             # Root command

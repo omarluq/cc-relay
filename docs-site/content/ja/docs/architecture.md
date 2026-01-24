@@ -238,7 +238,7 @@ sequenceDiagram
 ```
 
 **必須SSEヘッダー:**
-```
+```text
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
 X-Accel-Buffering: no
@@ -331,7 +331,7 @@ CC-Relayはプロバイダーの健全性を追跡し、サーキットブレー
 
 ## ディレクトリ構造
 
-```
+```text
 cc-relay/
 ├── cmd/cc-relay/           # CLIエントリポイント
 │   ├── main.go             # ルートコマンド

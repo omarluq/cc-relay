@@ -238,7 +238,7 @@ sequenceDiagram
 ```
 
 **Erforderliche SSE-Header:**
-```
+```text
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
 X-Accel-Buffering: no
@@ -331,7 +331,7 @@ CC-Relay verfolgt Provider-Gesundheit und implementiert Circuit-Breaker-Muster:
 
 ## Verzeichnisstruktur
 
-```
+```text
 cc-relay/
 ├── cmd/cc-relay/           # CLI-Einstiegspunkt
 │   ├── main.go             # Root-Befehl

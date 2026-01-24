@@ -238,7 +238,7 @@ sequenceDiagram
 ```
 
 **Cabeceras SSE Requeridas:**
-```
+```text
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
 X-Accel-Buffering: no
@@ -331,7 +331,7 @@ CC-Relay rastrea la salud de los proveedores e implementa patrones de circuit br
 
 ## Estructura de Directorios
 
-```
+```text
 cc-relay/
 ├── cmd/cc-relay/           # Punto de entrada CLI
 │   ├── main.go             # Comando raíz

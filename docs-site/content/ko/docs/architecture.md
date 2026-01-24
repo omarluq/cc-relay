@@ -238,7 +238,7 @@ sequenceDiagram
 ```
 
 **필수 SSE 헤더:**
-```
+```text
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
 X-Accel-Buffering: no
@@ -331,7 +331,7 @@ CC-Relay는 프로바이더 상태를 추적하고 서킷 브레이커 패턴을
 
 ## 디렉토리 구조
 
-```
+```text
 cc-relay/
 ├── cmd/cc-relay/           # CLI 진입점
 │   ├── main.go             # 루트 명령
