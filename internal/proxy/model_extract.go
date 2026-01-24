@@ -24,15 +24,17 @@ func ExtractModelFromRequest(r *http.Request) mo.Option[string] {
 	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return mo.None[string]()
-	}
 	//nolint:errcheck // Best effort close
 	r.Body.Close()
 
-	// Always restore body for downstream use
+	// Always restore body for downstream use, even on partial read error
+	// io.ReadAll may return partial bytes alongside an error
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	r.ContentLength = int64(len(bodyBytes))
+
+	if err != nil {
+		return mo.None[string]()
+	}
 
 	// Parse JSON to get the model field
 	var body map[string]any
