@@ -100,10 +100,12 @@ providers:
 
 ### Configuracion de API Key
 
-1. Cree una cuenta en [open.bigmodel.cn](https://open.bigmodel.cn) (Portal de Desarrolladores Zhipu AI)
+1. Cree una cuenta en [z.ai/model-api](https://z.ai/model-api)
 2. Navegue a la seccion de API Keys
 3. Cree una nueva API key
 4. Almacene en variable de entorno: `export ZAI_API_KEY="..."`
+
+> **Obtenga 10% de descuento:** Use [este enlace de invitacion](https://z.ai/subscribe?ic=HT5TQVSOZP) al suscribirse — tanto usted como el referente obtienen 10% de descuento.
 
 ### Model Mapping
 

@@ -100,10 +100,12 @@ providers:
 
 ### API 密钥设置
 
-1. 在 [open.bigmodel.cn](https://open.bigmodel.cn)（智谱 AI 开发者门户）创建账户
+1. 在 [z.ai/model-api](https://z.ai/model-api) 创建账户
 2. 导航到 API Keys 部分
 3. 创建新的 API 密钥
 4. 存储在环境变量中: `export ZAI_API_KEY="..."`
+
+> **享受10%折扣:** 订阅时使用[此邀请链接](https://z.ai/subscribe?ic=HT5TQVSOZP) — 您和推荐人都可获得10%折扣。
 
 ### Model Mapping
 
