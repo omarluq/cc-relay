@@ -179,7 +179,7 @@ func TestIsValidSignature(t *testing.T) {
 		{"exactly minimum", "claude", string(make([]byte, MinSignatureLen)), true},
 		{"valid long signature", "claude", string(make([]byte, 100)), true},
 		{"gemini sentinel", "gemini-pro", GeminiSignatureSentinel, true},
-		{"gemini sentinel short but valid", "claude", GeminiSignatureSentinel, true},
+		{"gemini sentinel invalid for non-gemini", "claude", GeminiSignatureSentinel, false},
 	}
 
 	for _, tt := range tests {

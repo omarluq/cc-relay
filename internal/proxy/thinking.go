@@ -243,7 +243,7 @@ func processThinkingBlock(
 		_, rawSig, ok := ParseSignature(clientSig)
 		if ok {
 			signature = rawSig
-		} else if IsValidSignature("", clientSig) {
+		} else if IsValidSignature(modelName, clientSig) {
 			signature = clientSig
 		}
 	}

@@ -101,15 +101,15 @@ func (sc *SignatureCache) Set(ctx context.Context, modelName, text, signature st
 }
 
 // IsValidSignature checks if a signature is valid (non-empty and long enough).
-// Special case: "skip_thought_signature_validator" is valid for gemini models.
-func IsValidSignature(_, signature string) bool {
+// Special case: "skip_thought_signature_validator" is valid only for Gemini models.
+func IsValidSignature(modelName, signature string) bool {
 	if signature == "" {
 		return false
 	}
 
-	// Gemini sentinel is always valid
+	// Gemini sentinel is only valid for Gemini models
 	if signature == GeminiSignatureSentinel {
-		return true
+		return GetModelGroup(modelName) == "gemini"
 	}
 
 	// Check minimum length
