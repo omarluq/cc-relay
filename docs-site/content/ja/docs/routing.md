@@ -15,6 +15,7 @@ CC-Relay は、プロバイダー間でリクエストを分配するための�
 | Weighted Round-Robin | `weighted_round_robin` | 重みに基づく比例分配 | 容量ベースの分配 |
 | Shuffle | `shuffle` | フェアランダム（「カード配り」パターン） | ランダム化された負荷分散 |
 | Failover | `failover`（デフォルト） | 優先度ベースで自動リトライ | 高可用性 |
+| Model-Based | `model_based` | モデル名プレフィックスでルーティング | マルチモデルデプロイメント |
 
 ## 設定
 
@@ -22,7 +23,7 @@ CC-Relay は、プロバイダー間でリクエストを分配するための�
 
 ```yaml
 routing:
-  # 戦略: round_robin, weighted_round_robin, shuffle, failover（デフォルト）
+  # 戦略: round_robin, weighted_round_robin, shuffle, failover（デフォルト）, model_based
   strategy: failover
 
   # フェイルオーバー試行のタイムアウト（ミリ秒、デフォルト: 5000）
@@ -30,6 +31,14 @@ routing:
 
   # デバッグヘッダーを有効化（X-CC-Relay-Strategy, X-CC-Relay-Provider）
   debug: false
+
+  # モデルベースルーティング設定（strategy: model_based の場合のみ使用）
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+  default_provider: anthropic
 ```
 
 **デフォルト:** `strategy` が指定されていない場合、cc-relay は最も安全なオプションとして `failover` を使用します。
@@ -136,6 +145,56 @@ providers:
 **デフォルトの優先度:** 1（指定されていない場合）
 
 **最適な用途:** 自動フォールバック付きの高可用性。
+
+### Model-Based
+
+リクエスト内のモデル名に基づいてプロバイダーにリクエストをルーティングします。特異性のために最長プレフィックスマッチングを使用します。
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+**動作の仕組み:**
+
+1. リクエストから `model` パラメータを抽出
+2. `model_mapping` で最長プレフィックスマッチを見つける
+3. 対応するプロバイダーにルーティング
+4. マッチが見つからない場合は `default_provider` にフォールバック
+5. マッチもデフォルトもない場合はエラーを返す
+
+**プレフィックスマッチングの例:**
+
+| リクエストされたモデル | マッピングエントリ | 選択されたエントリ | プロバイダー |
+|----------------------|-------------------|------------------|------------|
+| `claude-opus-4` | `claude-opus`, `claude` | `claude-opus` | anthropic |
+| `claude-sonnet-3.5` | `claude-sonnet`, `claude` | `claude-sonnet` | anthropic |
+| `glm-4-plus` | `glm-4`, `glm` | `glm-4` | zai |
+| `qwen-72b` | `qwen`, `claude` | `qwen` | ollama |
+| `llama-3.2` | `llama`, `claude` | `llama` | ollama |
+| `gpt-4` | `claude`, `llama` | (マッチなし) | default_provider |
+
+**最適な用途:** 異なるモデルを異なるプロバイダーにルーティングする必要があるマルチモデルデプロイメント。
 
 ## デバッグヘッダー
 
@@ -269,6 +328,43 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+
+### モデルベースルーティングを使用したマルチモデル
+
+異なるモデルを専用プロバイダーにルーティング：
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+この設定により：
+- Claudeモデル → Anthropic
+- GLMモデル → Z.AI
+- Qwen/Llamaモデル → Ollama（ローカル）
+- その他のモデル → Anthropic（デフォルト）
 
 ## プロバイダーの重みと優先度
 

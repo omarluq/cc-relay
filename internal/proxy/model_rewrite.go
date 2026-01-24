@@ -4,10 +4,18 @@ package proxy
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/mo"
+)
+
+// Sentinel errors for rewrite pipeline.
+var (
+	errNoModelField   = errors.New("no model field in body")
+	errModelNotString = errors.New("model field is not a string")
 )
 
 // ModelRewriter handles model name rewriting in request bodies.
@@ -21,9 +29,18 @@ func NewModelRewriter(mapping map[string]string) *ModelRewriter {
 	return &ModelRewriter{mapping: mapping}
 }
 
+// rewriteResult holds the outcome of a rewrite attempt.
+type rewriteResult struct {
+	originalModel string
+	mappedModel   string
+	bodyBytes     []byte
+	wasRewritten  bool
+}
+
 // RewriteRequest rewrites the model field in the request body if a mapping exists.
 // Returns the modified request with updated body if rewriting occurred.
 // The original model name is logged for debugging purposes.
+// Uses mo.Result for railway-oriented error handling with centralized body restoration.
 func (r *ModelRewriter) RewriteRequest(req *http.Request, logger *zerolog.Logger) error {
 	// Skip if no mapping configured
 	if len(r.mapping) == 0 {
@@ -42,66 +59,73 @@ func (r *ModelRewriter) RewriteRequest(req *http.Request, logger *zerolog.Logger
 	//nolint:errcheck // Best effort close
 	req.Body.Close()
 
-	// Parse JSON to get the model field
-	var body map[string]any
-	if unmarshalErr := json.Unmarshal(bodyBytes, &body); unmarshalErr != nil {
-		// Not valid JSON, restore body and return without modification (intentional)
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		req.ContentLength = int64(len(bodyBytes))
-		return nil //nolint:nilerr // Returning nil is intentional - we gracefully degrade
-	}
+	// Try to rewrite using railway-oriented pipeline
+	result := r.tryRewrite(bodyBytes)
 
-	// Get the model field
-	modelField, ok := body["model"]
-	if !ok {
-		// No model field, restore body and return
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		req.ContentLength = int64(len(bodyBytes))
-		return nil
-	}
+	// Handle result using OrElse for graceful degradation
+	res := result.OrElse(rewriteResult{
+		bodyBytes:    bodyBytes,
+		wasRewritten: false,
+	})
 
-	originalModel, ok := modelField.(string)
-	if !ok {
-		// Model field is not a string, restore body and return
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		req.ContentLength = int64(len(bodyBytes))
-		return nil
-	}
-
-	// Check if we have a mapping for this model
-	mappedModel, found := r.mapping[originalModel]
-	if !found {
-		// No mapping for this model, restore body and return
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		req.ContentLength = int64(len(bodyBytes))
-		return nil
-	}
-
-	// Log the rewrite
-	if logger != nil {
+	// Log successful rewrite
+	if res.wasRewritten && logger != nil {
 		logger.Debug().
-			Str("original_model", originalModel).
-			Str("mapped_model", mappedModel).
+			Str("original_model", res.originalModel).
+			Str("mapped_model", res.mappedModel).
 			Msg("rewriting model name")
 	}
 
-	// Update the model field
-	body["model"] = mappedModel
-
-	// Re-encode the body
-	newBodyBytes, marshalErr := json.Marshal(body)
-	if marshalErr != nil {
-		// Failed to re-encode, restore original body (intentional graceful degradation)
-		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		req.ContentLength = int64(len(bodyBytes))
-		return nil //nolint:nilerr // Returning nil is intentional - we gracefully degrade
-	}
-
-	// Replace request body with modified version
-	req.Body = io.NopCloser(bytes.NewReader(newBodyBytes))
-	req.ContentLength = int64(len(newBodyBytes))
+	// Restore the (possibly modified) body - single restoration point
+	req.Body = io.NopCloser(bytes.NewReader(res.bodyBytes))
+	req.ContentLength = int64(len(res.bodyBytes))
 
 	return nil
+}
+
+// tryRewrite attempts the rewrite pipeline using mo.Result for clean error chaining.
+func (r *ModelRewriter) tryRewrite(bodyBytes []byte) mo.Result[rewriteResult] {
+	// Step 1: Parse JSON
+	var body map[string]any
+	if err := json.Unmarshal(bodyBytes, &body); err != nil {
+		return mo.Err[rewriteResult](err)
+	}
+
+	// Step 2: Get model field
+	modelField, ok := body["model"]
+	if !ok {
+		return mo.Err[rewriteResult](errNoModelField)
+	}
+
+	// Step 3: Ensure model is a string
+	originalModel, ok := modelField.(string)
+	if !ok {
+		return mo.Err[rewriteResult](errModelNotString)
+	}
+
+	// Step 4: Check for mapping
+	mappedModel, found := r.mapping[originalModel]
+	if !found {
+		// No mapping - return original body unchanged (not an error, just no rewrite)
+		return mo.Ok(rewriteResult{
+			bodyBytes:    bodyBytes,
+			wasRewritten: false,
+		})
+	}
+
+	// Step 5: Apply mapping and re-encode
+	body["model"] = mappedModel
+	newBodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return mo.Err[rewriteResult](err)
+	}
+
+	return mo.Ok(rewriteResult{
+		bodyBytes:     newBodyBytes,
+		wasRewritten:  true,
+		originalModel: originalModel,
+		mappedModel:   mappedModel,
+	})
 }
 
 // RewriteModel maps a model name using the configured mapping.

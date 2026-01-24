@@ -30,6 +30,7 @@ const (
 	StrategyWeightedRoundRobin = "weighted_round_robin"
 	StrategyShuffle            = "shuffle"
 	StrategyFailover           = "failover"
+	StrategyModelBased         = "model_based"
 )
 
 // Common errors returned by routers.
@@ -105,6 +106,10 @@ func NewRouter(strategy string, timeout time.Duration) (ProviderRouter, error) {
 	case StrategyWeightedRoundRobin:
 		return NewWeightedRoundRobinRouter(), nil
 	case StrategyFailover:
+		return NewFailoverRouter(timeout), nil
+	case StrategyModelBased:
+		// Model-based filtering happens in handler.go before routing.
+		// Use failover as the underlying router for filtered providers.
 		return NewFailoverRouter(timeout), nil
 	default:
 		return nil, fmt.Errorf("router: unknown strategy %q", strategy)

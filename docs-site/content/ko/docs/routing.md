@@ -15,6 +15,7 @@ CC-Relay는 프로바이더 간에 요청을 분배하기 위한 여러 라우�
 | Weighted Round-Robin | `weighted_round_robin` | 가중치에 따른 비례 분배 | 용량 기반 분배 |
 | Shuffle | `shuffle` | 공정한 무작위 ("카드 배분" 패턴) | 무작위 부하 분산 |
 | Failover | `failover` (기본값) | 우선순위 기반 자동 재시도 | 고가용성 |
+| Model-Based | `model_based` | 모델 이름 접두사로 라우팅 | 다중 모델 배포 |
 
 ## 설정
 
@@ -22,7 +23,7 @@ CC-Relay는 프로바이더 간에 요청을 분배하기 위한 여러 라우�
 
 ```yaml
 routing:
-  # 전략: round_robin, weighted_round_robin, shuffle, failover (기본값)
+  # 전략: round_robin, weighted_round_robin, shuffle, failover (기본값), model_based
   strategy: failover
 
   # 장애 조치 시도의 타임아웃 (밀리초, 기본값: 5000)
@@ -30,6 +31,14 @@ routing:
 
   # 디버그 헤더 활성화 (X-CC-Relay-Strategy, X-CC-Relay-Provider)
   debug: false
+
+  # 모델 기반 라우팅 설정 (strategy: model_based인 경우에만 사용)
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+  default_provider: anthropic
 ```
 
 **기본값:** `strategy`가 지정되지 않으면 cc-relay는 가장 안전한 옵션인 `failover`를 사용합니다.
@@ -136,6 +145,56 @@ providers:
 **기본 우선순위:** 1 (지정되지 않은 경우)
 
 **최적의 용도:** 자동 장애 조치가 있는 고가용성.
+
+### Model-Based
+
+요청의 모델 이름을 기반으로 프로바이더에 요청을 라우팅합니다. 특이성을 위해 최장 접두사 매칭을 사용합니다.
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+**작동 원리:**
+
+1. 요청에서 `model` 매개변수를 추출
+2. `model_mapping`에서 최장 접두사 일치를 찾음
+3. 해당 프로바이더로 라우팅
+4. 일치하는 항목이 없으면 `default_provider`로 폴백
+5. 일치 항목도 기본값도 없으면 오류 반환
+
+**접두사 매칭 예제:**
+
+| 요청된 모델 | 매핑 항목 | 선택된 항목 | 프로바이더 |
+|-----------|----------|-----------|----------|
+| `claude-opus-4` | `claude-opus`, `claude` | `claude-opus` | anthropic |
+| `claude-sonnet-3.5` | `claude-sonnet`, `claude` | `claude-sonnet` | anthropic |
+| `glm-4-plus` | `glm-4`, `glm` | `glm-4` | zai |
+| `qwen-72b` | `qwen`, `claude` | `qwen` | ollama |
+| `llama-3.2` | `llama`, `claude` | `llama` | ollama |
+| `gpt-4` | `claude`, `llama` | (일치 없음) | default_provider |
+
+**최적의 용도:** 다른 모델을 다른 프로바이더로 라우팅해야 하는 다중 모델 배포.
 
 ## 디버그 헤더
 
@@ -269,6 +328,43 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+
+### 모델 기반 라우팅을 사용한 다중 모델
+
+다른 모델을 전용 프로바이더로 라우팅:
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+이 설정으로:
+- Claude 모델 → Anthropic
+- GLM 모델 → Z.AI
+- Qwen/Llama 모델 → Ollama (로컬)
+- 기타 모델 → Anthropic (기본값)
 
 ## 프로바이더 가중치 및 우선순위
 

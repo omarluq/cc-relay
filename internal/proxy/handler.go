@@ -32,6 +32,7 @@ type Handler struct {
 	defaultProvider providers.Provider        // Fallback for single-provider mode
 	router          router.ProviderRouter
 	healthTracker   *health.Tracker
+	routingConfig   *config.RoutingConfig // For model-based routing configuration
 	providers       []router.ProviderInfo
 	debugOpts       config.DebugOptions
 	routingDebug    bool
@@ -42,6 +43,7 @@ type Handler struct {
 // If providerRouter is nil, provider is used directly (single provider mode).
 // providerPools maps provider names to their key pools (may be nil for providers without pooling).
 // providerKeys maps provider names to their fallback API keys.
+// routingConfig contains model-based routing configuration (may be nil).
 // If healthTracker is provided, success/failure will be reported to circuit breakers.
 func NewHandler(
 	provider providers.Provider,
@@ -51,6 +53,7 @@ func NewHandler(
 	pool *keypool.KeyPool,
 	providerPools map[string]*keypool.KeyPool,
 	providerKeys map[string]string,
+	routingConfig *config.RoutingConfig,
 	debugOpts config.DebugOptions,
 	routingDebug bool,
 	healthTracker *health.Tracker,
@@ -60,6 +63,7 @@ func NewHandler(
 		defaultProvider: provider,
 		providers:       providerInfos,
 		router:          providerRouter,
+		routingConfig:   routingConfig,
 		debugOpts:       debugOpts,
 		routingDebug:    routingDebug,
 		healthTracker:   healthTracker,
@@ -160,7 +164,8 @@ func (h *Handler) reportOutcome(resp *http.Response) {
 
 // selectProvider chooses a provider using the router or returns the static provider.
 // In single provider mode (router is nil or no providers), returns the static provider.
-func (h *Handler) selectProvider(ctx context.Context) (router.ProviderInfo, error) {
+// If model is provided and model-based routing is enabled, filters providers first.
+func (h *Handler) selectProvider(ctx context.Context, model string) (router.ProviderInfo, error) {
 	if h.router == nil || len(h.providers) == 0 {
 		// Single provider mode - wrap static provider
 		return router.ProviderInfo{
@@ -168,7 +173,26 @@ func (h *Handler) selectProvider(ctx context.Context) (router.ProviderInfo, erro
 			IsHealthy: func() bool { return true },
 		}, nil
 	}
-	return h.router.Select(ctx, h.providers)
+
+	// Filter providers if model-based routing is enabled
+	candidates := h.providers
+	if h.isModelBasedRouting() && model != "" {
+		candidates = FilterProvidersByModel(
+			model,
+			h.providers,
+			h.routingConfig.ModelMapping,
+			h.routingConfig.DefaultProvider,
+		)
+	}
+
+	return h.router.Select(ctx, candidates)
+}
+
+// isModelBasedRouting returns true if model-based routing is configured.
+func (h *Handler) isModelBasedRouting() bool {
+	return h.routingConfig != nil &&
+		h.routingConfig.Strategy == router.StrategyModelBased &&
+		len(h.routingConfig.ModelMapping) > 0
 }
 
 // selectKeyFromPool handles key selection from the pool.
@@ -211,8 +235,17 @@ func (h *Handler) selectKeyFromPool(
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
+	// Extract model from request body for model-based routing
+	// Cache in context to avoid re-reading body in model rewriter
+	modelOpt := ExtractModelFromRequest(r)
+	model := modelOpt.OrEmpty()
+	if modelOpt.IsPresent() {
+		r = r.WithContext(CacheModelInContext(r.Context(), model))
+	}
+
 	// Select provider using router (or use static provider)
-	selectedProviderInfo, err := h.selectProvider(r.Context())
+	// Model is passed for model-based routing filtering
+	selectedProviderInfo, err := h.selectProvider(r.Context(), model)
 	if err != nil {
 		WriteError(w, http.StatusServiceUnavailable, "api_error",
 			fmt.Sprintf("failed to select provider: %v", err))

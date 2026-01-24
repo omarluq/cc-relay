@@ -15,6 +15,7 @@ Routing determines how cc-relay chooses which provider handles each request. The
 | Weighted Round-Robin | `weighted_round_robin` | Proportional distribution by weight | Capacity-based distribution |
 | Shuffle | `shuffle` | Fair random ("dealing cards") | Randomized load balancing |
 | Failover | `failover` (default) | Priority-based with automatic retry | High availability |
+| Model-Based | `model_based` | Route by model name prefix | Multi-model deployments |
 
 ## Configuration
 
@@ -22,7 +23,7 @@ Configure routing in your `config.yaml`:
 
 ```yaml
 routing:
-  # Strategy: round_robin, weighted_round_robin, shuffle, failover (default)
+  # Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
   strategy: failover
 
   # Timeout for failover attempts in milliseconds (default: 5000)
@@ -30,6 +31,16 @@ routing:
 
   # Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
   debug: false
+
+  # Model-based routing configuration (only used when strategy: model_based)
+  model_mapping:
+    claude-opus: anthropic    # claude-opus-* models → anthropic provider
+    claude-sonnet: anthropic  # claude-sonnet-* models → anthropic provider
+    glm-4: zai                # glm-4* models → zai provider
+    qwen: ollama              # qwen* models → ollama provider
+
+  # Default provider when no model mapping matches
+  default_provider: anthropic
 ```
 
 **Default:** If `strategy` is not specified, cc-relay uses `failover` as the safest option.
@@ -136,6 +147,59 @@ providers:
 **Default priority:** 1 (if not specified)
 
 **Best for:** High availability with automatic fallback.
+
+### Model-Based
+
+Routes requests to providers based on the model name in the request. Uses longest prefix matching for specificity.
+
+```yaml
+routing:
+  strategy: model_based
+
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+**How it works:**
+
+1. Extract model name from request body (e.g., `claude-opus-4`)
+2. Find longest matching prefix in `model_mapping` (e.g., `claude-opus`)
+3. Route to mapped provider (e.g., `anthropic`)
+4. If no match, use `default_provider`
+5. If no default, route to any available provider
+
+**Prefix matching examples:**
+
+| Request Model | Mapping | Result |
+|---------------|---------|--------|
+| `claude-opus-4` | `claude-opus: anthropic` | anthropic |
+| `claude-sonnet-4-20250514` | `claude-sonnet: anthropic` | anthropic |
+| `glm-4.7` | `glm-4: zai` | zai |
+| `qwen3:8b` | `qwen: ollama` | ollama |
+| `unknown-model` | (no match) | default_provider |
+
+**Best for:** Multi-provider setups where different providers handle different model families.
 
 ## Debug Headers
 
@@ -269,6 +333,47 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+
+### Multi-Model with Model-Based Routing
+
+Route different model families to different providers:
+
+```yaml
+routing:
+  strategy: model_based
+
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    claude-haiku: anthropic
+    glm-4: zai
+    glm-3: zai
+    qwen: ollama
+    llama: ollama
+
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+With this configuration:
+- `claude-opus-4` → anthropic
+- `glm-4.7` → zai
+- `qwen3:8b` → ollama
+- `unknown-model` → anthropic (default)
 
 ## Provider Weight and Priority
 

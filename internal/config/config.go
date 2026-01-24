@@ -57,9 +57,19 @@ type Config struct {
 // RoutingConfig defines provider-level routing strategy behavior.
 // This controls how requests are distributed across multiple providers.
 type RoutingConfig struct {
+	// ModelMapping maps model name prefixes to provider names for model-based routing.
+	// Example: {"claude-opus": "anthropic", "glm-4": "zai", "qwen": "ollama"}
+	// Uses longest prefix match for specificity.
+	// Only used when Strategy is "model_based".
+	ModelMapping map[string]string `yaml:"model_mapping"`
+
 	// Strategy defines the provider selection algorithm.
-	// Options: round_robin, weighted_round_robin, shuffle, failover (default)
+	// Options: round_robin, weighted_round_robin, shuffle, failover (default), model_based
 	Strategy string `yaml:"strategy"`
+
+	// DefaultProvider is the fallback provider when no model mapping matches.
+	// Only used when Strategy is "model_based".
+	DefaultProvider string `yaml:"default_provider"`
 
 	// FailoverTimeout is the timeout in milliseconds for failover attempts.
 	// When a provider fails, the router will try the next provider within this timeout.

@@ -48,28 +48,31 @@ server:
 # Routing Configuration
 # ============================================================================
 routing:
-  # Available strategies:
-  #   - simple-shuffle: Weighted random selection based on available capacity (default)
-  #   - round-robin: Sequential distribution across backends
-  #   - least-busy: Route to backend with fewest in-flight requests
-  #   - cost-based: Prefer cheaper providers for simple tasks
-  #   - latency-based: Track response times, prefer faster backends
-  #   - failover: Primary → fallback chain with circuit breaker
-  #   - model-based: Route by model name prefix
-  strategy: "simple-shuffle"
+  # Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
+  # - round_robin: Sequential rotation through providers
+  # - weighted_round_robin: Proportional distribution by weight
+  # - shuffle: Fair random ("dealing cards" pattern)
+  # - failover: Priority-based with automatic retry (default)
+  # - model_based: Route by model name prefix to specific providers
+  strategy: "failover"
 
-  # Failover configuration (only used when strategy: failover)
-  failover:
-    primary: "anthropic-pool"
-    fallbacks:
-      - "zai"
-      - "ollama"
-    cooldown_seconds: 60
-    recovery_probe_interval: 30
+  # Timeout for failover attempts in milliseconds (default: 5000)
+  failover_timeout: 5000
 
-  # Cost-based configuration (only used when strategy: cost-based)
-  # cost_based:
-  #   threshold_tokens: 1000  # Use cheap providers below this token count
+  # Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider, X-CC-Relay-Health)
+  debug: false
+
+  # Model-based routing configuration (only used when strategy: model_based)
+  # Maps model name prefixes to provider names. Uses longest prefix match.
+  # model_mapping:
+  #   claude-opus: anthropic      # claude-opus-* → anthropic
+  #   claude-sonnet: anthropic    # claude-sonnet-* → anthropic
+  #   glm-4: zai                  # glm-4* → zai
+  #   qwen: ollama                # qwen* → ollama
+  #   llama: ollama               # llama* → ollama
+
+  # Default provider when no model mapping matches (only used with model_based)
+  # default_provider: anthropic
 
 # ============================================================================
 # Provider Configurations

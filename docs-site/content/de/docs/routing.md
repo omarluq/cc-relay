@@ -15,6 +15,7 @@ Routing bestimmt, wie cc-relay entscheidet, welcher Provider jede Anfrage bearbe
 | Weighted Round-Robin | `weighted_round_robin` | Proportionale Verteilung nach Gewichtung | Kapazitaetsbasierte Verteilung |
 | Shuffle | `shuffle` | Faire Zufallsverteilung ("Karten austeilen") | Randomisierter Lastausgleich |
 | Failover | `failover` (Standard) | Prioritaetsbasiert mit automatischem Retry | Hohe Verfuegbarkeit |
+| Model-Based | `model_based` | Routing nach Modellname-Praefix | Multi-Modell-Deployments |
 
 ## Konfiguration
 
@@ -22,7 +23,7 @@ Konfigurieren Sie das Routing in Ihrer `config.yaml`:
 
 ```yaml
 routing:
-  # Strategie: round_robin, weighted_round_robin, shuffle, failover (Standard)
+  # Strategie: round_robin, weighted_round_robin, shuffle, failover (Standard), model_based
   strategy: failover
 
   # Timeout fuer Failover-Versuche in Millisekunden (Standard: 5000)
@@ -30,6 +31,14 @@ routing:
 
   # Debug-Header aktivieren (X-CC-Relay-Strategy, X-CC-Relay-Provider)
   debug: false
+
+  # Model-based Routing Konfiguration (nur verwendet wenn strategy: model_based)
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+  default_provider: anthropic
 ```
 
 **Standard:** Wenn `strategy` nicht angegeben ist, verwendet cc-relay `failover` als sicherste Option.
@@ -136,6 +145,56 @@ providers:
 **Standardprioritaet:** 1 (wenn nicht angegeben)
 
 **Optimal fuer:** Hohe Verfuegbarkeit mit automatischem Fallback.
+
+### Model-Based
+
+Leitet Anfragen basierend auf dem Modellnamen in der Anfrage an Provider weiter. Verwendet Longest-Prefix-Matching fuer Spezifitaet.
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+**Funktionsweise:**
+
+1. Extrahiert den `model` Parameter aus der Anfrage
+2. Versucht das laengste Praefix-Match in `model_mapping` zu finden
+3. Leitet an den entsprechenden Provider weiter
+4. Faellt auf `default_provider` zurueck, wenn kein Match gefunden wird
+5. Gibt einen Fehler zurueck, wenn weder Match noch Standard existiert
+
+**Beispiele fuer Praefix-Matching:**
+
+| Angefordertes Modell | Mapping-Eintraege | Ausgewaehlter Eintrag | Provider |
+|---------------------|-------------------|---------------------|----------|
+| `claude-opus-4` | `claude-opus`, `claude` | `claude-opus` | anthropic |
+| `claude-sonnet-3.5` | `claude-sonnet`, `claude` | `claude-sonnet` | anthropic |
+| `glm-4-plus` | `glm-4`, `glm` | `glm-4` | zai |
+| `qwen-72b` | `qwen`, `claude` | `qwen` | ollama |
+| `llama-3.2` | `llama`, `claude` | `llama` | ollama |
+| `gpt-4` | `claude`, `llama` | (kein Match) | default_provider |
+
+**Optimal fuer:** Multi-Modell-Deployments, bei denen verschiedene Modelle an unterschiedliche Provider weitergeleitet werden muessen.
 
 ## Debug-Header
 
@@ -269,6 +328,43 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+
+### Multi-Modell mit Model-Based Routing
+
+Verschiedene Modelle an spezialisierte Provider weiterleiten:
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+Mit dieser Konfiguration:
+- Claude Modelle → Anthropic
+- GLM Modelle → Z.AI
+- Qwen/Llama Modelle → Ollama (lokal)
+- Andere Modelle → Anthropic (Standard)
 
 ## Provider-Gewichtung und -Prioritaet
 

@@ -15,6 +15,7 @@ El routing determina como cc-relay elige que proveedor maneja cada solicitud. La
 | Weighted Round-Robin | `weighted_round_robin` | Distribucion proporcional por peso | Distribucion basada en capacidad |
 | Shuffle | `shuffle` | Aleatorio justo ("repartir cartas") | Balanceo de carga aleatorio |
 | Failover | `failover` (predeterminado) | Basado en prioridad con reintento automatico | Alta disponibilidad |
+| Model-Based | `model_based` | Routing por prefijo de nombre de modelo | Despliegues multi-modelo |
 
 ## Configuracion
 
@@ -22,7 +23,7 @@ Configure el routing en su `config.yaml`:
 
 ```yaml
 routing:
-  # Estrategia: round_robin, weighted_round_robin, shuffle, failover (predeterminado)
+  # Estrategia: round_robin, weighted_round_robin, shuffle, failover (predeterminado), model_based
   strategy: failover
 
   # Timeout para intentos de failover en milisegundos (predeterminado: 5000)
@@ -30,6 +31,14 @@ routing:
 
   # Habilitar headers de debug (X-CC-Relay-Strategy, X-CC-Relay-Provider)
   debug: false
+
+  # Configuracion de routing basado en modelo (solo usado cuando strategy: model_based)
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+  default_provider: anthropic
 ```
 
 **Predeterminado:** Si `strategy` no se especifica, cc-relay usa `failover` como la opcion mas segura.
@@ -136,6 +145,56 @@ providers:
 **Prioridad predeterminada:** 1 (si no se especifica)
 
 **Mejor para:** Alta disponibilidad con fallback automatico.
+
+### Model-Based
+
+Enruta solicitudes a proveedores basandose en el nombre del modelo en la solicitud. Usa coincidencia de prefijo mas largo para especificidad.
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+**Como funciona:**
+
+1. Extrae el parametro `model` de la solicitud
+2. Intenta encontrar la coincidencia de prefijo mas largo en `model_mapping`
+3. Enruta al proveedor correspondiente
+4. Recurre a `default_provider` si no se encuentra coincidencia
+5. Devuelve un error si no hay coincidencia ni predeterminado
+
+**Ejemplos de coincidencia de prefijo:**
+
+| Modelo Solicitado | Entradas de Mapeo | Entrada Seleccionada | Proveedor |
+|-------------------|-------------------|---------------------|-----------|
+| `claude-opus-4` | `claude-opus`, `claude` | `claude-opus` | anthropic |
+| `claude-sonnet-3.5` | `claude-sonnet`, `claude` | `claude-sonnet` | anthropic |
+| `glm-4-plus` | `glm-4`, `glm` | `glm-4` | zai |
+| `qwen-72b` | `qwen`, `claude` | `qwen` | ollama |
+| `llama-3.2` | `llama`, `claude` | `llama` | ollama |
+| `gpt-4` | `claude`, `llama` | (sin coincidencia) | default_provider |
+
+**Mejor para:** Despliegues multi-modelo donde diferentes modelos necesitan enrutarse a diferentes proveedores.
 
 ## Cabeceras de Depuracion
 
@@ -269,6 +328,43 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+
+### Multi-Modelo con Routing Basado en Modelo
+
+Enrutar diferentes modelos a proveedores especializados:
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+Con esta configuracion:
+- Modelos Claude → Anthropic
+- Modelos GLM → Z.AI
+- Modelos Qwen/Llama → Ollama (local)
+- Otros modelos → Anthropic (predeterminado)
 
 ## Peso y Prioridad de Proveedor
 

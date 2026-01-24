@@ -15,6 +15,7 @@ CC-Relay 支持多种路由策略来分配跨供应商的请求。本页介绍�
 | Weighted Round-Robin | `weighted_round_robin` | 按权重比例分配 | 基于容量的分配 |
 | Shuffle | `shuffle` | 公平随机（"发牌"模式） | 随机化负载均衡 |
 | Failover | `failover`（默认） | 基于优先级的自动重试 | 高可用性 |
+| Model-Based | `model_based` | 按模型名称前缀路由 | 多模型部署 |
 
 ## 配置
 
@@ -22,7 +23,7 @@ CC-Relay 支持多种路由策略来分配跨供应商的请求。本页介绍�
 
 ```yaml
 routing:
-  # 策略: round_robin, weighted_round_robin, shuffle, failover（默认）
+  # 策略: round_robin, weighted_round_robin, shuffle, failover（默认）, model_based
   strategy: failover
 
   # 故障转移尝试的超时时间（毫秒，默认: 5000）
@@ -30,6 +31,14 @@ routing:
 
   # 启用调试头（X-CC-Relay-Strategy, X-CC-Relay-Provider）
   debug: false
+
+  # 基于模型的路由配置（仅在 strategy: model_based 时使用）
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+  default_provider: anthropic
 ```
 
 **默认值:** 如果未指定 `strategy`，cc-relay 将使用 `failover` 作为最安全的选项。
@@ -136,6 +145,56 @@ providers:
 **默认优先级:** 1（如果未指定）
 
 **最佳用途:** 带自动故障转移的高可用性。
+
+### Model-Based
+
+根据请求中的模型名称将请求路由到供应商。使用最长前缀匹配以提高特异性。
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+**工作原理:**
+
+1. 从请求中提取 `model` 参数
+2. 尝试在 `model_mapping` 中找到最长前缀匹配
+3. 路由到相应的供应商
+4. 如果未找到匹配则回退到 `default_provider`
+5. 如果既没有匹配也没有默认值则返回错误
+
+**前缀匹配示例:**
+
+| 请求的模型 | 映射条目 | 选定条目 | 供应商 |
+|-----------|----------|---------|--------|
+| `claude-opus-4` | `claude-opus`, `claude` | `claude-opus` | anthropic |
+| `claude-sonnet-3.5` | `claude-sonnet`, `claude` | `claude-sonnet` | anthropic |
+| `glm-4-plus` | `glm-4`, `glm` | `glm-4` | zai |
+| `qwen-72b` | `qwen`, `claude` | `qwen` | ollama |
+| `llama-3.2` | `llama`, `claude` | `llama` | ollama |
+| `gpt-4` | `claude`, `llama` | (无匹配) | default_provider |
+
+**最佳用途:** 需要将不同模型路由到不同供应商的多模型部署。
 
 ## 调试头
 
@@ -269,6 +328,43 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+
+### 使用基于模型路由的多模型
+
+将不同模型路由到专用供应商：
+
+```yaml
+routing:
+  strategy: model_based
+  model_mapping:
+    claude-opus: anthropic
+    claude-sonnet: anthropic
+    glm-4: zai
+    qwen: ollama
+    llama: ollama
+  default_provider: anthropic
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    keys:
+      - key: "${ANTHROPIC_API_KEY}"
+
+  - name: "zai"
+    type: "zai"
+    keys:
+      - key: "${ZAI_API_KEY}"
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+```
+
+通过此配置：
+- Claude 模型 → Anthropic
+- GLM 模型 → Z.AI
+- Qwen/Llama 模型 → Ollama（本地）
+- 其他模型 → Anthropic（默认）
 
 ## 供应商权重和优先级
 
