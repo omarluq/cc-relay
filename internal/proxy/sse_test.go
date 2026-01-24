@@ -130,12 +130,10 @@ func TestSSESignatureProcessor_CachesSignature(t *testing.T) {
 	)
 	processor.ProcessEvent(ctx, sigEvent)
 
-	// Wait for Ristretto async set
-	time.Sleep(10 * time.Millisecond)
-
-	// Verify signature was cached
-	cached := sigCache.Get(ctx, "claude-sonnet-4", "Deep thought")
-	assert.Equal(t, sig, cached, "signature should be cached")
+	// Wait for Ristretto async set using Eventually instead of fixed sleep
+	require.Eventually(t, func() bool {
+		return sigCache.Get(ctx, "claude-sonnet-4", "Deep thought") == sig
+	}, 250*time.Millisecond, 5*time.Millisecond, "signature should be cached")
 	assert.Equal(t, sig, processor.GetCurrentSignature())
 }
 
