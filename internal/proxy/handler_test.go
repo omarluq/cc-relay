@@ -1321,3 +1321,250 @@ func TestHandler_ReportOutcome_4xxNotFailure(t *testing.T) {
 	// 400s should NOT trip the circuit - provider should remain healthy
 	assert.True(t, tracker.IsHealthyFunc("test-400")())
 }
+
+// trackingRouter records the providers it receives for selection.
+type trackingRouter struct {
+	name              string
+	receivedProviders []string
+}
+
+func (r *trackingRouter) Select(_ context.Context, provs []router.ProviderInfo) (router.ProviderInfo, error) {
+	r.receivedProviders = append(r.receivedProviders, "")
+	for i, p := range provs {
+		if i == 0 {
+			r.receivedProviders[len(r.receivedProviders)-1] = p.Provider.Name()
+		}
+	}
+	if len(provs) == 0 {
+		return router.ProviderInfo{}, router.ErrNoProviders
+	}
+	return provs[0], nil
+}
+
+func (r *trackingRouter) Name() string {
+	return r.name
+}
+
+// TestHandler_ThinkingAffinity_UsesConsistentProvider tests that thinking requests use deterministic selection.
+func TestHandler_ThinkingAffinity_UsesConsistentProvider(t *testing.T) {
+	t.Parallel()
+
+	// Create two mock backends
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test1"}`))
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test2"}`))
+	}))
+	defer backend2.Close()
+
+	provider1 := providers.NewAnthropicProvider("provider1", backend1.URL)
+	provider2 := providers.NewAnthropicProvider("provider2", backend2.URL)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider1, IsHealthy: func() bool { return true }},
+		{Provider: provider2, IsHealthy: func() bool { return true }},
+	}
+
+	tracker := &trackingRouter{name: "tracking"}
+
+	handler, err := NewHandler(
+		provider1, providerInfos, tracker,
+		"test-key", nil,
+		map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		map[string]string{"provider1": "key1", "provider2": "key2"},
+		nil, config.DebugOptions{}, true, nil,
+	)
+	require.NoError(t, err)
+
+	// Request body with thinking signature
+	thinkingBody := `{
+		"model": "claude-sonnet-4-20250514",
+		"messages": [
+			{"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+			{
+				"role": "assistant",
+				"content": [
+					{"type": "thinking", "thinking": "...", "signature": "sig123xyz"}
+				]
+			},
+			{"role": "user", "content": [{"type": "text", "text": "Continue"}]}
+		]
+	}`
+
+	// Make multiple requests with thinking - should always get first healthy provider
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(thinkingBody))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	// All requests should have received only 1 provider (the first healthy one)
+	// since thinking affinity reduces candidates to [:1]
+	for i, provName := range tracker.receivedProviders {
+		assert.Equal(t, "provider1", provName, "request %d should use provider1", i)
+	}
+
+	// Check thinking affinity header is set
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(thinkingBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	assert.Equal(t, "true", rr.Header().Get("X-CC-Relay-Thinking-Affinity"))
+}
+
+// TestHandler_ThinkingAffinity_FallsBackToSecondProvider tests fallback when first provider unhealthy.
+func TestHandler_ThinkingAffinity_FallsBackToSecondProvider(t *testing.T) {
+	t.Parallel()
+
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test1"}`))
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test2"}`))
+	}))
+	defer backend2.Close()
+
+	provider1 := providers.NewAnthropicProvider("provider1", backend1.URL)
+	provider2 := providers.NewAnthropicProvider("provider2", backend2.URL)
+
+	// Provider1 is unhealthy, provider2 is healthy
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider1, IsHealthy: func() bool { return false }}, // UNHEALTHY
+		{Provider: provider2, IsHealthy: func() bool { return true }},
+	}
+
+	tracker := &trackingRouter{name: "tracking"}
+
+	handler, err := NewHandler(
+		provider1, providerInfos, tracker,
+		"test-key", nil,
+		map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		map[string]string{"provider1": "key1", "provider2": "key2"},
+		nil, config.DebugOptions{}, false, nil,
+	)
+	require.NoError(t, err)
+
+	// Request with thinking signature
+	thinkingBody := `{
+		"messages": [
+			{"role": "assistant", "content": [{"type": "thinking", "signature": "sig123"}]}
+		]
+	}`
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(thinkingBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	// Should use provider2 (first healthy after filtering)
+	assert.Equal(t, "provider2", tracker.receivedProviders[0])
+}
+
+// TestHandler_NoThinking_UsesNormalRouting tests non-thinking requests use normal routing.
+func TestHandler_NoThinking_UsesNormalRouting(t *testing.T) {
+	t.Parallel()
+
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test1"}`))
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test2"}`))
+	}))
+	defer backend2.Close()
+
+	provider1 := providers.NewAnthropicProvider("provider1", backend1.URL)
+	provider2 := providers.NewAnthropicProvider("provider2", backend2.URL)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider1, IsHealthy: func() bool { return true }},
+		{Provider: provider2, IsHealthy: func() bool { return true }},
+	}
+
+	// Tracker that counts how many providers were passed
+	callCount := 0
+	providerCounts := []int{}
+	countingRouter := &countingMockRouter{
+		name:           "counting",
+		providerCounts: &providerCounts,
+		callCount:      &callCount,
+		fallbackResult: providerInfos[0],
+	}
+
+	handler, err := NewHandler(
+		provider1, providerInfos, countingRouter,
+		"test-key", nil,
+		map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		map[string]string{"provider1": "key1", "provider2": "key2"},
+		nil, config.DebugOptions{}, true, nil,
+	)
+	require.NoError(t, err)
+
+	// Request WITHOUT thinking signature (normal text conversation)
+	noThinkingBody := `{
+		"model": "claude-sonnet-4-20250514",
+		"messages": [
+			{"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+			{"role": "assistant", "content": [{"type": "text", "text": "Hi!"}]},
+			{"role": "user", "content": [{"type": "text", "text": "Continue"}]}
+		]
+	}`
+
+	// Make request without thinking
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(noThinkingBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	// Should receive ALL providers (2), not just 1
+	require.Len(t, providerCounts, 1)
+	assert.Equal(t, 2, providerCounts[0], "non-thinking request should receive all 2 providers")
+
+	// No thinking affinity header should be set
+	assert.Empty(t, rr.Header().Get("X-CC-Relay-Thinking-Affinity"))
+}
+
+// countingMockRouter counts how many providers are passed to Select.
+type countingMockRouter struct {
+	name           string
+	providerCounts *[]int
+	callCount      *int
+	fallbackResult router.ProviderInfo
+}
+
+func (r *countingMockRouter) Select(
+	_ context.Context, providerInfos []router.ProviderInfo,
+) (router.ProviderInfo, error) {
+	*r.callCount++
+	*r.providerCounts = append(*r.providerCounts, len(providerInfos))
+	if len(providerInfos) == 0 {
+		return router.ProviderInfo{}, router.ErrNoProviders
+	}
+	return providerInfos[0], nil
+}
+
+func (r *countingMockRouter) Name() string {
+	return r.name
+}
