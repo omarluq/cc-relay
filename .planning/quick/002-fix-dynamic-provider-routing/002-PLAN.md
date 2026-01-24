@@ -136,7 +136,7 @@ Flow:
 
 ### Component Diagram
 
-```
+```text
 Request
     |
     v
