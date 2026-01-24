@@ -6,13 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/health"
@@ -31,22 +28,20 @@ const (
 
 // Handler proxies requests to a backend provider.
 type Handler struct {
-	provider      providers.Provider
-	router        router.ProviderRouter
-	proxy         *httputil.ReverseProxy
-	keyPool       *keypool.KeyPool
-	healthTracker *health.Tracker
-	apiKey        string
-	providers     []router.ProviderInfo
-	debugOpts     config.DebugOptions
-	routingDebug  bool
+	providerProxies map[string]*ProviderProxy // Per-provider proxies for correct URL routing
+	defaultProvider providers.Provider        // Fallback for single-provider mode
+	router          router.ProviderRouter
+	healthTracker   *health.Tracker
+	providers       []router.ProviderInfo
+	debugOpts       config.DebugOptions
+	routingDebug    bool
 }
 
 // NewHandler creates a new proxy handler.
 // If providerRouter is provided, it will be used for provider selection.
 // If providerRouter is nil, provider is used directly (single provider mode).
-// If pool is provided, it will be used for key selection.
-// If pool is nil, apiKey is used directly (single key mode).
+// providerPools maps provider names to their key pools (may be nil for providers without pooling).
+// providerKeys maps provider names to their fallback API keys.
 // If healthTracker is provided, success/failure will be reported to circuit breakers.
 func NewHandler(
 	provider providers.Provider,
@@ -54,121 +49,62 @@ func NewHandler(
 	providerRouter router.ProviderRouter,
 	apiKey string,
 	pool *keypool.KeyPool,
+	providerPools map[string]*keypool.KeyPool,
+	providerKeys map[string]string,
 	debugOpts config.DebugOptions,
 	routingDebug bool,
 	healthTracker *health.Tracker,
 ) (*Handler, error) {
-	targetURL, err := url.Parse(provider.BaseURL())
-	if err != nil {
-		return nil, fmt.Errorf("invalid provider base URL: %w", err)
-	}
-
 	h := &Handler{
-		provider:      provider,
-		providers:     providerInfos,
-		router:        providerRouter,
-		apiKey:        apiKey,
-		keyPool:       pool,
-		debugOpts:     debugOpts,
-		routingDebug:  routingDebug,
-		healthTracker: healthTracker,
+		providerProxies: make(map[string]*ProviderProxy),
+		defaultProvider: provider,
+		providers:       providerInfos,
+		router:          providerRouter,
+		debugOpts:       debugOpts,
+		routingDebug:    routingDebug,
+		healthTracker:   healthTracker,
 	}
 
-	h.proxy = &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			// Set backend URL
-			r.SetURL(targetURL)
-			r.SetXForwarded()
-
-			// Check if client provided auth headers
-			clientAuth := r.In.Header.Get("Authorization")
-			clientAPIKey := r.In.Header.Get("x-api-key")
-			hasClientAuth := clientAuth != "" || clientAPIKey != ""
-
-			// Transparent mode: forward client auth ONLY if provider supports it.
-			// This is true for Anthropic (client's Claude token works directly).
-			// For other providers (Z.AI, Ollama, etc.), we must use configured keys.
-			if hasClientAuth && h.provider.SupportsTransparentAuth() {
-				// TRANSPARENT MODE: Client has auth AND provider accepts it
-				// Forward client auth unchanged alongside anthropic-* headers
-
-				// Forward anthropic-* headers (version, beta flags)
-				lo.ForEach(lo.Entries(r.In.Header), func(entry lo.Entry[string, []string], _ int) {
-					canonicalKey := http.CanonicalHeaderKey(entry.Key)
-					if len(canonicalKey) >= 10 && canonicalKey[:10] == "Anthropic-" {
-						r.Out.Header[canonicalKey] = entry.Value
-					}
-				})
-				r.Out.Header.Set("Content-Type", "application/json")
-			} else {
-				// CONFIGURED KEY MODE: Use our configured keys
-				// Either client has no auth, or provider doesn't accept client auth
-				r.Out.Header.Del("Authorization")
-				r.Out.Header.Del("x-api-key")
-
-				// Get the selected API key from context (set in ServeHTTP)
-				selectedKey := r.In.Header.Get("X-Selected-Key")
-				if selectedKey == "" {
-					selectedKey = h.apiKey // Fallback to single-key mode
-				}
-
-				// Only authenticate if we have a key to use
-				if selectedKey != "" {
-					//nolint:errcheck // Provider.Authenticate error handling deferred to ErrorHandler
-					h.provider.Authenticate(r.Out, selectedKey)
-				}
-				// If no key available, let backend return 401 (transparent error)
-
-				// Forward anthropic-* headers
-				forwardHeaders := h.provider.ForwardHeaders(r.In.Header)
-				lo.ForEach(lo.Entries(forwardHeaders), func(entry lo.Entry[string, []string], _ int) {
-					r.Out.Header[entry.Key] = entry.Value
-				})
+	// Create ProviderProxy for each provider in providerInfos (multi-provider mode)
+	if len(providerInfos) > 0 {
+		for _, info := range providerInfos {
+			prov := info.Provider
+			key := ""
+			if providerKeys != nil {
+				key = providerKeys[prov.Name()]
 			}
-		},
+			var provPool *keypool.KeyPool
+			if providerPools != nil {
+				provPool = providerPools[prov.Name()]
+			}
 
-		// CRITICAL: Immediate flush for SSE streaming
-		// FlushInterval: -1 means flush after every write
-		FlushInterval: -1,
-
-		ModifyResponse: h.modifyResponse,
-
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
-			// Use Anthropic-format error response
-			WriteError(w, http.StatusBadGateway, "api_error", "upstream connection failed")
-		},
+			pp, err := NewProviderProxy(prov, key, provPool, debugOpts, h.modifyResponse)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create proxy for %s: %w", prov.Name(), err)
+			}
+			h.providerProxies[prov.Name()] = pp
+		}
+	} else {
+		// Single provider mode - create one proxy for the default provider
+		pp, err := NewProviderProxy(provider, apiKey, pool, debugOpts, h.modifyResponse)
+		if err != nil {
+			return nil, err
+		}
+		h.providerProxies[provider.Name()] = pp
 	}
 
 	return h, nil
 }
 
-// modifyResponse handles response modification including SSE headers and key pool updates.
+// modifyResponse handles key pool updates and circuit breaker reporting.
+// SSE headers are handled by ProviderProxy.modifyResponse before this is called.
 func (h *Handler) modifyResponse(resp *http.Response) error {
-	// Add SSE headers if streaming response
-	if resp.Header.Get("Content-Type") == "text/event-stream" {
-		SetSSEHeaders(resp.Header)
-	}
-
-	// Update key pool from rate limit headers
-	if h.keyPool != nil {
-		keyID, ok := resp.Request.Context().Value(keyIDContextKey).(string)
-		if ok && keyID != "" {
-			logger := zerolog.Ctx(resp.Request.Context())
-
-			// Update key state from response headers
-			if err := h.keyPool.UpdateKeyFromHeaders(keyID, resp.Header); err != nil {
-				logger.Debug().Err(err).Msg("failed to update key from headers")
-			}
-
-			// Handle 429 from backend
-			if resp.StatusCode == http.StatusTooManyRequests {
-				retryAfter := parseRetryAfter(resp.Header)
-				h.keyPool.MarkKeyExhausted(keyID, retryAfter)
-				logger.Warn().
-					Str("key_id", keyID).
-					Dur("cooldown", retryAfter).
-					Msg("key hit rate limit, marking cooldown")
-			}
+	// Get provider name from context to find the correct key pool
+	//nolint:errcheck // Type assertion failure returns empty string, which is safe
+	providerName, _ := resp.Request.Context().Value(providerNameContextKey).(string)
+	if providerName != "" {
+		if pp, ok := h.providerProxies[providerName]; ok && pp.KeyPool != nil {
+			h.updateKeyPoolFromResponse(resp, pp.KeyPool)
 		}
 	}
 
@@ -176,6 +112,31 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 	h.reportOutcome(resp)
 
 	return nil
+}
+
+// updateKeyPoolFromResponse updates key pool state from response headers.
+func (h *Handler) updateKeyPoolFromResponse(resp *http.Response, pool *keypool.KeyPool) {
+	keyID, ok := resp.Request.Context().Value(keyIDContextKey).(string)
+	if !ok || keyID == "" {
+		return
+	}
+
+	logger := zerolog.Ctx(resp.Request.Context())
+
+	// Update key state from response headers
+	if err := pool.UpdateKeyFromHeaders(keyID, resp.Header); err != nil {
+		logger.Debug().Err(err).Msg("failed to update key from headers")
+	}
+
+	// Handle 429 from backend
+	if resp.StatusCode == http.StatusTooManyRequests {
+		retryAfter := parseRetryAfter(resp.Header)
+		pool.MarkKeyExhausted(keyID, retryAfter)
+		logger.Warn().
+			Str("key_id", keyID).
+			Dur("cooldown", retryAfter).
+			Msg("key hit rate limit, marking cooldown")
+	}
 }
 
 // reportOutcome records success or failure to the circuit breaker.
@@ -203,7 +164,7 @@ func (h *Handler) selectProvider(ctx context.Context) (router.ProviderInfo, erro
 	if h.router == nil || len(h.providers) == 0 {
 		// Single provider mode - wrap static provider
 		return router.ProviderInfo{
-			Provider:  h.provider,
+			Provider:  h.defaultProvider,
 			IsHealthy: func() bool { return true },
 		}, nil
 	}
@@ -215,11 +176,12 @@ func (h *Handler) selectProvider(ctx context.Context) (router.ProviderInfo, erro
 // If success is false, an error response has been written and caller should return.
 func (h *Handler) selectKeyFromPool(
 	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+	pool *keypool.KeyPool,
 ) (keyID, selectedKey string, updatedReq *http.Request, ok bool) {
 	var err error
-	keyID, selectedKey, err = h.keyPool.GetKey(r.Context())
+	keyID, selectedKey, err = pool.GetKey(r.Context())
 	if errors.Is(err, keypool.ErrAllKeysExhausted) {
-		retryAfter := h.keyPool.GetEarliestResetTime()
+		retryAfter := pool.GetEarliestResetTime()
 		WriteRateLimitError(w, retryAfter)
 		logger.Warn().
 			Dur("retry_after", retryAfter).
@@ -235,7 +197,7 @@ func (h *Handler) selectKeyFromPool(
 
 	// Add relay headers to response
 	w.Header().Set(HeaderRelayKeyID, keyID)
-	stats := h.keyPool.GetStats()
+	stats := pool.GetStats()
 	w.Header().Set(HeaderRelayKeysTotal, strconv.Itoa(stats.TotalKeys))
 	w.Header().Set(HeaderRelayKeysAvail, strconv.Itoa(stats.AvailableKeys))
 
@@ -258,6 +220,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	selectedProvider := selectedProviderInfo.Provider
 
+	// Get provider's proxy (critical fix: use the correct proxy for the selected provider)
+	providerProxy, ok := h.providerProxies[selectedProvider.Name()]
+	if !ok {
+		WriteError(w, http.StatusInternalServerError, "internal_error",
+			fmt.Sprintf("no proxy configured for provider %s", selectedProvider.Name()))
+		return
+	}
+
 	// Create logger with selected provider context
 	logger := h.createProviderLoggerWithProvider(r, selectedProvider)
 	r = r.WithContext(logger.WithContext(r.Context()))
@@ -265,6 +235,35 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Store provider name in context for modifyResponse to report to circuit breaker
 	r = r.WithContext(context.WithValue(r.Context(), providerNameContextKey, selectedProvider.Name()))
 
+	// Log routing strategy and set debug headers
+	h.logAndSetDebugHeaders(w, &logger, selectedProvider)
+
+	// Handle auth mode selection and key selection (using provider's pool)
+	r, ok = h.handleAuthAndKeySelection(w, r, &logger, providerProxy)
+	if !ok {
+		return
+	}
+
+	// Rewrite model name if provider has model mapping configured
+	h.rewriteModelIfNeeded(r, &logger, selectedProvider)
+
+	// Attach TLS trace if debug metrics enabled
+	r, getTLSMetrics := h.attachTLSTraceIfEnabled(r)
+
+	// Proxy request using the provider-specific proxy
+	logger.Debug().Msg("proxying request to backend")
+	backendStart := time.Now()
+	providerProxy.Proxy.ServeHTTP(w, r)
+	backendTime := time.Since(backendStart)
+
+	// Log metrics
+	h.logMetricsIfEnabled(r, &logger, start, backendTime, getTLSMetrics)
+}
+
+// logAndSetDebugHeaders logs routing strategy and sets debug headers if enabled.
+func (h *Handler) logAndSetDebugHeaders(
+	w http.ResponseWriter, logger *zerolog.Logger, selectedProvider providers.Provider,
+) {
 	// Log routing strategy if router is available
 	if h.router != nil {
 		logger.Debug().
@@ -273,44 +272,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Msg("provider selected by router")
 	}
 
+	if !h.routingDebug {
+		return
+	}
+
 	// Add debug headers if routing debug is enabled
-	if h.routingDebug && h.router != nil {
+	if h.router != nil {
 		w.Header().Set("X-CC-Relay-Strategy", h.router.Name())
 		w.Header().Set("X-CC-Relay-Provider", selectedProvider.Name())
 	}
 
-	// Add health debug header if routing debug is enabled
-	if h.routingDebug && h.healthTracker != nil {
+	// Add health debug header
+	if h.healthTracker != nil {
 		state := h.healthTracker.GetState(selectedProvider.Name())
 		w.Header().Set("X-CC-Relay-Health", state.String())
 	}
+}
 
-	// Handle auth mode selection and key selection
-	r, ok := h.handleAuthAndKeySelection(w, r, &logger)
-	if !ok {
-		return
-	}
-
-	// Rewrite model name if provider has model mapping configured
+// rewriteModelIfNeeded rewrites model name if provider has model mapping configured.
+func (h *Handler) rewriteModelIfNeeded(
+	r *http.Request, logger *zerolog.Logger, selectedProvider providers.Provider,
+) {
 	if mapping := selectedProvider.GetModelMapping(); len(mapping) > 0 {
 		rewriter := NewModelRewriter(mapping)
-		if err := rewriter.RewriteRequest(r, &logger); err != nil {
+		if err := rewriter.RewriteRequest(r, logger); err != nil {
 			logger.Warn().Err(err).Msg("failed to rewrite model in request body")
 			// Continue with original request - don't fail on rewrite errors
 		}
 	}
-
-	// Attach TLS trace if debug metrics enabled
-	r, getTLSMetrics := h.attachTLSTraceIfEnabled(r)
-
-	// Proxy request
-	logger.Debug().Msg("proxying request to backend")
-	backendStart := time.Now()
-	h.proxy.ServeHTTP(w, r)
-	backendTime := time.Since(backendStart)
-
-	// Log metrics
-	h.logMetricsIfEnabled(r, &logger, start, backendTime, getTLSMetrics)
 }
 
 // createProviderLoggerWithProvider creates a logger with the given provider context.
@@ -323,13 +312,15 @@ func (h *Handler) createProviderLoggerWithProvider(r *http.Request, p providers.
 
 // handleAuthAndKeySelection handles transparent auth mode detection and key selection.
 // Returns the updated request and success status.
+// Uses the provider from providerProxy for transparent auth checks and key selection.
 func (h *Handler) handleAuthAndKeySelection(
 	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+	providerProxy *ProviderProxy,
 ) (*http.Request, bool) {
 	clientAuth := r.Header.Get("Authorization")
 	clientAPIKey := r.Header.Get("x-api-key")
 	hasClientAuth := clientAuth != "" || clientAPIKey != ""
-	useTransparentAuth := hasClientAuth && h.provider.SupportsTransparentAuth()
+	useTransparentAuth := hasClientAuth && providerProxy.Provider.SupportsTransparentAuth()
 
 	if useTransparentAuth {
 		logger.Debug().
@@ -339,29 +330,29 @@ func (h *Handler) handleAuthAndKeySelection(
 		return r, true
 	}
 
-	if h.keyPool != nil {
-		return h.handleKeyPoolSelection(w, r, logger, hasClientAuth, clientAuth, clientAPIKey)
+	if providerProxy.KeyPool != nil {
+		return h.handleKeyPoolSelection(w, r, logger, providerProxy, hasClientAuth, clientAuth, clientAPIKey)
 	}
 
 	// Single key mode - set header directly
-	r.Header.Set("X-Selected-Key", h.apiKey)
+	r.Header.Set("X-Selected-Key", providerProxy.APIKey)
 	return r, true
 }
 
 // handleKeyPoolSelection handles key selection from the pool.
 func (h *Handler) handleKeyPoolSelection(
 	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
-	hasClientAuth bool, clientAuth, clientAPIKey string,
+	providerProxy *ProviderProxy, hasClientAuth bool, clientAuth, clientAPIKey string,
 ) (*http.Request, bool) {
 	if hasClientAuth {
 		logger.Debug().
 			Bool("has_authorization", clientAuth != "").
 			Bool("has_x_api_key", clientAPIKey != "").
-			Str("provider", h.provider.Name()).
+			Str("provider", providerProxy.Provider.Name()).
 			Msg("provider does not support transparent auth, using configured keys")
 	}
 
-	_, selectedKey, updatedReq, ok := h.selectKeyFromPool(w, r, logger)
+	_, selectedKey, updatedReq, ok := h.selectKeyFromPool(w, r, logger, providerProxy.KeyPool)
 	if !ok {
 		return r, false
 	}

@@ -52,7 +52,8 @@ func SetupRoutesWithProviders(
 	// Use keypool for multi-key routing if provided
 	// Note: SetupRoutesWithProviders doesn't use router - for DI integration use NewProxyHandler
 	// Pass nil for healthTracker - this legacy function doesn't support health tracking
-	handler, err := NewHandler(provider, nil, nil, providerKey, pool, debugOpts, false, nil)
+	// Single-provider mode: nil maps for providerPools and providerKeys
+	handler, err := NewHandler(provider, nil, nil, providerKey, pool, nil, nil, debugOpts, false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
@@ -115,6 +116,8 @@ func SetupRoutesWithRouter(
 	providerRouter router.ProviderRouter,
 	providerKey string,
 	pool *keypool.KeyPool,
+	providerPools map[string]*keypool.KeyPool,
+	providerKeys map[string]string,
 	allProviders []providers.Provider,
 	healthTracker *health.Tracker,
 ) (http.Handler, error) {
@@ -126,7 +129,8 @@ func SetupRoutesWithRouter(
 
 	handler, err := NewHandler(
 		provider, providerInfos, providerRouter,
-		providerKey, pool, debugOpts, routingDebug, healthTracker,
+		providerKey, pool, providerPools, providerKeys,
+		debugOpts, routingDebug, healthTracker,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)

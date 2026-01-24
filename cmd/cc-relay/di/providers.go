@@ -31,9 +31,15 @@ type CacheService struct {
 	Cache cache.Cache
 }
 
-// KeyPoolService wraps the optional key pool.
+// KeyPoolService wraps the optional key pool for the primary provider.
 type KeyPoolService struct {
 	Pool *keypool.KeyPool
+}
+
+// KeyPoolMapService wraps per-provider key pools for multi-provider routing.
+type KeyPoolMapService struct {
+	Pools map[string]*keypool.KeyPool // Provider name -> KeyPool
+	Keys  map[string]string           // Provider name -> API key (fallback)
 }
 
 // ProviderMapService wraps the map of providers.
@@ -80,18 +86,20 @@ type ServerService struct {
 // 2. Logger (depends on Config)
 // 3. Cache (depends on Config)
 // 4. Providers (depends on Config)
-// 5. KeyPool (depends on Config)
-// 6. Router (depends on Config)
-// 7. HealthTracker (depends on Config, Logger)
-// 8. Checker (depends on HealthTracker, Config, Logger)
-// 9. Handler (depends on Config, KeyPool, Providers, Router, HealthTracker)
-// 10. Server (depends on Handler, Config).
+// 5. KeyPool (depends on Config) - primary provider only
+// 6. KeyPoolMap (depends on Config) - all providers
+// 7. Router (depends on Config)
+// 8. HealthTracker (depends on Config, Logger)
+// 9. Checker (depends on HealthTracker, Config, Logger)
+// 10. Handler (depends on Config, KeyPool, KeyPoolMap, Providers, Router, HealthTracker)
+// 11. Server (depends on Handler, Config).
 func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewConfig)
 	do.Provide(i, NewLogger)
 	do.Provide(i, NewCache)
 	do.Provide(i, NewProviderMap)
 	do.Provide(i, NewKeyPool)
+	do.Provide(i, NewKeyPoolMap)
 	do.Provide(i, NewRouter)
 	do.Provide(i, NewHealthTracker)
 	do.Provide(i, NewChecker)
@@ -296,6 +304,60 @@ func NewKeyPool(i do.Injector) (*KeyPoolService, error) {
 	return &KeyPoolService{Pool: nil}, nil
 }
 
+// NewKeyPoolMap creates key pools for all enabled providers.
+// This enables dynamic provider routing with per-provider rate limiting.
+func NewKeyPoolMap(i do.Injector) (*KeyPoolMapService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](i)
+	cfg := cfgSvc.Config
+
+	pools := make(map[string]*keypool.KeyPool)
+	keys := make(map[string]string)
+
+	for idx := range cfg.Providers {
+		p := &cfg.Providers[idx]
+		if !p.Enabled {
+			continue
+		}
+
+		// Store fallback key (first key in list)
+		if len(p.Keys) > 0 {
+			keys[p.Name] = p.Keys[0].Key
+		}
+
+		// Skip pool creation if pooling not enabled for this provider
+		if !p.IsPoolingEnabled() {
+			continue
+		}
+
+		// Build pool configuration
+		poolCfg := keypool.PoolConfig{
+			Strategy: p.GetEffectiveStrategy(),
+			Keys:     make([]keypool.KeyConfig, len(p.Keys)),
+		}
+
+		for j, k := range p.Keys {
+			itpm, otpm := k.GetEffectiveTPM()
+			poolCfg.Keys[j] = keypool.KeyConfig{
+				APIKey:    k.Key,
+				RPMLimit:  k.RPMLimit,
+				ITPMLimit: itpm,
+				OTPMLimit: otpm,
+				Priority:  k.Priority,
+				Weight:    k.Weight,
+			}
+		}
+
+		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create key pool for provider %s: %w", p.Name, err)
+		}
+
+		pools[p.Name] = pool
+	}
+
+	return &KeyPoolMapService{Pools: pools, Keys: keys}, nil
+}
+
 // NewRouter creates the provider router based on configuration.
 func NewRouter(i do.Injector) (*RouterService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
@@ -317,6 +379,7 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	providerSvc := do.MustInvoke[*ProviderMapService](i)
 	poolSvc := do.MustInvoke[*KeyPoolService](i)
+	poolMapSvc := do.MustInvoke[*KeyPoolMapService](i)
 	routerSvc := do.MustInvoke[*RouterService](i)
 	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
 
@@ -359,6 +422,8 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 		routerSvc.Router,
 		providerSvc.PrimaryKey,
 		poolSvc.Pool,
+		poolMapSvc.Pools,
+		poolMapSvc.Keys,
 		providerSvc.AllProviders,
 		trackerSvc.Tracker,
 	)
