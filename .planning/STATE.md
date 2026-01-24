@@ -550,11 +550,20 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Completed quick fix 002 (Dynamic Provider Routing Bug)
+Stopped at: Completed quick fix 004 (Thinking Signature Multi-Provider Fix)
 Resume file: None
 Next action: Phase 6 (Cloud Providers: Bedrock, Azure, Vertex) or additional features
 
 ### Quick Fixes
+
+- **004 Thinking Signature Multi-Provider** (2026-01-24)
+  - Fixed thinking block signature invalidation when requests cross providers
+  - Signature caching by model group + SHA256(text)[:16] with 3-hour TTL
+  - Fast detection using bytes.Contains (7.5x faster than JSON parsing)
+  - SSE response processing for signature extraction
+  - Duration: ~45 min
+  - Commits: 58571f3, 9f6863d, 9486d3e, d52ca95, dda073c
+  - Summary: .planning/quick/004-fix-thinking-signature-multi-provider/004-SUMMARY.md
 
 - **002 Dynamic Provider Routing** (2026-01-24)
   - Fixed bug where Handler.proxy used static targetURL from first provider
