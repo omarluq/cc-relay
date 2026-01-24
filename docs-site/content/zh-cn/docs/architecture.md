@@ -1,217 +1,220 @@
 ---
-title: 架构
+title: Architecture
 weight: 4
 ---
 
-CC-Relay 设计为高性能的多供应商 HTTP 代理，位于 LLM 客户端（如 Claude Code）和后端供应商之间。
+CC-Relay is a high-performance, multi-provider HTTP proxy designed for LLM applications. It provides intelligent routing, thinking signature caching, and seamless failover between providers.
 
-## 系统概览
+## System Overview
 
 ```mermaid
 graph TB
-    subgraph "客户端层"
+    subgraph "Client Layer"
         A[Claude Code]
-        B[自定义 LLM 客户端]
-        C[其他客户端]
+        B[Custom LLM Client]
     end
 
-    subgraph "CC-Relay 代理"
-        D[HTTP 服务器<br/>:8787]
-        E[中间件栈]
-        F[代理处理器]
-        G[供应商管理器]
+    subgraph "CC-Relay Proxy"
+        D[HTTP Server<br/>:8787]
+        E[Middleware Stack]
+        F[Handler]
+        G[Router]
+        H[Signature Cache]
     end
 
-    subgraph "供应商层"
-        H[Anthropic]
-        I[Z.AI]
+    subgraph "Provider Proxies"
+        I[ProviderProxy<br/>Anthropic]
+        J[ProviderProxy<br/>Z.AI]
+        K[ProviderProxy<br/>Ollama]
+    end
+
+    subgraph "Backend Providers"
+        L[Anthropic API]
+        M[Z.AI API]
+        N[Ollama API]
     end
 
     A --> D
     B --> D
-    C --> D
-
     D --> E
     E --> F
     F --> G
-    G --> H
+    F <--> H
     G --> I
+    G --> J
+    G --> K
+    I --> L
+    J --> M
+    K --> N
 
     style A fill:#6366f1,stroke:#4f46e5,color:#fff
     style D fill:#ec4899,stroke:#db2777,color:#fff
     style F fill:#f59e0b,stroke:#d97706,color:#000
     style G fill:#10b981,stroke:#059669,color:#fff
     style H fill:#8b5cf6,stroke:#7c3aed,color:#fff
-    style I fill:#3b82f6,stroke:#2563eb,color:#fff
 ```
 
-## 核心组件
+## Core Components
 
-### 1. HTTP 代理服务器
+### 1. Handler
 
-**位置**：`internal/proxy/`
+**Location**: `internal/proxy/handler.go`
 
-HTTP 服务器实现了与 Claude Code 完全兼容的 Anthropic Messages API（`/v1/messages`）。
-
-**功能：**
-- SSE 流式传输，保持正确的事件顺序
-- 请求验证和转换
-- 中间件链（请求 ID、日志、认证）
-- 用于超时和取消的上下文传播
-- 支持 HTTP/2 并发请求
-
-**端点：**
-
-| 端点 | 方法 | 描述 |
-|----------|--------|-------------|
-| `/v1/messages` | POST | 代理请求到后端供应商 |
-| `/v1/models` | GET | 列出所有供应商的可用模型 |
-| `/v1/providers` | GET | 列出活动供应商及其元数据 |
-| `/health` | GET | 健康检查端点 |
-
-### 2. 中间件栈
-
-**位置**：`internal/proxy/middleware.go`
-
-中间件链按顺序处理请求：
-
-```mermaid
-sequenceDiagram
-    participant Client as 客户端
-    participant RequestID as 请求ID
-    participant Logging as 日志
-    participant Auth as 认证
-    participant Handler as 处理器
-    participant Provider as 供应商
-
-    Client->>RequestID: 请求
-    RequestID->>RequestID: 生成/提取 X-Request-ID
-    RequestID->>Logging: 请求 + ID
-    Logging->>Logging: 记录请求开始
-    Logging->>Auth: 请求
-    Auth->>Auth: 验证凭据
-    Auth->>Handler: 已认证的请求
-    Handler->>Provider: 转发到后端
-    Provider-->>Handler: 响应
-    Handler-->>Logging: 响应
-    Logging->>Logging: 记录完成
-    Logging-->>Client: 响应 + X-Request-ID
-```
-
-**中间件组件：**
-
-| 中间件 | 用途 |
-|------------|---------|
-| `RequestIDMiddleware` | 生成/提取 X-Request-ID 用于追踪 |
-| `LoggingMiddleware` | 记录请求/响应及时间 |
-| `AuthMiddleware` | 验证 x-api-key 请求头 |
-| `MultiAuthMiddleware` | 支持 API 密钥和 Bearer Token 认证 |
-
-### 3. 供应商管理器
-
-**位置**：`internal/providers/`
-
-每个供应商实现 `Provider` 接口：
-
-```go
-type Provider interface {
-    // Name 返回供应商标识符
-    Name() string
-
-    // BaseURL 返回后端 API 基础 URL
-    BaseURL() string
-
-    // Owner 返回所有者标识符（如 "anthropic"、"zhipu"）
-    Owner() string
-
-    // Authenticate 添加供应商特定的认证
-    Authenticate(req *http.Request, key string) error
-
-    // ForwardHeaders 返回要转发到后端的请求头
-    ForwardHeaders(originalHeaders http.Header) http.Header
-
-    // SupportsStreaming 指示供应商是否支持 SSE
-    SupportsStreaming() bool
-
-    // ListModels 返回可用模型
-    ListModels() []Model
-}
-```
-
-**已实现的供应商：**
-
-| 供应商 | 类型 | 描述 |
-|----------|------|-------------|
-| `AnthropicProvider` | `anthropic` | Anthropic 直接 API |
-| `ZAIProvider` | `zai` | Z.AI/智谱 GLM（Anthropic 兼容） |
-
-### 4. 代理处理器
-
-**位置**：`internal/proxy/handler.go`
-
-代理处理器使用 Go 的 `httputil.ReverseProxy` 高效转发请求：
+The Handler is the central coordinator for request processing:
 
 ```go
 type Handler struct {
-    provider  providers.Provider
-    proxy     *httputil.ReverseProxy
-    apiKey    string
-    debugOpts config.DebugOptions
+    providerProxies map[string]*ProviderProxy  // Per-provider reverse proxies
+    defaultProvider providers.Provider          // Fallback for single-provider mode
+    router          router.ProviderRouter       // Routing strategy implementation
+    healthTracker   *health.Tracker             // Circuit breaker tracking
+    signatureCache  *SignatureCache             // Thinking signature cache
+    routingConfig   *config.RoutingConfig       // Model-based routing config
+    providers       []router.ProviderInfo       // Available providers
 }
 ```
 
-**主要特性：**
-- SSE 流式传输立即刷新（`FlushInterval: -1`）
-- 供应商特定的认证
-- 转发 `anthropic-*` 请求头
-- 使用 Anthropic 格式的错误处理
+**Responsibilities:**
+- Extract model name from request body
+- Detect thinking signatures for provider affinity
+- Select provider via router
+- Delegate to appropriate ProviderProxy
+- Process thinking blocks and cache signatures
 
-### 5. 配置管理器
+### 2. ProviderProxy
 
-**位置**：`internal/config/`
+**Location**: `internal/proxy/provider_proxy.go`
 
-**功能：**
-- YAML 解析及环境变量扩展
-- 供应商和服务器配置验证
-- 支持多种认证方式
+Each provider gets a dedicated reverse proxy with pre-configured URL and authentication:
 
-## 请求流程
-
-### 非流式请求
-
-```mermaid
-sequenceDiagram
-    participant Client as 客户端
-    participant Proxy as 代理
-    participant Middleware as 中间件
-    participant Handler as 处理器
-    participant Provider as 供应商
-
-    Client->>Proxy: POST /v1/messages
-    Proxy->>Middleware: 请求
-    Middleware->>Middleware: 添加请求 ID
-    Middleware->>Middleware: 记录开始
-    Middleware->>Middleware: 验证认证
-    Middleware->>Handler: 转发
-    Handler->>Handler: 转换请求
-    Handler->>Provider: 代理请求
-    Provider-->>Handler: JSON 响应
-    Handler-->>Middleware: 响应
-    Middleware->>Middleware: 记录完成
-    Middleware-->>Proxy: 响应
-    Proxy-->>Client: JSON 响应
+```go
+type ProviderProxy struct {
+    Provider           providers.Provider
+    Proxy              *httputil.ReverseProxy
+    KeyPool            *keypool.KeyPool  // For multi-key rotation
+    APIKey             string            // Fallback single key
+    targetURL          *url.URL          // Provider's base URL
+    modifyResponseHook ModifyResponseFunc
+}
 ```
 
-### 流式请求（SSE）
+**Key Features:**
+- URL parsing happens once at initialization (not per-request)
+- Supports transparent auth (forward client credentials) or configured auth
+- Automatic SSE header injection for streaming responses
+- Key pool integration for rate limit distribution
+
+### 3. Router
+
+**Location**: `internal/router/`
+
+The router selects which provider handles each request:
+
+| Strategy | Description |
+|----------|-------------|
+| `failover` | Priority-based with automatic retry (default) |
+| `round_robin` | Sequential rotation |
+| `weighted_round_robin` | Proportional by weight |
+| `shuffle` | Fair random distribution |
+| `model_based` | Route by model name prefix |
+
+### 4. Signature Cache
+
+**Location**: `internal/proxy/signature_cache.go`
+
+Caches thinking block signatures for cross-provider compatibility:
+
+```go
+type SignatureCache struct {
+    cache cache.Cache  // Ristretto-backed cache
+}
+
+// Cache key format: "sig:{modelGroup}:{textHash}"
+// TTL: 3 hours (matches Claude API)
+```
+
+## Request Flow
+
+### Multi-Provider Routing
 
 ```mermaid
 sequenceDiagram
-    participant Client as 客户端
-    participant Proxy as 代理
-    participant Provider as 供应商
+    participant Client
+    participant Handler
+    participant Router
+    participant ModelFilter
+    participant ProviderProxy
+    participant Backend
+
+    Client->>Handler: HTTP Request (with model field)
+    Handler->>Handler: Extract model from body
+    Handler->>Handler: Check thinking signature presence
+    Handler->>ModelFilter: FilterProvidersByModel(model, providers, mapping)
+    ModelFilter->>ModelFilter: Longest-prefix match against modelMapping
+    ModelFilter->>Router: Return filtered provider list
+    Handler->>Router: Select provider (failover/round-robin on filtered list)
+    Router->>Router: Apply routing strategy to filtered providers
+    Router->>Handler: Return selected ProviderInfo
+
+    Handler->>Handler: Retrieve ProviderProxy for selected provider
+    Handler->>ProviderProxy: Prepare request with auth/headers
+    ProviderProxy->>ProviderProxy: Determine transparent vs configured auth mode
+    ProviderProxy->>Backend: Forward request to provider's target URL
+    Backend->>ProviderProxy: Response (with signature headers)
+    ProviderProxy->>Handler: Response with signature info
+    Handler->>Handler: Cache signature if thinking present
+    Handler->>Client: Response
+```
+
+### Thinking Signature Processing
+
+When extended thinking is enabled, providers return signed thinking blocks. These signatures must be validated by the same provider on subsequent turns. CC-Relay solves cross-provider signature issues through caching:
+
+```mermaid
+sequenceDiagram
+    participant Request
+    participant Handler
+    participant SignatureCache
+    participant Backend
+    participant ResponseStream as Response Stream (SSE)
+
+    Request->>Handler: HTTP with thinking blocks
+    Handler->>Handler: HasThinkingSignature check
+    Handler->>Handler: ProcessRequestThinking
+    Handler->>SignatureCache: Get(modelGroup, thinkingText)
+    SignatureCache-->>Handler: Cached signature or empty
+    Handler->>Handler: Drop unsigned blocks / Apply cached signature
+    Handler->>Backend: Forward cleaned request
+
+    Backend->>ResponseStream: Streaming response (thinking_delta events)
+    ResponseStream->>Handler: thinking_delta event
+    Handler->>Handler: Accumulate thinking text
+    ResponseStream->>Handler: signature_delta event
+    Handler->>SignatureCache: Set(modelGroup, thinking_text, signature)
+    SignatureCache-->>Handler: Cached
+    Handler->>ResponseStream: Transform signature with modelGroup prefix
+    ResponseStream->>Request: Return SSE event with prefixed signature
+```
+
+**Model Groups for Signature Sharing:**
+
+| Model Pattern | Group | Signatures Shared |
+|--------------|-------|-------------------|
+| `claude-*` | `claude` | Yes, across all Claude models |
+| `gpt-*` | `gpt` | Yes, across all GPT models |
+| `gemini-*` | `gemini` | Yes, uses sentinel value |
+| Other | Exact name | No sharing |
+
+### SSE Streaming Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Proxy
+    participant Provider
 
     Client->>Proxy: POST /v1/messages (stream=true)
-    Proxy->>Provider: 转发请求
+    Proxy->>Provider: Forward request
 
     Provider-->>Proxy: event: message_start
     Proxy-->>Client: event: message_start
@@ -219,7 +222,7 @@ sequenceDiagram
     Provider-->>Proxy: event: content_block_start
     Proxy-->>Client: event: content_block_start
 
-    loop 内容流式传输
+    loop Content Streaming
         Provider-->>Proxy: event: content_block_delta
         Proxy-->>Client: event: content_block_delta
     end
@@ -232,15 +235,9 @@ sequenceDiagram
 
     Provider-->>Proxy: event: message_stop
     Proxy-->>Client: event: message_stop
-
-    Note over Client,Proxy: 连接关闭
 ```
 
-## SSE 流式传输
-
-CC-Relay 保持精确的 SSE 事件顺序以确保 Claude Code 兼容性：
-
-**必需的请求头：**
+**Required SSE Headers:**
 ```
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
@@ -248,157 +245,147 @@ X-Accel-Buffering: no
 Connection: keep-alive
 ```
 
-**事件顺序：**
-1. `message_start` - 消息元数据
-2. `content_block_start` - 内容块开始
-3. `content_block_delta` - 内容块（重复）
-4. `content_block_stop` - 内容块结束
-5. `message_delta` - 使用信息
-6. `message_stop` - 消息完成
+## Middleware Stack
 
-`X-Accel-Buffering: no` 请求头对于防止 nginx/Cloudflare 缓冲 SSE 事件至关重要。
+**Location**: `internal/proxy/middleware.go`
 
-## 认证流程
+| Middleware | Purpose |
+|------------|---------|
+| `RequestIDMiddleware` | Generates/extracts X-Request-ID for tracing |
+| `LoggingMiddleware` | Logs request/response with timing |
+| `AuthMiddleware` | Validates x-api-key header |
+| `MultiAuthMiddleware` | Supports API key and Bearer token auth |
 
-```mermaid
-graph TD
-    A[请求到达] --> B{有 Authorization<br/>Bearer？}
-    B -->|是| C{Bearer 已启用？}
-    B -->|否| D{有 x-api-key？}
+## Provider Interface
 
-    C -->|是| E{配置了 Secret？}
-    C -->|否| D
+**Location**: `internal/providers/provider.go`
 
-    E -->|是| F{Token 匹配？}
-    E -->|否| G[接受任何 Bearer]
-
-    F -->|是| H[已认证]
-    F -->|否| I[401 未授权]
-
-    G --> H
-
-    D -->|是| J{密钥匹配？}
-    D -->|否| K{需要认证？}
-
-    J -->|是| H
-    J -->|否| I
-
-    K -->|是| I
-    K -->|否| H
-
-    style A fill:#6366f1,stroke:#4f46e5,color:#fff
-    style H fill:#10b981,stroke:#059669,color:#fff
-    style I fill:#ef4444,stroke:#dc2626,color:#fff
-```
-
-## API 兼容性
-
-### Anthropic API 格式
-
-CC-Relay 实现与 Anthropic Messages API 的完全兼容：
-
-**端点**：`POST /v1/messages`
-
-**请求头**：
-- `x-api-key`：API 密钥（由 CC-Relay 管理）
-- `anthropic-version`：API 版本（如 `2023-06-01`）
-- `content-type`：`application/json`
-
-**请求体**：
-```json
-{
-  "model": "claude-sonnet-4-5-20250514",
-  "max_tokens": 1024,
-  "messages": [
-    {"role": "user", "content": "Hello!"}
-  ],
-  "stream": true
+```go
+type Provider interface {
+    Name() string
+    BaseURL() string
+    Owner() string
+    Authenticate(req *http.Request, key string) error
+    ForwardHeaders(originalHeaders http.Header) http.Header
+    SupportsStreaming() bool
+    SupportsTransparentAuth() bool
+    ListModels() []Model
+    GetModelMapping() map[string]string
+    MapModel(requestModel string) string
 }
 ```
 
-### 供应商转换
+**Implemented Providers:**
 
-当前支持的两个供应商（Anthropic 和 Z.AI）都使用相同的 Anthropic 兼容 API 格式：
+| Provider | Type | Features |
+|----------|------|----------|
+| `AnthropicProvider` | `anthropic` | Native format, full feature support |
+| `ZAIProvider` | `zai` | Anthropic-compatible, GLM models |
+| `OllamaProvider` | `ollama` | Local models, no prompt caching |
 
-| 供应商 | 转换 |
-|----------|----------------|
-| **Anthropic** | 无（原生格式） |
-| **Z.AI** | 仅模型名称映射 |
+## Authentication Modes
 
-## 性能考虑
+### Transparent Auth
+When the client provides credentials and the provider supports it:
+- Client's `Authorization` or `x-api-key` headers forwarded unchanged
+- CC-Relay acts as a pure proxy
 
-### 连接处理
+### Configured Auth
+When using CC-Relay's managed keys:
+- Client credentials stripped
+- CC-Relay injects configured API key
+- Supports key pool rotation for rate limit distribution
 
-CC-Relay 使用 Go 标准库 HTTP 客户端并优化设置：
+```mermaid
+graph TD
+    A[Request Arrives] --> B{Has Client Auth?}
+    B -->|Yes| C{Provider Supports<br/>Transparent Auth?}
+    B -->|No| D[Use Configured Key]
+    C -->|Yes| E[Forward Client Auth]
+    C -->|No| D
+    D --> F{Key Pool Available?}
+    F -->|Yes| G[Select Key from Pool]
+    F -->|No| H[Use Single API Key]
+    E --> I[Forward to Provider]
+    G --> I
+    H --> I
+```
 
-- **连接池**：复用到后端的 HTTP 连接
-- **HTTP/2 支持**：可选的 h2c 多路复用请求
-- **立即刷新**：SSE 事件立即刷新
+## Health Tracking & Circuit Breaker
 
-### 并发
+**Location**: `internal/health/`
 
-- **每请求一个 Goroutine**：轻量级并发模型
-- **上下文传播**：正确的超时和取消处理
-- **线程安全日志**：使用 zerolog 进行结构化日志
+CC-Relay tracks provider health and implements circuit breaker patterns:
 
-### 内存管理
+| State | Behavior |
+|-------|----------|
+| CLOSED | Normal operation, requests flow through |
+| OPEN | Provider marked unhealthy, requests fail fast |
+| HALF-OPEN | Probing with limited requests after cooldown |
 
-- **流式响应**：不缓冲响应体
-- **请求体限制**：可配置的最大请求体大小
-- **优雅关闭**：30 秒超时等待进行中的请求
+**Triggers for OPEN state:**
+- HTTP 429 (rate limited)
+- HTTP 5xx (server errors)
+- Connection timeouts
+- Consecutive failures exceed threshold
 
-## 目录结构
+## Directory Structure
 
 ```
 cc-relay/
-├── cmd/cc-relay/        # CLI 入口点
-│   ├── main.go          # 根命令
-│   ├── serve.go         # Serve 命令
-│   ├── status.go        # Status 命令
-│   ├── version.go       # Version 命令
-│   ├── config.go        # Config 命令
-│   ├── config_init.go   # Config init 子命令
-│   ├── config_cc.go     # Config cc 子命令
-│   ├── config_cc_init.go    # Claude Code 配置
-│   └── config_cc_remove.go  # 移除 CC 配置
+├── cmd/cc-relay/           # CLI entry point
+│   ├── main.go             # Root command
+│   ├── serve.go            # Serve command
+│   └── di/                 # Dependency injection
+│       └── providers.go    # Service wiring
 ├── internal/
-│   ├── config/          # 配置加载
-│   │   ├── config.go    # 配置结构
-│   │   └── loader.go    # YAML/环境变量加载
-│   ├── providers/       # 供应商实现
-│   │   ├── provider.go  # 供应商接口
-│   │   ├── base.go      # 基础供应商
-│   │   ├── anthropic.go # Anthropic 供应商
-│   │   └── zai.go       # Z.AI 供应商
-│   ├── proxy/           # HTTP 代理服务器
-│   │   ├── server.go    # 服务器设置
-│   │   ├── routes.go    # 路由注册
-│   │   ├── handler.go   # 代理处理器
-│   │   ├── middleware.go # 中间件链
-│   │   ├── sse.go       # SSE 工具
-│   │   ├── errors.go    # 错误响应
-│   │   └── logger.go    # 日志设置
-│   ├── auth/            # 认证
-│   │   ├── auth.go      # 认证接口
-│   │   ├── apikey.go    # API 密钥认证
-│   │   ├── oauth.go     # Bearer Token 认证
-│   │   └── chain.go     # 认证链
-│   └── version/         # 版本信息
-└── config.yaml          # 示例配置
+│   ├── config/             # Configuration loading
+│   ├── providers/          # Provider implementations
+│   │   ├── provider.go     # Provider interface
+│   │   ├── base.go         # Base provider
+│   │   ├── anthropic.go    # Anthropic provider
+│   │   ├── zai.go          # Z.AI provider
+│   │   └── ollama.go       # Ollama provider
+│   ├── proxy/              # HTTP proxy server
+│   │   ├── handler.go      # Main request handler
+│   │   ├── provider_proxy.go # Per-provider proxy
+│   │   ├── thinking.go     # Thinking block processing
+│   │   ├── signature_cache.go # Signature caching
+│   │   ├── sse.go          # SSE utilities
+│   │   └── middleware.go   # Middleware chain
+│   ├── router/             # Routing strategies
+│   │   ├── router.go       # Router interface
+│   │   ├── failover.go     # Failover strategy
+│   │   ├── round_robin.go  # Round-robin strategy
+│   │   └── model_filter.go # Model-based filtering
+│   ├── health/             # Health tracking
+│   │   └── tracker.go      # Circuit breaker
+│   ├── keypool/            # API key pooling
+│   │   └── keypool.go      # Key rotation
+│   └── cache/              # Caching layer
+│       └── cache.go        # Ristretto wrapper
+└── docs-site/              # Documentation
 ```
 
-## 未来架构
+## Performance Considerations
 
-以下功能计划在未来版本中实现：
+### Connection Handling
+- **Connection pooling**: HTTP connections reused to backends
+- **HTTP/2 support**: Multiplexed requests where supported
+- **Immediate flush**: SSE events flushed without buffering
 
-- **路由组件**：智能路由策略（轮询、故障转移、基于成本）
-- **速率限制器**：每个 API 密钥的令牌桶速率限制
-- **健康追踪器**：带自动恢复的熔断器
-- **gRPC 管理 API**：实时统计和配置
-- **TUI 仪表盘**：基于终端的监控界面
-- **更多供应商**：Ollama、AWS Bedrock、Azure、Vertex AI
+### Concurrency
+- **Goroutine per request**: Lightweight Go concurrency
+- **Context propagation**: Proper timeout and cancellation
+- **Thread-safe caching**: Ristretto provides concurrent access
 
-## 下一步
+### Memory
+- **Streaming responses**: No buffering of response bodies
+- **Signature cache**: Bounded size with LRU eviction
+- **Request body restoration**: Efficient body re-reading
 
-- [配置参考](/zh/docs/configuration/)
-- [API 文档](/zh/docs/api/)
+## Next Steps
+
+- [Configuration reference](/docs/configuration/)
+- [Routing strategies](/docs/routing/)
+- [Provider setup](/docs/providers/)

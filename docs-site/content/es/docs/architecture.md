@@ -1,246 +1,243 @@
 ---
-title: Arquitectura
+title: Architecture
 weight: 4
 ---
 
-CC-Relay esta disenado como un proxy HTTP de alto rendimiento y multi-proveedor que se ubica entre clientes LLM (como Claude Code) y proveedores backend.
+CC-Relay is a high-performance, multi-provider HTTP proxy designed for LLM applications. It provides intelligent routing, thinking signature caching, and seamless failover between providers.
 
-## Vision General del Sistema
+## System Overview
 
 ```mermaid
 graph TB
-    subgraph "Capa de Cliente"
+    subgraph "Client Layer"
         A[Claude Code]
-        B[Cliente LLM Personalizado]
-        C[Otros Clientes]
+        B[Custom LLM Client]
     end
 
-    subgraph "Proxy CC-Relay"
-        D[Servidor HTTP<br/>:8787]
-        E[Stack de Middleware]
-        F[Manejador de Proxy]
-        G[Gestor de Proveedores]
+    subgraph "CC-Relay Proxy"
+        D[HTTP Server<br/>:8787]
+        E[Middleware Stack]
+        F[Handler]
+        G[Router]
+        H[Signature Cache]
     end
 
-    subgraph "Capa de Proveedores"
-        H[Anthropic]
-        I[Z.AI]
+    subgraph "Provider Proxies"
+        I[ProviderProxy<br/>Anthropic]
+        J[ProviderProxy<br/>Z.AI]
+        K[ProviderProxy<br/>Ollama]
+    end
+
+    subgraph "Backend Providers"
+        L[Anthropic API]
+        M[Z.AI API]
+        N[Ollama API]
     end
 
     A --> D
     B --> D
-    C --> D
-
     D --> E
     E --> F
     F --> G
-    G --> H
+    F <--> H
     G --> I
+    G --> J
+    G --> K
+    I --> L
+    J --> M
+    K --> N
 
     style A fill:#6366f1,stroke:#4f46e5,color:#fff
     style D fill:#ec4899,stroke:#db2777,color:#fff
     style F fill:#f59e0b,stroke:#d97706,color:#000
     style G fill:#10b981,stroke:#059669,color:#fff
     style H fill:#8b5cf6,stroke:#7c3aed,color:#fff
-    style I fill:#3b82f6,stroke:#2563eb,color:#fff
 ```
 
-## Componentes Principales
+## Core Components
 
-### 1. Servidor Proxy HTTP
+### 1. Handler
 
-**Ubicacion**: `internal/proxy/`
+**Location**: `internal/proxy/handler.go`
 
-El servidor HTTP implementa la API de Mensajes de Anthropic (`/v1/messages`) con compatibilidad exacta para Claude Code.
-
-**Caracteristicas:**
-- Streaming SSE con secuenciacion correcta de eventos
-- Validacion y transformacion de solicitudes
-- Cadena de middleware (request ID, logging, autenticacion)
-- Propagacion de contexto para timeouts y cancelacion
-- Soporte HTTP/2 para solicitudes concurrentes
-
-**Endpoints:**
-
-| Endpoint | Metodo | Descripcion |
-|----------|--------|-------------|
-| `/v1/messages` | POST | Redirigir solicitudes al proveedor backend |
-| `/v1/models` | GET | Listar modelos disponibles de todos los proveedores |
-| `/v1/providers` | GET | Listar proveedores activos con metadata |
-| `/health` | GET | Endpoint de verificacion de salud |
-
-### 2. Stack de Middleware
-
-**Ubicacion**: `internal/proxy/middleware.go`
-
-La cadena de middleware procesa solicitudes en orden:
-
-```mermaid
-sequenceDiagram
-    participant Cliente
-    participant RequestID
-    participant Logging
-    participant Auth
-    participant Handler
-    participant Proveedor
-
-    Cliente->>RequestID: Solicitud
-    RequestID->>RequestID: Generar/Extraer X-Request-ID
-    RequestID->>Logging: Solicitud + ID
-    Logging->>Logging: Registrar inicio de solicitud
-    Logging->>Auth: Solicitud
-    Auth->>Auth: Validar credenciales
-    Auth->>Handler: Solicitud autenticada
-    Handler->>Proveedor: Reenviar al backend
-    Proveedor-->>Handler: Respuesta
-    Handler-->>Logging: Respuesta
-    Logging->>Logging: Registrar finalizacion
-    Logging-->>Cliente: Respuesta + X-Request-ID
-```
-
-**Componentes de Middleware:**
-
-| Middleware | Proposito |
-|------------|-----------|
-| `RequestIDMiddleware` | Genera/extrae X-Request-ID para trazabilidad |
-| `LoggingMiddleware` | Registra solicitud/respuesta con tiempos |
-| `AuthMiddleware` | Valida header x-api-key |
-| `MultiAuthMiddleware` | Soporta autenticacion API key y Bearer token |
-
-### 3. Gestor de Proveedores
-
-**Ubicacion**: `internal/providers/`
-
-Cada proveedor implementa la interfaz `Provider`:
-
-```go
-type Provider interface {
-    // Name retorna el identificador del proveedor
-    Name() string
-
-    // BaseURL retorna la URL base de la API backend
-    BaseURL() string
-
-    // Owner retorna el identificador del propietario (ej., "anthropic", "zhipu")
-    Owner() string
-
-    // Authenticate agrega autenticacion especifica del proveedor
-    Authenticate(req *http.Request, key string) error
-
-    // ForwardHeaders retorna headers a reenviar al backend
-    ForwardHeaders(originalHeaders http.Header) http.Header
-
-    // SupportsStreaming indica si el proveedor soporta SSE
-    SupportsStreaming() bool
-
-    // ListModels retorna modelos disponibles
-    ListModels() []Model
-}
-```
-
-**Proveedores Implementados:**
-
-| Proveedor | Tipo | Descripcion |
-|-----------|------|-------------|
-| `AnthropicProvider` | `anthropic` | API Directa de Anthropic |
-| `ZAIProvider` | `zai` | Z.AI/Zhipu GLM (compatible con Anthropic) |
-
-### 4. Manejador de Proxy
-
-**Ubicacion**: `internal/proxy/handler.go`
-
-El manejador de proxy usa `httputil.ReverseProxy` de Go para reenvio eficiente de solicitudes:
+The Handler is the central coordinator for request processing:
 
 ```go
 type Handler struct {
-    provider  providers.Provider
-    proxy     *httputil.ReverseProxy
-    apiKey    string
-    debugOpts config.DebugOptions
+    providerProxies map[string]*ProviderProxy  // Per-provider reverse proxies
+    defaultProvider providers.Provider          // Fallback for single-provider mode
+    router          router.ProviderRouter       // Routing strategy implementation
+    healthTracker   *health.Tracker             // Circuit breaker tracking
+    signatureCache  *SignatureCache             // Thinking signature cache
+    routingConfig   *config.RoutingConfig       // Model-based routing config
+    providers       []router.ProviderInfo       // Available providers
 }
 ```
 
-**Caracteristicas Clave:**
-- Flush inmediato para streaming SSE (`FlushInterval: -1`)
-- Autenticacion especifica del proveedor
-- Reenvio de headers para headers `anthropic-*`
-- Manejo de errores con respuestas en formato Anthropic
+**Responsibilities:**
+- Extract model name from request body
+- Detect thinking signatures for provider affinity
+- Select provider via router
+- Delegate to appropriate ProviderProxy
+- Process thinking blocks and cache signatures
 
-### 5. Gestor de Configuracion
+### 2. ProviderProxy
 
-**Ubicacion**: `internal/config/`
+**Location**: `internal/proxy/provider_proxy.go`
 
-**Caracteristicas:**
-- Parseo de YAML con expansion de variables de entorno
-- Validacion de configuraciones de proveedor y servidor
-- Soporte para multiples metodos de autenticacion
+Each provider gets a dedicated reverse proxy with pre-configured URL and authentication:
 
-## Flujo de Solicitudes
-
-### Solicitud Sin Streaming
-
-```mermaid
-sequenceDiagram
-    participant Cliente
-    participant Proxy
-    participant Middleware
-    participant Handler
-    participant Proveedor
-
-    Cliente->>Proxy: POST /v1/messages
-    Proxy->>Middleware: Solicitud
-    Middleware->>Middleware: Agregar Request ID
-    Middleware->>Middleware: Registrar Inicio
-    Middleware->>Middleware: Validar Auth
-    Middleware->>Handler: Reenviar
-    Handler->>Handler: Transformar Solicitud
-    Handler->>Proveedor: Proxy Solicitud
-    Proveedor-->>Handler: Respuesta JSON
-    Handler-->>Middleware: Respuesta
-    Middleware->>Middleware: Registrar Finalizacion
-    Middleware-->>Proxy: Respuesta
-    Proxy-->>Cliente: Respuesta JSON
+```go
+type ProviderProxy struct {
+    Provider           providers.Provider
+    Proxy              *httputil.ReverseProxy
+    KeyPool            *keypool.KeyPool  // For multi-key rotation
+    APIKey             string            // Fallback single key
+    targetURL          *url.URL          // Provider's base URL
+    modifyResponseHook ModifyResponseFunc
+}
 ```
 
-### Solicitud con Streaming (SSE)
+**Key Features:**
+- URL parsing happens once at initialization (not per-request)
+- Supports transparent auth (forward client credentials) or configured auth
+- Automatic SSE header injection for streaming responses
+- Key pool integration for rate limit distribution
+
+### 3. Router
+
+**Location**: `internal/router/`
+
+The router selects which provider handles each request:
+
+| Strategy | Description |
+|----------|-------------|
+| `failover` | Priority-based with automatic retry (default) |
+| `round_robin` | Sequential rotation |
+| `weighted_round_robin` | Proportional by weight |
+| `shuffle` | Fair random distribution |
+| `model_based` | Route by model name prefix |
+
+### 4. Signature Cache
+
+**Location**: `internal/proxy/signature_cache.go`
+
+Caches thinking block signatures for cross-provider compatibility:
+
+```go
+type SignatureCache struct {
+    cache cache.Cache  // Ristretto-backed cache
+}
+
+// Cache key format: "sig:{modelGroup}:{textHash}"
+// TTL: 3 hours (matches Claude API)
+```
+
+## Request Flow
+
+### Multi-Provider Routing
 
 ```mermaid
 sequenceDiagram
-    participant Cliente
+    participant Client
+    participant Handler
+    participant Router
+    participant ModelFilter
+    participant ProviderProxy
+    participant Backend
+
+    Client->>Handler: HTTP Request (with model field)
+    Handler->>Handler: Extract model from body
+    Handler->>Handler: Check thinking signature presence
+    Handler->>ModelFilter: FilterProvidersByModel(model, providers, mapping)
+    ModelFilter->>ModelFilter: Longest-prefix match against modelMapping
+    ModelFilter->>Router: Return filtered provider list
+    Handler->>Router: Select provider (failover/round-robin on filtered list)
+    Router->>Router: Apply routing strategy to filtered providers
+    Router->>Handler: Return selected ProviderInfo
+
+    Handler->>Handler: Retrieve ProviderProxy for selected provider
+    Handler->>ProviderProxy: Prepare request with auth/headers
+    ProviderProxy->>ProviderProxy: Determine transparent vs configured auth mode
+    ProviderProxy->>Backend: Forward request to provider's target URL
+    Backend->>ProviderProxy: Response (with signature headers)
+    ProviderProxy->>Handler: Response with signature info
+    Handler->>Handler: Cache signature if thinking present
+    Handler->>Client: Response
+```
+
+### Thinking Signature Processing
+
+When extended thinking is enabled, providers return signed thinking blocks. These signatures must be validated by the same provider on subsequent turns. CC-Relay solves cross-provider signature issues through caching:
+
+```mermaid
+sequenceDiagram
+    participant Request
+    participant Handler
+    participant SignatureCache
+    participant Backend
+    participant ResponseStream as Response Stream (SSE)
+
+    Request->>Handler: HTTP with thinking blocks
+    Handler->>Handler: HasThinkingSignature check
+    Handler->>Handler: ProcessRequestThinking
+    Handler->>SignatureCache: Get(modelGroup, thinkingText)
+    SignatureCache-->>Handler: Cached signature or empty
+    Handler->>Handler: Drop unsigned blocks / Apply cached signature
+    Handler->>Backend: Forward cleaned request
+
+    Backend->>ResponseStream: Streaming response (thinking_delta events)
+    ResponseStream->>Handler: thinking_delta event
+    Handler->>Handler: Accumulate thinking text
+    ResponseStream->>Handler: signature_delta event
+    Handler->>SignatureCache: Set(modelGroup, thinking_text, signature)
+    SignatureCache-->>Handler: Cached
+    Handler->>ResponseStream: Transform signature with modelGroup prefix
+    ResponseStream->>Request: Return SSE event with prefixed signature
+```
+
+**Model Groups for Signature Sharing:**
+
+| Model Pattern | Group | Signatures Shared |
+|--------------|-------|-------------------|
+| `claude-*` | `claude` | Yes, across all Claude models |
+| `gpt-*` | `gpt` | Yes, across all GPT models |
+| `gemini-*` | `gemini` | Yes, uses sentinel value |
+| Other | Exact name | No sharing |
+
+### SSE Streaming Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
     participant Proxy
-    participant Proveedor
+    participant Provider
 
-    Cliente->>Proxy: POST /v1/messages (stream=true)
-    Proxy->>Proveedor: Reenviar solicitud
+    Client->>Proxy: POST /v1/messages (stream=true)
+    Proxy->>Provider: Forward request
 
-    Proveedor-->>Proxy: event: message_start
-    Proxy-->>Cliente: event: message_start
+    Provider-->>Proxy: event: message_start
+    Proxy-->>Client: event: message_start
 
-    Proveedor-->>Proxy: event: content_block_start
-    Proxy-->>Cliente: event: content_block_start
+    Provider-->>Proxy: event: content_block_start
+    Proxy-->>Client: event: content_block_start
 
-    loop Streaming de Contenido
-        Proveedor-->>Proxy: event: content_block_delta
-        Proxy-->>Cliente: event: content_block_delta
+    loop Content Streaming
+        Provider-->>Proxy: event: content_block_delta
+        Proxy-->>Client: event: content_block_delta
     end
 
-    Proveedor-->>Proxy: event: content_block_stop
-    Proxy-->>Cliente: event: content_block_stop
+    Provider-->>Proxy: event: content_block_stop
+    Proxy-->>Client: event: content_block_stop
 
-    Proveedor-->>Proxy: event: message_delta
-    Proxy-->>Cliente: event: message_delta
+    Provider-->>Proxy: event: message_delta
+    Proxy-->>Client: event: message_delta
 
-    Proveedor-->>Proxy: event: message_stop
-    Proxy-->>Cliente: event: message_stop
-
-    Note over Cliente,Proxy: Conexion cerrada
+    Provider-->>Proxy: event: message_stop
+    Proxy-->>Client: event: message_stop
 ```
 
-## Streaming SSE
-
-CC-Relay preserva el orden exacto de eventos SSE para compatibilidad con Claude Code:
-
-**Headers Requeridos:**
+**Required SSE Headers:**
 ```
 Content-Type: text/event-stream
 Cache-Control: no-cache, no-transform
@@ -248,157 +245,147 @@ X-Accel-Buffering: no
 Connection: keep-alive
 ```
 
-**Secuencia de Eventos:**
-1. `message_start` - Metadata del mensaje
-2. `content_block_start` - Inicia bloque de contenido
-3. `content_block_delta` - Chunks de contenido (repetido)
-4. `content_block_stop` - Termina bloque de contenido
-5. `message_delta` - Informacion de uso
-6. `message_stop` - Mensaje completo
+## Middleware Stack
 
-El header `X-Accel-Buffering: no` es critico para prevenir que nginx/Cloudflare almacenen en buffer los eventos SSE.
+**Location**: `internal/proxy/middleware.go`
 
-## Flujo de Autenticacion
+| Middleware | Purpose |
+|------------|---------|
+| `RequestIDMiddleware` | Generates/extracts X-Request-ID for tracing |
+| `LoggingMiddleware` | Logs request/response with timing |
+| `AuthMiddleware` | Validates x-api-key header |
+| `MultiAuthMiddleware` | Supports API key and Bearer token auth |
 
-```mermaid
-graph TD
-    A[Solicitud Llega] --> B{Tiene Authorization<br/>Bearer?}
-    B -->|Si| C{Bearer Habilitado?}
-    B -->|No| D{Tiene x-api-key?}
+## Provider Interface
 
-    C -->|Si| E{Secret Configurado?}
-    C -->|No| D
+**Location**: `internal/providers/provider.go`
 
-    E -->|Si| F{Token Coincide?}
-    E -->|No| G[Aceptar Cualquier Bearer]
-
-    F -->|Si| H[Autenticado]
-    F -->|No| I[401 No Autorizado]
-
-    G --> H
-
-    D -->|Si| J{Key Coincide?}
-    D -->|No| K{Auth Requerida?}
-
-    J -->|Si| H
-    J -->|No| I
-
-    K -->|Si| I
-    K -->|No| H
-
-    style A fill:#6366f1,stroke:#4f46e5,color:#fff
-    style H fill:#10b981,stroke:#059669,color:#fff
-    style I fill:#ef4444,stroke:#dc2626,color:#fff
-```
-
-## Compatibilidad de API
-
-### Formato de API Anthropic
-
-CC-Relay implementa compatibilidad exacta con la API de Mensajes de Anthropic:
-
-**Endpoint**: `POST /v1/messages`
-
-**Headers**:
-- `x-api-key`: API key (gestionada por CC-Relay)
-- `anthropic-version`: Version de API (ej., `2023-06-01`)
-- `content-type`: `application/json`
-
-**Cuerpo de Solicitud**:
-```json
-{
-  "model": "claude-sonnet-4-5-20250514",
-  "max_tokens": 1024,
-  "messages": [
-    {"role": "user", "content": "Hola!"}
-  ],
-  "stream": true
+```go
+type Provider interface {
+    Name() string
+    BaseURL() string
+    Owner() string
+    Authenticate(req *http.Request, key string) error
+    ForwardHeaders(originalHeaders http.Header) http.Header
+    SupportsStreaming() bool
+    SupportsTransparentAuth() bool
+    ListModels() []Model
+    GetModelMapping() map[string]string
+    MapModel(requestModel string) string
 }
 ```
 
-### Transformaciones de Proveedores
+**Implemented Providers:**
 
-Ambos proveedores actualmente soportados (Anthropic y Z.AI) usan el mismo formato de API compatible con Anthropic:
+| Provider | Type | Features |
+|----------|------|----------|
+| `AnthropicProvider` | `anthropic` | Native format, full feature support |
+| `ZAIProvider` | `zai` | Anthropic-compatible, GLM models |
+| `OllamaProvider` | `ollama` | Local models, no prompt caching |
 
-| Proveedor | Transformacion |
-|-----------|----------------|
-| **Anthropic** | Ninguna (formato nativo) |
-| **Z.AI** | Solo mapeo de nombres de modelo |
+## Authentication Modes
 
-## Consideraciones de Rendimiento
+### Transparent Auth
+When the client provides credentials and the provider supports it:
+- Client's `Authorization` or `x-api-key` headers forwarded unchanged
+- CC-Relay acts as a pure proxy
 
-### Manejo de Conexiones
+### Configured Auth
+When using CC-Relay's managed keys:
+- Client credentials stripped
+- CC-Relay injects configured API key
+- Supports key pool rotation for rate limit distribution
 
-CC-Relay usa el cliente HTTP de la biblioteca estandar de Go con configuraciones optimizadas:
+```mermaid
+graph TD
+    A[Request Arrives] --> B{Has Client Auth?}
+    B -->|Yes| C{Provider Supports<br/>Transparent Auth?}
+    B -->|No| D[Use Configured Key]
+    C -->|Yes| E[Forward Client Auth]
+    C -->|No| D
+    D --> F{Key Pool Available?}
+    F -->|Yes| G[Select Key from Pool]
+    F -->|No| H[Use Single API Key]
+    E --> I[Forward to Provider]
+    G --> I
+    H --> I
+```
 
-- **Pool de conexiones**: Reutiliza conexiones HTTP a backends
-- **Soporte HTTP/2**: h2c opcional para solicitudes multiplexadas
-- **Flush inmediato**: Eventos SSE se envian inmediatamente
+## Health Tracking & Circuit Breaker
 
-### Concurrencia
+**Location**: `internal/health/`
 
-- **Goroutine por solicitud**: Modelo de concurrencia liviano
-- **Propagacion de contexto**: Manejo apropiado de timeout y cancelacion
-- **Logging thread-safe**: Usa zerolog para logging estructurado
+CC-Relay tracks provider health and implements circuit breaker patterns:
 
-### Gestion de Memoria
+| State | Behavior |
+|-------|----------|
+| CLOSED | Normal operation, requests flow through |
+| OPEN | Provider marked unhealthy, requests fail fast |
+| HALF-OPEN | Probing with limited requests after cooldown |
 
-- **Respuestas en streaming**: Sin buffering de cuerpos de respuesta
-- **Limites de cuerpo de solicitud**: Tamano maximo de cuerpo configurable
-- **Apagado graceful**: Timeout de 30 segundos para solicitudes en vuelo
+**Triggers for OPEN state:**
+- HTTP 429 (rate limited)
+- HTTP 5xx (server errors)
+- Connection timeouts
+- Consecutive failures exceed threshold
 
-## Estructura de Directorios
+## Directory Structure
 
 ```
 cc-relay/
-├── cmd/cc-relay/        # Punto de entrada CLI
-│   ├── main.go          # Comando raiz
-│   ├── serve.go         # Comando serve
-│   ├── status.go        # Comando status
-│   ├── version.go       # Comando version
-│   ├── config.go        # Comando config
-│   ├── config_init.go   # Subcomando config init
-│   ├── config_cc.go     # Subcomando config cc
-│   ├── config_cc_init.go    # Config de Claude Code
-│   └── config_cc_remove.go  # Remover config CC
+├── cmd/cc-relay/           # CLI entry point
+│   ├── main.go             # Root command
+│   ├── serve.go            # Serve command
+│   └── di/                 # Dependency injection
+│       └── providers.go    # Service wiring
 ├── internal/
-│   ├── config/          # Carga de configuracion
-│   │   ├── config.go    # Estructuras de config
-│   │   └── loader.go    # Carga de YAML/env
-│   ├── providers/       # Implementaciones de proveedores
-│   │   ├── provider.go  # Interfaz de proveedor
-│   │   ├── base.go      # Proveedor base
-│   │   ├── anthropic.go # Proveedor Anthropic
-│   │   └── zai.go       # Proveedor Z.AI
-│   ├── proxy/           # Servidor proxy HTTP
-│   │   ├── server.go    # Setup del servidor
-│   │   ├── routes.go    # Registro de rutas
-│   │   ├── handler.go   # Manejador de proxy
-│   │   ├── middleware.go # Cadena de middleware
-│   │   ├── sse.go       # Utilidades SSE
-│   │   ├── errors.go    # Respuestas de error
-│   │   └── logger.go    # Setup de logging
-│   ├── auth/            # Autenticacion
-│   │   ├── auth.go      # Interfaz de auth
-│   │   ├── apikey.go    # Auth de API key
-│   │   ├── oauth.go     # Auth de Bearer token
-│   │   └── chain.go     # Cadena de auth
-│   └── version/         # Informacion de version
-└── config.yaml          # Configuracion de ejemplo
+│   ├── config/             # Configuration loading
+│   ├── providers/          # Provider implementations
+│   │   ├── provider.go     # Provider interface
+│   │   ├── base.go         # Base provider
+│   │   ├── anthropic.go    # Anthropic provider
+│   │   ├── zai.go          # Z.AI provider
+│   │   └── ollama.go       # Ollama provider
+│   ├── proxy/              # HTTP proxy server
+│   │   ├── handler.go      # Main request handler
+│   │   ├── provider_proxy.go # Per-provider proxy
+│   │   ├── thinking.go     # Thinking block processing
+│   │   ├── signature_cache.go # Signature caching
+│   │   ├── sse.go          # SSE utilities
+│   │   └── middleware.go   # Middleware chain
+│   ├── router/             # Routing strategies
+│   │   ├── router.go       # Router interface
+│   │   ├── failover.go     # Failover strategy
+│   │   ├── round_robin.go  # Round-robin strategy
+│   │   └── model_filter.go # Model-based filtering
+│   ├── health/             # Health tracking
+│   │   └── tracker.go      # Circuit breaker
+│   ├── keypool/            # API key pooling
+│   │   └── keypool.go      # Key rotation
+│   └── cache/              # Caching layer
+│       └── cache.go        # Ristretto wrapper
+└── docs-site/              # Documentation
 ```
 
-## Arquitectura Futura
+## Performance Considerations
 
-Las siguientes funciones estan planeadas para versiones futuras:
+### Connection Handling
+- **Connection pooling**: HTTP connections reused to backends
+- **HTTP/2 support**: Multiplexed requests where supported
+- **Immediate flush**: SSE events flushed without buffering
 
-- **Componente de Router**: Estrategias de enrutamiento inteligente (round-robin, failover, basado en costo)
-- **Limitador de Tasa**: Limitacion de tasa token bucket por API key
-- **Seguimiento de Salud**: Circuit breaker con recuperacion automatica
-- **API de Gestion gRPC**: Estadisticas en tiempo real y configuracion
-- **Dashboard TUI**: Interfaz de monitoreo basada en terminal
-- **Proveedores Adicionales**: Ollama, AWS Bedrock, Azure, Vertex AI
+### Concurrency
+- **Goroutine per request**: Lightweight Go concurrency
+- **Context propagation**: Proper timeout and cancellation
+- **Thread-safe caching**: Ristretto provides concurrent access
 
-## Siguientes Pasos
+### Memory
+- **Streaming responses**: No buffering of response bodies
+- **Signature cache**: Bounded size with LRU eviction
+- **Request body restoration**: Efficient body re-reading
 
-- [Referencia de configuracion](/es/docs/configuration/)
-- [Documentacion de API](/es/docs/api/)
+## Next Steps
+
+- [Configuration reference](/docs/configuration/)
+- [Routing strategies](/docs/routing/)
+- [Provider setup](/docs/providers/)
