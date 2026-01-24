@@ -322,12 +322,14 @@ Plans:
   3. User can configure Azure Foundry provider with deployment names as model IDs
   4. User can configure Vertex AI provider and it generates/refreshes OAuth tokens automatically
   5. Model IDs transform correctly per provider (model in URL path for Bedrock/Vertex)
-**Plans**: TBD
+**Plans**: 5 plans in 3 waves
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
-- [ ] 06-03: TBD
+- [ ] 06-01-PLAN.md - Extend ProviderConfig with cloud-specific fields (aws_region, gcp_project_id, azure_resource)
+- [ ] 06-02-PLAN.md - AWS Bedrock provider with SigV4 signing
+- [ ] 06-03-PLAN.md - Google Vertex AI provider with OAuth token authentication
+- [ ] 06-04-PLAN.md - Azure Foundry provider with API key and Entra ID fallback
+- [ ] 06-05-PLAN.md - DI wiring, integration tests, and provider documentation
 
 ### Phase 7: Configuration Management
 **Goal**: Enable hot-reload when config changes, support multiple formats (YAML/TOML), validate on load, expand environment variables
@@ -440,7 +442,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 4.2 Config File Cleanup (INSERTED) | 1/1 | Complete | 2026-01-23 |
 | 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
 | 5. Additional Providers | 2/2 | Complete | 2026-01-23 |
-| 6. Cloud Providers | 0/TBD | Not started | - |
+| 6. Cloud Providers | 0/5 | Not started | - |
 | 7. Configuration Management | 0/TBD | Not started | - |
 | 8. Observability | 0/TBD | Not started | - |
 | 9. gRPC Management API | 0/TBD | Not started | - |
