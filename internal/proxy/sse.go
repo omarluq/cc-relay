@@ -113,8 +113,10 @@ func (p *SSESignatureProcessor) processSignatureDelta(
 
 	// Transform signature to include model group prefix
 	// Re-wrap in SSE format since ProcessResponseSignature returns raw JSON
+	// Preserve SSE framing by appending the required blank line separator
 	modifiedData := ProcessResponseSignature(ctx, data, thinkingText, p.modelName, nil)
-	return append([]byte("data: "), modifiedData...)
+	result := append([]byte("data: "), modifiedData...)
+	return append(result, []byte("\n\n")...)
 }
 
 // GetCurrentSignature returns the last processed signature.

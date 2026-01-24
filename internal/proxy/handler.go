@@ -278,9 +278,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check for thinking signatures in request body for sticky provider routing.
 	// When extended thinking is enabled, the provider's signature must be validated
 	// by the same provider on subsequent turns.
-	hasThinking := HasThinkingSignature(r)
-	if hasThinking {
-		r = r.WithContext(CacheThinkingAffinityInContext(r.Context(), true))
+	// To avoid unnecessary body reads in single-provider mode, only perform this
+	// check when multi-provider routing is enabled.
+	hasThinking := false
+	if h.router != nil && len(h.providers) > 1 {
+		hasThinking = HasThinkingSignature(r)
+		if hasThinking {
+			r = r.WithContext(CacheThinkingAffinityInContext(r.Context(), true))
+		}
 	}
 
 	// Select provider using router (or use static provider)
@@ -510,12 +515,16 @@ func (h *Handler) processThinkingSignatures(r *http.Request, model string) *http
 		return r
 	}
 	body, err := io.ReadAll(r.Body)
+	//nolint:errcheck // Best effort close
+	r.Body.Close()
+	// Always restore the body (and ContentLength) using the bytes read,
+	// even if io.ReadAll returned an error, so upstream handlers see
+	// the same body that was available to us.
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	r.ContentLength = int64(len(body))
 	if err != nil {
 		return r
 	}
-	//nolint:errcheck // Best effort close
-	r.Body.Close()
-	r.Body = io.NopCloser(bytes.NewReader(body))
 
 	// Fast path: check if request has thinking blocks
 	if !HasThinkingBlocks(body) {
