@@ -112,7 +112,9 @@ func (p *SSESignatureProcessor) processSignatureDelta(
 	p.thinkingText.Reset()
 
 	// Transform signature to include model group prefix
-	return ProcessResponseSignature(ctx, data, thinkingText, p.modelName, nil)
+	// Re-wrap in SSE format since ProcessResponseSignature returns raw JSON
+	modifiedData := ProcessResponseSignature(ctx, data, thinkingText, p.modelName, nil)
+	return append([]byte("data: "), modifiedData...)
 }
 
 // GetCurrentSignature returns the last processed signature.
