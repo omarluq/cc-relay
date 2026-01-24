@@ -102,9 +102,8 @@ func ProcessRequestThinking(
 
 // blockCollector collects and categorizes content blocks during processing.
 type blockCollector struct {
-	thinkingBlocks []gjson.Result
-	otherBlocks    []gjson.Result
 	modifiedBlocks []interface{}
+	modifiedTypes  []string // Tracks type of each kept block for reordering
 }
 
 // processAssistantContent processes content blocks in an assistant message.
@@ -122,10 +121,10 @@ func processAssistantContent(
 	collector := &blockCollector{}
 	collectBlocks(ctx, content, modelName, cache, thinkingCtx, collector)
 
-	// Check if reordering is needed
-	if needsReordering(collector, content) {
+	// Check if reordering is needed (uses tracked types, not original content)
+	if needsReordering(collector) {
 		thinkingCtx.ReorderedBlocks = true
-		collector.modifiedBlocks = reorderBlocks(collector.modifiedBlocks, content)
+		collector.modifiedBlocks = reorderBlocks(collector.modifiedBlocks, collector.modifiedTypes)
 	}
 
 	// Update the content array in the body
@@ -156,60 +155,66 @@ func collectBlocks(
 		case blockTypeThinking:
 			processed, keep := processThinkingBlock(ctx, block, modelName, cache, thinkingCtx)
 			if keep {
-				collector.thinkingBlocks = append(collector.thinkingBlocks, block)
 				collector.modifiedBlocks = append(collector.modifiedBlocks, processed)
+				collector.modifiedTypes = append(collector.modifiedTypes, blockTypeThinking)
 			}
 		case blockTypeToolUse:
 			processed := processToolUseBlock(block, thinkingCtx.CurrentSignature)
-			collector.otherBlocks = append(collector.otherBlocks, block)
 			collector.modifiedBlocks = append(collector.modifiedBlocks, processed)
+			collector.modifiedTypes = append(collector.modifiedTypes, blockTypeToolUse)
 		default:
-			collector.otherBlocks = append(collector.otherBlocks, block)
 			collector.modifiedBlocks = append(collector.modifiedBlocks, block.Value())
+			collector.modifiedTypes = append(collector.modifiedTypes, blockType)
 		}
 		return true
 	})
 }
 
 // needsReordering checks if thinking blocks need to be moved before other blocks.
-//
-//nolint:gocritic // hugeParam: gjson.Result is passed by value by design
-func needsReordering(collector *blockCollector, content gjson.Result) bool {
-	if len(collector.thinkingBlocks) == 0 || len(collector.otherBlocks) == 0 {
-		return false
-	}
+// Uses tracked types from collector instead of re-parsing original content.
+func needsReordering(collector *blockCollector) bool {
+	firstThinkingIdx := findFirstIndex(collector.modifiedTypes, blockTypeThinking)
+	firstOtherIdx := findFirstNonIndex(collector.modifiedTypes, blockTypeThinking)
 
-	firstThinkingIdx := -1
-	firstOtherIdx := -1
-	idx := 0
-	content.ForEach(func(_, block gjson.Result) bool {
-		blockType := block.Get("type").String()
-		if blockType == blockTypeThinking && firstThinkingIdx == -1 {
-			firstThinkingIdx = idx
-		} else if blockType != blockTypeThinking && firstOtherIdx == -1 {
-			firstOtherIdx = idx
+	// Only reorder if we have both types and other comes before thinking
+	return firstThinkingIdx != -1 && firstOtherIdx != -1 && firstOtherIdx < firstThinkingIdx
+}
+
+// findFirstIndex returns the index of the first occurrence of target, or -1.
+func findFirstIndex(types []string, target string) int {
+	for i, t := range types {
+		if t == target {
+			return i
 		}
-		idx++
-		return true
-	})
+	}
+	return -1
+}
 
-	return firstOtherIdx < firstThinkingIdx
+// findFirstNonIndex returns the index of the first element not matching target, or -1.
+func findFirstNonIndex(types []string, target string) int {
+	for i, t := range types {
+		if t != target {
+			return i
+		}
+	}
+	return -1
 }
 
 // reorderBlocks moves thinking blocks before other blocks.
-//
-//nolint:gocritic // hugeParam: gjson.Result is passed by value by design
-func reorderBlocks(blocks []interface{}, content gjson.Result) []interface{} {
-	reordered := make([]interface{}, 0, len(blocks))
-	contentArr := content.Array()
-	for i, block := range blocks {
-		if contentArr[i].Get("type").String() == blockTypeThinking {
-			reordered = append([]interface{}{block}, reordered...)
+// Preserves relative order within each group and runs in O(n).
+func reorderBlocks(blocks []interface{}, types []string) []interface{} {
+	thinking := make([]interface{}, 0, len(blocks))
+	other := make([]interface{}, 0, len(blocks))
+
+	for i, t := range types {
+		if t == blockTypeThinking {
+			thinking = append(thinking, blocks[i])
 		} else {
-			reordered = append(reordered, block)
+			other = append(other, blocks[i])
 		}
 	}
-	return reordered
+
+	return append(thinking, other...)
 }
 
 // processThinkingBlock processes a single thinking block.
