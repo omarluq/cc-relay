@@ -28,15 +28,17 @@ func HasThinkingSignature(r *http.Request) bool {
 	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return false
-	}
 	//nolint:errcheck // Best effort close
 	r.Body.Close()
 
-	// Always restore body for downstream use
+	// Always restore body for downstream use, even on partial read error
+	// io.ReadAll may return partial bytes alongside an error
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	r.ContentLength = int64(len(bodyBytes))
+
+	if err != nil {
+		return false
+	}
 
 	// Parse JSON body
 	var body struct {
