@@ -1,9 +1,6 @@
 ---
 title: CC-Relay
-layout: hextra-home
 ---
-
-<div class="landing-page">
 
 <div class="custom-hero">
   <h1 class="hero-title">CC-Relay</h1>
@@ -258,8 +255,6 @@ layout: hextra-home
   </div>
   <p class="footer-powered">Powered by <a href="https://gohugo.io" target="_blank" rel="noopener">Hugo</a> | <a href="https://github.com/omarluq/cc-relay/blob/main/LICENSE">AGPL-3.0</a></p>
 </div>
-
-</div><!-- End .landing-page -->
 
 <!-- AnimeJS for high-speed network visualization -->
 <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
