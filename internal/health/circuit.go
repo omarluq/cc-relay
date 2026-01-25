@@ -88,22 +88,35 @@ func (c *CircuitBreaker) Name() string {
 	return c.name
 }
 
-// ReportSuccess reports a successful operation.
-func (c *CircuitBreaker) ReportSuccess() {
+// ReportSuccess reports a successful operation to the circuit breaker.
+// Returns true if the success was recorded, false if skipped.
+//
+// IMPORTANT: When the circuit is OPEN, gobreaker blocks all requests via Allow(),
+// so successes cannot be recorded. The circuit will only transition to HALF-OPEN
+// after the configured OpenDuration timeout expires. Health check successes during
+// OPEN state verify provider recovery but do NOT accelerate the transition.
+func (c *CircuitBreaker) ReportSuccess() bool {
 	done, err := c.Allow()
 	if err != nil {
-		return
+		// Circuit is OPEN - cannot record success until timeout expires
+		return false
 	}
 	done(nil)
+	return true
 }
 
-// ReportFailure reports a failed operation.
-func (c *CircuitBreaker) ReportFailure(err error) {
+// ReportFailure reports a failed operation to the circuit breaker.
+// Returns true if the failure was recorded, false if skipped.
+//
+// When the circuit is OPEN, failures are not recorded (circuit already open).
+func (c *CircuitBreaker) ReportFailure(err error) bool {
 	done, allowErr := c.Allow()
 	if allowErr != nil {
-		return
+		// Circuit is OPEN - already tracking failures
+		return false
 	}
 	done(err)
+	return true
 }
 
 // ShouldCountAsFailure determines if a response should count as a circuit breaker failure.
