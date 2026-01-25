@@ -154,6 +154,8 @@ func (s *ServerConfig) GetEffectiveAPIKey() string {
 }
 
 // ProviderConfig defines configuration for a backend LLM provider.
+//
+//nolint:govet // Field order optimized for readability, not memory alignment
 type ProviderConfig struct {
 	ModelMapping map[string]string `yaml:"model_mapping"`
 	Name         string            `yaml:"name"`
@@ -163,6 +165,37 @@ type ProviderConfig struct {
 	Models       []string          `yaml:"models"`
 	Pooling      PoolingConfig     `yaml:"pooling"`
 	Enabled      bool              `yaml:"enabled"`
+
+	// Cloud provider fields (used when Type is bedrock, vertex, or azure)
+
+	// AWSRegion is the AWS region for Bedrock (e.g., "us-east-1", "us-west-2").
+	// Required when Type is "bedrock".
+	AWSRegion string `yaml:"aws_region"`
+
+	// AWSAccessKeyID and AWSSecretAccessKey for explicit credentials.
+	// If empty, uses AWS SDK default credential chain (env vars, IAM role, etc.).
+	AWSAccessKeyID     string `yaml:"aws_access_key_id"`
+	AWSSecretAccessKey string `yaml:"aws_secret_access_key"`
+
+	// GCPProjectID is the Google Cloud project ID for Vertex AI.
+	// Required when Type is "vertex".
+	GCPProjectID string `yaml:"gcp_project_id"`
+
+	// GCPRegion is the Google Cloud region for Vertex AI (e.g., "us-central1").
+	// Required when Type is "vertex".
+	GCPRegion string `yaml:"gcp_region"`
+
+	// AzureResourceName is the Azure resource name for Foundry.
+	// Required when Type is "azure".
+	AzureResourceName string `yaml:"azure_resource_name"`
+
+	// AzureDeploymentID is the deployment ID (model) for Azure Foundry.
+	// Optional - can be derived from model mapping.
+	AzureDeploymentID string `yaml:"azure_deployment_id"`
+
+	// AzureAPIVersion is the Azure API version (e.g., "2024-06-01").
+	// Defaults to "2024-06-01" if not specified.
+	AzureAPIVersion string `yaml:"azure_api_version"`
 }
 
 // PoolingConfig defines key pool behavior for a provider.
@@ -187,6 +220,36 @@ func (p *ProviderConfig) IsPoolingEnabled() bool {
 	}
 	// Default: enable if multiple keys
 	return len(p.Keys) > 1
+}
+
+// GetAzureAPIVersion returns the Azure API version with default fallback.
+func (p *ProviderConfig) GetAzureAPIVersion() string {
+	if p.AzureAPIVersion == "" {
+		return "2024-06-01"
+	}
+	return p.AzureAPIVersion
+}
+
+// ValidateCloudConfig validates cloud provider-specific configuration.
+func (p *ProviderConfig) ValidateCloudConfig() error {
+	switch p.Type {
+	case "bedrock":
+		if p.AWSRegion == "" {
+			return errors.New("config: aws_region required for bedrock provider")
+		}
+	case "vertex":
+		if p.GCPProjectID == "" {
+			return errors.New("config: gcp_project_id required for vertex provider")
+		}
+		if p.GCPRegion == "" {
+			return errors.New("config: gcp_region required for vertex provider")
+		}
+	case "azure":
+		if p.AzureResourceName == "" {
+			return errors.New("config: azure_resource_name required for azure provider")
+		}
+	}
+	return nil
 }
 
 // KeyConfig defines an API key with rate limits and selection metadata.

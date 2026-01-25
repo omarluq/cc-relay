@@ -1178,3 +1178,140 @@ func TestRoutingConfig_Option_OrElse_Pattern(t *testing.T) {
 		}
 	})
 }
+
+func TestProviderConfig_GetAzureAPIVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   ProviderConfig
+		expected string
+	}{
+		{
+			name:     "returns default when empty",
+			config:   ProviderConfig{},
+			expected: "2024-06-01",
+		},
+		{
+			name:     "returns configured version",
+			config:   ProviderConfig{AzureAPIVersion: "2023-12-01"},
+			expected: "2023-12-01",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := tt.config.GetAzureAPIVersion()
+			if result != tt.expected {
+				t.Errorf("GetAzureAPIVersion() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProviderConfig_ValidateCloudConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		config  ProviderConfig
+		name    string
+		errMsg  string
+		wantErr bool
+	}{
+		{
+			name:    "non-cloud provider passes",
+			config:  ProviderConfig{Type: "anthropic"},
+			wantErr: false,
+		},
+		{
+			name:    "bedrock with region passes",
+			config:  ProviderConfig{Type: "bedrock", AWSRegion: "us-east-1"},
+			wantErr: false,
+		},
+		{
+			name:    "bedrock without region fails",
+			config:  ProviderConfig{Type: "bedrock"},
+			wantErr: true,
+			errMsg:  "aws_region required",
+		},
+		{
+			name: "vertex with all fields passes",
+			config: ProviderConfig{
+				Type:         "vertex",
+				GCPProjectID: "my-project",
+				GCPRegion:    "us-central1",
+			},
+			wantErr: false,
+		},
+		{
+			name:    "vertex without project ID fails",
+			config:  ProviderConfig{Type: "vertex", GCPRegion: "us-central1"},
+			wantErr: true,
+			errMsg:  "gcp_project_id required",
+		},
+		{
+			name:    "vertex without region fails",
+			config:  ProviderConfig{Type: "vertex", GCPProjectID: "my-project"},
+			wantErr: true,
+			errMsg:  "gcp_region required",
+		},
+		{
+			name:    "azure with resource name passes",
+			config:  ProviderConfig{Type: "azure", AzureResourceName: "my-resource"},
+			wantErr: false,
+		},
+		{
+			name:    "azure without resource name fails",
+			config:  ProviderConfig{Type: "azure"},
+			wantErr: true,
+			errMsg:  "azure_resource_name required",
+		},
+		{
+			name:    "zai provider passes",
+			config:  ProviderConfig{Type: "zai"},
+			wantErr: false,
+		},
+		{
+			name:    "ollama provider passes",
+			config:  ProviderConfig{Type: "ollama"},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.config.ValidateCloudConfig()
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("ValidateCloudConfig() expected error, got nil")
+				} else if tt.errMsg != "" && !errors.Is(err, err) {
+					// Check error message contains expected text
+					if err.Error() == "" || !containsStr(err.Error(), tt.errMsg) {
+						t.Errorf("ValidateCloudConfig() error = %v, want containing %v", err, tt.errMsg)
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("ValidateCloudConfig() unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// containsStr is a helper to check if s contains substr.
+func containsStr(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || s != "" && findSubstr(s, substr))
+}
+
+func findSubstr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
