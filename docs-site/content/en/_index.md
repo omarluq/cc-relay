@@ -21,93 +21,166 @@ layout: hextra-home
   </div>
 </div>
 
-<div class="section-box">
-  <h2 class="section-title">How It Works</h2>
-  <p class="section-description">Route requests from Claude Code through cc-relay to any provider</p>
-
+<div class="network-section">
   <div class="network-visualization" id="network-viz">
-    <svg viewBox="0 0 900 400" class="network-svg">
+    <svg viewBox="0 0 1000 500" class="network-svg" preserveAspectRatio="xMidYMid meet">
       <defs>
+        <!-- Gradients -->
         <linearGradient id="relay-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" style="stop-color:#ec4899"/>
           <stop offset="100%" style="stop-color:#8b5cf6"/>
         </linearGradient>
-        <linearGradient id="path-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#6366f1;stop-opacity:0.3"/>
-          <stop offset="50%" style="stop-color:#ec4899;stop-opacity:0.6"/>
-          <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:0.3"/>
+        <linearGradient id="claude-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#6366f1"/>
+          <stop offset="100%" style="stop-color:#8b5cf6"/>
         </linearGradient>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+        <radialGradient id="packet-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" style="stop-color:#fff;stop-opacity:1"/>
+          <stop offset="50%" style="stop-color:#ec4899;stop-opacity:0.8"/>
+          <stop offset="100%" style="stop-color:#ec4899;stop-opacity:0"/>
+        </radialGradient>
+
+        <!-- Glow filters -->
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
           <feMerge>
             <feMergeNode in="coloredBlur"/>
             <feMergeNode in="SourceGraphic"/>
           </feMerge>
         </filter>
+        <filter id="glow-intense" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="node-shadow">
+          <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+        </filter>
+
+        <!-- Animated dash pattern for paths -->
+        <pattern id="dash-pattern" patternUnits="userSpaceOnUse" width="20" height="1">
+          <line x1="0" y1="0" x2="10" y2="0" stroke="#6366f1" stroke-width="2" opacity="0.5"/>
+        </pattern>
       </defs>
 
-      <!-- Connection paths from Claude Code to CC-Relay -->
-      <path class="network-path path-main" d="M 150 200 Q 300 200 450 200" stroke="url(#path-gradient)" stroke-width="3" fill="none"/>
-
-      <!-- Connection paths from CC-Relay to providers (arc arrangement) -->
-      <path class="network-path path-1" d="M 450 200 Q 600 80 750 80" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
-      <path class="network-path path-2" d="M 450 200 Q 600 140 750 140" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
-      <path class="network-path path-3" d="M 450 200 Q 600 200 750 200" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
-      <path class="network-path path-4" d="M 450 200 Q 600 260 750 260" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
-      <path class="network-path path-5" d="M 450 200 Q 600 320 750 320" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
-
-      <!-- Claude Code Node -->
-      <g class="network-node claude-node" transform="translate(100, 160)">
-        <rect x="0" y="0" width="100" height="80" rx="12" fill="rgba(30, 41, 59, 0.9)" stroke="#6366f1" stroke-width="2"/>
-        <image href="/logos/claude-code.svg" x="25" y="10" width="50" height="40" class="node-logo"/>
-        <text x="50" y="65" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Claude Code</text>
+      <!-- Background grid effect -->
+      <g class="grid-bg" opacity="0.1">
+        <line x1="0" y1="250" x2="1000" y2="250" stroke="#6366f1" stroke-width="1"/>
+        <line x1="150" y1="0" x2="150" y2="500" stroke="#6366f1" stroke-width="1"/>
+        <line x1="500" y1="0" x2="500" y2="500" stroke="#6366f1" stroke-width="1"/>
+        <line x1="850" y1="0" x2="850" y2="500" stroke="#6366f1" stroke-width="1"/>
       </g>
 
-      <!-- CC-Relay Hub -->
-      <g class="network-node relay-hub" transform="translate(400, 150)">
-        <circle cx="50" cy="50" r="50" fill="url(#relay-gradient)" filter="url(#glow)"/>
-        <text x="50" y="45" text-anchor="middle" fill="white" font-size="14" font-weight="700">CC</text>
-        <text x="50" y="62" text-anchor="middle" fill="white" font-size="14" font-weight="700">Relay</text>
+      <!-- Connection paths - curved beziers -->
+      <g class="paths-container">
+        <!-- Main path: Claude Code to CC-Relay -->
+        <path id="path-main" class="network-path" d="M 200 250 C 300 250, 400 250, 500 250"
+              stroke="#6366f1" stroke-width="2" fill="none" opacity="0.3"/>
+
+        <!-- Provider paths with beautiful curves -->
+        <path id="path-0" class="network-path" d="M 500 250 C 600 250, 700 60, 850 60"
+              stroke="#d946ef" stroke-width="2" fill="none" opacity="0.3"/>
+        <path id="path-1" class="network-path" d="M 500 250 C 580 200, 700 130, 850 130"
+              stroke="#8b5cf6" stroke-width="2" fill="none" opacity="0.3"/>
+        <path id="path-2" class="network-path" d="M 500 250 C 600 240, 700 200, 850 200"
+              stroke="#6366f1" stroke-width="2" fill="none" opacity="0.3"/>
+        <path id="path-3" class="network-path" d="M 500 250 C 600 260, 700 300, 850 300"
+              stroke="#3b82f6" stroke-width="2" fill="none" opacity="0.3"/>
+        <path id="path-4" class="network-path" d="M 500 250 C 580 300, 700 370, 850 370"
+              stroke="#0ea5e9" stroke-width="2" fill="none" opacity="0.3"/>
+        <path id="path-5" class="network-path" d="M 500 250 C 600 250, 700 440, 850 440"
+              stroke="#14b8a6" stroke-width="2" fill="none" opacity="0.3"/>
+      </g>
+
+      <!-- Claude Code Node -->
+      <g class="network-node claude-node" filter="url(#node-shadow)">
+        <rect x="80" y="200" width="140" height="100" rx="16" fill="rgba(30, 41, 59, 0.95)" stroke="url(#claude-gradient)" stroke-width="2"/>
+        <image href="/logos/claude-code.svg" x="115" y="215" width="50" height="50" class="node-logo"/>
+        <text x="150" y="285" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Claude Code</text>
+      </g>
+
+      <!-- CC-Relay Hub - Animated center -->
+      <g class="relay-hub" filter="url(#glow)">
+        <circle class="relay-ring relay-ring-3" cx="500" cy="250" r="70" fill="none" stroke="#ec4899" stroke-width="1" opacity="0.2"/>
+        <circle class="relay-ring relay-ring-2" cx="500" cy="250" r="55" fill="none" stroke="#8b5cf6" stroke-width="1" opacity="0.3"/>
+        <circle class="relay-ring relay-ring-1" cx="500" cy="250" r="40" fill="none" stroke="#6366f1" stroke-width="2" opacity="0.5"/>
+        <circle class="relay-core" cx="500" cy="250" r="35" fill="url(#relay-gradient)"/>
+        <text x="500" y="245" text-anchor="middle" fill="white" font-size="12" font-weight="700">CC</text>
+        <text x="500" y="260" text-anchor="middle" fill="white" font-size="12" font-weight="700">Relay</text>
       </g>
 
       <!-- Provider Nodes -->
-      <g class="network-node provider-node" transform="translate(700, 50)">
-        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#10b981" stroke-width="2"/>
-        <image href="/logos/anthropic.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
-        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Anthropic</text>
+      <g class="provider-nodes">
+        <!-- Anthropic -->
+        <g class="network-node provider-node provider-0" filter="url(#node-shadow)" transform="translate(800, 30)">
+          <rect x="0" y="0" width="150" height="60" rx="12" fill="rgba(30, 41, 59, 0.95)" stroke="#d946ef" stroke-width="2"/>
+          <image href="/logos/anthropic.svg" x="12" y="12" width="36" height="36" class="provider-logo"/>
+          <text x="60" y="28" text-anchor="start" fill="#e2e8f0" font-size="13" font-weight="600">Anthropic</text>
+          <text x="60" y="44" text-anchor="start" fill="#94a3b8" font-size="10">Claude Models</text>
+        </g>
+
+        <!-- Z.AI -->
+        <g class="network-node provider-node provider-1" filter="url(#node-shadow)" transform="translate(800, 100)">
+          <rect x="0" y="0" width="150" height="60" rx="12" fill="rgba(30, 41, 59, 0.95)" stroke="#8b5cf6" stroke-width="2"/>
+          <image href="/logos/zai.svg" x="12" y="12" width="36" height="36" class="provider-logo"/>
+          <text x="60" y="28" text-anchor="start" fill="#e2e8f0" font-size="13" font-weight="600">Z.AI</text>
+          <text x="60" y="44" text-anchor="start" fill="#94a3b8" font-size="10">GLM Models</text>
+        </g>
+
+        <!-- Ollama -->
+        <g class="network-node provider-node provider-2" filter="url(#node-shadow)" transform="translate(800, 170)">
+          <rect x="0" y="0" width="150" height="60" rx="12" fill="rgba(30, 41, 59, 0.95)" stroke="#6366f1" stroke-width="2"/>
+          <image href="/logos/ollama.svg" x="12" y="12" width="36" height="36" class="provider-logo"/>
+          <text x="60" y="28" text-anchor="start" fill="#e2e8f0" font-size="13" font-weight="600">Ollama</text>
+          <text x="60" y="44" text-anchor="start" fill="#94a3b8" font-size="10">Local Models</text>
+        </g>
+
+        <!-- AWS Bedrock -->
+        <g class="network-node provider-node provider-3" filter="url(#node-shadow)" transform="translate(800, 270)">
+          <rect x="0" y="0" width="150" height="60" rx="12" fill="rgba(30, 41, 59, 0.95)" stroke="#3b82f6" stroke-width="2"/>
+          <image href="/logos/aws.svg" x="12" y="12" width="36" height="36" class="provider-logo"/>
+          <text x="60" y="28" text-anchor="start" fill="#e2e8f0" font-size="13" font-weight="600">Bedrock</text>
+          <text x="60" y="44" text-anchor="start" fill="#94a3b8" font-size="10">AWS SigV4</text>
+        </g>
+
+        <!-- Azure -->
+        <g class="network-node provider-node provider-4" filter="url(#node-shadow)" transform="translate(800, 340)">
+          <rect x="0" y="0" width="150" height="60" rx="12" fill="rgba(30, 41, 59, 0.95)" stroke="#0ea5e9" stroke-width="2"/>
+          <image href="/logos/azure.svg" x="12" y="12" width="36" height="36" class="provider-logo"/>
+          <text x="60" y="28" text-anchor="start" fill="#e2e8f0" font-size="13" font-weight="600">Azure</text>
+          <text x="60" y="44" text-anchor="start" fill="#94a3b8" font-size="10">Foundry</text>
+        </g>
+
+        <!-- Vertex AI -->
+        <g class="network-node provider-node provider-5" filter="url(#node-shadow)" transform="translate(800, 410)">
+          <rect x="0" y="0" width="150" height="60" rx="12" fill="rgba(30, 41, 59, 0.95)" stroke="#14b8a6" stroke-width="2"/>
+          <image href="/logos/gcp.svg" x="12" y="12" width="36" height="36" class="provider-logo"/>
+          <text x="60" y="28" text-anchor="start" fill="#e2e8f0" font-size="13" font-weight="600">Vertex AI</text>
+          <text x="60" y="44" text-anchor="start" fill="#94a3b8" font-size="10">Google Cloud</text>
+        </g>
       </g>
 
-      <g class="network-node provider-node" transform="translate(700, 110)">
-        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#8b5cf6" stroke-width="2"/>
-        <image href="/logos/zai.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
-        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Z.AI</text>
+      <!-- Packet container - packets will be dynamically created -->
+      <g class="packets-container" filter="url(#glow-intense)">
+        <!-- Packets will be inserted here by JS -->
       </g>
 
-      <g class="network-node provider-node" transform="translate(700, 170)">
-        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#3b82f6" stroke-width="2"/>
-        <image href="/logos/ollama.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
-        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Ollama</text>
+      <!-- Trail container for comet-like effects -->
+      <g class="trails-container">
+        <!-- Trails will be inserted here by JS -->
       </g>
-
-      <g class="network-node provider-node" transform="translate(700, 230)">
-        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#ff9900" stroke-width="2"/>
-        <image href="/logos/aws.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
-        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Bedrock</text>
-      </g>
-
-      <g class="network-node provider-node" transform="translate(700, 290)">
-        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#0078d4" stroke-width="2"/>
-        <image href="/logos/azure.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
-        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Azure</text>
-      </g>
-
-      <!-- Animated Packets (will be animated with AnimeJS) -->
-      <circle class="packet packet-1" cx="150" cy="200" r="6" fill="#ec4899" filter="url(#glow)"/>
-      <circle class="packet packet-2" cx="150" cy="200" r="6" fill="#6366f1" filter="url(#glow)"/>
-      <circle class="packet packet-3" cx="150" cy="200" r="6" fill="#8b5cf6" filter="url(#glow)"/>
-      <circle class="packet packet-4" cx="150" cy="200" r="6" fill="#10b981" filter="url(#glow)"/>
-      <circle class="packet packet-5" cx="150" cy="200" r="6" fill="#f97316" filter="url(#glow)"/>
     </svg>
+
+    <!-- Stats overlay -->
+    <div class="network-stats">
+      <div class="stat">
+        <span class="stat-value" id="requests-count">0</span>
+        <span class="stat-label">requests</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -188,90 +261,337 @@ layout: hextra-home
 
 </div><!-- End .landing-page -->
 
-<!-- AnimeJS for network visualization -->
+<!-- AnimeJS for high-speed network visualization -->
 <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Define the paths for packets to follow
-  const mainPath = document.querySelector('.path-main');
-  const providerPaths = [
-    document.querySelector('.path-1'),
-    document.querySelector('.path-2'),
-    document.querySelector('.path-3'),
-    document.querySelector('.path-4'),
-    document.querySelector('.path-5')
-  ];
+(function() {
+  'use strict';
 
-  // Animate packets continuously
-  function animatePacket(packet, pathIndex) {
+  // Configuration
+  const CONFIG = {
+    packetCount: 15,           // Number of concurrent packets
+    minDuration: 400,          // Fastest packet (ms)
+    maxDuration: 800,          // Slowest packet (ms)
+    spawnInterval: 150,        // Time between new packets (ms)
+    trailLength: 8,            // Number of trail particles
+    colors: [
+      '#ec4899', '#d946ef', '#a855f7', '#8b5cf6',
+      '#6366f1', '#3b82f6', '#0ea5e9', '#14b8a6'
+    ]
+  };
+
+  let requestCount = 0;
+  let svg, packetsContainer, trailsContainer, mainPath, providerPaths;
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  function init() {
+    svg = document.querySelector('.network-svg');
+    if (!svg) return;
+
+    packetsContainer = svg.querySelector('.packets-container');
+    trailsContainer = svg.querySelector('.trails-container');
+    mainPath = document.getElementById('path-main');
+
+    providerPaths = [];
+    for (let i = 0; i <= 5; i++) {
+      providerPaths.push(document.getElementById('path-' + i));
+    }
+
+    // Start animations
+    animateRelayHub();
+    animateProviderNodes();
+    startPacketStream();
+  }
+
+  function animateRelayHub() {
+    // Pulsing core
+    anime({
+      targets: '.relay-core',
+      scale: [1, 1.1, 1],
+      duration: 1500,
+      easing: 'easeInOutSine',
+      loop: true
+    });
+
+    // Rotating rings
+    anime({
+      targets: '.relay-ring-1',
+      rotate: 360,
+      duration: 8000,
+      easing: 'linear',
+      loop: true
+    });
+
+    anime({
+      targets: '.relay-ring-2',
+      rotate: -360,
+      duration: 12000,
+      easing: 'linear',
+      loop: true
+    });
+
+    anime({
+      targets: '.relay-ring-3',
+      rotate: 360,
+      duration: 20000,
+      easing: 'linear',
+      loop: true
+    });
+
+    // Ring pulse
+    anime({
+      targets: '.relay-ring',
+      opacity: [0.2, 0.5, 0.2],
+      duration: 2000,
+      easing: 'easeInOutQuad',
+      loop: true,
+      delay: anime.stagger(200)
+    });
+  }
+
+  function animateProviderNodes() {
+    // Subtle hover effect on provider nodes
+    anime({
+      targets: '.provider-node rect',
+      strokeWidth: [2, 2.5, 2],
+      duration: 2000,
+      easing: 'easeInOutSine',
+      loop: true,
+      delay: anime.stagger(300)
+    });
+  }
+
+  function startPacketStream() {
+    // Launch initial burst
+    for (let i = 0; i < CONFIG.packetCount; i++) {
+      setTimeout(function() {
+        launchPacket();
+      }, i * 80);
+    }
+
+    // Continuous stream
+    setInterval(launchPacket, CONFIG.spawnInterval);
+  }
+
+  function launchPacket() {
+    const providerIndex = Math.floor(Math.random() * 6);
+    const color = CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)];
+    const duration = CONFIG.minDuration + Math.random() * (CONFIG.maxDuration - CONFIG.minDuration);
+
+    // Create packet element
+    const packet = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    packet.setAttribute('r', '4');
+    packet.setAttribute('fill', color);
+    packet.classList.add('packet');
+    packetsContainer.appendChild(packet);
+
+    // Create trail elements
+    const trails = [];
+    for (let i = 0; i < CONFIG.trailLength; i++) {
+      const trail = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      trail.setAttribute('r', String(3 - (i * 0.3)));
+      trail.setAttribute('fill', color);
+      trail.setAttribute('opacity', String(0.6 - (i * 0.07)));
+      trail.classList.add('trail');
+      trailsContainer.appendChild(trail);
+      trails.push(trail);
+    }
+
+    // Get path data
     const mainPathLength = mainPath.getTotalLength();
-    const providerPath = providerPaths[pathIndex];
+    const providerPath = providerPaths[providerIndex];
     const providerPathLength = providerPath.getTotalLength();
 
-    // Reset packet position
-    packet.setAttribute('cx', '150');
-    packet.setAttribute('cy', '200');
+    // Phase 1: Claude Code to CC-Relay
+    const timeline = anime.timeline({
+      easing: 'easeInOutQuart',
+      complete: function() {
+        // Cleanup
+        packet.remove();
+        trails.forEach(function(t) { t.remove(); });
 
-    // Animate along main path first
-    anime({
-      targets: packet,
-      duration: 800,
-      easing: 'easeInOutQuad',
+        // Flash provider node
+        flashProvider(providerIndex);
+
+        // Update counter
+        requestCount++;
+        const counter = document.getElementById('requests-count');
+        if (counter) counter.textContent = requestCount;
+      }
+    });
+
+    // Animate through main path
+    timeline.add({
+      duration: duration * 0.4,
       update: function(anim) {
         const progress = anim.progress / 100;
         const point = mainPath.getPointAtLength(progress * mainPathLength);
         packet.setAttribute('cx', point.x);
         packet.setAttribute('cy', point.y);
-      },
-      complete: function() {
-        // Then animate along provider path
-        anime({
-          targets: packet,
-          duration: 600,
-          easing: 'easeOutQuad',
-          update: function(anim) {
-            const progress = anim.progress / 100;
-            const point = providerPath.getPointAtLength(progress * providerPathLength);
-            packet.setAttribute('cx', point.x);
-            packet.setAttribute('cy', point.y);
-          },
-          complete: function() {
-            // Fade out
-            anime({
-              targets: packet,
-              opacity: [1, 0],
-              duration: 200,
-              easing: 'easeOutQuad',
-              complete: function() {
-                // Reset and restart with random provider
-                packet.style.opacity = 1;
-                const newPathIndex = Math.floor(Math.random() * 5);
-                setTimeout(function() {
-                  animatePacket(packet, newPathIndex);
-                }, Math.random() * 500);
-              }
-            });
+
+        // Update trails with delay
+        trails.forEach(function(trail, i) {
+          const trailProgress = Math.max(0, progress - (i + 1) * 0.03);
+          const trailPoint = mainPath.getPointAtLength(trailProgress * mainPathLength);
+          trail.setAttribute('cx', trailPoint.x);
+          trail.setAttribute('cy', trailPoint.y);
+        });
+      }
+    });
+
+    // Brief pause at relay (processing)
+    timeline.add({
+      duration: 50,
+      update: function() {
+        const point = mainPath.getPointAtLength(mainPathLength);
+        packet.setAttribute('cx', point.x);
+        packet.setAttribute('cy', point.y);
+      }
+    });
+
+    // Animate through provider path
+    timeline.add({
+      duration: duration * 0.5,
+      update: function(anim) {
+        const progress = anim.progress / 100;
+        const point = providerPath.getPointAtLength(progress * providerPathLength);
+        packet.setAttribute('cx', point.x);
+        packet.setAttribute('cy', point.y);
+
+        // Update trails
+        trails.forEach(function(trail, i) {
+          const trailProgress = Math.max(0, progress - (i + 1) * 0.04);
+          if (trailProgress > 0) {
+            const trailPoint = providerPath.getPointAtLength(trailProgress * providerPathLength);
+            trail.setAttribute('cx', trailPoint.x);
+            trail.setAttribute('cy', trailPoint.y);
           }
         });
       }
     });
+
+    // Fade out at destination
+    timeline.add({
+      targets: [packet].concat(trails),
+      opacity: 0,
+      scale: 1.5,
+      duration: 100,
+      easing: 'easeOutQuad'
+    });
   }
 
-  // Start animations with staggered timing
-  const packets = document.querySelectorAll('.packet');
-  packets.forEach(function(packet, i) {
-    setTimeout(function() {
-      animatePacket(packet, i % 5);
-    }, i * 400);
-  });
+  function flashProvider(index) {
+    const provider = document.querySelector('.provider-' + index + ' rect');
+    if (!provider) return;
 
-  // Pulse the relay hub
-  anime({
-    targets: '.relay-hub circle',
-    scale: [1, 1.05, 1],
-    duration: 2000,
-    easing: 'easeInOutSine',
-    loop: true
-  });
-});
+    anime({
+      targets: provider,
+      strokeWidth: [2, 4, 2],
+      duration: 300,
+      easing: 'easeOutQuad'
+    });
+  }
+})();
 </script>
+
+<style>
+/* Network visualization styles */
+.network-section {
+  margin: 2rem 0;
+}
+
+.network-visualization {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%);
+  border-radius: 20px;
+  padding: 1rem;
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(99, 102, 241, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.network-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.network-path {
+  stroke-linecap: round;
+}
+
+.packet {
+  filter: url(#glow-intense);
+}
+
+.trail {
+  pointer-events: none;
+}
+
+.relay-hub {
+  transform-origin: 500px 250px;
+}
+
+.relay-ring {
+  transform-origin: 500px 250px;
+}
+
+.provider-logo {
+  /* No filter - let logos use their natural colors */
+}
+
+.network-stats {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  backdrop-filter: blur(8px);
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #ec4899;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .network-visualization {
+    padding: 0.5rem;
+    border-radius: 12px;
+  }
+
+  .network-stats {
+    bottom: 0.75rem;
+    left: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+}
+</style>
