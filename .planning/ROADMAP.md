@@ -27,7 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4.2: Config File Cleanup** - Consolidate config files, ensure example.yaml is single source of truth (INSERTED)
 - [x] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
 - [x] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
-- [ ] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support
+- [x] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support with transformer architecture
 - [ ] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
 - [ ] **Phase 8: Observability** - Structured logging and Prometheus metrics
 - [ ] **Phase 9: gRPC Management API** - Real-time stats streaming and provider management
@@ -313,23 +313,26 @@ Plans:
 - [x] 05-02-PLAN.md - Integration tests and provider documentation
 
 ### Phase 6: Cloud Providers
-**Goal**: Add AWS Bedrock (SigV4 signing), Azure Foundry (x-api-key auth), and Google Vertex AI (OAuth tokens) support
+**Goal**: Add AWS Bedrock, Azure Foundry, and Vertex AI support with transformer architecture for request/response modification
 **Depends on**: Phase 5
 **Requirements**: API-04, PROV-04, PROV-05, PROV-06
 **Success Criteria** (what must be TRUE):
-  1. User can configure AWS Bedrock provider with inference profile ARNs
-  2. Bedrock requests use SigV4 signing and anthropic_version: "bedrock-2023-05-31"
-  3. User can configure Azure Foundry provider with deployment names as model IDs
-  4. User can configure Vertex AI provider and it generates/refreshes OAuth tokens automatically
-  5. Model IDs transform correctly per provider (model in URL path for Bedrock/Vertex)
-**Plans**: 5 plans in 3 waves
+  1. Provider interface extended with TransformRequest/TransformResponse methods
+  2. User can configure AWS Bedrock provider with SigV4 signing
+  3. Bedrock requests use model-in-URL and anthropic_version: "bedrock-2023-05-31" in body
+  4. User can configure Azure Foundry provider with x-api-key authentication
+  5. User can configure Vertex AI provider with OAuth token refresh
+  6. Vertex requests use model-in-URL and anthropic_version: "vertex-2023-10-16" in body
+  7. Bedrock Event Stream responses converted to SSE format for Claude Code
+  8. All cloud providers documented with setup instructions
+**Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 06-01-PLAN.md - Extend ProviderConfig with cloud-specific fields (aws_region, gcp_project_id, azure_resource)
-- [ ] 06-02-PLAN.md - AWS Bedrock provider with SigV4 signing
-- [ ] 06-03-PLAN.md - Google Vertex AI provider with OAuth token authentication
-- [ ] 06-04-PLAN.md - Azure Foundry provider with API key and Entra ID fallback
-- [ ] 06-05-PLAN.md - DI wiring, integration tests, and provider documentation
+- [x] 06-01-PLAN.md - Provider interface extension and transformation utilities
+- [x] 06-02-PLAN.md - Azure Foundry provider (x-api-key auth, standard format)
+- [x] 06-03-PLAN.md - Vertex AI provider (OAuth, model-in-URL, body transform)
+- [x] 06-04-PLAN.md - AWS Bedrock provider (SigV4, model-in-URL, Event Stream conversion)
+- [x] 06-05-PLAN.md - DI wiring, integration tests, and documentation
 
 ### Phase 7: Configuration Management
 **Goal**: Enable hot-reload when config changes, support multiple formats (YAML/TOML), validate on load, expand environment variables
@@ -442,7 +445,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 4.2 Config File Cleanup (INSERTED) | 1/1 | Complete | 2026-01-23 |
 | 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
 | 5. Additional Providers | 2/2 | Complete | 2026-01-23 |
-| 6. Cloud Providers | 0/5 | Not started | - |
+| 6. Cloud Providers | 5/5 | Complete | 2026-01-24 |
 | 7. Configuration Management | 0/TBD | Not started | - |
 | 8. Observability | 0/TBD | Not started | - |
 | 9. gRPC Management API | 0/TBD | Not started | - |
