@@ -181,7 +181,11 @@ func TestCircuitBreaker_ReportSuccess(t *testing.T) {
 
 	cb := NewCircuitBreaker("test-provider", cfg, &logger)
 
-	cb.ReportSuccess()
+	recorded := cb.ReportSuccess()
+
+	if !recorded {
+		t.Error("expected ReportSuccess to return true when circuit is CLOSED")
+	}
 
 	if cb.State() != StateClosed {
 		t.Errorf("expected state CLOSED, got %s", cb.State().String())
@@ -199,11 +203,155 @@ func TestCircuitBreaker_ReportFailure(t *testing.T) {
 	cb := NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
-	cb.ReportFailure(testErr)
-	cb.ReportFailure(testErr)
+	recorded := cb.ReportFailure(testErr)
+	if !recorded {
+		t.Error("expected ReportFailure to return true when circuit is CLOSED")
+	}
+
+	recorded = cb.ReportFailure(testErr)
+	if !recorded {
+		t.Error("expected ReportFailure to return true when circuit is CLOSED (second call)")
+	}
 
 	if cb.State() != StateOpen {
 		t.Errorf("expected state OPEN after ReportFailure calls, got %s", cb.State().String())
+	}
+}
+
+func TestCircuitBreaker_ReportSuccessWhenOpen(t *testing.T) {
+	logger := zerolog.Nop()
+	cfg := CircuitBreakerConfig{
+		FailureThreshold: 2,
+		OpenDurationMS:   1000,
+		HalfOpenProbes:   1,
+	}
+
+	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	testErr := errors.New("test error")
+
+	// Trip the circuit breaker to OPEN state
+	for i := 0; i < 2; i++ {
+		done, _ := cb.Allow()
+		done(testErr)
+	}
+
+	if cb.State() != StateOpen {
+		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	}
+
+	// Now try to report success when circuit is OPEN
+	recorded := cb.ReportSuccess()
+	if recorded {
+		t.Error("expected ReportSuccess to return false when circuit is OPEN")
+	}
+
+	// Circuit should remain OPEN
+	if cb.State() != StateOpen {
+		t.Errorf("expected state to remain OPEN, got %s", cb.State().String())
+	}
+}
+
+func TestCircuitBreaker_ReportFailureWhenOpen(t *testing.T) {
+	logger := zerolog.Nop()
+	cfg := CircuitBreakerConfig{
+		FailureThreshold: 2,
+		OpenDurationMS:   1000,
+		HalfOpenProbes:   1,
+	}
+
+	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	testErr := errors.New("test error")
+
+	// Trip the circuit breaker to OPEN state
+	for i := 0; i < 2; i++ {
+		done, _ := cb.Allow()
+		done(testErr)
+	}
+
+	if cb.State() != StateOpen {
+		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	}
+
+	// Now try to report failure when circuit is OPEN
+	recorded := cb.ReportFailure(testErr)
+	if recorded {
+		t.Error("expected ReportFailure to return false when circuit is OPEN")
+	}
+
+	// Circuit should remain OPEN
+	if cb.State() != StateOpen {
+		t.Errorf("expected state to remain OPEN, got %s", cb.State().String())
+	}
+}
+
+func TestCircuitBreaker_ReportSuccessWhenHalfOpen(t *testing.T) {
+	logger := zerolog.Nop()
+	cfg := CircuitBreakerConfig{
+		FailureThreshold: 2,
+		OpenDurationMS:   50,
+		HalfOpenProbes:   2,
+	}
+
+	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	testErr := errors.New("test error")
+
+	// Trip the circuit breaker to OPEN state
+	for i := 0; i < 2; i++ {
+		done, _ := cb.Allow()
+		done(testErr)
+	}
+
+	if cb.State() != StateOpen {
+		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	}
+
+	// Wait for circuit to transition to HALF-OPEN
+	time.Sleep(100 * time.Millisecond)
+
+	// First probe should succeed and return true
+	recorded := cb.ReportSuccess()
+	if !recorded {
+		t.Error("expected ReportSuccess to return true when circuit is HALF-OPEN")
+	}
+
+	if cb.State() != StateHalfOpen {
+		t.Errorf("expected state HALF-OPEN, got %s", cb.State().String())
+	}
+}
+
+func TestCircuitBreaker_ReportFailureWhenHalfOpen(t *testing.T) {
+	logger := zerolog.Nop()
+	cfg := CircuitBreakerConfig{
+		FailureThreshold: 2,
+		OpenDurationMS:   50,
+		HalfOpenProbes:   2,
+	}
+
+	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	testErr := errors.New("test error")
+
+	// Trip the circuit breaker to OPEN state
+	for i := 0; i < 2; i++ {
+		done, _ := cb.Allow()
+		done(testErr)
+	}
+
+	if cb.State() != StateOpen {
+		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	}
+
+	// Wait for circuit to transition to HALF-OPEN
+	time.Sleep(100 * time.Millisecond)
+
+	// First probe should be allowed and return true
+	recorded := cb.ReportFailure(testErr)
+	if !recorded {
+		t.Error("expected ReportFailure to return true when circuit is HALF-OPEN")
+	}
+
+	// After failure in HALF-OPEN, circuit should go back to OPEN
+	if cb.State() != StateOpen {
+		t.Errorf("expected state OPEN after failure in HALF-OPEN, got %s", cb.State().String())
 	}
 }
 
