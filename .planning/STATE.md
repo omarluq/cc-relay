@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 6 of 11+ (Cloud Providers)
-Plan: 2 of 5 in phase - COMPLETE
+Plan: 3 of 5 in phase - COMPLETE
 Status: In progress
-Last activity: 2026-01-25 - Completed 06-02 (Azure Provider)
+Last activity: 2026-01-25 - Completed 06-03 (Vertex Provider)
 
-Progress: [██████████] 67/70 plans total (Phase 6: 2/5 complete)
-Next: Execute 06-03 (Vertex Provider)
+Progress: [██████████] 68/70 plans total (Phase 6: 3/5 complete)
+Next: Execute 06-04 (Bedrock Provider)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 67
+- Total plans completed: 68
 - Average duration: 8.3 min
-- Total execution time: 9.5 hours
+- Total execution time: 9.6 hours
 
 **By Phase:**
 
@@ -43,11 +43,11 @@ Next: Execute 06-03 (Vertex Provider)
 | 04.2 (Config Cleanup) | 1 | 2 min | 2 min |
 | 04.3 (Health Docs) | 2 | 3 min | 1.5 min |
 | 05 (Additional Providers) | 2 | 12 min | 6 min |
-| 06 (Cloud Providers) | 2 | 16 min | 8 min |
+| 06 (Cloud Providers) | 3 | 26 min | 8.7 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-01 (3min), 05-02 (9min), 06-01 (11min), 06-02 (5min)
-- Trend: Azure provider implemented quickly (simplest cloud provider)
+- Last 5 plans: 05-02 (9min), 06-01 (11min), 06-02 (5min), 06-03 (10min)
+- Trend: Vertex provider with OAuth auth took slightly longer than Azure (OAuth complexity)
 
 *Updated after each plan completion*
 
@@ -57,6 +57,14 @@ Next: Execute 06-03 (Vertex Provider)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 06-03 (Vertex Provider):**
+- VertexProvider uses Google OAuth Bearer tokens via TokenSource abstraction
+- Model placed in URL path: /v1/projects/{project}/locations/{region}/publishers/anthropic/models/{model}:streamRawPredict
+- anthropic_version "vertex-2023-10-16" added to request body (not header, unlike Azure)
+- Pointer *VertexConfig for constructor functions (80 bytes exceeds linter hugeParam threshold)
+- @ character NOT URL-escaped in model path (valid per RFC 3986)
+- NewVertexProviderWithTokenSource pattern for testing with mock OAuth
 
 **From 06-02 (Azure Provider):**
 - AzureProvider implements Provider interface with x-api-key and Entra ID authentication
