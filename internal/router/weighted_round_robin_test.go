@@ -26,6 +26,13 @@ func (m *mockProvider) ListModels() []providers.Model                { return ni
 func (m *mockProvider) GetModelMapping() map[string]string           { return nil }
 func (m *mockProvider) MapModel(model string) string                 { return model }
 
+func (m *mockProvider) TransformRequest(body []byte, endpoint string) (newBody []byte, targetURL string, err error) {
+	return body, "http://test" + endpoint, nil
+}
+func (m *mockProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error { return nil }
+func (m *mockProvider) RequiresBodyTransform() bool                                      { return false }
+func (m *mockProvider) StreamingContentType() string                                     { return "text/event-stream" }
+
 func TestWeightedRoundRobinRouter_Select_NoProviders(t *testing.T) {
 	t.Parallel()
 

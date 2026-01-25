@@ -28,6 +28,19 @@ func (m *mockProviderForFilter) SupportsTransparentAuth() bool                { 
 func (m *mockProviderForFilter) GetTransparentAuthHeader() string             { return "" }
 func (m *mockProviderForFilter) HasValidTransparentAuth(_ *http.Request) bool { return false }
 
+func (m *mockProviderForFilter) TransformRequest(
+	body []byte, endpoint string,
+) (newBody []byte, targetURL string, err error) {
+	return body, endpoint, nil
+}
+func (m *mockProviderForFilter) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
+	return nil
+}
+func (m *mockProviderForFilter) RequiresBodyTransform() bool { return false }
+func (m *mockProviderForFilter) StreamingContentType() string {
+	return "text/event-stream"
+}
+
 func TestFilterProvidersByModel(t *testing.T) {
 	t.Parallel()
 
