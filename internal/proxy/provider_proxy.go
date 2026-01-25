@@ -178,8 +178,10 @@ func (pp *ProviderProxy) rewriteWithTransform(r *httputil.ProxyRequest) {
 	r.Out.Body = io.NopCloser(bytes.NewReader(newBody))
 	r.Out.ContentLength = int64(len(newBody))
 
-	// Use the dynamic URL from TransformRequest
-	r.SetURL(targetURL)
+	// For cloud providers, the targetURL contains the complete path including model.
+	// We set r.Out.URL directly instead of using SetURL which would append the original path.
+	r.Out.URL = targetURL
+	r.Out.Host = targetURL.Host
 	r.SetXForwarded()
 	pp.setAuth(r)
 }

@@ -278,3 +278,176 @@ func TestProviderProxy_FlushIntervalSetForSSE(t *testing.T) {
 	// FlushInterval -1 means flush after every write (important for SSE)
 	assert.Equal(t, int64(-1), int64(pp.Proxy.FlushInterval))
 }
+
+// mockCloudProvider simulates a cloud provider that requires body transformation.
+type mockCloudProvider struct {
+	baseURL      string
+	transformURL string
+}
+
+func (m *mockCloudProvider) Name() string                       { return "mock-cloud" }
+func (m *mockCloudProvider) BaseURL() string                    { return m.baseURL }
+func (m *mockCloudProvider) Owner() string                      { return "cloud" }
+func (m *mockCloudProvider) SupportsStreaming() bool            { return true }
+func (m *mockCloudProvider) SupportsTransparentAuth() bool      { return false }
+func (m *mockCloudProvider) ListModels() []providers.Model      { return nil }
+func (m *mockCloudProvider) GetModelMapping() map[string]string { return nil }
+func (m *mockCloudProvider) MapModel(model string) string       { return model }
+func (m *mockCloudProvider) StreamingContentType() string       { return "text/event-stream" }
+func (m *mockCloudProvider) Authenticate(req *http.Request, _ string) error {
+	req.Header.Set("X-Cloud-Auth", "signed")
+	return nil
+}
+func (m *mockCloudProvider) ForwardHeaders(_ http.Header) http.Header {
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/json")
+	return headers
+}
+func (m *mockCloudProvider) TransformRequest(_ []byte, _ string) (newBody []byte, targetURL string, err error) {
+	// Simulate transformation: remove model, return dynamic URL
+	return []byte(`{"transformed":true}`), m.transformURL, nil
+}
+func (m *mockCloudProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
+	return nil
+}
+func (m *mockCloudProvider) RequiresBodyTransform() bool {
+	return true // This is the key difference from standard providers
+}
+
+// TestProviderProxy_TransformRequest_CalledForCloudProviders tests that TransformRequest
+// is called for providers that require body transformation.
+func TestProviderProxy_TransformRequest_CalledForCloudProviders(t *testing.T) {
+	t.Parallel()
+
+	var receivedBody string
+	var receivedPath string
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		receivedBody = string(body)
+		receivedPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	// Cloud provider transforms URL to include model in path
+	provider := &mockCloudProvider{
+		baseURL:      backend.URL,
+		transformURL: backend.URL + "/model/claude-3/invoke",
+	}
+
+	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	require.NoError(t, err)
+
+	// Send request with original body
+	req := httptest.NewRequest("POST", "/v1/messages",
+		strings.NewReader(`{"model":"claude-3","max_tokens":100}`))
+	req.Header.Set("X-Selected-Key", "key")
+	w := httptest.NewRecorder()
+	pp.Proxy.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// Body should be transformed
+	assert.Equal(t, `{"transformed":true}`, receivedBody)
+	// URL should include model in path
+	assert.Equal(t, "/model/claude-3/invoke", receivedPath)
+}
+
+// TestProviderProxy_TransformRequest_NotCalledForStandardProviders tests that
+// TransformRequest is NOT called for standard providers.
+func TestProviderProxy_TransformRequest_NotCalledForStandardProviders(t *testing.T) {
+	t.Parallel()
+
+	var receivedBody string
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		receivedBody = string(body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"test"}`))
+	}))
+	defer backend.Close()
+
+	// Anthropic provider does NOT require body transform
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	assert.False(t, provider.RequiresBodyTransform())
+
+	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	require.NoError(t, err)
+
+	originalBody := `{"model":"claude-3","max_tokens":100}`
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(originalBody))
+	req.Header.Set("X-Selected-Key", "key")
+	w := httptest.NewRecorder()
+	pp.Proxy.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// Body should NOT be transformed - sent as-is
+	assert.Equal(t, originalBody, receivedBody)
+}
+
+// TestProviderProxy_EventStreamConversion tests Bedrock Event Stream handling.
+func TestProviderProxy_EventStreamConversion(t *testing.T) {
+	t.Parallel()
+
+	// Mock Bedrock provider that returns Event Stream
+	provider := &mockEventStreamProvider{
+		baseURL: "https://bedrock.example.com",
+	}
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// Return Event Stream content type (like Bedrock)
+		w.Header().Set("Content-Type", providers.ContentTypeEventStream)
+		w.WriteHeader(http.StatusOK)
+		// In real scenario, this would be Event Stream binary data
+		_, _ = w.Write([]byte("event-stream-data"))
+	}))
+	defer backend.Close()
+
+	provider.baseURL = backend.URL
+
+	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req.Header.Set("X-Selected-Key", "key")
+	w := httptest.NewRecorder()
+	pp.Proxy.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// Content-Type should be converted to SSE
+	assert.Equal(t, providers.ContentTypeSSE, w.Header().Get("Content-Type"))
+	// SSE headers should be set
+	assert.Equal(t, "no-cache, no-transform", w.Header().Get("Cache-Control"))
+}
+
+// mockEventStreamProvider simulates a Bedrock-like provider.
+type mockEventStreamProvider struct {
+	baseURL string
+}
+
+func (m *mockEventStreamProvider) Name() string                                 { return "mock-bedrock" }
+func (m *mockEventStreamProvider) BaseURL() string                              { return m.baseURL }
+func (m *mockEventStreamProvider) Owner() string                                { return "aws" }
+func (m *mockEventStreamProvider) SupportsStreaming() bool                      { return true }
+func (m *mockEventStreamProvider) SupportsTransparentAuth() bool                { return false }
+func (m *mockEventStreamProvider) ListModels() []providers.Model                { return nil }
+func (m *mockEventStreamProvider) GetModelMapping() map[string]string           { return nil }
+func (m *mockEventStreamProvider) MapModel(model string) string                 { return model }
+func (m *mockEventStreamProvider) RequiresBodyTransform() bool                  { return false }
+func (m *mockEventStreamProvider) Authenticate(_ *http.Request, _ string) error { return nil }
+func (m *mockEventStreamProvider) ForwardHeaders(_ http.Header) http.Header {
+	return make(http.Header)
+}
+func (m *mockEventStreamProvider) TransformRequest(
+	body []byte, endpoint string,
+) (newBody []byte, targetURL string, err error) {
+	return body, m.baseURL + endpoint, nil
+}
+func (m *mockEventStreamProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
+	return nil
+}
+
+// StreamingContentType returns Event Stream (like Bedrock).
+func (m *mockEventStreamProvider) StreamingContentType() string {
+	return providers.ContentTypeEventStream
+}
