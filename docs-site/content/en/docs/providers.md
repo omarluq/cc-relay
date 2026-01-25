@@ -15,8 +15,9 @@ CC-Relay acts as a proxy between Claude Code and various LLM backends. All provi
 | Anthropic | `anthropic` | Direct Anthropic API access | Standard Anthropic pricing |
 | Z.AI | `zai` | Zhipu AI GLM models, Anthropic-compatible | ~1/7 of Anthropic pricing |
 | Ollama | `ollama` | Local LLM inference | Free (local compute) |
-
-**Coming in Phase 6:** AWS Bedrock, Azure Foundry, Google Vertex AI
+| AWS Bedrock | `bedrock` | Claude via AWS with SigV4 auth | AWS Bedrock pricing |
+| Azure AI Foundry | `azure` | Claude via Azure MAAS | Azure AI pricing |
+| Google Vertex AI | `vertex` | Claude via Google Cloud | Vertex AI pricing |
 
 ## Anthropic Provider
 
@@ -215,6 +216,171 @@ Alternatively, run cc-relay with `--network host`:
 ```bash
 docker run --network host cc-relay
 ```
+
+## AWS Bedrock Provider
+
+AWS Bedrock provides Claude access through Amazon Web Services with enterprise-grade security and SigV4 authentication.
+
+### Configuration
+
+```yaml
+providers:
+  - name: "bedrock"
+    type: "bedrock"
+    enabled: true
+
+    # AWS region (required)
+    aws_region: "us-east-1"
+
+    # Explicit AWS credentials (optional)
+    # If not set, uses AWS SDK default credential chain:
+    # 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    # 2. Shared credentials file (~/.aws/credentials)
+    # 3. IAM role (EC2, ECS, Lambda)
+    aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+    aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+
+    # Map Claude model names to Bedrock model IDs
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+      "claude-haiku-3-5-20241022": "anthropic.claude-haiku-3-5-20241022-v1:0"
+
+    keys:
+      - key: "bedrock-internal"  # Internal key for cc-relay auth
+```
+
+### AWS Setup
+
+1. **Enable Bedrock Access**: In AWS Console, navigate to Bedrock > Model access and enable Claude models
+2. **Configure Credentials**: Use one of these methods:
+   - **Environment Variables**: `export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`
+   - **AWS CLI**: `aws configure`
+   - **IAM Role**: Attach Bedrock access policy to EC2/ECS/Lambda role
+
+### Bedrock Model IDs
+
+Bedrock uses a specific model ID format: `anthropic.{model}-v{version}:{minor}`
+
+| Claude Model | Bedrock Model ID |
+|--------------|------------------|
+| claude-sonnet-4-5-20250514 | `anthropic.claude-sonnet-4-5-20250514-v1:0` |
+| claude-opus-4-5-20250514 | `anthropic.claude-opus-4-5-20250514-v1:0` |
+| claude-haiku-3-5-20241022 | `anthropic.claude-haiku-3-5-20241022-v1:0` |
+
+### Event Stream Conversion
+
+Bedrock returns responses in AWS Event Stream format. CC-Relay automatically converts this to SSE format for Claude Code compatibility. No additional configuration is needed.
+
+## Azure AI Foundry Provider
+
+Azure AI Foundry provides Claude access through Microsoft Azure with enterprise Azure integration.
+
+### Configuration
+
+```yaml
+providers:
+  - name: "azure"
+    type: "azure"
+    enabled: true
+
+    # Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
+    azure_resource_name: "my-azure-resource"
+
+    # Azure API version (default: 2024-06-01)
+    azure_api_version: "2024-06-01"
+
+    # Azure uses x-api-key authentication (Anthropic-compatible)
+    keys:
+      - key: "${AZURE_API_KEY}"
+
+    # Map Claude model names to Azure deployment names
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+      "claude-sonnet-4-5": "claude-sonnet-4-5"
+      "claude-haiku-3-5": "claude-haiku-3-5"
+```
+
+### Azure Setup
+
+1. **Create Azure AI Resource**: In Azure Portal, create an Azure AI Foundry resource
+2. **Deploy Claude Model**: Deploy a Claude model in your AI Foundry workspace
+3. **Get API Key**: Copy the API key from Keys and Endpoint section
+4. **Note Resource Name**: Your URL is `https://{resource_name}.services.ai.azure.com`
+
+### Deployment Names
+
+Azure uses deployment names as model identifiers. Create deployments in Azure AI Foundry, then map them:
+
+```yaml
+model_mapping:
+  "claude-sonnet-4-5": "my-sonnet-deployment"  # Your deployment name
+```
+
+## Google Vertex AI Provider
+
+Vertex AI provides Claude access through Google Cloud with seamless GCP integration.
+
+### Configuration
+
+```yaml
+providers:
+  - name: "vertex"
+    type: "vertex"
+    enabled: true
+
+    # Google Cloud project ID (required)
+    gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
+
+    # Google Cloud region (required)
+    gcp_region: "us-east5"
+
+    # Map Claude model names to Vertex AI model IDs
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
+      "claude-sonnet-4-5": "claude-sonnet-4-5@20250514"
+      "claude-haiku-3-5-20241022": "claude-haiku-3-5@20241022"
+
+    keys:
+      - key: "vertex-internal"  # Internal key for cc-relay auth
+```
+
+### GCP Setup
+
+1. **Enable Vertex AI API**: In GCP Console, enable the Vertex AI API
+2. **Request Claude Access**: Request access to Claude models through Vertex AI Model Garden
+3. **Configure Authentication**: Use one of these methods:
+   - **Application Default Credentials**: `gcloud auth application-default login`
+   - **Service Account**: Set `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+   - **GCE/GKE**: Uses attached service account automatically
+
+### Vertex AI Model IDs
+
+Vertex AI uses `{model}@{version}` format:
+
+| Claude Model | Vertex AI Model ID |
+|--------------|-------------------|
+| claude-sonnet-4-5-20250514 | `claude-sonnet-4-5@20250514` |
+| claude-opus-4-5-20250514 | `claude-opus-4-5@20250514` |
+| claude-haiku-3-5-20241022 | `claude-haiku-3-5@20241022` |
+
+### Regions
+
+Available regions for Claude on Vertex AI:
+- `us-east5` (default)
+- `us-central1`
+- `europe-west1`
+
+## Cloud Provider Comparison
+
+| Feature | Bedrock | Azure | Vertex AI |
+|---------|---------|-------|-----------|
+| Authentication | SigV4 (AWS) | API Key | OAuth2 (GCP) |
+| Streaming Format | Event Stream | SSE | SSE |
+| Body Transform | Yes | No | Yes |
+| Model in URL | Yes | No | Yes |
+| Enterprise SSO | AWS IAM | Entra ID | GCP IAM |
+| Regions | US, EU, APAC | Global | US, EU |
 
 ## Model Mapping
 
