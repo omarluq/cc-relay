@@ -15,8 +15,9 @@ CC-Relay는 Claude Code와 다양한 LLM 백엔드 사이의 프록시 역할을
 | Anthropic | `anthropic` | 직접 Anthropic API 접근 | 표준 Anthropic 가격 |
 | Z.AI | `zai` | Zhipu AI GLM 모델, Anthropic 호환 | Anthropic 가격의 약 1/7 |
 | Ollama | `ollama` | 로컬 LLM 추론 | 무료 (로컬 컴퓨팅) |
-
-**Phase 6에서 추가 예정:** AWS Bedrock, Azure Foundry, Google Vertex AI
+| AWS Bedrock | `bedrock` | SigV4 인증으로 AWS 경유 Claude | AWS Bedrock 가격 |
+| Azure AI Foundry | `azure` | Azure MAAS 경유 Claude | Azure AI 가격 |
+| Google Vertex AI | `vertex` | Google Cloud 경유 Claude | Vertex AI 가격 |
 
 ## Anthropic 프로바이더
 
@@ -215,6 +216,60 @@ providers:
 ```bash
 docker run --network host cc-relay
 ```
+
+## AWS Bedrock 프로바이더
+
+AWS Bedrock은 엔터프라이즈 보안과 SigV4 인증을 통해 Amazon Web Services를 통한 Claude 접근을 제공합니다.
+
+```yaml
+providers:
+  - name: "bedrock"
+    type: "bedrock"
+    enabled: true
+    aws_region: "us-east-1"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+    keys:
+      - key: "bedrock-internal"
+```
+
+Bedrock은 AWS SDK 표준 자격 증명 체인(환경 변수, IAM 역할 등)을 사용합니다.
+
+## Azure AI Foundry 프로바이더
+
+Azure AI Foundry는 엔터프라이즈 Azure 통합을 통해 Microsoft Azure를 통한 Claude 접근을 제공합니다.
+
+```yaml
+providers:
+  - name: "azure"
+    type: "azure"
+    enabled: true
+    azure_resource_name: "my-azure-resource"
+    azure_api_version: "2024-06-01"
+    keys:
+      - key: "${AZURE_API_KEY}"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+```
+
+## Google Vertex AI 프로바이더
+
+Vertex AI는 원활한 GCP 통합을 통해 Google Cloud를 통한 Claude 접근을 제공합니다.
+
+```yaml
+providers:
+  - name: "vertex"
+    type: "vertex"
+    enabled: true
+    gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
+    gcp_region: "us-east5"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
+    keys:
+      - key: "vertex-internal"
+```
+
+Vertex는 Google Application Default Credentials 또는 gcloud CLI를 사용합니다.
 
 ## Model Mapping
 

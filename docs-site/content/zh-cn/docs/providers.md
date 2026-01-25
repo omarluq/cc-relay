@@ -15,8 +15,9 @@ CC-Relay 作为 Claude Code 和各种 LLM 后端之间的代理。所有供应�
 | Anthropic | `anthropic` | 直接访问 Anthropic API | 标准 Anthropic 定价 |
 | Z.AI | `zai` | Zhipu AI GLM 模型，Anthropic 兼容 | 约为 Anthropic 定价的 1/7 |
 | Ollama | `ollama` | 本地 LLM 推理 | 免费（本地计算） |
-
-**Phase 6 即将推出:** AWS Bedrock、Azure Foundry、Google Vertex AI
+| AWS Bedrock | `bedrock` | 通过 AWS 使用 SigV4 认证访问 Claude | AWS Bedrock 定价 |
+| Azure AI Foundry | `azure` | 通过 Azure MAAS 访问 Claude | Azure AI 定价 |
+| Google Vertex AI | `vertex` | 通过 Google Cloud 访问 Claude | Vertex AI 定价 |
 
 ## Anthropic 供应商
 
@@ -215,6 +216,60 @@ providers:
 ```bash
 docker run --network host cc-relay
 ```
+
+## AWS Bedrock 供应商
+
+AWS Bedrock 通过 Amazon Web Services 提供 Claude 访问，具有企业级安全性和 SigV4 认证。
+
+```yaml
+providers:
+  - name: "bedrock"
+    type: "bedrock"
+    enabled: true
+    aws_region: "us-east-1"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+    keys:
+      - key: "bedrock-internal"
+```
+
+Bedrock 使用 AWS SDK 标准凭证链（环境变量、IAM 角色等）。
+
+## Azure AI Foundry 供应商
+
+Azure AI Foundry 通过 Microsoft Azure 提供 Claude 访问，具有企业级 Azure 集成。
+
+```yaml
+providers:
+  - name: "azure"
+    type: "azure"
+    enabled: true
+    azure_resource_name: "my-azure-resource"
+    azure_api_version: "2024-06-01"
+    keys:
+      - key: "${AZURE_API_KEY}"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+```
+
+## Google Vertex AI 供应商
+
+Vertex AI 通过 Google Cloud 提供 Claude 访问，具有无缝 GCP 集成。
+
+```yaml
+providers:
+  - name: "vertex"
+    type: "vertex"
+    enabled: true
+    gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
+    gcp_region: "us-east5"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
+    keys:
+      - key: "vertex-internal"
+```
+
+Vertex 使用 Google Application Default Credentials 或 gcloud CLI。
 
 ## Model Mapping
 

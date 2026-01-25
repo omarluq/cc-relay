@@ -15,8 +15,9 @@ CC-Relay actua como un proxy entre Claude Code y varios backends de LLM. Todos l
 | Anthropic | `anthropic` | Acceso directo a la API de Anthropic | Precios estandar de Anthropic |
 | Z.AI | `zai` | Modelos GLM de Zhipu AI, compatible con Anthropic | ~1/7 del precio de Anthropic |
 | Ollama | `ollama` | Inferencia LLM local | Gratis (computo local) |
-
-**Disponible en Fase 6:** AWS Bedrock, Azure Foundry, Google Vertex AI
+| AWS Bedrock | `bedrock` | Claude via AWS con autenticacion SigV4 | Precios AWS Bedrock |
+| Azure AI Foundry | `azure` | Claude via Azure MAAS | Precios Azure AI |
+| Google Vertex AI | `vertex` | Claude via Google Cloud | Precios Vertex AI |
 
 ## Proveedor Anthropic
 
@@ -215,6 +216,60 @@ Alternativamente, ejecute cc-relay con `--network host`:
 ```bash
 docker run --network host cc-relay
 ```
+
+## Proveedor AWS Bedrock
+
+AWS Bedrock proporciona acceso a Claude a traves de Amazon Web Services con seguridad empresarial y autenticacion SigV4.
+
+```yaml
+providers:
+  - name: "bedrock"
+    type: "bedrock"
+    enabled: true
+    aws_region: "us-east-1"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+    keys:
+      - key: "bedrock-internal"
+```
+
+Bedrock utiliza la cadena de credenciales estandar del SDK de AWS (variables de entorno, rol IAM, etc.).
+
+## Proveedor Azure AI Foundry
+
+Azure AI Foundry proporciona acceso a Claude a traves de Microsoft Azure con integracion empresarial de Azure.
+
+```yaml
+providers:
+  - name: "azure"
+    type: "azure"
+    enabled: true
+    azure_resource_name: "mi-recurso-azure"
+    azure_api_version: "2024-06-01"
+    keys:
+      - key: "${AZURE_API_KEY}"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+```
+
+## Proveedor Google Vertex AI
+
+Vertex AI proporciona acceso a Claude a traves de Google Cloud con integracion GCP nativa.
+
+```yaml
+providers:
+  - name: "vertex"
+    type: "vertex"
+    enabled: true
+    gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
+    gcp_region: "us-east5"
+    model_mapping:
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
+    keys:
+      - key: "vertex-internal"
+```
+
+Vertex utiliza Google Application Default Credentials o gcloud CLI.
 
 ## Model Mapping
 
