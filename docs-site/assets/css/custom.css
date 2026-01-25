@@ -633,14 +633,12 @@ footer {
   width: 56px;
   height: 56px;
   margin: 0 auto 1.25rem;
-  filter: brightness(0) saturate(100%) invert(95%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(103%) contrast(103%);
   opacity: 1;
   transition: all 0.3s ease;
 }
 
 .arch-provider:hover .arch-provider-logo {
   transform: scale(1.15);
-  filter: brightness(0) saturate(100%) invert(60%) sepia(61%) saturate(3905%) hue-rotate(211deg) brightness(102%) contrast(101%);
 }
 
 .arch-provider-name {
@@ -1713,5 +1711,201 @@ div[class*="mt-6"] > a,
   .landing-page .hero-button:active {
     transform: scale(0.98);
     transition: transform 0.1s ease;
+  }
+}
+
+/* ============================================
+   NETWORK VISUALIZATION STYLES
+   ============================================ */
+
+.network-visualization {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  margin: 2rem auto;
+  position: relative;
+  overflow: hidden;
+  max-width: 900px;
+}
+
+.network-visualization::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 30% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 70% 50%, rgba(236, 72, 153, 0.15) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.network-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.network-path {
+  stroke-dasharray: 8, 4;
+  animation: dash-flow 20s linear infinite;
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -240;
+  }
+}
+
+.network-node {
+  transition: transform 0.3s ease;
+}
+
+.network-node:hover {
+  transform: scale(1.05);
+}
+
+.node-logo {
+  opacity: 0.9;
+}
+
+.provider-logo-svg {
+  filter: brightness(0) saturate(100%) invert(95%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(103%) contrast(103%);
+}
+
+.packet {
+  opacity: 1;
+}
+
+.relay-hub {
+  transform-origin: center;
+}
+
+/* Compact Terminal */
+.terminal-compact .terminal-body {
+  padding: 1.25rem;
+  min-height: auto;
+}
+
+.terminal-compact .terminal-line {
+  margin-bottom: 0.5rem;
+}
+
+.terminal-line.show-immediately {
+  opacity: 1;
+  animation: none;
+}
+
+/* Compact Features Grid */
+.features-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem auto;
+  max-width: 1000px;
+  padding: 0 1rem;
+}
+
+.feature-compact {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.6) 100%);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(99, 102, 241, 0.2);
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+.feature-compact:hover {
+  border-color: rgba(236, 72, 153, 0.4);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(236, 72, 153, 0.2);
+}
+
+.feature-icon-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+  border-radius: 12px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: white;
+  flex-shrink: 0;
+}
+
+.feature-compact strong {
+  display: block;
+  color: #e2e8f0;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.feature-compact span {
+  color: #94a3b8;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Mobile responsive for network visualization */
+@media (max-width: 768px) {
+  .network-visualization {
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 1rem;
+  }
+
+  .network-svg {
+    min-height: 250px;
+  }
+
+  .features-compact {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 0 0.5rem;
+  }
+
+  .feature-compact {
+    padding: 1.25rem;
+  }
+
+  .feature-icon-compact {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .network-visualization {
+    padding: 0.75rem;
+  }
+
+  .network-svg {
+    min-height: 200px;
+  }
+
+  .feature-compact {
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+
+  .feature-icon-compact {
+    width: 36px;
+    height: 36px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+  }
+
+  .feature-compact strong {
+    font-size: 0.9rem;
+  }
+
+  .feature-compact span {
+    font-size: 0.8rem;
   }
 }

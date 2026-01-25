@@ -8,7 +8,7 @@ layout: hextra-home
 <div class="custom-hero">
   <h1 class="hero-title">CC-Relay</h1>
   <p class="hero-subtitle">
-    Redefining the Claude Code multi-model story
+    Multi-provider proxy for Claude Code
   </p>
   <div class="hero-buttons">
     <a href="docs/getting-started/" class="hero-button hero-button-primary">Get Started</a>
@@ -21,322 +21,147 @@ layout: hextra-home
   </div>
 </div>
 
-<div class="mt-6 mb-6">
-{{< hextra/feature-grid >}}
-  {{< hextra/feature-card
-    title="Multi-Provider Support"
-    subtitle="Connect to Anthropic and Z.AI from a single endpoint (more providers coming soon)"
-  >}}
-  {{< hextra/feature-card
-    title="SSE Streaming"
-    subtitle="Full Server-Sent Events support with perfect Claude Code compatibility"
-  >}}
-  {{< hextra/feature-card
-    title="Multiple API Keys"
-    subtitle="Pool multiple API keys per provider for higher throughput"
-  >}}
-  {{< hextra/feature-card
-    title="Flexible Authentication"
-    subtitle="API key and Bearer token support for Claude Code subscription users"
-  >}}
-  {{< hextra/feature-card
-    title="Claude Code Integration"
-    subtitle="One command setup with built-in configuration management"
-  >}}
-  {{< hextra/feature-card
-    title="Anthropic API Compatible"
-    subtitle="Drop-in replacement requiring no client changes"
-  >}}
-{{< /hextra/feature-grid >}}
-</div>
+<div class="section-box">
+  <h2 class="section-title">How It Works</h2>
+  <p class="section-description">Route requests from Claude Code through cc-relay to any provider</p>
 
-<div class="info-box">
-  <div class="info-box-title">
-    <span class="info-icon">⚡</span>
-    Current Features
-  </div>
-  <div class="info-box-content">
-    <div class="feature-item">
-      <span class="feature-icon">🔑</span>
-      <div>
-        <strong>Multiple API Keys</strong>
-        <p>Pool multiple keys per provider for higher throughput</p>
-      </div>
-    </div>
-    <div class="feature-item">
-      <span class="feature-icon">🔐</span>
-      <div>
-        <strong>Multi-Auth Support</strong>
-        <p>API key and Bearer token authentication for flexible access</p>
-      </div>
-    </div>
-    <div class="feature-item">
-      <span class="feature-icon">📡</span>
-      <div>
-        <strong>SSE Streaming</strong>
-        <p>Perfect compatibility with Claude Code's real-time streaming</p>
-      </div>
-    </div>
-    <div class="feature-item">
-      <span class="feature-icon">🎛️</span>
-      <div>
-        <strong>Debug Logging</strong>
-        <p>Detailed request/response logging for troubleshooting</p>
-      </div>
-    </div>
-    <div class="feature-item">
-      <span class="feature-icon">⚙️</span>
-      <div>
-        <strong>Environment Variables</strong>
-        <p>Secure configuration with ${VAR} expansion in YAML</p>
-      </div>
-    </div>
-    <div class="feature-item">
-      <span class="feature-icon">🚀</span>
-      <div>
-        <strong>Easy Setup</strong>
-        <p>One-command Claude Code integration with cc-relay config cc init</p>
-      </div>
-    </div>
+  <div class="network-visualization" id="network-viz">
+    <svg viewBox="0 0 900 400" class="network-svg">
+      <defs>
+        <linearGradient id="relay-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#ec4899"/>
+          <stop offset="100%" style="stop-color:#8b5cf6"/>
+        </linearGradient>
+        <linearGradient id="path-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#6366f1;stop-opacity:0.3"/>
+          <stop offset="50%" style="stop-color:#ec4899;stop-opacity:0.6"/>
+          <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:0.3"/>
+        </linearGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <!-- Connection paths from Claude Code to CC-Relay -->
+      <path class="network-path path-main" d="M 150 200 Q 300 200 450 200" stroke="url(#path-gradient)" stroke-width="3" fill="none"/>
+
+      <!-- Connection paths from CC-Relay to providers (arc arrangement) -->
+      <path class="network-path path-1" d="M 450 200 Q 600 80 750 80" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
+      <path class="network-path path-2" d="M 450 200 Q 600 140 750 140" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
+      <path class="network-path path-3" d="M 450 200 Q 600 200 750 200" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
+      <path class="network-path path-4" d="M 450 200 Q 600 260 750 260" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
+      <path class="network-path path-5" d="M 450 200 Q 600 320 750 320" stroke="url(#path-gradient)" stroke-width="2" fill="none"/>
+
+      <!-- Claude Code Node -->
+      <g class="network-node claude-node" transform="translate(100, 160)">
+        <rect x="0" y="0" width="100" height="80" rx="12" fill="rgba(30, 41, 59, 0.9)" stroke="#6366f1" stroke-width="2"/>
+        <image href="/logos/claude-code.svg" x="25" y="10" width="50" height="40" class="node-logo"/>
+        <text x="50" y="65" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">Claude Code</text>
+      </g>
+
+      <!-- CC-Relay Hub -->
+      <g class="network-node relay-hub" transform="translate(400, 150)">
+        <circle cx="50" cy="50" r="50" fill="url(#relay-gradient)" filter="url(#glow)"/>
+        <text x="50" y="45" text-anchor="middle" fill="white" font-size="14" font-weight="700">CC</text>
+        <text x="50" y="62" text-anchor="middle" fill="white" font-size="14" font-weight="700">Relay</text>
+      </g>
+
+      <!-- Provider Nodes -->
+      <g class="network-node provider-node" transform="translate(700, 50)">
+        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#10b981" stroke-width="2"/>
+        <image href="/logos/anthropic.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
+        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Anthropic</text>
+      </g>
+
+      <g class="network-node provider-node" transform="translate(700, 110)">
+        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#8b5cf6" stroke-width="2"/>
+        <image href="/logos/zai.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
+        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Z.AI</text>
+      </g>
+
+      <g class="network-node provider-node" transform="translate(700, 170)">
+        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#3b82f6" stroke-width="2"/>
+        <image href="/logos/ollama.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
+        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Ollama</text>
+      </g>
+
+      <g class="network-node provider-node" transform="translate(700, 230)">
+        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#ff9900" stroke-width="2"/>
+        <image href="/logos/aws.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
+        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Bedrock</text>
+      </g>
+
+      <g class="network-node provider-node" transform="translate(700, 290)">
+        <rect x="0" y="0" width="100" height="60" rx="10" fill="rgba(30, 41, 59, 0.9)" stroke="#0078d4" stroke-width="2"/>
+        <image href="/logos/azure.svg" x="10" y="10" width="30" height="30" class="node-logo provider-logo-svg"/>
+        <text x="55" y="30" text-anchor="start" fill="#e2e8f0" font-size="11" font-weight="600">Azure</text>
+      </g>
+
+      <!-- Animated Packets (will be animated with AnimeJS) -->
+      <circle class="packet packet-1" cx="150" cy="200" r="6" fill="#ec4899" filter="url(#glow)"/>
+      <circle class="packet packet-2" cx="150" cy="200" r="6" fill="#6366f1" filter="url(#glow)"/>
+      <circle class="packet packet-3" cx="150" cy="200" r="6" fill="#8b5cf6" filter="url(#glow)"/>
+      <circle class="packet packet-4" cx="150" cy="200" r="6" fill="#10b981" filter="url(#glow)"/>
+      <circle class="packet packet-5" cx="150" cy="200" r="6" fill="#f97316" filter="url(#glow)"/>
+    </svg>
   </div>
 </div>
 
 <div class="section-box">
   <h2 class="section-title">Quick Start</h2>
 
-<div class="terminal-container">
+<div class="terminal-container terminal-compact">
   <div class="terminal-header">
     <div class="terminal-buttons">
       <span class="terminal-button close"></span>
       <span class="terminal-button minimize"></span>
       <span class="terminal-button maximize"></span>
     </div>
-    <div class="terminal-title">Terminal — bash</div>
+    <div class="terminal-title">Terminal</div>
   </div>
   <div class="terminal-body">
-    <div class="terminal-line">
+    <div class="terminal-line show-immediately">
       <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-1"># Install</span>
+      <span class="terminal-command">go install github.com/omarluq/cc-relay@latest</span>
     </div>
-    <div class="terminal-line">
+    <div class="terminal-line show-immediately">
       <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-2">go install github.com/omarluq/cc-relay@latest</span>
+      <span class="terminal-command">cc-relay config init && cc-relay config cc init</span>
     </div>
-    <div class="terminal-line terminal-output typing-3">
-      <span class="terminal-success">✓ installed cc-relay@latest</span>
-    </div>
-    <div class="terminal-line">
+    <div class="terminal-line show-immediately">
       <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-4"># Initialize configuration</span>
+      <span class="terminal-command">cc-relay serve</span>
     </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-5">cc-relay config init</span>
-    </div>
-    <div class="terminal-line terminal-output typing-6">
-      <span class="terminal-success">✓ Config created at ~/.config/cc-relay/config.yaml</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-7"># Configure Claude Code integration</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-8">cc-relay config cc init</span>
-    </div>
-    <div class="terminal-line terminal-output typing-9">
-      <span class="terminal-success">✓ Claude Code configured to use cc-relay</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-10"># Run the server</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-11">cc-relay serve</span>
-    </div>
-    <div class="terminal-line terminal-output typing-12">
-      <span class="terminal-info">→ Server started on http://localhost:8787</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-13"># Start using Claude Code</span>
-    </div>
-    <div class="terminal-line">
-      <span class="terminal-prompt">$</span>
-      <span class="terminal-command typing-14">claude</span>
-    </div>
-    <div class="terminal-line terminal-output typing-15">
-      <span class="terminal-success">✓ Connected via cc-relay</span>
-      <span class="terminal-cursor"></span>
+    <div class="terminal-line terminal-output show-immediately">
+      <span class="terminal-info">Server started on http://localhost:8787</span>
     </div>
   </div>
 </div>
 </div>
 
 <div class="section-box">
-  <h2 class="section-title">Architecture</h2>
-  <p class="section-description">CC-Relay sits between your LLM client and backend providers, proxying requests with full Anthropic API compatibility</p>
-
-<div class="architecture-diagram">
-  <div class="arch-layer">
-    <div class="arch-layer-title">Client Layer</div>
-    <div class="arch-node arch-node-client">
-      <div class="client-icon">🤖</div>
-      <div class="client-text">
-        <strong>Claude Code Client</strong><br/>
-        <span style="font-size: 0.875rem; opacity: 0.9;">POST /v1/messages</span>
-      </div>
+  <h2 class="section-title">Features</h2>
+  <div class="features-compact">
+    <div class="feature-compact">
+      <span class="feature-icon-compact">6</span>
+      <div><strong>Providers</strong><br/><span>Anthropic, Z.AI, Ollama, Bedrock, Azure, Vertex</span></div>
     </div>
-  </div>
-
-  <div class="arch-connector">↓</div>
-
-  <div class="arch-layer">
-    <div class="arch-layer-title">Proxy Engine</div>
-    <div class="arch-proxy">
-      <div class="arch-proxy-component">🔐 Authentication</div>
-      <div class="arch-proxy-component">📝 Request Logging</div>
-      <div class="arch-proxy-component">📡 SSE Streaming</div>
-      <div class="arch-proxy-component">🔑 API Key Management</div>
+    <div class="feature-compact">
+      <span class="feature-icon-compact">N</span>
+      <div><strong>API Keys</strong><br/><span>Pool multiple keys for higher throughput</span></div>
     </div>
-  </div>
-
-  <div class="arch-connector">↓</div>
-
-  <div class="arch-layer">
-    <div class="arch-layer-title">Provider Layer (Implemented)</div>
-    <div class="arch-providers">
-      <div class="arch-provider anthropic">
-        <img src="/logos/anthropic.svg" alt="Anthropic" class="arch-provider-logo" />
-        <div class="arch-provider-name">Anthropic</div>
-        <div class="arch-provider-desc">Claude Models</div>
-      </div>
-      <div class="arch-provider zai">
-        <img src="/logos/zai.svg" alt="Z.AI" class="arch-provider-logo" />
-        <div class="arch-provider-name">Z.AI</div>
-        <div class="arch-provider-desc">GLM Models</div>
-      </div>
+    <div class="feature-compact">
+      <span class="feature-icon-compact">5</span>
+      <div><strong>Routing Strategies</strong><br/><span>Failover, round-robin, weighted, shuffle, cost-based</span></div>
     </div>
-  </div>
-
-  <div class="arch-connector" style="margin-top: 1rem;">↓</div>
-
-  <div class="arch-layer">
-    <div class="arch-layer-title" style="opacity: 0.7;">Coming Soon</div>
-    <div class="arch-providers" style="opacity: 0.6;">
-      <div class="arch-provider ollama">
-        <img src="/logos/ollama.svg" alt="Ollama" class="arch-provider-logo" />
-        <div class="arch-provider-name">Ollama</div>
-        <div class="arch-provider-desc">Local Models</div>
-      </div>
-      <div class="arch-provider bedrock">
-        <img src="/logos/aws.svg" alt="AWS Bedrock" class="arch-provider-logo" />
-        <div class="arch-provider-name">AWS Bedrock</div>
-        <div class="arch-provider-desc">SigV4 Auth</div>
-      </div>
-      <div class="arch-provider azure">
-        <img src="/logos/azure.svg" alt="Azure" class="arch-provider-logo" />
-        <div class="arch-provider-name">Azure Foundry</div>
-        <div class="arch-provider-desc">Deployments</div>
-      </div>
-      <div class="arch-provider vertex">
-        <img src="/logos/gcp.svg" alt="Vertex AI" class="arch-provider-logo" />
-        <div class="arch-provider-name">Vertex AI</div>
-        <div class="arch-provider-desc">OAuth</div>
-      </div>
+    <div class="feature-compact">
+      <span class="feature-icon-compact">%</span>
+      <div><strong>100% Compatible</strong><br/><span>Drop-in Anthropic API replacement</span></div>
     </div>
-  </div>
-</div>
-</div>
-
-<div class="section-box">
-  <h2 class="section-title">Use Cases</h2>
-  <p class="section-description">Power your development workflow with CC-Relay</p>
-
-  <div class="use-cases-grid">
-    <div class="use-case-card">
-      <div class="use-case-icon">🔄</div>
-      <h3>Provider Flexibility</h3>
-      <p>Switch between Anthropic and Z.AI without changing your client code</p>
-    </div>
-    <div class="use-case-card">
-      <div class="use-case-icon">👥</div>
-      <h3>Development Teams</h3>
-      <p>Share API quota across multiple developers with pooled keys</p>
-    </div>
-    <div class="use-case-card">
-      <div class="use-case-icon">🔑</div>
-      <h3>API Key Management</h3>
-      <p>Centralize and rotate API keys without client updates</p>
-    </div>
-    <div class="use-case-card">
-      <div class="use-case-icon">💰</div>
-      <h3>Cost Comparison</h3>
-      <p>Test Z.AI's GLM models as a lower-cost alternative</p>
-    </div>
-    <div class="use-case-card">
-      <div class="use-case-icon">🔐</div>
-      <h3>Subscription Passthrough</h3>
-      <p>Route Claude Code subscription users through your proxy</p>
-    </div>
-    <div class="use-case-card">
-      <div class="use-case-icon">🐛</div>
-      <h3>Request Debugging</h3>
-      <p>Log and inspect API requests for troubleshooting</p>
-    </div>
-  </div>
-</div>
-
-<div class="section-box">
-  <h2 class="section-title">Documentation</h2>
-  <p class="section-description">Everything you need to get started and master CC-Relay</p>
-
-  <div class="docs-grid">
-    {{< hextra/feature-card
-      title="Getting Started"
-      subtitle="Installation, configuration, and first run"
-      link="/en/docs/getting-started/"
-    >}}
-    {{< hextra/feature-card
-      title="Configuration"
-      subtitle="Provider setup, routing strategies, and advanced options"
-      link="/en/docs/configuration/"
-    >}}
-    {{< hextra/feature-card
-      title="Architecture"
-      subtitle="System design, components, and API compatibility"
-      link="/en/docs/architecture/"
-    >}}
-    {{< hextra/feature-card
-      title="API Reference"
-      subtitle="HTTP endpoints, streaming, and client examples"
-      link="/en/docs/api/"
-    >}}
-  </div>
-</div>
-
-<div class="section-box">
-  <h2 class="section-title">Contributing</h2>
-  <p class="section-description">CC-Relay is open source! Contributions are welcome</p>
-
-  <div class="contributing-links">
-    <a href="https://github.com/omarluq/cc-relay/issues" class="contrib-link">
-      <span class="contrib-icon">🐛</span>
-      <span>Report bugs</span>
-    </a>
-    <a href="https://github.com/omarluq/cc-relay/issues" class="contrib-link">
-      <span class="contrib-icon">💡</span>
-      <span>Request features</span>
-    </a>
-    <a href="https://github.com/omarluq/cc-relay/pulls" class="contrib-link">
-      <span class="contrib-icon">🚀</span>
-      <span>Submit PRs</span>
-    </a>
-  </div>
-
-  <div class="license-box">
-    <p>AGPL 3 License - see <a href="https://github.com/omarluq/cc-relay/blob/main/LICENSE">LICENSE</a> for details</p>
   </div>
 </div>
 
@@ -358,8 +183,95 @@ layout: hextra-home
       </svg>
     </a>
   </div>
-  <p class="footer-powered">Powered by <a href="https://gohugo.io" target="_blank" rel="noopener">Hugo</a></p>
-  <p class="footer-copyright">© 2026 Omar Alani. All rights reserved.</p>
+  <p class="footer-powered">Powered by <a href="https://gohugo.io" target="_blank" rel="noopener">Hugo</a> | <a href="https://github.com/omarluq/cc-relay/blob/main/LICENSE">AGPL-3.0</a></p>
 </div>
 
 </div><!-- End .landing-page -->
+
+<!-- AnimeJS for network visualization -->
+<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Define the paths for packets to follow
+  const mainPath = document.querySelector('.path-main');
+  const providerPaths = [
+    document.querySelector('.path-1'),
+    document.querySelector('.path-2'),
+    document.querySelector('.path-3'),
+    document.querySelector('.path-4'),
+    document.querySelector('.path-5')
+  ];
+
+  // Animate packets continuously
+  function animatePacket(packet, pathIndex) {
+    const mainPathLength = mainPath.getTotalLength();
+    const providerPath = providerPaths[pathIndex];
+    const providerPathLength = providerPath.getTotalLength();
+
+    // Reset packet position
+    packet.setAttribute('cx', '150');
+    packet.setAttribute('cy', '200');
+
+    // Animate along main path first
+    anime({
+      targets: packet,
+      duration: 800,
+      easing: 'easeInOutQuad',
+      update: function(anim) {
+        const progress = anim.progress / 100;
+        const point = mainPath.getPointAtLength(progress * mainPathLength);
+        packet.setAttribute('cx', point.x);
+        packet.setAttribute('cy', point.y);
+      },
+      complete: function() {
+        // Then animate along provider path
+        anime({
+          targets: packet,
+          duration: 600,
+          easing: 'easeOutQuad',
+          update: function(anim) {
+            const progress = anim.progress / 100;
+            const point = providerPath.getPointAtLength(progress * providerPathLength);
+            packet.setAttribute('cx', point.x);
+            packet.setAttribute('cy', point.y);
+          },
+          complete: function() {
+            // Fade out
+            anime({
+              targets: packet,
+              opacity: [1, 0],
+              duration: 200,
+              easing: 'easeOutQuad',
+              complete: function() {
+                // Reset and restart with random provider
+                packet.style.opacity = 1;
+                const newPathIndex = Math.floor(Math.random() * 5);
+                setTimeout(function() {
+                  animatePacket(packet, newPathIndex);
+                }, Math.random() * 500);
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  // Start animations with staggered timing
+  const packets = document.querySelectorAll('.packet');
+  packets.forEach(function(packet, i) {
+    setTimeout(function() {
+      animatePacket(packet, i % 5);
+    }, i * 400);
+  });
+
+  // Pulse the relay hub
+  anime({
+    targets: '.relay-hub circle',
+    scale: [1, 1.05, 1],
+    duration: 2000,
+    easing: 'easeInOutSine',
+    loop: true
+  });
+});
+</script>
