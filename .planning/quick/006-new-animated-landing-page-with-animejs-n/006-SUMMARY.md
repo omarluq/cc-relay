@@ -21,64 +21,69 @@ metrics:
   completed: 2026-01-25
 ---
 
-# Quick Task 006: Animated Landing Page with AnimeJS Summary
+# Quick Task 006: High-Speed Network Visualization Landing Page
 
-Replaced the verbose 391-line landing page with a compact 277-line version featuring an animated network visualization showing request flow from Claude Code through CC-Relay to multiple providers.
+Completely redesigned landing page with gorgeous high-speed network animation showing requests flowing from Claude Code through CC-Relay to 6 providers with comet-like particle trails.
 
-## Changes Made
+## Key Features
 
-### New Landing Page (`docs-site/content/en/_index.md`)
-- Hero section with title, one-liner subtitle, and two CTA buttons
-- SVG-based network diagram showing:
-  - Claude Code node (left) with new logo
-  - CC-Relay hub (center) with gradient pink/purple circle
-  - 5 provider nodes (right) arranged in arc: Anthropic, Z.AI, Ollama, Bedrock, Azure
-- 5 animated packets continuously traveling from Claude Code to CC-Relay to random providers
-- AnimeJS loaded from CDN for smooth path-following animations
-- Compact 4-line terminal quick start
-- Compact feature grid showing key stats (6 providers, N keys, 5 strategies, 100% compatible)
-- Minimal footer with social links
+### High-Speed Network Visualization
+- **15 concurrent animated packets** with comet-like trails (8 particles each)
+- Packets flow: Claude Code → CC-Relay → random provider (6 targets)
+- **Variable speed**: 400-800ms per packet for organic traffic feel
+- **150ms spawn interval**: Continuous high-speed stream
+- Beautiful gradient bezier curves connecting nodes
+- Provider nodes **flash on packet arrival**
+- **Live request counter** showing cumulative traffic
 
-### CSS Updates (`docs-site/assets/css/custom.css`)
-- Added `.network-visualization` container styles
-- Added `.network-path` with dashed stroke animation
-- Added `.packet` styles for animated request dots
-- Added `.features-compact` grid layout
-- Added `.terminal-compact` with `.show-immediately` class
-- Removed aggressive filter from `.arch-provider-logo` that was breaking Kimi/Moonshot logos
-- Added responsive styles for mobile network visualization
+### Animated CC-Relay Hub
+- Pulsing gradient core (1.5s cycle)
+- **3 concentric rotating rings** (8s, 12s, 20s - different directions)
+- Ring opacity pulse (2s cycle with stagger)
+- Intense glow filter for dramatic effect
 
-### New Asset (`docs-site/static/logos/claude-code.svg`)
-- Claude Code logo copied from dashboard-icons
+### Provider Nodes (6 total)
+- Anthropic, Z.AI, Ollama, AWS Bedrock, Azure, Vertex AI
+- Each with logo, name, and description
+- Subtle stroke-width animation on all nodes
+- Drop shadow filter for depth
+
+### Visual Polish
+- Dark gradient background with subtle grid lines
+- Beautiful color palette: pink, purple, indigo, blue, cyan, teal
+- Intense glow filters on packets and trails
+- Responsive design with mobile adjustments
 
 ## Technical Implementation
 
-### AnimeJS Animation
-- Path-following animation using `getPointAtLength()` for precise movement
-- Two-phase animation: main path (Claude Code to CC-Relay), then branch path (CC-Relay to provider)
-- Random provider selection on each loop for visual variety
-- Staggered packet starts for continuous traffic appearance
-- Relay hub pulse animation for emphasis
+### AnimeJS Timeline API
+```javascript
+// Packet animation phases:
+1. Main path (40% duration) - Claude Code to CC-Relay
+2. Brief pause (50ms) - processing at relay
+3. Provider path (50% duration) - CC-Relay to target
+4. Fade out (100ms) - burst effect at destination
+```
 
 ### SVG Structure
-- Quadratic bezier curves for natural-looking paths
-- Gradient fills for relay hub and path strokes
-- Glow filter for packets and relay hub
-- Responsive viewBox for scaling
+- Cubic bezier paths for smooth curves
+- Dynamic packet/trail creation via JS
+- Path length calculation with `getTotalLength()`
+- Trail particles follow leader with progress offset
 
-## Verification
-
-- Hugo builds successfully
-- Page size reduced 29% (391 -> 277 lines)
-- AnimeJS CDN: https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js
-- Provider logos now render with original colors (filter removed)
+### Performance
+- Packets and trails removed after animation
+- Staggered initial burst prevents frame drop
+- CSS filters optimized with explicit bounds
 
 ## Commits
 
 | Commit | Description |
 |--------|-------------|
 | e9b6006 | feat(quick-006): add animated network visualization to landing page |
+| 96bc5e9 | feat(landing): high-speed network visualization with AnimeJS |
 
-## Deviations from Plan
+## Files Changed
 
-None - plan executed as written.
+- `docs-site/content/en/_index.md` - Complete rewrite with inline styles and script
+- `docs-site/static/logos/claude-code.svg` - Claude Code logo from dashboard-icons
