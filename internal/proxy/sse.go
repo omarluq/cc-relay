@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/tidwall/gjson"
 )
 
@@ -32,7 +33,7 @@ func IsStreamingRequest(body []byte) bool {
 //   - X-Accel-Buffering: no - CRITICAL: disable nginx/Cloudflare buffering
 //   - Connection: keep-alive - maintain streaming connection
 func SetSSEHeaders(h http.Header) {
-	h.Set("Content-Type", "text/event-stream")
+	h.Set("Content-Type", providers.ContentTypeSSE)
 	h.Set("Cache-Control", "no-cache, no-transform")
 	h.Set("X-Accel-Buffering", "no")
 	h.Set("Connection", "keep-alive")

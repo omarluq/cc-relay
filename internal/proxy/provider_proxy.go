@@ -73,7 +73,7 @@ func NewProviderProxy(
 func (pp *ProviderProxy) modifyResponse(resp *http.Response) error {
 	// Add SSE headers if streaming response (handles "text/event-stream; charset=utf-8" etc.)
 	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		if mediaType, _, err := mime.ParseMediaType(ct); err == nil && mediaType == "text/event-stream" {
+		if mediaType, _, err := mime.ParseMediaType(ct); err == nil && mediaType == providers.ContentTypeSSE {
 			SetSSEHeaders(resp.Header)
 		}
 	}

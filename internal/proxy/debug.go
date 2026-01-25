@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 )
@@ -179,7 +180,7 @@ func LogResponseDetails(
 	}
 
 	// If SSE streaming, log event count
-	if strings.Contains(contentType, "text/event-stream") && eventCount > 0 {
+	if strings.Contains(contentType, providers.ContentTypeSSE) && eventCount > 0 {
 		logEvent.Int("streaming_events", eventCount)
 	}
 
