@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 6 of 11+ (Cloud Providers)
-Plan: 3 of 5 in phase - COMPLETE
+Plan: 4 of 5 in phase - COMPLETE
 Status: In progress
-Last activity: 2026-01-25 - Completed 06-03 (Vertex Provider)
+Last activity: 2026-01-25 - Completed 06-04 (Bedrock Provider)
 
-Progress: [██████████] 68/70 plans total (Phase 6: 3/5 complete)
-Next: Execute 06-04 (Bedrock Provider)
+Progress: [██████████] 69/70 plans total (Phase 6: 4/5 complete)
+Next: Execute 06-05 (Handler Integration)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 68
-- Average duration: 8.3 min
-- Total execution time: 9.6 hours
+- Total plans completed: 69
+- Average duration: 8.4 min
+- Total execution time: 9.9 hours
 
 **By Phase:**
 
@@ -43,11 +43,11 @@ Next: Execute 06-04 (Bedrock Provider)
 | 04.2 (Config Cleanup) | 1 | 2 min | 2 min |
 | 04.3 (Health Docs) | 2 | 3 min | 1.5 min |
 | 05 (Additional Providers) | 2 | 12 min | 6 min |
-| 06 (Cloud Providers) | 3 | 26 min | 8.7 min |
+| 06 (Cloud Providers) | 4 | 45 min | 11.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-02 (9min), 06-01 (11min), 06-02 (5min), 06-03 (10min)
-- Trend: Vertex provider with OAuth auth took slightly longer than Azure (OAuth complexity)
+- Last 5 plans: 06-01 (11min), 06-02 (5min), 06-03 (10min), 06-04 (19min)
+- Trend: Bedrock provider with SigV4 + Event Stream parsing was most complex
 
 *Updated after each plan completion*
 
@@ -57,6 +57,14 @@ Next: Execute 06-04 (Bedrock Provider)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 06-04 (Bedrock Provider):**
+- BedrockProvider uses SigV4 signing via aws-sdk-go-v2/signer/v4
+- AWS Event Stream binary format parsed with CRC32-C validation (Castagnoli polynomial)
+- EventStreamToSSE converts streaming response to standard SSE format
+- url.PathEscape for model ID (colons valid in URL paths per RFC 3986)
+- ContentTypeSSE constant added to providers/base.go to reduce string duplication
+- NewBedrockProviderWithCredentials pattern for testing with mock credentials
 
 **From 06-03 (Vertex Provider):**
 - VertexProvider uses Google OAuth Bearer tokens via TokenSource abstraction
@@ -573,11 +581,22 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-25
-Stopped at: Completed 06-01 (Provider Interface Extension)
+Stopped at: Completed 06-04 (Bedrock Provider)
 Resume file: None
-Next action: Execute 06-02 (Bedrock Provider)
+Next action: Execute 06-05 (Handler Integration)
 
 **Phase 6 In Progress:**
+- 06-04 COMPLETE: Bedrock Provider
+  - internal/providers/bedrock.go: BedrockProvider with SigV4 authentication
+  - internal/providers/bedrock_test.go: Comprehensive unit tests
+  - internal/providers/eventstream.go: AWS Event Stream to SSE converter
+  - internal/providers/eventstream_test.go: Event Stream tests
+  - internal/providers/base.go: Added ContentTypeSSE constant
+  - internal/proxy/*.go: Updated to use ContentTypeSSE constant
+  - go.mod, go.sum: AWS SDK v2 dependencies added
+  - Duration: 19 min
+  - 3 commits: 412e7d7, dd02c2d, f198a20
+
 - 06-01 COMPLETE: Provider Interface Extension
   - internal/providers/provider.go: 4 new interface methods
   - internal/providers/base.go: Default no-op implementations
