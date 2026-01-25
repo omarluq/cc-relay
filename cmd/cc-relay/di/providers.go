@@ -2,6 +2,7 @@ package di
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -168,12 +169,33 @@ func NewChecker(i do.Injector) (*CheckerService, error) {
 		if !pc.Enabled {
 			continue
 		}
+
+		// Construct base URL based on provider type
+		baseURL := pc.BaseURL
+		switch pc.Type {
+		case "bedrock":
+			// Bedrock base URL: https://bedrock-runtime.{region}.amazonaws.com
+			if pc.AWSRegion != "" {
+				baseURL = fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", pc.AWSRegion)
+			}
+		case "vertex":
+			// Vertex base URL: https://{region}-aiplatform.googleapis.com
+			if pc.GCPRegion != "" {
+				baseURL = fmt.Sprintf("https://%s-aiplatform.googleapis.com", pc.GCPRegion)
+			}
+		case "azure":
+			// Azure base URL: https://{resource}.services.ai.azure.com
+			if pc.AzureResourceName != "" {
+				baseURL = fmt.Sprintf("https://%s.services.ai.azure.com", pc.AzureResourceName)
+			}
+		}
+
 		// NewProviderHealthCheck handles empty BaseURL (returns NoOpHealthCheck)
-		healthCheck := health.NewProviderHealthCheck(pc.Name, pc.BaseURL, nil)
+		healthCheck := health.NewProviderHealthCheck(pc.Name, baseURL, nil)
 		checker.RegisterProvider(healthCheck)
 		loggerSvc.Logger.Debug().
 			Str("provider", pc.Name).
-			Str("base_url", pc.BaseURL).
+			Str("base_url", baseURL).
 			Msg("registered health check")
 	}
 
@@ -222,6 +244,66 @@ func (c *CacheService) Shutdown() error {
 	return nil
 }
 
+// ErrUnknownProviderType is returned when the provider type is not recognized.
+var ErrUnknownProviderType = fmt.Errorf("unknown provider type")
+
+// createProvider creates a provider instance from configuration.
+// Returns ErrUnknownProviderType for unknown provider types.
+func createProvider(ctx context.Context, p *config.ProviderConfig) (providers.Provider, error) {
+	switch p.Type {
+	case "anthropic":
+		return providers.NewAnthropicProviderWithMapping(
+			p.Name, p.BaseURL, p.Models, p.ModelMapping,
+		), nil
+	case "zai":
+		return providers.NewZAIProviderWithMapping(
+			p.Name, p.BaseURL, p.Models, p.ModelMapping,
+		), nil
+	case "ollama":
+		return providers.NewOllamaProviderWithMapping(
+			p.Name, p.BaseURL, p.Models, p.ModelMapping,
+		), nil
+	case "bedrock":
+		if err := p.ValidateCloudConfig(); err != nil {
+			return nil, fmt.Errorf("bedrock provider %s: %w", p.Name, err)
+		}
+		return providers.NewBedrockProvider(ctx, &providers.BedrockConfig{
+			Name:         p.Name,
+			Region:       p.AWSRegion,
+			Models:       p.Models,
+			ModelMapping: p.ModelMapping,
+		})
+	case "vertex":
+		if err := p.ValidateCloudConfig(); err != nil {
+			return nil, fmt.Errorf("vertex provider %s: %w", p.Name, err)
+		}
+		return providers.NewVertexProvider(ctx, &providers.VertexConfig{
+			Name:         p.Name,
+			ProjectID:    p.GCPProjectID,
+			Region:       p.GCPRegion,
+			Models:       p.Models,
+			ModelMapping: p.ModelMapping,
+		})
+	case "azure":
+		if err := p.ValidateCloudConfig(); err != nil {
+			return nil, fmt.Errorf("azure provider %s: %w", p.Name, err)
+		}
+		return providers.NewAzureProvider(&providers.AzureConfig{
+			Name:         p.Name,
+			ResourceName: p.AzureResourceName,
+			DeploymentID: p.AzureDeploymentID,
+			APIVersion:   p.GetAzureAPIVersion(),
+			Models:       p.Models,
+			ModelMapping: p.ModelMapping,
+		}), nil
+	default:
+		return nil, ErrUnknownProviderType
+	}
+}
+
+// supportedProviderTypes is the list of supported provider types for error messages.
+const supportedProviderTypes = "anthropic, zai, ollama, bedrock, vertex, azure"
+
 // NewProviderMap creates the map of enabled providers.
 func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
@@ -232,22 +314,20 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	var primaryProvider providers.Provider
 	var primaryKey string
 
+	ctx := context.Background()
+
 	for idx := range cfg.Providers {
 		p := &cfg.Providers[idx]
 		if !p.Enabled {
 			continue
 		}
 
-		var prov providers.Provider
-		switch p.Type {
-		case "anthropic":
-			prov = providers.NewAnthropicProviderWithMapping(p.Name, p.BaseURL, p.Models, p.ModelMapping)
-		case "zai":
-			prov = providers.NewZAIProviderWithMapping(p.Name, p.BaseURL, p.Models, p.ModelMapping)
-		case "ollama":
-			prov = providers.NewOllamaProviderWithMapping(p.Name, p.BaseURL, p.Models, p.ModelMapping)
-		default:
+		prov, err := createProvider(ctx, p)
+		if errors.Is(err, ErrUnknownProviderType) {
 			continue // Skip unknown provider types
+		}
+		if err != nil {
+			return nil, err
 		}
 
 		providerMap[p.Name] = prov
@@ -263,7 +343,7 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	}
 
 	if primaryProvider == nil {
-		return nil, fmt.Errorf("no enabled provider found (supported types: anthropic, zai, ollama)")
+		return nil, fmt.Errorf("no enabled provider found (supported: %s)", supportedProviderTypes)
 	}
 
 	return &ProviderMapService{
