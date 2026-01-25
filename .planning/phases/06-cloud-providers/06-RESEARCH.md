@@ -1,274 +1,258 @@
 # Phase 6: Cloud Providers - Research
 
 **Researched:** 2026-01-24
-**Domain:** Cloud LLM Provider Integration (AWS Bedrock, Azure Foundry, Google Vertex AI)
+**Domain:** Cloud LLM Provider Integration (AWS Bedrock, Google Vertex AI, Azure Foundry)
 **Confidence:** HIGH
 
 ## Summary
 
-This phase adds three cloud provider integrations: AWS Bedrock (with SigV4 signing), Azure Foundry (with API key or Entra ID authentication), and Google Vertex AI (with OAuth token authentication). Each provider requires different authentication mechanisms and has subtle API format differences from direct Anthropic API.
+This research covers the API specifics, authentication methods, and request/response transformations required to integrate AWS Bedrock, Google Vertex AI, and Azure Foundry (Microsoft Foundry) as cloud providers in cc-relay.
 
-All three providers use the Anthropic Messages API format but differ in:
-1. **Authentication:** AWS uses SigV4 signing, Azure uses x-api-key or Bearer tokens, Vertex uses OAuth2 access tokens
-2. **Endpoint structure:** Bedrock and Vertex embed the model ID in the URL path; Azure uses model in body
-3. **anthropic_version:** Bedrock uses `bedrock-2023-05-31`, Vertex uses `vertex-2023-10-16`, Azure uses `2023-06-01`
+All three cloud providers use Anthropic-compatible APIs with specific differences:
+- **Bedrock/Vertex**: Model specified in URL path (not body), custom `anthropic_version` in body
+- **Azure Foundry**: Standard Anthropic API format, model stays in body
 
-**Primary recommendation:** Create three new provider types (bedrock, vertex, foundry) that extend BaseProvider with custom authentication logic. Use official AWS SDK v2, Google Cloud OAuth2, and Azure Identity libraries for credential handling.
+The most significant implementation challenge is AWS Bedrock's streaming format, which uses AWS Event Stream rather than standard SSE and requires conversion.
+
+**Primary recommendation:** Implement Azure Foundry first (minimal transformation), then Vertex AI (URL transformation + OAuth), then Bedrock (most complex with SigV4 and Event Stream conversion).
 
 ## Standard Stack
 
-### Core
+The established libraries/tools for this domain:
 
+### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| `github.com/aws/aws-sdk-go-v2/config` | Latest | AWS credential loading | Official AWS SDK, handles all credential chains |
-| `github.com/aws/aws-sdk-go-v2/aws/signer/v4` | Latest | SigV4 request signing | Official signer, handles complexity correctly |
-| `golang.org/x/oauth2/google` | Latest | Google ADC and token source | Official Google OAuth library for Go |
-| `github.com/Azure/azure-sdk-for-go/sdk/azidentity` | Latest | Azure credential chain | Official Azure SDK, handles Entra ID + API key |
+| `github.com/aws/aws-sdk-go-v2` | v1.25+ | AWS Bedrock SDK | Official AWS SDK for Go |
+| `github.com/aws/aws-sdk-go-v2/service/bedrockruntime` | Latest | Bedrock Runtime API | Official Bedrock service package |
+| `github.com/aws/aws-sdk-go-v2/aws/signer/v4` | Latest | SigV4 signing | Official AWS SigV4 implementation |
+| `golang.org/x/oauth2/google` | Latest | Google OAuth | Official Google auth library |
+| `cloud.google.com/go/compute/metadata` | Latest | GCE metadata | For service account in GCP |
+| `github.com/Azure/azure-sdk-for-go/sdk/azidentity` | Latest | Azure Entra ID | Official Azure identity library |
 
 ### Supporting
-
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `github.com/aws/aws-sdk-go-v2/credentials` | Latest | Static credential provider | When using explicit access key/secret |
-| `github.com/Azure/azure-sdk-for-go/sdk/azcore` | Latest | Azure core types | Required by azidentity |
-| `crypto/sha256` | stdlib | Payload hashing for SigV4 | Required for every signed request |
+| `github.com/tidwall/gjson` | v1.17+ | JSON parsing | Extract model from request body |
 
 ### Alternatives Considered
-
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| AWS SDK SigV4 | Manual SigV4 implementation | SDK handles edge cases, escaping, and streaming; manual is error-prone |
-| Google ADC | Manual service account parsing | ADC handles all credential types automatically |
-| Azure DefaultAzureCredential | Manual token refresh | SDK handles token caching and refresh automatically |
+| AWS SDK v2 | Manual SigV4 | More control but complex; SDK handles edge cases |
+| Azure SDK | Manual HTTP + token fetch | Simpler but no token refresh |
+| Google OAuth lib | Manual token refresh | SDK handles refresh automatically |
 
 **Installation:**
 ```bash
+# AWS Bedrock
+go get github.com/aws/aws-sdk-go-v2
 go get github.com/aws/aws-sdk-go-v2/config
-go get github.com/aws/aws-sdk-go-v2/aws/signer/v4
+go get github.com/aws/aws-sdk-go-v2/service/bedrockruntime
+
+# Google Vertex AI
 go get golang.org/x/oauth2/google
+go get cloud.google.com/go/compute/metadata
+
+# Azure Foundry
 go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
 ```
 
 ## Architecture Patterns
 
 ### Recommended Project Structure
-
 ```
 internal/providers/
-├── provider.go      # Provider interface (exists)
-├── base.go          # BaseProvider (exists)
-├── anthropic.go     # Anthropic provider (exists)
-├── zai.go           # Z.AI provider (exists)
-├── ollama.go        # Ollama provider (exists)
-├── bedrock.go       # NEW: AWS Bedrock provider
-├── vertex.go        # NEW: Google Vertex AI provider
-└── foundry.go       # NEW: Azure Foundry provider
+├── provider.go           # Interface definition (extended)
+├── base.go               # BaseProvider implementation
+├── anthropic.go          # Direct Anthropic (existing)
+├── zai.go                # Z.AI (existing)
+├── ollama.go             # Ollama (existing)
+├── bedrock.go            # AWS Bedrock (new)
+├── vertex.go             # Google Vertex AI (new)
+├── azure.go              # Azure Foundry (new)
+└── transform.go          # Shared transformation utilities
 ```
 
-### Pattern 1: Custom Authentication Override
+### Pattern 1: Extended Provider Interface
 
-**What:** Cloud providers override the `Authenticate` method to use their respective authentication mechanisms.
-**When to use:** When provider uses non-standard authentication (not x-api-key header).
-**Example:**
+**What:** Add request/response transformation methods to Provider interface
+**When to use:** Cloud providers that need URL or body modification
+
 ```go
-// Source: AWS SDK Go v2 SigV4 signing pattern
-func (p *BedrockProvider) Authenticate(req *http.Request, key string) error {
-    ctx := req.Context()
+// Source: Derived from existing provider.go structure
+type Provider interface {
+    // Existing methods
+    Name() string
+    BaseURL() string
+    Owner() string
+    Authenticate(req *http.Request, key string) error
+    ForwardHeaders(originalHeaders http.Header) http.Header
+    SupportsStreaming() bool
+    SupportsTransparentAuth() bool
+    ListModels() []Model
+    GetModelMapping() map[string]string
+    MapModel(model string) string
 
-    // Get credentials from AWS SDK
-    creds, err := p.awsConfig.Credentials.Retrieve(ctx)
-    if err != nil {
-        return fmt.Errorf("failed to retrieve AWS credentials: %w", err)
-    }
+    // NEW: Cloud provider transformations
+    // TransformRequest modifies request body and returns target URL
+    // For non-cloud providers, returns body unchanged and base URL + endpoint
+    TransformRequest(body []byte, isStreaming bool) (newBody []byte, targetURL string, err error)
 
-    // Compute payload hash
-    bodyBytes, _ := io.ReadAll(req.Body)
-    req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-    payloadHash := sha256Hex(bodyBytes)
-
-    // Sign request with SigV4
-    err = p.signer.SignHTTP(ctx, creds, req, payloadHash, "bedrock", p.region, time.Now())
-    if err != nil {
-        return fmt.Errorf("failed to sign request: %w", err)
-    }
-
-    return nil
+    // RequiresURLTransform indicates if this provider needs model-in-URL
+    RequiresURLTransform() bool
 }
 ```
 
-### Pattern 2: Model-in-URL Path Transformation
+### Pattern 2: Cloud Provider Embedding
 
-**What:** Bedrock and Vertex require model ID in the URL path, not request body.
-**When to use:** Provider embeds model in endpoint URL.
-**Example:**
+**What:** Cloud providers embed BaseProvider and add cloud-specific fields
+**When to use:** All cloud provider implementations
+
 ```go
-// Bedrock endpoint format
-// https://bedrock-runtime.{region}.amazonaws.com/model/{model_id}/invoke
-
-func (p *BedrockProvider) GetEndpoint(model string) string {
-    return fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com/model/%s/invoke",
-        p.region, url.PathEscape(model))
+// Source: Pattern from existing anthropic.go
+type BedrockProvider struct {
+    BaseProvider
+    region      string
+    awsConfig   aws.Config
+    signer      *v4.Signer
+    authMethod  string // "sigv4" or "bearer_token"
+    bearerToken string
 }
 
-// Vertex endpoint format
-// https://{region}-aiplatform.googleapis.com/v1/projects/{project}/locations/{region}/publishers/anthropic/models/{model}:streamRawPredict
-
-func (p *VertexProvider) GetEndpoint(model string) string {
-    return fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:streamRawPredict",
-        p.region, p.projectID, p.region, model)
-}
-```
-
-### Pattern 3: Token Caching with Automatic Refresh
-
-**What:** OAuth tokens expire (1 hour default); cache and refresh automatically.
-**When to use:** Vertex AI OAuth authentication.
-**Example:**
-```go
-// Source: golang.org/x/oauth2/google FindDefaultCredentials pattern
 type VertexProvider struct {
     BaseProvider
-    tokenSource oauth2.TokenSource
     projectID   string
     region      string
+    tokenSource oauth2.TokenSource
 }
 
-func (p *VertexProvider) Authenticate(req *http.Request, _ string) error {
-    token, err := p.tokenSource.Token()
-    if err != nil {
-        return fmt.Errorf("failed to get OAuth token: %w", err)
-    }
-
-    req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-    return nil
+type AzureProvider struct {
+    BaseProvider
+    resourceName string
+    authMethod   string // "api_key" or "entra_id"
+    credential   *azidentity.DefaultAzureCredential
 }
 ```
 
-### Pattern 4: Extended Config for Cloud Providers
+### Pattern 3: Streaming Format Conversion (Bedrock only)
 
-**What:** ProviderConfig needs additional fields for cloud-specific settings.
-**When to use:** Configuring cloud providers.
-**Example:**
+**What:** Convert AWS Event Stream to SSE
+**When to use:** Only for AWS Bedrock streaming responses
+
 ```go
-// internal/config/config.go additions
-type ProviderConfig struct {
-    // Existing fields...
+// Bedrock returns application/vnd.amazon.eventstream
+// Must convert to text/event-stream for Claude Code compatibility
+func (p *BedrockProvider) ConvertStreamToSSE(eventStream io.Reader, w http.ResponseWriter) error {
+    // Set SSE headers
+    SetSSEHeaders(w.Header())
 
-    // AWS Bedrock specific
-    AWSRegion  string `yaml:"aws_region"`  // e.g., "us-west-2"
-    AWSProfile string `yaml:"aws_profile"` // AWS config profile name
-
-    // Google Vertex AI specific
-    GCPProjectID string `yaml:"gcp_project_id"` // Google Cloud project
-    GCPRegion    string `yaml:"gcp_region"`     // e.g., "us-east1" or "global"
-
-    // Azure Foundry specific
-    AzureResource string `yaml:"azure_resource"` // Azure resource name
+    for event := range p.parseEventStream(eventStream) {
+        // Convert each event to SSE format
+        fmt.Fprintf(w, "event: %s\n", event.Type)
+        fmt.Fprintf(w, "data: %s\n\n", event.Data)
+        if f, ok := w.(http.Flusher); ok {
+            f.Flush()
+        }
+    }
+    return nil
 }
 ```
 
 ### Anti-Patterns to Avoid
-
-- **Manual SigV4 implementation:** Use AWS SDK; manual implementation is error-prone with URL escaping, date handling, and streaming.
-- **Storing OAuth tokens in config:** Tokens expire; use token sources that auto-refresh.
-- **Ignoring anthropic_version header:** Each provider requires a specific version string in requests.
-- **Hardcoding endpoints:** Use configurable regions; each region has different endpoint URLs.
+- **Hardcoding cloud credentials:** Always use SDK credential chains or environment variables
+- **Ignoring token expiration:** OAuth/Entra tokens expire; use SDK token sources that auto-refresh
+- **Blocking on stream conversion:** Process Event Stream chunks as they arrive, don't buffer entire response
+- **Assuming SSE format for Bedrock:** Bedrock uses Event Stream, not SSE
 
 ## Don't Hand-Roll
 
+Problems that look simple but have existing solutions:
+
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| AWS SigV4 signing | Manual signature calculation | `aws-sdk-go-v2/aws/signer/v4` | URL escaping, date format, header canonicalization are complex |
-| Google OAuth tokens | Manual token refresh logic | `golang.org/x/oauth2/google.FindDefaultCredentials` | Handles ADC, token caching, refresh automatically |
-| Azure credential chain | Manual credential loading | `azidentity.NewDefaultAzureCredential` | Handles environment, CLI, managed identity, workload identity |
-| Payload hashing | Custom hash implementation | `crypto/sha256` | SigV4 requires exact SHA-256 hex encoding |
-| Streaming with SigV4 | Custom streaming signer | AWS SDK `StreamSigner` | Streaming payloads require per-chunk signing |
+| AWS SigV4 signing | Custom HMAC-SHA256 implementation | `aws-sdk-go-v2/aws/signer/v4` | SigV4 has many edge cases (presigned URLs, session tokens, canonical request format) |
+| Google OAuth token | Manual token fetch/refresh | `golang.org/x/oauth2/google` | Token refresh, caching, and error handling is complex |
+| Azure Entra ID tokens | Manual MSAL implementation | `azidentity.DefaultAzureCredential` | Handles workload identity, managed identity, CLI auth |
+| AWS Event Stream parsing | Custom binary parser | AWS SDK event stream decoder | Binary format with checksums, error handling |
 
-**Key insight:** Cloud authentication is complex with many edge cases. Using official SDKs prevents security vulnerabilities and handles credential rotation automatically.
+**Key insight:** Cloud authentication is deceptively complex. Token refresh, credential rotation, and error handling have many edge cases that SDKs handle correctly.
 
 ## Common Pitfalls
 
-### Pitfall 1: SigV4 URL Escaping Mismatch
+### Pitfall 1: Model ID Format Mismatch
 
-**What goes wrong:** SignatureDoesNotMatch errors from AWS.
-**Why it happens:** Go's http.Client modifies URL paths; signed path differs from sent path.
-**How to avoid:** Pre-escape URLs using `URL.Opaque` or `URL.RawPath` before signing.
-**Warning signs:** Intermittent signature failures, especially with special characters in model IDs.
-
-```go
-// Correct: Set RawPath before signing
-req.URL.RawPath = req.URL.EscapedPath()
-```
-
-### Pitfall 2: Credential Scope Region Mismatch
-
-**What goes wrong:** AWS returns "Credential should be scoped to a valid Region".
-**Why it happens:** Signing region doesn't match endpoint region.
-**How to avoid:** Ensure `signer.SignHTTP(..., region)` matches the endpoint URL region.
-**Warning signs:** Works in us-east-1, fails in other regions.
-
-### Pitfall 3: OAuth Token Expiry Not Handled
-
-**What goes wrong:** First hour works, then 401 Unauthorized errors.
-**Why it happens:** OAuth tokens expire after 1 hour by default.
-**How to avoid:** Use `oauth2.TokenSource` which auto-refreshes; don't cache tokens manually.
-**Warning signs:** Works initially, fails after ~1 hour.
-
-### Pitfall 4: Missing anthropic_version in Request Body
-
-**What goes wrong:** Provider returns validation errors.
-**Why it happens:** Bedrock and Vertex expect anthropic_version in body, not header.
-**How to avoid:** Transform request body to add anthropic_version field.
-**Warning signs:** "anthropic_version is required" errors.
+**What goes wrong:** Sending Anthropic model IDs to Bedrock/Vertex without transformation
+**Why it happens:** Different providers use different model ID formats
+**How to avoid:** Always map model IDs before constructing URLs
 
 ```go
-// Bedrock: Add to request body
-body["anthropic_version"] = "bedrock-2023-05-31"
-
-// Vertex: Add to request body
-body["anthropic_version"] = "vertex-2023-10-16"
+// Mapping examples
+anthropic:  "claude-sonnet-4-5-20250514"
+bedrock:    "anthropic.claude-sonnet-4-5-20250514-v1:0"
+vertex:     "claude-sonnet-4-5@20250514"
+azure:      "claude-sonnet-4-5" (deployment name)
 ```
 
-### Pitfall 5: Model ID Format Differences
+**Warning signs:** 404 errors, "model not found" responses
 
-**What goes wrong:** Model not found errors from cloud providers.
-**Why it happens:** Cloud providers use different model ID formats than direct Anthropic API.
-**How to avoid:** Use model_mapping in config or document required formats.
-**Warning signs:** "Model ID not valid" or "Resource not found" errors.
+### Pitfall 2: anthropic_version Placement
 
-```yaml
-# Bedrock model IDs include version suffix
-model_mapping:
-  "claude-sonnet-4-5": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+**What goes wrong:** Putting anthropic_version in wrong location
+**Why it happens:** Different from direct Anthropic API (header vs body)
+**How to avoid:**
 
-# Vertex model IDs use @ for version
-model_mapping:
-  "claude-sonnet-4-5": "claude-sonnet-4-5@20250929"
+| Provider | anthropic_version Location | Value |
+|----------|---------------------------|-------|
+| Anthropic Direct | Header | `2023-06-01` |
+| Bedrock | Request Body | `bedrock-2023-05-31` |
+| Vertex AI | Request Body | `vertex-2023-10-16` |
+| Azure Foundry | Header | `2023-06-01` |
+
+**Warning signs:** 400 Bad Request, validation errors
+
+### Pitfall 3: Bedrock Streaming Format
+
+**What goes wrong:** Treating Bedrock stream as SSE
+**Why it happens:** Other providers use SSE, natural assumption
+**How to avoid:** Check Content-Type header and use appropriate parser
+
+```go
+// Bedrock returns:
+Content-Type: application/vnd.amazon.eventstream
+
+// Not:
+Content-Type: text/event-stream
 ```
 
-### Pitfall 6: Azure Deployment Name vs Model ID
+**Warning signs:** Garbled streaming output, JSON parse errors
 
-**What goes wrong:** Azure returns 404 for model requests.
-**Why it happens:** Azure uses deployment names, not model IDs.
-**How to avoid:** Configure deployment names in model_mapping.
-**Warning signs:** "Deployment not found" errors; works in portal but not API.
+### Pitfall 4: OAuth Token Expiration
+
+**What goes wrong:** Stale tokens during long streaming requests
+**Why it happens:** Tokens expire (typically 1 hour), streaming can exceed this
+**How to avoid:** Use SDK TokenSource that auto-refreshes, or refresh before streaming
+
+**Warning signs:** 401 errors mid-stream
+
+### Pitfall 5: Missing Rate Limit Headers
+
+**What goes wrong:** Expecting Anthropic rate limit headers from Azure Foundry
+**Why it happens:** Azure doesn't pass through these headers
+**How to avoid:** Use Azure monitoring for rate limits, or implement client-side tracking
+
+**Warning signs:** Rate limiting without warning, no header data
 
 ## Code Examples
 
-### AWS Bedrock Provider
+Verified patterns from official sources:
 
+### AWS Bedrock SigV4 Signing
 ```go
-// Source: AWS SDK Go v2 documentation patterns
-package providers
-
+// Source: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/aws/signer/v4
 import (
-    "bytes"
     "context"
     "crypto/sha256"
     "encoding/hex"
-    "fmt"
-    "io"
     "net/http"
     "time"
 
@@ -277,310 +261,169 @@ import (
     "github.com/aws/aws-sdk-go-v2/config"
 )
 
-const (
-    BedrockOwner = "bedrock"
-    BedrockAnthropicVersion = "bedrock-2023-05-31"
-)
-
-type BedrockProvider struct {
-    BaseProvider
-    awsConfig aws.Config
-    signer    *v4.Signer
-    region    string
-}
-
-func NewBedrockProvider(name, region string, awsCfg aws.Config) *BedrockProvider {
-    baseURL := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", region)
-    return &BedrockProvider{
-        BaseProvider: NewBaseProvider(name, baseURL, BedrockOwner, nil),
-        awsConfig:    awsCfg,
-        signer:       v4.NewSigner(),
-        region:       region,
-    }
-}
-
-func (p *BedrockProvider) Authenticate(req *http.Request, _ string) error {
-    ctx := req.Context()
-
-    creds, err := p.awsConfig.Credentials.Retrieve(ctx)
+func signBedrockRequest(ctx context.Context, req *http.Request, body []byte, region string) error {
+    cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
     if err != nil {
-        return fmt.Errorf("failed to retrieve AWS credentials: %w", err)
+        return err
     }
 
-    // Read and hash payload
-    var bodyBytes []byte
-    if req.Body != nil {
-        bodyBytes, _ = io.ReadAll(req.Body)
-        req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+    creds, err := cfg.Credentials.Retrieve(ctx)
+    if err != nil {
+        return err
     }
-    payloadHash := sha256Hex(bodyBytes)
 
-    // Pre-escape URL path
-    req.URL.RawPath = req.URL.EscapedPath()
+    // Compute payload hash
+    hash := sha256.Sum256(body)
+    payloadHash := hex.EncodeToString(hash[:])
 
-    return p.signer.SignHTTP(ctx, creds, req, payloadHash, "bedrock", p.region, time.Now())
-}
-
-func (p *BedrockProvider) SupportsTransparentAuth() bool {
-    return false // Uses AWS credentials, not client tokens
-}
-
-func sha256Hex(data []byte) string {
-    h := sha256.Sum256(data)
-    return hex.EncodeToString(h[:])
+    // Sign the request
+    signer := v4.NewSigner()
+    return signer.SignHTTP(ctx, creds, req, payloadHash, "bedrock", region, time.Now())
 }
 ```
 
-### Google Vertex AI Provider
-
+### Google Vertex AI OAuth
 ```go
-// Source: golang.org/x/oauth2/google documentation
-package providers
-
+// Source: https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude/use-claude
 import (
     "context"
-    "fmt"
     "net/http"
 
-    "golang.org/x/oauth2"
     "golang.org/x/oauth2/google"
 )
 
-const (
-    VertexOwner = "vertex"
-    VertexAnthropicVersion = "vertex-2023-10-16"
-    VertexScope = "https://www.googleapis.com/auth/cloud-platform"
-)
-
-type VertexProvider struct {
-    BaseProvider
-    tokenSource oauth2.TokenSource
-    projectID   string
-    region      string
-}
-
-func NewVertexProvider(ctx context.Context, name, projectID, region string) (*VertexProvider, error) {
-    creds, err := google.FindDefaultCredentials(ctx, VertexScope)
+func authenticateVertex(ctx context.Context, req *http.Request) error {
+    creds, err := google.FindDefaultCredentials(ctx,
+        "https://www.googleapis.com/auth/cloud-platform")
     if err != nil {
-        return nil, fmt.Errorf("failed to find GCP credentials: %w", err)
+        return err
     }
 
-    baseURL := fmt.Sprintf("https://%s-aiplatform.googleapis.com", region)
-    return &VertexProvider{
-        BaseProvider: NewBaseProvider(name, baseURL, VertexOwner, nil),
-        tokenSource:  creds.TokenSource,
-        projectID:    projectID,
-        region:       region,
-    }, nil
-}
-
-func (p *VertexProvider) Authenticate(req *http.Request, _ string) error {
-    token, err := p.tokenSource.Token()
+    token, err := creds.TokenSource.Token()
     if err != nil {
-        return fmt.Errorf("failed to get OAuth token: %w", err)
+        return err
     }
 
     req.Header.Set("Authorization", "Bearer "+token.AccessToken)
     return nil
 }
-
-func (p *VertexProvider) SupportsTransparentAuth() bool {
-    return false // Uses GCP credentials, not client tokens
-}
 ```
 
-### Azure Foundry Provider
-
+### Azure Foundry Entra ID
 ```go
-// Source: Azure SDK for Go azidentity documentation
-package providers
-
+// Source: https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/how-to/use-foundry-models-claude
 import (
     "context"
-    "fmt"
     "net/http"
 
     "github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
     "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
-const (
-    FoundryOwner = "foundry"
-    FoundryAnthropicVersion = "2023-06-01"
-    AzureCognitiveScope = "https://cognitiveservices.azure.com/.default"
-)
-
-type FoundryProvider struct {
-    BaseProvider
-    credential *azidentity.DefaultAzureCredential
-    resource   string
-    useAPIKey  bool
-    apiKey     string
-}
-
-func NewFoundryProvider(name, resource string) (*FoundryProvider, error) {
+func authenticateAzure(ctx context.Context, req *http.Request) error {
     cred, err := azidentity.NewDefaultAzureCredential(nil)
     if err != nil {
-        return nil, fmt.Errorf("failed to create Azure credential: %w", err)
+        return err
     }
 
-    baseURL := fmt.Sprintf("https://%s.services.ai.azure.com/anthropic", resource)
-    return &FoundryProvider{
-        BaseProvider: NewBaseProvider(name, baseURL, FoundryOwner, nil),
-        credential:   cred,
-        resource:     resource,
-    }, nil
-}
-
-func NewFoundryProviderWithAPIKey(name, resource, apiKey string) *FoundryProvider {
-    baseURL := fmt.Sprintf("https://%s.services.ai.azure.com/anthropic", resource)
-    return &FoundryProvider{
-        BaseProvider: NewBaseProvider(name, baseURL, FoundryOwner, nil),
-        resource:     resource,
-        useAPIKey:    true,
-        apiKey:       apiKey,
-    }
-}
-
-func (p *FoundryProvider) Authenticate(req *http.Request, key string) error {
-    // Prefer configured API key, then passed key, then Entra ID
-    if p.useAPIKey && p.apiKey != "" {
-        req.Header.Set("x-api-key", p.apiKey)
-        return nil
-    }
-
-    if key != "" {
-        req.Header.Set("x-api-key", key)
-        return nil
-    }
-
-    // Fall back to Entra ID
-    ctx := req.Context()
-    token, err := p.credential.GetToken(ctx, policy.TokenRequestOptions{
-        Scopes: []string{AzureCognitiveScope},
+    token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+        Scopes: []string{"https://cognitiveservices.azure.com/.default"},
     })
     if err != nil {
-        return fmt.Errorf("failed to get Azure token: %w", err)
+        return err
     }
 
     req.Header.Set("Authorization", "Bearer "+token.Token)
     return nil
 }
-
-func (p *FoundryProvider) SupportsTransparentAuth() bool {
-    return false // Uses Azure credentials, not client tokens
-}
 ```
 
-### Configuration Examples
+### Request Body Transformation (Bedrock/Vertex)
+```go
+// Source: Derived from Anthropic docs
+import (
+    "encoding/json"
 
-```yaml
-# AWS Bedrock provider
-- name: "bedrock"
-  type: "bedrock"
-  enabled: true
-  aws_region: "us-west-2"
-  aws_profile: "" # Uses default credential chain if empty
+    "github.com/tidwall/gjson"
+    "github.com/tidwall/sjson"
+)
 
-  models:
-    - "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
-    - "global.anthropic.claude-opus-4-5-20251101-v1:0"
+func transformForBedrock(body []byte) ([]byte, string, error) {
+    // Extract model from request
+    model := gjson.GetBytes(body, "model").String()
 
-  model_mapping:
-    "claude-sonnet-4-5": "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
-    "claude-opus-4-5": "global.anthropic.claude-opus-4-5-20251101-v1:0"
+    // Remove model from body
+    newBody, _ := sjson.DeleteBytes(body, "model")
 
-# Google Vertex AI provider
-- name: "vertex"
-  type: "vertex"
-  enabled: true
-  gcp_project_id: "my-gcp-project"
-  gcp_region: "global" # or "us-east1" for regional endpoint
+    // Add anthropic_version
+    newBody, _ = sjson.SetBytes(newBody, "anthropic_version", "bedrock-2023-05-31")
 
-  models:
-    - "claude-sonnet-4-5@20250929"
-    - "claude-opus-4-5@20251101"
+    // Construct URL with model in path
+    // Note: Model should already be mapped to Bedrock format
+    url := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com/model/%s/invoke",
+        region, url.PathEscape(model))
 
-  model_mapping:
-    "claude-sonnet-4-5": "claude-sonnet-4-5@20250929"
-    "claude-opus-4-5": "claude-opus-4-5@20251101"
-
-# Azure Foundry provider
-- name: "foundry"
-  type: "foundry"
-  enabled: true
-  azure_resource: "my-azure-resource"
-
-  keys:
-    - key: "${AZURE_FOUNDRY_API_KEY}" # Optional, falls back to Entra ID
-
-  models:
-    - "claude-sonnet-4-5"
-    - "claude-opus-4-5"
+    return newBody, url, nil
+}
 ```
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Regional Bedrock endpoints only | Global endpoints with dynamic routing | Dec 2025 | Use `global.` prefix for maximum availability |
-| Service account JSON files | Application Default Credentials (ADC) | Stable | Workload Identity preferred for production |
-| Azure API key only | API key or Entra ID | Nov 2025 | DefaultAzureCredential handles both |
-| Manual token refresh | OAuth2 TokenSource auto-refresh | Stable | Never cache tokens manually |
+| Bedrock regional only | Global endpoints available | Claude Sonnet 4.5 (2025) | Better availability, no price premium |
+| Vertex regional only | Global endpoints available | Claude Sonnet 4.5 (2025) | Better availability, no price premium |
+| Azure API Foundry | Microsoft Foundry rebrand | Late 2025 | Same API, new branding |
+| Bedrock Text Completions API | Messages API only | 2024 | Older API deprecated |
 
 **Deprecated/outdated:**
-- AWS SDK v1: Use aws-sdk-go-v2, not aws-sdk-go
-- Manual AWS credential loading: Use config.LoadDefaultConfig
-- Azure ADAL library: Replaced by azidentity SDK
+- Bedrock Text Completions API: Use Messages API instead
+- Claude 3.7 Sonnet on Vertex: Deprecated October 28, 2025, shutdown May 11, 2026
+- Claude 3.5 Haiku: Deprecated December 19, 2025
 
 ## Open Questions
 
-1. **Streaming with SigV4**
-   - What we know: Standard SigV4 signs the full payload hash
-   - What's unclear: How streaming requests work with Bedrock's invoke-with-response-stream
-   - Recommendation: Test streaming; may need StreamSigner for SSE responses
+Things that couldn't be fully resolved:
 
-2. **Vertex AI Provisioned Throughput**
-   - What we know: Regional endpoints support provisioned throughput
-   - What's unclear: Configuration requirements for reserved capacity
-   - Recommendation: Document as advanced config; start with pay-as-you-go
+1. **Bedrock Event Stream → SSE Conversion**
+   - What we know: Bedrock returns `application/vnd.amazon.eventstream`
+   - What's unclear: Exact mapping of Event Stream event types to Anthropic SSE events
+   - Recommendation: Test with live Bedrock API to verify conversion logic
 
-3. **Azure Foundry Content Filters**
-   - What we know: Azure requires manual content filter configuration
-   - What's unclear: Whether missing filters cause request failures
-   - Recommendation: Document Azure portal setup requirements
+2. **Long-Running Stream Token Refresh**
+   - What we know: OAuth/Entra tokens typically expire in 1 hour
+   - What's unclear: How to handle token refresh mid-stream for requests > 1 hour
+   - Recommendation: Refresh token before streaming starts; for 10-minute timeout this is not an issue
 
-4. **Inference Profile ARNs for Bedrock**
-   - What we know: Users can create inference profile ARNs for routing
-   - What's unclear: Exact format and configuration in cc-relay
-   - Recommendation: Support ARNs as model IDs; document format
+3. **Azure Rate Limit Tracking**
+   - What we know: Azure doesn't return standard Anthropic rate limit headers
+   - What's unclear: Best approach for client-side rate limit estimation
+   - Recommendation: Implement optional client-side rate tracking
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [AWS SDK Go v2 SigV4 Signer](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/aws/signer/v4) - SignHTTP method, parameters
-- [AWS SigV4 Troubleshooting](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-troubleshooting.html) - Common errors and fixes
-- [Google OAuth2 for Go](https://pkg.go.dev/golang.org/x/oauth2/google) - FindDefaultCredentials, TokenSource
-- [Azure azidentity Package](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity) - DefaultAzureCredential
-- [Claude on Amazon Bedrock](https://platform.claude.com/docs/en/api/claude-on-amazon-bedrock) - API format, model IDs
-- [Claude on Vertex AI](https://platform.claude.com/docs/en/api/claude-on-vertex-ai) - API format, anthropic_version
-- [Azure Foundry Claude](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/how-to/use-foundry-models-claude) - Endpoint format, auth headers
+- [Anthropic - Claude on Amazon Bedrock](https://platform.claude.com/docs/en/api/claude-on-amazon-bedrock)
+- [Anthropic - Claude on Vertex AI](https://platform.claude.com/docs/en/api/claude-on-vertex-ai)
+- [Anthropic - Claude in Microsoft Foundry](https://platform.claude.com/docs/en/build-with-claude/claude-in-microsoft-foundry)
+- [AWS - InvokeModelWithResponseStream API](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModelWithResponseStream.html)
+- [AWS SDK Go v2 - SigV4 Package](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/aws/signer/v4)
+- [Google Cloud - Use Claude on Vertex AI](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude/use-claude)
+- [Microsoft Learn - Deploy Claude in Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-models/how-to/use-foundry-models-claude)
 
 ### Secondary (MEDIUM confidence)
-- [AWS SDK Go v2 Config](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/config) - LoadDefaultConfig patterns
-- [Vertex AI Authentication](https://docs.cloud.google.com/vertex-ai/docs/authentication) - ADC setup
-- [Azure Identity Overview](https://learn.microsoft.com/en-us/azure/developer/go/sdk/authentication/authentication-overview) - Credential chain
+- [AWS Go SDK Bedrock Examples](https://docs.aws.amazon.com/code-library/latest/ug/go_2_bedrock-runtime_code_examples.html)
+- [AWS SigV4 Signing Examples Repository](https://github.com/aws-samples/sigv4-signing-examples)
 
 ### Tertiary (LOW confidence)
-- Web search results for streaming and edge cases - Community patterns
+- General web search results for integration patterns (marked for validation during implementation)
 
 ## Metadata
 
 **Confidence breakdown:**
 - Standard stack: HIGH - Official SDK documentation verified
-- Architecture: HIGH - Patterns from existing Phase 5 BaseProvider + SDK docs
-- Pitfalls: HIGH - Verified against official troubleshooting guides
-- Code examples: MEDIUM - Based on SDK documentation, needs runtime validation
+- Architecture: HIGH - Based on existing codebase patterns
+- Pitfalls: MEDIUM - Based on documentation; some need live testing to confirm
 
 **Research date:** 2026-01-24
-**Valid until:** 30 days (SDK versions may update; cloud provider APIs are stable)
+**Valid until:** 2026-02-24 (30 days - stable APIs with infrequent changes)
