@@ -1758,11 +1758,12 @@ div[class*="mt-6"] > a,
 }
 
 .network-node {
-  transition: transform 0.3s ease;
+  /* No hover effects - keep SVG transforms intact */
+  pointer-events: auto;
 }
 
 .network-node:hover {
-  transform: scale(1.05);
+  /* No hover animation */
 }
 
 .node-logo {
