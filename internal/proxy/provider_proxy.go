@@ -2,7 +2,9 @@
 package proxy
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"net/http/httputil"
@@ -88,9 +90,80 @@ func (pp *ProviderProxy) modifyResponse(resp *http.Response) error {
 
 // rewrite creates the Rewrite function for this provider's proxy.
 func (pp *ProviderProxy) rewrite(r *httputil.ProxyRequest) {
+	// Handle body transformation for cloud providers (Bedrock, Vertex)
+	// This must happen before SetURL because cloud providers return a dynamic target URL
+	if pp.Provider.RequiresBodyTransform() {
+		pp.rewriteWithTransform(r)
+		return
+	}
+
+	// Standard providers: use static target URL
 	r.SetURL(pp.targetURL)
 	r.SetXForwarded()
+	pp.setAuth(r)
+}
 
+// rewriteWithTransform handles cloud providers that need body transformation.
+// Cloud providers like Bedrock and Vertex need to:
+// 1. Extract model from request body
+// 2. Remove model from body and add anthropic_version
+// 3. Construct dynamic URL with model in path.
+func (pp *ProviderProxy) rewriteWithTransform(r *httputil.ProxyRequest) {
+	// Read the original body
+	var originalBody []byte
+	if r.In.Body != nil {
+		var err error
+		originalBody, err = io.ReadAll(r.In.Body)
+		//nolint:errcheck // Close error ignored; body already fully read
+		r.In.Body.Close()
+		if err != nil {
+			// If we can't read body, fall back to static URL
+			r.SetURL(pp.targetURL)
+			r.SetXForwarded()
+			pp.setAuth(r)
+			return
+		}
+	}
+
+	// Get the endpoint path for transform (e.g., "/v1/messages")
+	endpoint := r.In.URL.Path
+
+	// Transform the request body and get the dynamic target URL
+	newBody, targetURLStr, err := pp.Provider.TransformRequest(originalBody, endpoint)
+	if err != nil {
+		// On transform error, fall back to static URL with original body
+		r.Out.Body = io.NopCloser(bytes.NewReader(originalBody))
+		r.Out.ContentLength = int64(len(originalBody))
+		r.SetURL(pp.targetURL)
+		r.SetXForwarded()
+		pp.setAuth(r)
+		return
+	}
+
+	// Parse the dynamic target URL returned by the provider
+	targetURL, err := url.Parse(targetURLStr)
+	if err != nil {
+		// On URL parse error, fall back to static URL with original body
+		r.Out.Body = io.NopCloser(bytes.NewReader(originalBody))
+		r.Out.ContentLength = int64(len(originalBody))
+		r.SetURL(pp.targetURL)
+		r.SetXForwarded()
+		pp.setAuth(r)
+		return
+	}
+
+	// Set the transformed body
+	r.Out.Body = io.NopCloser(bytes.NewReader(newBody))
+	r.Out.ContentLength = int64(len(newBody))
+
+	// Use the dynamic URL from TransformRequest
+	r.SetURL(targetURL)
+	r.SetXForwarded()
+	pp.setAuth(r)
+}
+
+// setAuth handles authentication and header forwarding.
+func (pp *ProviderProxy) setAuth(r *httputil.ProxyRequest) {
 	// Remove internal header before proxying to avoid key leakage
 	r.Out.Header.Del("X-Selected-Key")
 
