@@ -4,6 +4,7 @@ package providers_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,8 +12,47 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"golang.org/x/oauth2"
+
 	"github.com/omarluq/cc-relay/internal/providers"
 )
+
+// mockCredentialsProvider implements BedrockCredentialsProvider for testing.
+type mockCredentialsProvider struct {
+	creds aws.Credentials
+}
+
+func (m *mockCredentialsProvider) Retrieve(_ context.Context) (aws.Credentials, error) {
+	return m.creds, nil
+}
+
+func newMockCredentialsProvider(accessKey, secretKey string) *mockCredentialsProvider {
+	return &mockCredentialsProvider{
+		creds: aws.Credentials{
+			AccessKeyID:     accessKey,
+			SecretAccessKey: secretKey,
+		},
+	}
+}
+
+// mockTokenSource provides a controllable token source for Vertex AI testing.
+type mockTokenSource struct {
+	token *oauth2.Token
+}
+
+func (m *mockTokenSource) Token() (*oauth2.Token, error) {
+	return m.token, nil
+}
+
+func newMockTokenSource(accessToken string) *mockTokenSource {
+	return &mockTokenSource{
+		token: &oauth2.Token{
+			AccessToken: accessToken,
+			TokenType:   "Bearer",
+		},
+	}
+}
 
 // Integration tests for provider routing with mock backends.
 // Run with: go test -v -tags=integration ./internal/providers/...
@@ -620,6 +660,298 @@ func TestProvider_BaseURL(t *testing.T) {
 		provider := providers.NewOllamaProvider("test", customURL)
 		if provider.BaseURL() != customURL {
 			t.Errorf("Expected custom URL %s, got %s", customURL, provider.BaseURL())
+		}
+	})
+}
+
+// TestAzureProvider_Integration tests Azure provider URL construction and body handling.
+func TestAzureProvider_Integration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TransformRequest constructs correct URL with api-version", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.AzureConfig{
+			Name:         "test-azure",
+			ResourceName: "my-resource",
+			DeploymentID: "claude-deployment",
+			APIVersion:   "2025-01-01",
+			Models:       []string{"claude-sonnet-4-5"},
+		}
+		provider := providers.NewAzureProvider(cfg)
+
+		body := []byte(`{"model":"claude-sonnet-4-5-20250514","max_tokens":100}`)
+		newBody, targetURL, err := provider.TransformRequest(body, "/v1/messages")
+
+		if err != nil {
+			t.Fatalf("TransformRequest failed: %v", err)
+		}
+
+		// Verify URL contains resource name
+		if !strings.Contains(targetURL, "my-resource.services.ai.azure.com") {
+			t.Errorf("Expected URL to contain resource name, got %s", targetURL)
+		}
+
+		// Verify URL contains API version
+		if !strings.Contains(targetURL, "api-version=2025-01-01") {
+			t.Errorf("Expected URL to contain api-version=2025-01-01, got %s", targetURL)
+		}
+
+		// Azure keeps body unchanged (same as direct Anthropic)
+		if !bytes.Contains(newBody, []byte(`"model"`)) {
+			t.Errorf("Expected body to contain model")
+		}
+	})
+
+	t.Run("Authenticate sets x-api-key header", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.AzureConfig{
+			Name:         "test-azure",
+			ResourceName: "my-resource",
+			DeploymentID: "claude-deployment",
+		}
+		provider := providers.NewAzureProvider(cfg)
+
+		req := httptest.NewRequest("POST", "https://example.com", nil)
+		err := provider.Authenticate(req, "azure-api-key-123")
+
+		if err != nil {
+			t.Fatalf("Authenticate failed: %v", err)
+		}
+
+		// Azure uses x-api-key header (Anthropic-compatible)
+		if req.Header.Get("x-api-key") != "azure-api-key-123" {
+			t.Errorf("Expected x-api-key header, got %s", req.Header.Get("x-api-key"))
+		}
+	})
+
+	t.Run("RequiresBodyTransform returns false", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.AzureConfig{
+			Name: "test-azure",
+		}
+		provider := providers.NewAzureProvider(cfg)
+
+		// Azure uses standard Anthropic body format - no transformation needed
+		if provider.RequiresBodyTransform() {
+			t.Error("Expected Azure provider to not require body transform")
+		}
+	})
+}
+
+// TestVertexProvider_Integration tests Vertex AI provider URL construction.
+func TestVertexProvider_Integration(t *testing.T) {
+	t.Parallel()
+
+	// Mock token source for testing (no real GCP access needed)
+	mockTokenSrc := newMockTokenSource("test-access-token")
+
+	t.Run("TransformRequest constructs correct URL with project and model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.VertexConfig{
+			Name:      "test-vertex",
+			ProjectID: "my-gcp-project",
+			Region:    "us-central1",
+			Models:    []string{"claude-sonnet-4-5"},
+		}
+		provider := providers.NewVertexProviderWithTokenSource(cfg, mockTokenSrc)
+
+		body := []byte(`{"model":"claude-sonnet-4-5-20250514","max_tokens":100}`)
+		newBody, targetURL, err := provider.TransformRequest(body, "/v1/messages")
+
+		if err != nil {
+			t.Fatalf("TransformRequest failed: %v", err)
+		}
+
+		// Verify URL contains project ID, region, and model
+		if !strings.Contains(targetURL, "us-central1-aiplatform.googleapis.com") {
+			t.Errorf("Expected URL to contain region, got %s", targetURL)
+		}
+		if !strings.Contains(targetURL, "my-gcp-project") {
+			t.Errorf("Expected URL to contain project ID, got %s", targetURL)
+		}
+		if !strings.Contains(targetURL, "claude-sonnet-4-5-20250514") {
+			t.Errorf("Expected URL to contain model, got %s", targetURL)
+		}
+		if !strings.Contains(targetURL, ":streamRawPredict") {
+			t.Errorf("Expected URL to contain :streamRawPredict, got %s", targetURL)
+		}
+
+		// Verify body has anthropic_version
+		if !bytes.Contains(newBody, []byte(`"anthropic_version"`)) {
+			t.Errorf("Expected body to contain anthropic_version")
+		}
+	})
+
+	t.Run("RequiresBodyTransform returns true", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.VertexConfig{
+			Name:      "test-vertex",
+			ProjectID: "project",
+			Region:    "region",
+		}
+		provider := providers.NewVertexProviderWithTokenSource(cfg, mockTokenSrc)
+
+		if !provider.RequiresBodyTransform() {
+			t.Error("Expected Vertex provider to require body transform")
+		}
+	})
+
+	t.Run("StreamingContentType returns SSE", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.VertexConfig{
+			Name:      "test-vertex",
+			ProjectID: "project",
+			Region:    "region",
+		}
+		provider := providers.NewVertexProviderWithTokenSource(cfg, mockTokenSrc)
+
+		if provider.StreamingContentType() != providers.ContentTypeSSE {
+			t.Errorf("Expected Vertex to use SSE, got %s", provider.StreamingContentType())
+		}
+	})
+}
+
+// TestBedrockProvider_Integration tests Bedrock provider URL and body transformation.
+func TestBedrockProvider_Integration(t *testing.T) {
+	t.Parallel()
+
+	// Mock credentials for testing (no real AWS access needed)
+	mockCreds := newMockCredentialsProvider("test-access-key", "test-secret-key")
+
+	t.Run("TransformRequest constructs correct URL with model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.BedrockConfig{
+			Name:   "test-bedrock",
+			Region: "us-west-2",
+			Models: []string{"claude-sonnet-4-5"},
+		}
+		provider := providers.NewBedrockProviderWithCredentials(cfg, mockCreds)
+
+		body := []byte(`{"model":"claude-sonnet-4-5-20250514","max_tokens":100}`)
+		newBody, targetURL, err := provider.TransformRequest(body, "/v1/messages")
+
+		if err != nil {
+			t.Fatalf("TransformRequest failed: %v", err)
+		}
+
+		// Verify URL contains region
+		if !strings.Contains(targetURL, "bedrock-runtime.us-west-2.amazonaws.com") {
+			t.Errorf("Expected URL to contain region, got %s", targetURL)
+		}
+
+		// Verify URL contains model and invoke path
+		if !strings.Contains(targetURL, "claude-sonnet-4-5-20250514") {
+			t.Errorf("Expected URL to contain model, got %s", targetURL)
+		}
+		if !strings.Contains(targetURL, "invoke-with-response-stream") {
+			t.Errorf("Expected URL to contain invoke path, got %s", targetURL)
+		}
+
+		// Verify body has anthropic_version
+		if !bytes.Contains(newBody, []byte(`"anthropic_version"`)) {
+			t.Errorf("Expected body to contain anthropic_version")
+		}
+	})
+
+	t.Run("RequiresBodyTransform returns true", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.BedrockConfig{
+			Name:   "test-bedrock",
+			Region: "us-east-1",
+		}
+		provider := providers.NewBedrockProviderWithCredentials(cfg, mockCreds)
+
+		if !provider.RequiresBodyTransform() {
+			t.Error("Expected Bedrock provider to require body transform")
+		}
+	})
+
+	t.Run("StreamingContentType returns Event Stream", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.BedrockConfig{
+			Name:   "test-bedrock",
+			Region: "us-east-1",
+		}
+		provider := providers.NewBedrockProviderWithCredentials(cfg, mockCreds)
+
+		if provider.StreamingContentType() != providers.ContentTypeEventStream {
+			t.Errorf("Expected Bedrock to use Event Stream, got %s", provider.StreamingContentType())
+		}
+	})
+}
+
+// TestCloudProviders_ModelMapping tests model mapping for all cloud providers.
+func TestCloudProviders_ModelMapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Azure maps models correctly", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.AzureConfig{
+			Name: "test-azure",
+			ModelMapping: map[string]string{
+				"claude-sonnet-4-5": "my-azure-claude",
+			},
+		}
+		provider := providers.NewAzureProvider(cfg)
+
+		mapped := provider.MapModel("claude-sonnet-4-5")
+		if mapped != "my-azure-claude" {
+			t.Errorf("Expected mapped model my-azure-claude, got %s", mapped)
+		}
+
+		// Unmapped model returns as-is
+		unmapped := provider.MapModel("unknown-model")
+		if unmapped != "unknown-model" {
+			t.Errorf("Expected unmapped model to be returned as-is, got %s", unmapped)
+		}
+	})
+
+	t.Run("Vertex maps models correctly", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.VertexConfig{
+			Name:      "test-vertex",
+			ProjectID: "project",
+			Region:    "region",
+			ModelMapping: map[string]string{
+				"claude-sonnet-4-5": "my-vertex-model",
+			},
+		}
+		mockTokenSrc := newMockTokenSource("test-token")
+		provider := providers.NewVertexProviderWithTokenSource(cfg, mockTokenSrc)
+
+		mapped := provider.MapModel("claude-sonnet-4-5")
+		if mapped != "my-vertex-model" {
+			t.Errorf("Expected mapped model my-vertex-model, got %s", mapped)
+		}
+	})
+
+	t.Run("Bedrock maps models correctly", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &providers.BedrockConfig{
+			Name:   "test-bedrock",
+			Region: "us-east-1",
+			ModelMapping: map[string]string{
+				"claude-sonnet-4-5": "anthropic.claude-3-sonnet-20240229-v1:0",
+			},
+		}
+		mockCreds := newMockCredentialsProvider("test-access-key", "test-secret-key")
+		provider := providers.NewBedrockProviderWithCredentials(cfg, mockCreds)
+
+		mapped := provider.MapModel("claude-sonnet-4-5")
+		if mapped != "anthropic.claude-3-sonnet-20240229-v1:0" {
+			t.Errorf("Expected mapped model, got %s", mapped)
 		}
 	})
 }
