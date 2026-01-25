@@ -285,6 +285,22 @@ func (m *mockProvider) MapModel(model string) string {
 	return model
 }
 
+func (m *mockProvider) TransformRequest(body []byte, endpoint string) (newBody []byte, targetURL string, err error) {
+	return body, m.baseURL + endpoint, nil
+}
+
+func (m *mockProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
+	return nil
+}
+
+func (m *mockProvider) RequiresBodyTransform() bool {
+	return false
+}
+
+func (m *mockProvider) StreamingContentType() string {
+	return "text/event-stream"
+}
+
 // TestHandler_WithKeyPool tests handler with key pool integration.
 func TestHandler_WithKeyPool(t *testing.T) {
 	t.Parallel()

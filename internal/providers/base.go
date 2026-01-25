@@ -136,3 +136,30 @@ func (p *BaseProvider) MapModel(model string) string {
 	}
 	return model
 }
+
+// TransformRequest returns the body and URL unchanged for standard providers.
+// Cloud provider implementations override this.
+func (p *BaseProvider) TransformRequest(body []byte, endpoint string) (newBody []byte, targetURL string, err error) {
+	// Standard providers: use base URL + endpoint, body unchanged
+	targetURL = p.baseURL + endpoint
+	return body, targetURL, nil
+}
+
+// TransformResponse passes through the response unchanged for standard providers.
+// Cloud provider implementations (e.g., Bedrock) override this for format conversion.
+func (p *BaseProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
+	// Default: no transformation needed, handled by standard proxy
+	return nil
+}
+
+// RequiresBodyTransform returns false for standard providers.
+// Cloud providers override to return true.
+func (p *BaseProvider) RequiresBodyTransform() bool {
+	return false
+}
+
+// StreamingContentType returns the standard SSE content type.
+// Bedrock overrides to return "application/vnd.amazon.eventstream".
+func (p *BaseProvider) StreamingContentType() string {
+	return "text/event-stream"
+}

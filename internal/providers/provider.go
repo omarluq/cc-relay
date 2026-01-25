@@ -53,4 +53,25 @@ type Provider interface {
 	// MapModel maps an incoming model name to the provider-specific model name.
 	// Returns the mapped name if found, otherwise returns the original name unchanged.
 	MapModel(model string) string
+
+	// TransformRequest modifies the request body for provider-specific requirements.
+	// For cloud providers: may remove model from body (goes in URL), add anthropic_version to body.
+	// Returns modified body, target URL (including model in path if needed), and error.
+	// Non-cloud providers return body unchanged and standard URL.
+	TransformRequest(body []byte, endpoint string) (newBody []byte, targetURL string, err error)
+
+	// TransformResponse modifies the response for provider-specific requirements.
+	// For Bedrock: converts Event Stream to SSE format.
+	// Other providers return response unchanged.
+	// The writer is used for streaming responses; non-streaming returns modified body.
+	TransformResponse(resp *http.Response, w http.ResponseWriter) error
+
+	// RequiresBodyTransform returns true if this provider needs request body modification.
+	// Cloud providers (Bedrock, Vertex) return true. Direct providers return false.
+	RequiresBodyTransform() bool
+
+	// StreamingContentType returns the expected Content-Type for streaming responses.
+	// Most providers: "text/event-stream"
+	// Bedrock: "application/vnd.amazon.eventstream"
+	StreamingContentType() string
 }
