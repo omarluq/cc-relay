@@ -2,12 +2,15 @@
 <div class="landing-page">
 
 <div class="custom-hero">
-  <h1 class="hero-title">CC-Relay</h1>
+  <h1 class="hero-title">{{ T "hero_title" }}</h1>
   <p class="hero-subtitle">
-    Multi-provider proxy for Claude Code
+    {{ T "hero_subtitle" }}
+  </p>
+  <p class="hero-description">
+    {{ T "hero_description" }}
   </p>
   <div class="hero-buttons">
-    <a href="{{ "docs/getting-started/" | relLangURL }}" class="hero-button hero-button-primary">Get Started</a>
+    <a href="{{ "docs/getting-started/" | relLangURL }}" class="hero-button hero-button-primary">{{ T "get_started" }}</a>
     <a href="https://github.com/omarluq/cc-relay" class="hero-button hero-button-secondary">
       <svg class="github-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
         <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
@@ -163,7 +166,7 @@
 </div>
 
 <div class="section-box">
-  <h2 class="section-title">Quick Start</h2>
+  <h2 class="section-title">{{ T "quick_start" }}</h2>
   <div class="terminal-container terminal-compact">
     <div class="terminal-header">
       <div class="terminal-buttons">
@@ -193,24 +196,95 @@
   </div>
 </div>
 
-<div class="section-box">
-  <h2 class="section-title">Features</h2>
-  <div class="features-compact">
-    <div class="feature-compact">
-      <span class="feature-icon-compact">6</span>
-      <div><strong>Providers</strong><br/><span>Anthropic, Z.AI, Ollama, Bedrock, Azure, Vertex</span></div>
+<div class="info-box">
+  <div class="info-box-title">
+    <span class="info-icon">⚡</span>
+    {{ T "current_features" }}
+  </div>
+  <div class="info-box-content">
+    <div class="feature-item">
+      <span class="feature-icon">🔑</span>
+      <div>
+        <strong>{{ T "feat_multiple_keys" }}</strong>
+        <p>{{ T "feat_multiple_keys_desc" }}</p>
+      </div>
     </div>
-    <div class="feature-compact">
-      <span class="feature-icon-compact">N</span>
-      <div><strong>API Keys</strong><br/><span>Pool multiple keys for higher throughput</span></div>
+    <div class="feature-item">
+      <span class="feature-icon">🔐</span>
+      <div>
+        <strong>{{ T "feat_multi_auth" }}</strong>
+        <p>{{ T "feat_multi_auth_desc" }}</p>
+      </div>
     </div>
-    <div class="feature-compact">
-      <span class="feature-icon-compact">5</span>
-      <div><strong>Routing Strategies</strong><br/><span>Failover, round-robin, weighted, shuffle, cost-based</span></div>
+    <div class="feature-item">
+      <span class="feature-icon">📡</span>
+      <div>
+        <strong>{{ T "feat_sse" }}</strong>
+        <p>{{ T "feat_sse_desc" }}</p>
+      </div>
     </div>
-    <div class="feature-compact">
-      <span class="feature-icon-compact">%</span>
-      <div><strong>100% Compatible</strong><br/><span>Drop-in Anthropic API replacement</span></div>
+    <div class="feature-item">
+      <span class="feature-icon">🎛️</span>
+      <div>
+        <strong>{{ T "feat_debug" }}</strong>
+        <p>{{ T "feat_debug_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">⚙️</span>
+      <div>
+        <strong>{{ T "feat_env" }}</strong>
+        <p>{{ T "feat_env_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">🚀</span>
+      <div>
+        <strong>{{ T "feat_setup" }}</strong>
+        <p>{{ T "feat_setup_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">🔄</span>
+      <div>
+        <strong>{{ T "feat_flexibility" }}</strong>
+        <p>{{ T "feat_flexibility_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">👥</span>
+      <div>
+        <strong>{{ T "feat_teams" }}</strong>
+        <p>{{ T "feat_teams_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">💰</span>
+      <div>
+        <strong>{{ T "feat_cost" }}</strong>
+        <p>{{ T "feat_cost_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">🔗</span>
+      <div>
+        <strong>{{ T "feat_api_compat" }}</strong>
+        <p>{{ T "feat_api_compat_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">🛡️</span>
+      <div>
+        <strong>{{ T "feat_key_mgmt" }}</strong>
+        <p>{{ T "feat_key_mgmt_desc" }}</p>
+      </div>
+    </div>
+    <div class="feature-item">
+      <span class="feature-icon">📊</span>
+      <div>
+        <strong>{{ T "feat_providers" }}</strong>
+        <p>{{ T "feat_providers_desc" }}</p>
+      </div>
     </div>
   </div>
 </div>
@@ -233,7 +307,8 @@
       </svg>
     </a>
   </div>
-  <p class="footer-powered">Powered by <a href="https://gohugo.io" target="_blank" rel="noopener">Hugo</a> | <a href="https://github.com/omarluq/cc-relay/blob/main/LICENSE">AGPL-3.0</a></p>
+  <p class="footer-powered">{{ T "footer_powered" }} <a href="https://gohugo.io" target="_blank" rel="noopener">Hugo</a> | <a href="https://github.com/omarluq/cc-relay/blob/main/LICENSE">{{ T "footer_license" }}</a></p>
+  <p class="footer-copyright">{{ T "footer_copyright" }}</p>
 </div>
 
 </div>
@@ -268,7 +343,6 @@
       providerPaths.push(document.getElementById('path-' + i));
     }
 
-    // Handle page visibility to prevent stacking
     document.addEventListener('visibilitychange', handleVisibility);
 
     startPacketStream();
@@ -284,7 +358,6 @@
     } else {
       isPageVisible = true;
       if (!spawnIntervalId) {
-        // Small delay before restarting to prevent burst
         setTimeout(function() {
           if (isPageVisible) startPacketStream();
         }, 500);
@@ -293,11 +366,9 @@
   }
 
   function startPacketStream() {
-    if (spawnIntervalId) return; // Already running
-    // Start with 2 packets staggered
+    if (spawnIntervalId) return;
     setTimeout(launchPacket, 200);
     setTimeout(launchPacket, 800);
-    // Then continue at interval
     spawnIntervalId = setInterval(function() {
       if (isPageVisible) launchPacket();
     }, CONFIG.spawnInterval);
@@ -310,9 +381,13 @@
     var color = CONFIG.colors[providerIndex % CONFIG.colors.length];
     var duration = CONFIG.minDuration + Math.random() * (CONFIG.maxDuration - CONFIG.minDuration);
 
+    var startPoint = mainPath.getPointAtLength(0);
+
     var packet = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     packet.setAttribute('r', '4');
     packet.setAttribute('fill', color);
+    packet.setAttribute('cx', startPoint.x);
+    packet.setAttribute('cy', startPoint.y);
     packet.classList.add('packet');
     packetsContainer.appendChild(packet);
 
@@ -322,6 +397,8 @@
       trail.setAttribute('r', String(3 - (i * 0.35)));
       trail.setAttribute('fill', color);
       trail.setAttribute('opacity', String(0.5 - (i * 0.07)));
+      trail.setAttribute('cx', startPoint.x);
+      trail.setAttribute('cy', startPoint.y);
       trail.classList.add('trail');
       trailsContainer.appendChild(trail);
       trails.push(trail);
@@ -410,23 +487,22 @@
 .packet { filter: url(#glow-intense); }
 .trail { pointer-events: none; }
 
-/* Provider cards */
 .provider-node { cursor: pointer; }
-.provider-node .provider-rect { transition: stroke-width 0.2s ease, filter 0.2s ease; }
-.provider-node:hover .provider-rect { stroke-width: 3; filter: drop-shadow(0 0 8px currentColor); }
+.provider-node .provider-rect { transition: filter 0.2s ease; }
+.provider-node:hover .provider-rect { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4)); }
 
-/* Uniform white logos */
-.provider-logo { filter: brightness(0) saturate(100%) invert(100%); opacity: 0.9; }
-.provider-node:hover .provider-logo { opacity: 1; }
+.provider-logo { filter: brightness(0) saturate(100%) invert(100%); opacity: 0.85; transition: opacity 0.2s ease, filter 0.3s ease; }
+.provider-node:hover .provider-logo { opacity: 1; filter: brightness(1.2) saturate(150%) hue-rotate(-10deg) drop-shadow(0 0 6px rgba(236,72,153,0.5)); }
 
-/* Relay hub rings */
+.claude-node { cursor: pointer; transition: transform 0.2s ease, filter 0.2s ease; }
+.claude-node:hover { transform: scale(1.03); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+
 .relay-ring-1 { animation: spin-cw 20s linear infinite; transform-box: fill-box; transform-origin: center; }
 .relay-ring-2 { animation: spin-ccw 30s linear infinite; transform-box: fill-box; transform-origin: center; }
 .relay-ring-3 { animation: spin-cw 40s linear infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes spin-cw { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes spin-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 
-/* Stats counter */
 .network-stats {
   position: absolute; bottom: 1.5rem; left: 1.5rem;
   background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(99, 102, 241, 0.3);

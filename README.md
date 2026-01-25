@@ -5,7 +5,7 @@
 <h1 align="center">CC-Relay</h1>
 
 <h4 align="center">
-Boost Claude Code by routing to multiple Anthropic-compatible providers simultaneously
+Boost Claude Code by routing to multiple Anthropic-compatible providers
 </h4>
 
 <p align="center">  
