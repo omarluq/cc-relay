@@ -89,29 +89,48 @@ func (t *Tracker) GetState(providerName string) State {
 }
 
 // RecordSuccess records a successful operation for a provider.
+// When the circuit is OPEN, the success is not recorded (gobreaker limitation)
+// and a debug log is emitted to make this visible.
 func (t *Tracker) RecordSuccess(providerName string) {
 	cb := t.GetOrCreateCircuit(providerName)
-	cb.ReportSuccess()
+	recorded := cb.ReportSuccess()
 
 	if t.logger != nil {
-		t.logger.Debug().
-			Str("provider", providerName).
-			Str("state", cb.State().String()).
-			Msg("recorded success")
+		if recorded {
+			t.logger.Debug().
+				Str("provider", providerName).
+				Str("state", cb.State().String()).
+				Msg("recorded success")
+		} else {
+			// Circuit is OPEN - success not recorded, waiting for timeout
+			t.logger.Debug().
+				Str("provider", providerName).
+				Str("state", cb.State().String()).
+				Msg("success not recorded (circuit open, waiting for timeout)")
+		}
 	}
 }
 
 // RecordFailure records a failed operation for a provider.
+// When the circuit is OPEN, the failure is not recorded (already open).
 func (t *Tracker) RecordFailure(providerName string, err error) {
 	cb := t.GetOrCreateCircuit(providerName)
-	cb.ReportFailure(err)
+	recorded := cb.ReportFailure(err)
 
 	if t.logger != nil {
-		t.logger.Debug().
-			Str("provider", providerName).
-			Str("state", cb.State().String()).
-			Err(err).
-			Msg("recorded failure")
+		if recorded {
+			t.logger.Debug().
+				Str("provider", providerName).
+				Str("state", cb.State().String()).
+				Err(err).
+				Msg("recorded failure")
+		} else {
+			t.logger.Debug().
+				Str("provider", providerName).
+				Str("state", cb.State().String()).
+				Err(err).
+				Msg("failure not recorded (circuit already open)")
+		}
 	}
 }
 

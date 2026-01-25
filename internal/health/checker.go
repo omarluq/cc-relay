@@ -234,7 +234,11 @@ func (h *Checker) checkAllProviders() {
 			continue
 		}
 
-		// Successful health check - record success to help circuit transition
+		// Successful health check - attempt to record success.
+		// NOTE: When circuit is OPEN, gobreaker doesn't allow recording successes.
+		// The circuit will transition to HALF-OPEN after OpenDuration timeout,
+		// then probe requests determine if it closes. Health checks during OPEN
+		// state verify provider recovery but don't accelerate the transition.
 		if h.logger != nil {
 			h.logger.Info().
 				Str("provider", name).
