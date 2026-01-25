@@ -1781,7 +1781,7 @@ div[class*="mt-6"] > a,
   opacity: 0.9;
 }
 
-.provider-logo-svg {
+.provider-logo {
   filter: brightness(0) saturate(100%) invert(95%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(103%) contrast(103%);
 }
 
