@@ -12,6 +12,7 @@ import (
 
 	"github.com/omarluq/cc-relay/internal/auth"
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/rs/zerolog"
 )
 
@@ -262,7 +263,7 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	// Check if this is a streaming response
-	if rw.Header().Get("Content-Type") == "text/event-stream" {
+	if rw.Header().Get("Content-Type") == providers.ContentTypeSSE {
 		rw.isStreaming = true
 	}
 	rw.ResponseWriter.WriteHeader(code)

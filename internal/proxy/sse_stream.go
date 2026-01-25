@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/samber/ro"
 )
 
@@ -242,7 +243,7 @@ func (p *sseParser) setRetry(value []byte) {
 //	}
 func ForwardSSE(events ro.Observable[SSEEvent], w http.ResponseWriter) error {
 	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Content-Type", providers.ContentTypeSSE)
 	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.Header().Set("Connection", "keep-alive")

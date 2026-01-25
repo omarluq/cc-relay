@@ -9,6 +9,9 @@ import (
 	"github.com/samber/lo"
 )
 
+// ContentTypeSSE is the standard Content-Type for Server-Sent Events.
+const ContentTypeSSE = "text/event-stream"
+
 // BaseProvider provides common functionality for Anthropic-compatible providers.
 // It implements the shared methods that are identical across Anthropic and Z.AI.
 //
@@ -161,5 +164,5 @@ func (p *BaseProvider) RequiresBodyTransform() bool {
 // StreamingContentType returns the standard SSE content type.
 // Bedrock overrides to return "application/vnd.amazon.eventstream".
 func (p *BaseProvider) StreamingContentType() string {
-	return "text/event-stream"
+	return ContentTypeSSE
 }
