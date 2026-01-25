@@ -71,12 +71,34 @@ func NewProviderProxy(
 	return pp, nil
 }
 
-// modifyResponse handles SSE headers and calls the optional hook for additional processing.
+// modifyResponse handles SSE headers, Event Stream conversion, and calls the optional hook.
 func (pp *ProviderProxy) modifyResponse(resp *http.Response) error {
-	// Add SSE headers if streaming response (handles "text/event-stream; charset=utf-8" etc.)
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		if mediaType, _, err := mime.ParseMediaType(ct); err == nil && mediaType == providers.ContentTypeSSE {
-			SetSSEHeaders(resp.Header)
+	ct := resp.Header.Get("Content-Type")
+	if ct != "" {
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err == nil {
+			// Standard SSE: set headers
+			if mediaType == providers.ContentTypeSSE {
+				SetSSEHeaders(resp.Header)
+			}
+
+			// Bedrock Event Stream: needs conversion to SSE
+			// The provider's StreamingContentType tells us what to expect
+			providerStreamType := pp.Provider.StreamingContentType()
+			if providerStreamType == providers.ContentTypeEventStream && mediaType == providers.ContentTypeEventStream {
+				// Mark response for Event Stream conversion
+				// The actual conversion happens via TransformResponse
+				// We need to convert the Content-Type for the client
+				resp.Header.Set("Content-Type", providers.ContentTypeSSE)
+				SetSSEHeaders(resp.Header)
+
+				// Store original response body for conversion
+				// The TransformResponse needs http.ResponseWriter which we don't have here
+				// Instead, we wrap the body to convert Event Stream to SSE on read
+				if resp.Body != nil {
+					resp.Body = newEventStreamToSSEBody(resp.Body)
+				}
+			}
 		}
 	}
 
@@ -212,4 +234,81 @@ func (pp *ProviderProxy) setAuth(r *httputil.ProxyRequest) {
 // Useful for testing and debugging.
 func (pp *ProviderProxy) GetTargetURL() *url.URL {
 	return pp.targetURL
+}
+
+// eventStreamToSSEBody wraps an Event Stream body and converts it to SSE on read.
+// This allows the ReverseProxy to transparently convert Bedrock Event Stream
+// to SSE format without requiring a custom transport.
+type eventStreamToSSEBody struct {
+	original  io.ReadCloser
+	sseBuffer *bytes.Buffer // Buffered SSE output
+	esBuffer  []byte        // Accumulated Event Stream data for parsing
+	done      bool
+}
+
+// newEventStreamToSSEBody creates a wrapper that converts Event Stream to SSE.
+func newEventStreamToSSEBody(original io.ReadCloser) *eventStreamToSSEBody {
+	return &eventStreamToSSEBody{
+		original:  original,
+		sseBuffer: bytes.NewBuffer(nil),
+		esBuffer:  make([]byte, 0, 32*1024),
+	}
+}
+
+// Read implements io.Reader, converting Event Stream messages to SSE events.
+func (e *eventStreamToSSEBody) Read(p []byte) (int, error) {
+	// If we have buffered SSE data, return it first
+	if e.sseBuffer.Len() > 0 {
+		return e.sseBuffer.Read(p)
+	}
+
+	if e.done {
+		return 0, io.EOF
+	}
+
+	// Read more data from the original Event Stream
+	chunk := make([]byte, 16*1024) // 16KB chunks
+	n, readErr := e.original.Read(chunk)
+	if n > 0 {
+		e.esBuffer = append(e.esBuffer, chunk[:n]...)
+	}
+
+	// Parse complete Event Stream messages and convert to SSE
+	for {
+		msg, consumed, err := providers.ParseEventStreamMessage(e.esBuffer)
+		if err != nil {
+			// Not enough data for a complete message, wait for more
+			break
+		}
+
+		// Remove consumed bytes from buffer
+		e.esBuffer = e.esBuffer[consumed:]
+
+		// Convert to SSE format
+		sseEvent := providers.FormatMessageAsSSE(msg)
+		e.sseBuffer.Write(sseEvent)
+	}
+
+	// Handle EOF from original stream
+	if readErr == io.EOF {
+		e.done = true
+		if e.sseBuffer.Len() == 0 {
+			return 0, io.EOF
+		}
+	} else if readErr != nil {
+		return 0, readErr
+	}
+
+	// Return any converted SSE data
+	if e.sseBuffer.Len() > 0 {
+		return e.sseBuffer.Read(p)
+	}
+
+	// Need more data, return without error to continue reading
+	return 0, nil
+}
+
+// Close implements io.Closer.
+func (e *eventStreamToSSEBody) Close() error {
+	return e.original.Close()
 }

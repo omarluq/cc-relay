@@ -439,3 +439,33 @@ func mapBedrockEventType(bedrockType string) string {
 		return bedrockType
 	}
 }
+
+// FormatMessageAsSSE converts an EventStreamMessage to SSE format bytes.
+// This is used by the proxy to convert Bedrock Event Stream responses
+// to SSE format for Claude Code compatibility.
+func FormatMessageAsSSE(msg *EventStreamMessage) []byte {
+	if msg == nil {
+		return nil
+	}
+
+	// Check for exception
+	if exceptionType := msg.Headers[":exception-type"]; exceptionType != "" {
+		return formatExceptionAsSSE(exceptionType, msg.Payload)
+	}
+
+	// Get event type from headers
+	eventType := msg.Headers[":event-type"]
+	if eventType == "" {
+		return nil
+	}
+
+	return formatSSEEvent(eventType, msg.Payload)
+}
+
+// formatExceptionAsSSE formats an exception as an SSE error event.
+func formatExceptionAsSSE(exceptionType string, payload []byte) []byte {
+	return []byte(fmt.Sprintf(
+		"event: error\ndata: {\"error\":{\"type\":%q,\"message\":%q}}\n\n",
+		exceptionType, string(payload),
+	))
+}
