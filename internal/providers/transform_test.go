@@ -278,3 +278,62 @@ func TestTransformBodyForCloudProvider_PreservesFields(t *testing.T) {
 	assert.True(t, ok)
 	assert.Len(t, messages, 1)
 }
+
+func TestIsStreamingRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		body     []byte
+		expected bool
+	}{
+		{
+			name:     "stream true",
+			body:     []byte(`{"model":"claude-3","stream":true}`),
+			expected: true,
+		},
+		{
+			name:     "stream false",
+			body:     []byte(`{"model":"claude-3","stream":false}`),
+			expected: false,
+		},
+		{
+			name:     "stream missing",
+			body:     []byte(`{"model":"claude-3"}`),
+			expected: false,
+		},
+		{
+			name:     "stream null",
+			body:     []byte(`{"model":"claude-3","stream":null}`),
+			expected: false,
+		},
+		{
+			name:     "stream as string true (gjson coerces)",
+			body:     []byte(`{"model":"claude-3","stream":"true"}`),
+			expected: true, // gjson.Bool() coerces string "true" to true
+		},
+		{
+			name:     "stream as string false",
+			body:     []byte(`{"model":"claude-3","stream":"false"}`),
+			expected: false,
+		},
+		{
+			name:     "empty body",
+			body:     []byte(`{}`),
+			expected: false,
+		},
+		{
+			name:     "invalid JSON",
+			body:     []byte(`{invalid`),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := IsStreamingRequest(tt.body)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

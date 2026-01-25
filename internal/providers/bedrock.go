@@ -190,12 +190,10 @@ func (p *BedrockProvider) Authenticate(req *http.Request, _ string) error {
 	}
 
 	// Reset body reader for the actual request
-	if bodyReader != nil {
-		if _, seekErr := bodyReader.Seek(0, io.SeekStart); seekErr != nil {
-			return fmt.Errorf("bedrock: failed to reset body: %w", seekErr)
-		}
-		req.Body = io.NopCloser(bodyReader)
+	if _, seekErr := bodyReader.Seek(0, io.SeekStart); seekErr != nil {
+		return fmt.Errorf("bedrock: failed to reset body: %w", seekErr)
 	}
+	req.Body = io.NopCloser(bodyReader)
 
 	log.Ctx(ctx).Debug().
 		Str("provider", p.name).

@@ -24,6 +24,13 @@ func AddAnthropicVersion(body []byte, version string) ([]byte, error) {
 	return sjson.SetBytes(body, "anthropic_version", version)
 }
 
+// IsStreamingRequest checks if the request body has "stream": true.
+// Returns false if stream field is missing or not a boolean.
+func IsStreamingRequest(body []byte) bool {
+	result := gjson.GetBytes(body, "stream")
+	return result.Exists() && result.Bool()
+}
+
 // TransformBodyForCloudProvider performs the standard transformation for cloud providers:
 // 1. Extract model (for URL construction)
 // 2. Remove model from body

@@ -298,7 +298,7 @@ func (m *mockProvider) RequiresBodyTransform() bool {
 }
 
 func (m *mockProvider) StreamingContentType() string {
-	return "text/event-stream"
+	return providers.ContentTypeSSE
 }
 
 // TestHandler_WithKeyPool tests handler with key pool integration.

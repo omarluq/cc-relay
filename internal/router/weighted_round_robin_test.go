@@ -31,7 +31,9 @@ func (m *mockProvider) TransformRequest(body []byte, endpoint string) (newBody [
 }
 func (m *mockProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error { return nil }
 func (m *mockProvider) RequiresBodyTransform() bool                                      { return false }
-func (m *mockProvider) StreamingContentType() string                                     { return "text/event-stream" }
+func (m *mockProvider) StreamingContentType() string {
+	return providers.ContentTypeSSE
+}
 
 func TestWeightedRoundRobinRouter_Select_NoProviders(t *testing.T) {
 	t.Parallel()

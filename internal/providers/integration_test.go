@@ -678,7 +678,10 @@ func TestAzureProvider_Integration(t *testing.T) {
 			APIVersion:   "2025-01-01",
 			Models:       []string{"claude-sonnet-4-5"},
 		}
-		provider := providers.NewAzureProvider(cfg)
+		provider, err := providers.NewAzureProvider(cfg)
+		if err != nil {
+			t.Fatalf("NewAzureProvider failed: %v", err)
+		}
 
 		body := []byte(`{"model":"claude-sonnet-4-5-20250514","max_tokens":100}`)
 		newBody, targetURL, err := provider.TransformRequest(body, "/v1/messages")
@@ -711,10 +714,13 @@ func TestAzureProvider_Integration(t *testing.T) {
 			ResourceName: "my-resource",
 			DeploymentID: "claude-deployment",
 		}
-		provider := providers.NewAzureProvider(cfg)
+		provider, err := providers.NewAzureProvider(cfg)
+		if err != nil {
+			t.Fatalf("NewAzureProvider failed: %v", err)
+		}
 
 		req := httptest.NewRequest("POST", "https://example.com", nil)
-		err := provider.Authenticate(req, "azure-api-key-123")
+		err = provider.Authenticate(req, "azure-api-key-123")
 
 		if err != nil {
 			t.Fatalf("Authenticate failed: %v", err)
@@ -730,9 +736,13 @@ func TestAzureProvider_Integration(t *testing.T) {
 		t.Parallel()
 
 		cfg := &providers.AzureConfig{
-			Name: "test-azure",
+			Name:         "test-azure",
+			ResourceName: "my-resource",
 		}
-		provider := providers.NewAzureProvider(cfg)
+		provider, err := providers.NewAzureProvider(cfg)
+		if err != nil {
+			t.Fatalf("NewAzureProvider failed: %v", err)
+		}
 
 		// Azure uses standard Anthropic body format - no transformation needed
 		if provider.RequiresBodyTransform() {
@@ -759,7 +769,8 @@ func TestVertexProvider_Integration(t *testing.T) {
 		}
 		provider := providers.NewVertexProviderWithTokenSource(cfg, mockTokenSrc)
 
-		body := []byte(`{"model":"claude-sonnet-4-5-20250514","max_tokens":100}`)
+		// stream: true in body triggers streamRawPredict endpoint
+		body := []byte(`{"model":"claude-sonnet-4-5-20250514","max_tokens":100,"stream":true}`)
 		newBody, targetURL, err := provider.TransformRequest(body, "/v1/messages")
 
 		if err != nil {
@@ -897,12 +908,16 @@ func TestCloudProviders_ModelMapping(t *testing.T) {
 		t.Parallel()
 
 		cfg := &providers.AzureConfig{
-			Name: "test-azure",
+			Name:         "test-azure",
+			ResourceName: "my-resource",
 			ModelMapping: map[string]string{
 				"claude-sonnet-4-5": "my-azure-claude",
 			},
 		}
-		provider := providers.NewAzureProvider(cfg)
+		provider, err := providers.NewAzureProvider(cfg)
+		if err != nil {
+			t.Fatalf("NewAzureProvider failed: %v", err)
+		}
 
 		mapped := provider.MapModel("claude-sonnet-4-5")
 		if mapped != "my-azure-claude" {

@@ -543,11 +543,11 @@ Task 3 complete. Continuing to task 4...
 
 | Framework | Start Command | Ready Signal | Default URL |
 |-----------|---------------|--------------|-------------|
-| Next.js | `npm run dev` | "Ready in" or "started server" | http://localhost:3000 |
-| Vite | `npm run dev` | "ready in" | http://localhost:5173 |
+| Next.js | `npm run dev` | "Ready in" or "started server" | <http://localhost:3000> |
+| Vite | `npm run dev` | "ready in" | <http://localhost:5173> |
 | Convex | `npx convex dev` | "Convex functions ready" | N/A (backend only) |
-| Express | `npm start` | "listening on port" | http://localhost:3000 |
-| Django | `python manage.py runserver` | "Starting development server" | http://localhost:8000 |
+| Express | `npm start` | "listening on port" | <http://localhost:3000> |
+| Django | `python manage.py runserver` | "Starting development server" | <http://localhost:8000> |
 
 ### Server Lifecycle Protocol
 

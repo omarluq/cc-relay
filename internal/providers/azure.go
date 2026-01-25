@@ -47,7 +47,11 @@ type AzureConfig struct {
 }
 
 // NewAzureProvider creates a new Azure Foundry provider instance.
-func NewAzureProvider(cfg *AzureConfig) *AzureProvider {
+// Returns an error if required configuration is missing.
+func NewAzureProvider(cfg *AzureConfig) (*AzureProvider, error) {
+	if cfg.ResourceName == "" {
+		return nil, fmt.Errorf("azure: resource_name is required")
+	}
 	if cfg.APIVersion == "" {
 		cfg.APIVersion = DefaultAzureAPIVersion
 	}
@@ -74,7 +78,7 @@ func NewAzureProvider(cfg *AzureConfig) *AzureProvider {
 		deploymentID: cfg.DeploymentID,
 		apiVersion:   cfg.APIVersion,
 		authMethod:   cfg.AuthMethod,
-	}
+	}, nil
 }
 
 // Authenticate adds Azure-specific authentication to the request.

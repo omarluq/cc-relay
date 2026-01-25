@@ -348,7 +348,7 @@ Type "done" when authenticated.
 
 <checkpoint_protocol>
 
-**CRITICAL: Automation before verification**
+### CRITICAL: Automation before verification
 
 Before any `checkpoint:human-verify`, ensure verification environment is ready. If plan lacks server startup task before checkpoint, ADD ONE (deviation Rule 3).
 

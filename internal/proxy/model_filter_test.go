@@ -38,7 +38,7 @@ func (m *mockProviderForFilter) TransformResponse(_ *http.Response, _ http.Respo
 }
 func (m *mockProviderForFilter) RequiresBodyTransform() bool { return false }
 func (m *mockProviderForFilter) StreamingContentType() string {
-	return "text/event-stream"
+	return providers.ContentTypeSSE
 }
 
 func TestFilterProvidersByModel(t *testing.T) {

@@ -16,7 +16,8 @@ func TestNewAzureProvider(t *testing.T) {
 			ResourceName: "my-resource",
 			DeploymentID: "claude-deployment",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		assert.Equal(t, "test-azure", p.Name())
 		assert.Equal(t, "https://my-resource.services.ai.azure.com", p.BaseURL())
@@ -25,13 +26,24 @@ func TestNewAzureProvider(t *testing.T) {
 		assert.Equal(t, "api_key", p.authMethod)
 	})
 
+	t.Run("returns error when resource_name is missing", func(t *testing.T) {
+		cfg := &AzureConfig{
+			Name: "test-azure",
+			// ResourceName intentionally missing
+		}
+		_, err := NewAzureProvider(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "resource_name is required")
+	})
+
 	t.Run("uses custom API version", func(t *testing.T) {
 		cfg := &AzureConfig{
 			Name:         "test-azure",
 			ResourceName: "my-resource",
 			APIVersion:   "2024-12-01",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 		assert.Equal(t, "2024-12-01", p.apiVersion)
 	})
 
@@ -40,7 +52,8 @@ func TestNewAzureProvider(t *testing.T) {
 			Name:         "test-azure",
 			ResourceName: "my-resource",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 		models := p.ListModels()
 		assert.Len(t, models, len(DefaultAzureModels))
 	})
@@ -51,7 +64,8 @@ func TestNewAzureProvider(t *testing.T) {
 			ResourceName: "my-resource",
 			Models:       []string{"custom-model"},
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 		models := p.ListModels()
 		assert.Len(t, models, 1)
 		assert.Equal(t, "custom-model", models[0].ID)
@@ -63,7 +77,8 @@ func TestNewAzureProvider(t *testing.T) {
 			ResourceName: "my-special-resource",
 			DeploymentID: "my-deployment-123",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 		assert.Equal(t, "my-special-resource", p.resourceName)
 		assert.Equal(t, "my-deployment-123", p.deploymentID)
 	})
@@ -73,7 +88,8 @@ func TestNewAzureProvider(t *testing.T) {
 			Name:         "test-azure",
 			ResourceName: "my-resource",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 		assert.Equal(t, "api_key", p.authMethod)
 	})
 
@@ -83,7 +99,8 @@ func TestNewAzureProvider(t *testing.T) {
 			ResourceName: "my-resource",
 			AuthMethod:   "entra_id",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 		assert.Equal(t, "entra_id", p.authMethod)
 	})
 }
@@ -95,10 +112,11 @@ func TestAzureProvider_Authenticate(t *testing.T) {
 			ResourceName: "my-resource",
 			AuthMethod:   "api_key",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
-		err := p.Authenticate(req, "test-key-123")
+		err = p.Authenticate(req, "test-key-123")
 
 		require.NoError(t, err)
 		assert.Equal(t, "test-key-123", req.Header.Get("x-api-key"))
@@ -111,10 +129,11 @@ func TestAzureProvider_Authenticate(t *testing.T) {
 			ResourceName: "my-resource",
 			AuthMethod:   "entra_id",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
-		err := p.Authenticate(req, "entra-token-xyz")
+		err = p.Authenticate(req, "entra-token-xyz")
 
 		require.NoError(t, err)
 		assert.Equal(t, "Bearer entra-token-xyz", req.Header.Get("Authorization"))
@@ -127,10 +146,11 @@ func TestAzureProvider_Authenticate(t *testing.T) {
 			ResourceName: "my-resource",
 			// AuthMethod not specified, defaults to "api_key"
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
-		err := p.Authenticate(req, "default-key")
+		err = p.Authenticate(req, "default-key")
 
 		require.NoError(t, err)
 		assert.Equal(t, "default-key", req.Header.Get("x-api-key"))
@@ -142,7 +162,8 @@ func TestAzureProvider_ForwardHeaders(t *testing.T) {
 		Name:         "test-azure",
 		ResourceName: "my-resource",
 	}
-	p := NewAzureProvider(cfg)
+	p, err := NewAzureProvider(cfg)
+	require.NoError(t, err)
 
 	t.Run("adds anthropic-version header if missing", func(t *testing.T) {
 		origHeaders := http.Header{}
@@ -183,7 +204,8 @@ func TestAzureProvider_TransformRequest(t *testing.T) {
 			ResourceName: "my-resource",
 			APIVersion:   "2024-06-01",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		body := []byte(`{"model":"claude-sonnet-4-5-20250514","messages":[]}`)
 
@@ -201,7 +223,8 @@ func TestAzureProvider_TransformRequest(t *testing.T) {
 			Name:         "test-azure",
 			ResourceName: "my-resource",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		body := []byte(`{"model":"claude-sonnet-4-5-20250514","messages":[{"role":"user","content":"Hello"}]}`)
 
@@ -217,7 +240,8 @@ func TestAzureProvider_TransformRequest(t *testing.T) {
 			ResourceName: "custom-res",
 			APIVersion:   "2025-01-15",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		body := []byte(`{"model":"test"}`)
 		_, targetURL, err := p.TransformRequest(body, "/v1/messages")
@@ -233,7 +257,8 @@ func TestAzureProvider_TransformRequest(t *testing.T) {
 			ResourceName: "my-resource",
 			APIVersion:   "2024-06-01",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		body := []byte(`{"model":"test"}`)
 		_, targetURL1, _ := p.TransformRequest(body, "/v1/messages")
@@ -249,7 +274,8 @@ func TestAzureProvider_RequiresBodyTransform(t *testing.T) {
 		Name:         "test-azure",
 		ResourceName: "my-resource",
 	}
-	p := NewAzureProvider(cfg)
+	p, err := NewAzureProvider(cfg)
+	require.NoError(t, err)
 
 	assert.False(t, p.RequiresBodyTransform())
 }
@@ -259,7 +285,8 @@ func TestAzureProvider_SupportsStreaming(t *testing.T) {
 		Name:         "test-azure",
 		ResourceName: "my-resource",
 	}
-	p := NewAzureProvider(cfg)
+	p, err := NewAzureProvider(cfg)
+	require.NoError(t, err)
 
 	assert.True(t, p.SupportsStreaming())
 }
@@ -269,7 +296,8 @@ func TestAzureProvider_StreamingContentType(t *testing.T) {
 		Name:         "test-azure",
 		ResourceName: "my-resource",
 	}
-	p := NewAzureProvider(cfg)
+	p, err := NewAzureProvider(cfg)
+	require.NoError(t, err)
 
 	assert.Equal(t, "text/event-stream", p.StreamingContentType())
 }
@@ -279,7 +307,8 @@ func TestAzureProvider_SupportsTransparentAuth(t *testing.T) {
 		Name:         "test-azure",
 		ResourceName: "my-resource",
 	}
-	p := NewAzureProvider(cfg)
+	p, err := NewAzureProvider(cfg)
+	require.NoError(t, err)
 
 	// Azure does NOT support transparent auth (Anthropic tokens not valid)
 	assert.False(t, p.SupportsTransparentAuth())
@@ -293,7 +322,8 @@ func TestAzureProvider_ModelMapping(t *testing.T) {
 			"claude-4": "claude-sonnet-4-5-20250514",
 		},
 	}
-	p := NewAzureProvider(cfg)
+	p, err := NewAzureProvider(cfg)
+	require.NoError(t, err)
 
 	t.Run("maps known model", func(t *testing.T) {
 		assert.Equal(t, "claude-sonnet-4-5-20250514", p.MapModel("claude-4"))
@@ -313,7 +343,8 @@ func TestAzureProvider_GetModelMapping(t *testing.T) {
 				"alias": "real-model",
 			},
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		mapping := p.GetModelMapping()
 		assert.NotNil(t, mapping)
@@ -325,7 +356,8 @@ func TestAzureProvider_GetModelMapping(t *testing.T) {
 			Name:         "test-azure",
 			ResourceName: "my-resource",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		mapping := p.GetModelMapping()
 		assert.Nil(t, mapping)
@@ -338,7 +370,8 @@ func TestAzureProvider_ListModels(t *testing.T) {
 			Name:         "test-azure",
 			ResourceName: "my-resource",
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		models := p.ListModels()
 		assert.Len(t, models, len(DefaultAzureModels))
@@ -357,7 +390,8 @@ func TestAzureProvider_ListModels(t *testing.T) {
 			ResourceName: "my-resource",
 			Models:       []string{"custom-model-1", "custom-model-2"},
 		}
-		p := NewAzureProvider(cfg)
+		p, err := NewAzureProvider(cfg)
+		require.NoError(t, err)
 
 		models := p.ListModels()
 		assert.Len(t, models, 2)

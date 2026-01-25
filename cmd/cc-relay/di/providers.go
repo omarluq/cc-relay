@@ -295,7 +295,7 @@ func createProvider(ctx context.Context, p *config.ProviderConfig) (providers.Pr
 			APIVersion:   p.GetAzureAPIVersion(),
 			Models:       p.Models,
 			ModelMapping: p.ModelMapping,
-		}), nil
+		})
 	default:
 		return nil, ErrUnknownProviderType
 	}

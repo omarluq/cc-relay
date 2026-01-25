@@ -242,7 +242,8 @@ func TestVertexProvider_TransformRequest(t *testing.T) {
 	})
 
 	t.Run("constructs correct streaming URL with model in path", func(t *testing.T) {
-		body := []byte(`{"model":"claude-sonnet-4-5@20250514","messages":[]}`)
+		// stream: true in request body triggers streamRawPredict endpoint
+		body := []byte(`{"model":"claude-sonnet-4-5@20250514","messages":[],"stream":true}`)
 
 		_, targetURL, err := p.TransformRequest(body, "/v1/messages")
 
@@ -251,6 +252,19 @@ func TestVertexProvider_TransformRequest(t *testing.T) {
 		expected := "https://us-central1-aiplatform.googleapis.com" +
 			"/v1/projects/my-project/locations/us-central1" +
 			"/publishers/anthropic/models/claude-sonnet-4-5@20250514:streamRawPredict"
+		assert.Equal(t, expected, targetURL)
+	})
+
+	t.Run("constructs correct non-streaming URL with model in path", func(t *testing.T) {
+		// stream: false or missing triggers rawPredict endpoint
+		body := []byte(`{"model":"claude-sonnet-4-5@20250514","messages":[]}`)
+
+		_, targetURL, err := p.TransformRequest(body, "/v1/messages")
+
+		require.NoError(t, err)
+		expected := "https://us-central1-aiplatform.googleapis.com" +
+			"/v1/projects/my-project/locations/us-central1" +
+			"/publishers/anthropic/models/claude-sonnet-4-5@20250514:rawPredict"
 		assert.Equal(t, expected, targetURL)
 	})
 

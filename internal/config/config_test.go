@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -1287,11 +1288,8 @@ func TestProviderConfig_ValidateCloudConfig(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Error("ValidateCloudConfig() expected error, got nil")
-				} else if tt.errMsg != "" && !errors.Is(err, err) {
-					// Check error message contains expected text
-					if err.Error() == "" || !containsStr(err.Error(), tt.errMsg) {
-						t.Errorf("ValidateCloudConfig() error = %v, want containing %v", err, tt.errMsg)
-					}
+				} else if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("ValidateCloudConfig() error = %v, want containing %v", err, tt.errMsg)
 				}
 			} else {
 				if err != nil {
@@ -1302,16 +1300,3 @@ func TestProviderConfig_ValidateCloudConfig(t *testing.T) {
 	}
 }
 
-// containsStr is a helper to check if s contains substr.
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || s != "" && findSubstr(s, substr))
-}
-
-func findSubstr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

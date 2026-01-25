@@ -155,8 +155,11 @@ func (p *VertexProvider) ForwardHeaders(originalHeaders http.Header) http.Header
 // 4. Constructs URL with model in path.
 func (p *VertexProvider) TransformRequest(
 	body []byte,
-	endpoint string,
+	_ string, // endpoint unused - streaming detected from body
 ) (newBody []byte, targetURL string, err error) {
+	// Detect streaming from request body before transformation
+	isStreaming := IsStreamingRequest(body)
+
 	// Use shared transformation utility
 	newBody, model, err := TransformBodyForCloudProvider(body, VertexAnthropicVersion)
 	if err != nil {
@@ -165,9 +168,6 @@ func (p *VertexProvider) TransformRequest(
 
 	// Map model name to Vertex format if needed
 	model = p.MapModel(model)
-
-	// Determine if streaming based on endpoint
-	isStreaming := endpoint == "/v1/messages" // All /v1/messages are potentially streaming
 
 	// Construct Vertex AI URL with model in path
 	// Format: /v1/projects/{project}/locations/{region}/publishers/anthropic/models/{model}:streamRawPredict

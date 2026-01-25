@@ -74,7 +74,7 @@ type AzureProvider struct {
 
 ### URL Construction
 
-```
+```text
 https://{resource}.services.ai.azure.com/models/chat/completions?api-version={version}
 ```
 

@@ -93,7 +93,7 @@ None required. All success criteria verifiable programmatically:
 ### Test Results
 
 All provider tests pass:
-```
+```text
 === RUN   TestBedrockProvider_SigningDetails
 --- PASS: TestBedrockProvider_SigningDetails
 === RUN   TestBedrockProvider_TransformRequest
@@ -111,7 +111,7 @@ All provider tests pass:
 === RUN   TestEventStreamToSSE
 --- PASS: TestEventStreamToSSE
 
-ok  	github.com/omarluq/cc-relay/internal/providers	0.009s
+ok      github.com/omarluq/cc-relay/internal/providers  0.009s
 ```
 
 ## Summary

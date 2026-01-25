@@ -191,7 +191,7 @@ Transform utilities:
 
 ## Dependencies Added
 
-```
+```text
 github.com/tidwall/gjson v1.18.0
 github.com/tidwall/sjson v1.2.5
 ```

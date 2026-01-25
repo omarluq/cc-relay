@@ -260,6 +260,8 @@ providers:
 
 ### Bedrock Model IDs
 
+**Note:** Model IDs change frequently as AWS Bedrock adds new Claude versions. Verify the current list in [AWS Bedrock model access documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) before deploying.
+
 Bedrock uses a specific model ID format: `anthropic.{model}-v{version}:{minor}`
 
 | Claude Model | Bedrock Model ID |
@@ -366,7 +368,7 @@ Vertex AI uses `{model}@{version}` format:
 
 ### Regions
 
-Available regions for Claude on Vertex AI:
+Available regions for Claude on Vertex AI (check [Google Cloud documentation](https://cloud.google.com/vertex-ai/docs/general/locations) for the complete current list):
 - `us-east5` (default)
 - `us-central1`
 - `europe-west1`
