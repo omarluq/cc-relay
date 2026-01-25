@@ -142,66 +142,83 @@ providers:
   # --------------------------------------------------------------------------
   # AWS Bedrock
   # --------------------------------------------------------------------------
+  # Bedrock provides Claude access through AWS with SigV4 authentication.
+  # Requires AWS credentials (via env vars, IAM role, or explicit config).
+  # Note: Bedrock returns Event Stream format which cc-relay converts to SSE.
   - name: "bedrock"
     type: "bedrock"
     enabled: false
-    region: "us-east-1"
 
-    auth:
-      # Options: "iam" (uses AWS credentials), "bearer_token"
-      method: "iam"
-      # For bearer_token method (new July 2025 feature):
-      # method: "bearer_token"
-      # token: "${AWS_BEARER_TOKEN_BEDROCK}"
+    # AWS region (required)
+    aws_region: "us-east-1"
 
+    # Explicit AWS credentials (optional - uses default credential chain if empty)
+    # aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+    # aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+
+    # Map Claude model names to Bedrock model IDs
+    # Bedrock uses format: anthropic.{model}-v1:0
     model_mapping:
       "claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0"
       "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250929-v1:0"
       "claude-haiku-4-5-20251001": "anthropic.claude-haiku-4-5-20251001-v1:0"
 
+    # API keys for cc-relay authentication (Bedrock auth handled by SigV4)
+    keys:
+      - key: "bedrock-internal-key"
+
   # --------------------------------------------------------------------------
   # Azure AI Foundry
   # --------------------------------------------------------------------------
+  # Azure provides Claude access through Azure AI Foundry (MAAS).
+  # Uses Anthropic-compatible API format with api-version query parameter.
   - name: "azure"
     type: "azure"
     enabled: false
 
     # Your Azure resource name (appears before .services.ai.azure.com)
-    resource: "my-azure-resource"
+    azure_resource_name: "my-azure-resource"
 
-    auth:
-      # Options: "api_key", "entra_id"
-      method: "api_key"
-      key: "${AZURE_API_KEY}"
-      # For Entra ID (Azure AD):
-      # method: "entra_id"
-      # tenant_id: "${AZURE_TENANT_ID}"
-      # client_id: "${AZURE_CLIENT_ID}"
-      # client_secret: "${AZURE_CLIENT_SECRET}"
+    # Azure API version (default: 2024-06-01)
+    azure_api_version: "2024-06-01"
+
+    # Azure uses x-api-key for authentication (Anthropic-compatible)
+    keys:
+      - key: "${AZURE_API_KEY}"
 
     # Azure uses deployment names as model identifiers
     model_mapping:
-      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5" # Your deployment name
+      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5"
       "claude-sonnet-4-5": "claude-sonnet-4-5"
       "claude-haiku-4-5": "claude-haiku-4-5"
 
   # --------------------------------------------------------------------------
   # Google Vertex AI
   # --------------------------------------------------------------------------
+  # Vertex AI provides Claude access through Google Cloud.
+  # Uses OAuth2 for authentication (GOOGLE_APPLICATION_CREDENTIALS or gcloud CLI).
   - name: "vertex"
     type: "vertex"
     enabled: false
 
-    project_id: "${GOOGLE_CLOUD_PROJECT}"
-    region: "us-east5" # or "global" for dynamic routing
+    # Google Cloud project ID (required)
+    gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
 
-    # Auth via GOOGLE_APPLICATION_CREDENTIALS env var or gcloud CLI
+    # Google Cloud region (required)
+    gcp_region: "us-east5"
+
+    # Authentication via GOOGLE_APPLICATION_CREDENTIALS env var or gcloud CLI
     # No explicit auth config needed if using default credentials
 
+    # Model mapping for Vertex AI format
     model_mapping:
       "claude-sonnet-4-5-20250929": "claude-sonnet-4-5@20250929"
       "claude-sonnet-4-5": "claude-sonnet-4-5@20250929"
       "claude-haiku-4-5-20251001": "claude-haiku-4-5@20251001"
+
+    # API keys for cc-relay authentication (Vertex auth handled by OAuth)
+    keys:
+      - key: "vertex-internal-key"
 
 # ============================================================================
 # Cache Configuration
