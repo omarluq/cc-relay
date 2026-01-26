@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"net"
 	"strings"
 )
@@ -130,9 +131,9 @@ func validateProviders(c *Config, errs *ValidationError) {
 func validateProvider(p *ProviderConfig, index int, seenNames map[string]bool, errs *ValidationError) {
 	prefix := func(field string) string {
 		if p.Name != "" {
-			return "provider[" + p.Name + "]." + field
+			return fmt.Sprintf("provider[%s].%s", p.Name, field)
 		}
-		return "providers[" + string(rune('0'+index)) + "]." + field
+		return fmt.Sprintf("providers[%d].%s", index, field)
 	}
 
 	// Name is required
@@ -193,9 +194,9 @@ func validateCloudProviderConfig(p *ProviderConfig, prefix func(string) string, 
 func validateProviderKey(k *KeyConfig, providerName string, index int, errs *ValidationError) {
 	prefix := func(field string) string {
 		if providerName != "" {
-			return "provider[" + providerName + "].keys[" + string(rune('0'+index)) + "]." + field
+			return fmt.Sprintf("provider[%s].keys[%d].%s", providerName, index, field)
 		}
-		return "keys[" + string(rune('0'+index)) + "]." + field
+		return fmt.Sprintf("keys[%d].%s", index, field)
 	}
 
 	// Key is required (will be expanded from env var later)
