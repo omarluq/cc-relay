@@ -38,8 +38,13 @@
       packetsContainer = svgElement.querySelector('.packets-container');
       trailsContainer = svgElement.querySelector('.trails-container');
       mainPath = document.getElementById('path-main');
-      providerPaths = [];
 
+      if (!packetsContainer || !trailsContainer || !mainPath) {
+        console.warn('Network animation: missing required DOM elements');
+        return;
+      }
+
+      providerPaths = [];
       for (let i = 0; i < config.providerCount; i++) {
         providerPaths.push(document.getElementById('path-' + i));
       }
