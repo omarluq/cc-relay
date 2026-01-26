@@ -233,18 +233,18 @@ func (p *ProviderConfig) GetAzureAPIVersion() string {
 // ValidateCloudConfig validates cloud provider-specific configuration.
 func (p *ProviderConfig) ValidateCloudConfig() error {
 	switch p.Type {
-	case "bedrock":
+	case ProviderBedrock:
 		if p.AWSRegion == "" {
 			return errors.New("config: aws_region required for bedrock provider")
 		}
-	case "vertex":
+	case ProviderVertex:
 		if p.GCPProjectID == "" {
 			return errors.New("config: gcp_project_id required for vertex provider")
 		}
 		if p.GCPRegion == "" {
 			return errors.New("config: gcp_region required for vertex provider")
 		}
-	case "azure":
+	case ProviderAzure:
 		if p.AzureResourceName == "" {
 			return errors.New("config: azure_resource_name required for azure provider")
 		}
