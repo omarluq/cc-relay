@@ -52,8 +52,10 @@ stateDiagram-v2
 
 ## Configuration
 
-Configure health tracking in your `config.yaml`:
+Configure health tracking in your config file:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 health:
   # Health check settings
@@ -74,6 +76,29 @@ health:
     # Probes allowed in half-open state (default: 3)
     half_open_probes: 3
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health]
+
+[health.health_check]
+# Enable periodic health checks (default: true)
+enabled = true
+# Check interval in milliseconds (default: 10000 = 10s)
+interval_ms = 10000
+
+[health.circuit_breaker]
+# Consecutive failures before opening circuit (default: 5)
+failure_threshold = 5
+
+# Time circuit stays open before half-open, in milliseconds (default: 30000 = 30s)
+open_duration_ms = 30000
+
+# Probes allowed in half-open state (default: 3)
+half_open_probes = 3
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Configuration Reference
 
@@ -165,11 +190,22 @@ When `routing.debug: true` is enabled, cc-relay includes health status in respon
 
 To enable debug headers:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
   debug: true  # Enable diagnostic headers
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+debug = true  # Enable diagnostic headers
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Security Warning:** Debug headers expose internal routing decisions. Use only in development or trusted environments. Never enable in production with untrusted clients.
 
@@ -182,18 +218,40 @@ routing:
 **Possible causes:**
 
 1. **`failure_threshold` too low:** Increase to tolerate more transient failures
-   ```yaml
-   circuit_breaker:
-     failure_threshold: 10  # More tolerant
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  failure_threshold: 10  # More tolerant
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+failure_threshold = 10  # More tolerant
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Rate limits triggering opens:** If you're hitting rate limits, add more API keys to your pool rather than adjusting the circuit breaker
 
 3. **Slow responses causing timeouts:** Increase server timeout
-   ```yaml
-   server:
-     timeout_ms: 300000  # 5 minutes
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+server:
+  timeout_ms: 300000  # 5 minutes
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+timeout_ms = 300000  # 5 minutes
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Recovery takes too long
 
@@ -202,17 +260,40 @@ routing:
 **Solutions:**
 
 1. **Reduce open duration:**
-   ```yaml
-   circuit_breaker:
-     open_duration_ms: 15000  # 15 seconds instead of 30
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  open_duration_ms: 15000  # 15 seconds instead of 30
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+open_duration_ms = 15000  # 15 seconds instead of 30
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Enable faster health checks:**
-   ```yaml
-   health_check:
-     enabled: true
-     interval_ms: 5000  # Check every 5 seconds
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+health_check:
+  enabled: true
+  interval_ms: 5000  # Check every 5 seconds
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health_check]
+enabled = true
+interval_ms = 5000  # Check every 5 seconds
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Circuit opens on valid errors
 
@@ -223,10 +304,21 @@ routing:
 1. Check if the actual response is 429 (rate limited)
 2. Verify the error isn't actually a 5xx being misreported
 3. Enable debug logging to see actual response codes:
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### All providers unhealthy
 
