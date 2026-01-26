@@ -65,6 +65,11 @@ Recent decisions affecting current work:
 - Only process Write/Create events, ignore Chmod (from indexers/antivirus)
 - ErrWatcherClosed for double-close detection
 
+**From 07-02 (Multi-Format Loading and Validation):**
+- Detect format from file extension (simple, explicit, no content sniffing)
+- ValidationError collects all errors (better UX - fix all at once)
+- Provider type constants (ProviderBedrock/Vertex/Azure) shared between validator and config
+
 **From 07-01 (Dependencies and TOML Tags):**
 - Used tools.go with build tag to track dependencies before implementation
 - TOML tag values match YAML tag values for consistent config behavior
