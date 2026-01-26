@@ -323,11 +323,22 @@ debug = false
 
 The `listen` field specifies where the proxy listens for incoming requests:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"  # Local only (recommended)
   # listen: "0.0.0.0:8787"  # All interfaces (use with caution)
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"  # Local only (recommended)
+# listen = "0.0.0.0:8787"  # All interfaces (use with caution)
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Authentication
 
@@ -337,11 +348,21 @@ CC-Relay supports multiple authentication methods:
 
 Require clients to provide a specific API key:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Clients must include the header: `x-api-key: <your-proxy-key>`
 
@@ -349,11 +370,21 @@ Clients must include the header: `x-api-key: <your-proxy-key>`
 
 Allow Claude Code subscription users to connect:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 This accepts `Authorization: Bearer` tokens from Claude Code.
 
@@ -361,31 +392,63 @@ This accepts `Authorization: Bearer` tokens from Claude Code.
 
 Allow both API key and subscription authentication:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 #### No Authentication
 
 To disable authentication (not recommended for production):
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth: {}
   # Or simply omit the auth section
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Simply omit the [server.auth] section
+# or define an empty section:
+[server.auth]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### HTTP/2 Support
 
 Enable HTTP/2 for better performance with concurrent requests:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   enable_http2: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+enable_http2 = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Transparent Authentication
 
@@ -418,6 +481,8 @@ claude
 
 For centralized API key management, don't provide client auth - cc-relay uses configured keys:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # config.yaml
 providers:
@@ -429,6 +494,22 @@ providers:
       - key: ${ANTHROPIC_API_KEY}
         rpm_limit: 50
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# config.toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+base_url = "https://api.anthropic.com"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 50
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ```bash
 # Client has no auth - uses configured keys
@@ -466,6 +547,8 @@ CC-Relay currently supports two provider types:
 
 ### Anthropic Provider
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -483,11 +566,35 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60
+tpm_limit = 100000
+
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Z.AI Provider
 
 Z.AI offers Anthropic-compatible APIs with GLM models at lower cost:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -507,11 +614,37 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Multiple API Keys
 
 Pool multiple API keys for higher throughput:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -529,17 +662,54 @@ providers:
         rpm_limit: 60
         tpm_limit: 100000
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_1}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_2}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_3}"
+rpm_limit = 60
+tpm_limit = 100000
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Custom Base URL
 
 Override the default API endpoint:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic-custom"
     type: "anthropic"
     base_url: "https://custom-endpoint.example.com"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic-custom"
+type = "anthropic"
+base_url = "https://custom-endpoint.example.com"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Logging Configuration
 
@@ -554,16 +724,29 @@ providers:
 
 ### Log Format
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   format: "text"   # Human-readable (default)
   # format: "json" # Machine-readable, for log aggregation
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+format = "text"   # Human-readable (default)
+# format = "json" # Machine-readable, for log aggregation
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Debug Options
 
 Fine-grained control over debug logging:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   level: "debug"
@@ -573,6 +756,20 @@ logging:
     log_tls_metrics: true       # Log TLS connection info
     max_body_log_size: 1000     # Max bytes to log from bodies
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+
+[logging.debug_options]
+log_request_body = true      # Log request bodies (redacted)
+log_response_headers = true  # Log response headers
+log_tls_metrics = true       # Log TLS connection info
+max_body_log_size = 1000     # Max bytes to log from bodies
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Cache Configuration
 
@@ -590,6 +787,8 @@ CC-Relay provides a unified caching layer with multiple backend options for diff
 
 Ristretto is a high-performance, concurrent in-memory cache. This is the default mode for single-instance deployments.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: single
@@ -598,6 +797,19 @@ cache:
     max_cost: 104857600    # 100 MB
     buffer_items: 64       # Admission buffer size
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "single"
+
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -609,6 +821,8 @@ cache:
 
 For multi-instance deployments requiring shared cache state, use embedded Olric mode where each cc-relay instance runs an Olric node.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -625,6 +839,26 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["other-node:3322"]  # Memberlist port = bind_addr + 2
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -645,6 +879,8 @@ cache:
 
 Connect to an external Olric cluster instead of running embedded nodes:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -655,6 +891,19 @@ cache:
       - "olric-node-2:3320"
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = false
+addresses = ["olric-node-1:3320", "olric-node-2:3320"]
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -666,10 +915,20 @@ cache:
 
 Disable caching entirely for debugging or when caching is handled elsewhere:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: disabled
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "disabled"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 For detailed cache configuration including cache key conventions, cache busting strategies, HA clustering guides, and troubleshooting, see the [Cache System documentation](/docs/cache/).
 
@@ -677,6 +936,8 @@ For detailed cache configuration including cache key conventions, cache busting 
 
 CC-Relay supports multiple routing strategies for distributing requests across providers.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # Routing Configuration
@@ -691,6 +952,24 @@ routing:
   # Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
   debug: false
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# Routing Configuration
+# ==========================================================================
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default)
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Routing Strategies
 
@@ -705,6 +984,8 @@ routing:
 
 Weight and priority are configured in the provider's first key:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -714,6 +995,20 @@ providers:
         weight: 3      # For weighted-round-robin (higher = more traffic)
         priority: 2    # For failover (higher = tried first)
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3      # For weighted-round-robin (higher = more traffic)
+priority = 2    # For failover (higher = tried first)
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 For detailed routing configuration including strategy explanations, debug headers, and failover triggers, see the [Routing documentation](/docs/routing/).
 
