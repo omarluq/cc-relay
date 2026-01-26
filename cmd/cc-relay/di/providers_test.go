@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -147,6 +149,225 @@ func TestNewConfig(t *testing.T) {
 
 		// Should be same pointer (singleton)
 		assert.Same(t, cfg1, cfg2)
+	})
+
+	t.Run("creates watcher for valid config", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+		assert.NotNil(t, cfgSvc.watcher, "watcher should be created for valid config")
+	})
+
+	t.Run("Get returns config via atomic pointer", func(t *testing.T) {
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+
+		// Get should return same config as Config field (initially)
+		cfg := cfgSvc.Get()
+		assert.NotNil(t, cfg)
+		assert.Equal(t, cfgSvc.Config, cfg)
+		assert.Equal(t, ":8787", cfg.Server.Listen)
+	})
+}
+
+func TestConfigService_HotReload(t *testing.T) {
+	t.Run("hot-reload updates config atomically", func(t *testing.T) {
+		// Create config file
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.yaml")
+		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
+		require.NoError(t, err)
+
+		// Create injector and get config service
+		injector := do.New()
+		do.ProvideNamedValue(injector, ConfigPathKey, path)
+		RegisterSingletons(injector)
+		defer shutdownInjector(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+
+		// Verify initial config
+		initialCfg := cfgSvc.Get()
+		assert.Equal(t, ":8787", initialCfg.Server.Listen)
+
+		// Start watching
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cfgSvc.StartWatching(ctx)
+
+		// Allow watcher to start
+		time.Sleep(50 * time.Millisecond)
+
+		// Update config file with new listen port
+		newConfig := `
+server:
+  listen: ":9999"
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+		err = os.WriteFile(path, []byte(newConfig), 0o600)
+		require.NoError(t, err)
+
+		// Wait for reload
+		time.Sleep(300 * time.Millisecond)
+
+		// Verify config was reloaded
+		reloadedCfg := cfgSvc.Get()
+		assert.Equal(t, ":9999", reloadedCfg.Server.Listen, "config should be reloaded with new port")
+
+		// Original pointer should NOT be same (atomic swap happened)
+		assert.NotSame(t, initialCfg, reloadedCfg, "config pointer should change after reload")
+	})
+
+	t.Run("concurrent reads during reload are safe", func(t *testing.T) {
+		// Create config file
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.yaml")
+		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
+		require.NoError(t, err)
+
+		// Create injector and get config service
+		injector := do.New()
+		do.ProvideNamedValue(injector, ConfigPathKey, path)
+		RegisterSingletons(injector)
+		defer shutdownInjector(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+
+		// Start watching
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cfgSvc.StartWatching(ctx)
+
+		// Allow watcher to start
+		time.Sleep(50 * time.Millisecond)
+
+		// Concurrent reads while modifying file
+		var wg sync.WaitGroup
+		var readCount atomic.Int64
+		stopReads := make(chan struct{})
+
+		// Start concurrent readers
+		for range 10 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					select {
+					case <-stopReads:
+						return
+					default:
+						cfg := cfgSvc.Get()
+						assert.NotNil(t, cfg)
+						readCount.Add(1)
+						time.Sleep(1 * time.Millisecond)
+					}
+				}
+			}()
+		}
+
+		// Modify file multiple times while reads happen
+		for i := range 5 {
+			newConfig := `
+server:
+  listen: ":` + string(rune('0'+i)) + `787"
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+			err := os.WriteFile(path, []byte(newConfig), 0o600)
+			require.NoError(t, err)
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		// Stop readers and wait
+		close(stopReads)
+		wg.Wait()
+
+		// If we got here without data race, concurrent access is safe
+		assert.Greater(t, readCount.Load(), int64(0), "should have completed reads")
+	})
+
+	t.Run("StartWatching with nil watcher is no-op", func(_ *testing.T) {
+		cfgSvc := &ConfigService{
+			Config:  &config.Config{},
+			watcher: nil,
+		}
+		cfgSvc.config.Store(cfgSvc.Config)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Should not panic
+		cfgSvc.StartWatching(ctx)
+	})
+
+	t.Run("Shutdown closes watcher", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.yaml")
+		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
+		require.NoError(t, err)
+
+		injector := do.New()
+		do.ProvideNamedValue(injector, ConfigPathKey, path)
+		RegisterSingletons(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+		assert.NotNil(t, cfgSvc.watcher)
+
+		// Start watching
+		ctx, cancel := context.WithCancel(context.Background())
+		cfgSvc.StartWatching(ctx)
+
+		// Allow watcher to start
+		time.Sleep(50 * time.Millisecond)
+
+		// Shutdown should close watcher
+		err = cfgSvc.Shutdown()
+		assert.NoError(t, err)
+
+		// Cancel context for cleanup
+		cancel()
+
+		// Second shutdown should return ErrWatcherClosed
+		err = cfgSvc.Shutdown()
+		assert.ErrorIs(t, err, config.ErrWatcherClosed)
+	})
+
+	t.Run("Shutdown handles nil watcher", func(t *testing.T) {
+		cfgSvc := &ConfigService{
+			Config:  &config.Config{},
+			watcher: nil,
+		}
+		err := cfgSvc.Shutdown()
+		assert.NoError(t, err)
 	})
 }
 
