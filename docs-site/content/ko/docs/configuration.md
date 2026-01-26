@@ -25,6 +25,8 @@ cc-relay config init
 
 CC-Relay는 `${VAR_NAME}` 구문을 사용한 환경 변수 확장을 지원합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -32,9 +34,23 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"  # 로드 시 확장됨
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"  # 로드 시 확장됨
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 전체 설정 레퍼런스
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # 서버 설정
@@ -151,6 +167,125 @@ cache:
     member_count_quorum: 2         # Min cluster members
     leave_timeout: 5s              # Leave broadcast duration
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# 서버 설정
+# ==========================================================================
+[server]
+# 수신 대기 주소
+listen = "127.0.0.1:8787"
+
+# 요청 타임아웃 (밀리초, 기본값: 600000 = 10분)
+timeout_ms = 600000
+
+# 최대 동시 요청 수 (0 = 무제한)
+max_concurrent = 0
+
+# 성능 향상을 위해 HTTP/2 활성화
+enable_http2 = true
+
+# 인증 설정
+[server.auth]
+# 프록시 접근에 특정 API 키 요구
+api_key = "${PROXY_API_KEY}"
+
+# Claude Code 구독 Bearer 토큰 허용
+allow_subscription = true
+
+# 검증할 특정 Bearer 토큰 (선택 사항)
+bearer_secret = "${BEARER_SECRET}"
+
+# ==========================================================================
+# 프로바이더 설정
+# ==========================================================================
+
+# Anthropic 직접 API
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # 선택 사항, 기본값 사용
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022",
+]
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60       # 분당 요청 수
+tpm_limit = 100000   # 분당 토큰 수
+
+# Z.AI / Zhipu GLM
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus",
+]
+
+# Claude 모델명을 Z.AI 모델로 매핑
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+# ==========================================================================
+# 로깅 설정
+# ==========================================================================
+[logging]
+# 로그 레벨: debug, info, warn, error
+level = "info"
+
+# 로그 형식: json, text
+format = "text"
+
+# 컬러 출력 활성화 (text 형식용)
+pretty = true
+
+# 상세 디버그 옵션
+[logging.debug_options]
+log_request_body = false
+log_response_headers = false
+log_tls_metrics = false
+max_body_log_size = 1000
+
+# ==========================================================================
+# 캐시 설정
+# ==========================================================================
+[cache]
+# 캐시 모드: single, ha, disabled
+mode = "single"
+
+# 싱글 모드 (Ristretto) 설정
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+
+# HA 모드 (Olric) 설정
+[cache.olric]
+embedded = true                 # Run embedded Olric node
+bind_addr = "0.0.0.0:3320"      # Olric client port
+dmap_name = "cc-relay"          # Distributed map name
+environment = "lan"             # local, lan, or wan
+peers = ["other-node:3322"]     # Memberlist addresses (bind_addr + 2)
+replica_count = 2               # Copies per key
+read_quorum = 1                 # Min reads for success
+write_quorum = 1                # Min writes for success
+member_count_quorum = 2         # Min cluster members
+leave_timeout = "5s"            # Leave broadcast duration
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 서버 설정
 
@@ -158,11 +293,22 @@ cache:
 
 `listen` 필드는 프록시가 요청을 수신하는 위치를 지정합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"  # 로컬 전용 (권장)
   # listen: "0.0.0.0:8787"  # 모든 인터페이스 (주의해서 사용)
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"  # 로컬 전용 (권장)
+# listen = "0.0.0.0:8787"  # 모든 인터페이스 (주의해서 사용)
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 인증
 
@@ -172,11 +318,21 @@ CC-Relay는 여러 인증 방식을 지원합니다:
 
 클라이언트에게 특정 API 키를 요구합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 클라이언트는 헤더를 포함해야 합니다: `x-api-key: <your-proxy-key>`
 
@@ -184,11 +340,21 @@ server:
 
 Claude Code 구독 사용자 연결을 허용합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Claude Code의 `Authorization: Bearer` 토큰을 수락합니다.
 
@@ -196,31 +362,62 @@ Claude Code의 `Authorization: Bearer` 토큰을 수락합니다.
 
 API 키와 구독 인증 모두 허용:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 #### 인증 없음
 
 인증을 비활성화하려면 (프로덕션에서는 권장하지 않음):
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth: {}
   # 또는 단순히 auth 섹션 생략
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# auth 섹션을 완전히 생략하거나 빈 테이블 사용
+# [server.auth]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### HTTP/2 지원
 
 동시 요청 성능 향상을 위해 HTTP/2를 활성화합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   enable_http2: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+enable_http2 = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 프로바이더 설정
 
@@ -235,6 +432,8 @@ CC-Relay는 현재 두 가지 프로바이더 유형을 지원합니다:
 
 ### Anthropic 프로바이더
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -252,11 +451,34 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # 선택 사항
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022",
+]
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60
+tpm_limit = 100000
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Z.AI 프로바이더
 
 Z.AI는 저렴한 비용으로 GLM 모델과 함께 Anthropic 호환 API를 제공합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -276,11 +498,36 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus",
+]
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 다중 API 키
 
 처리량 향상을 위해 여러 API 키를 풀링합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -298,17 +545,54 @@ providers:
         rpm_limit: 60
         tpm_limit: 100000
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_1}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_2}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_3}"
+rpm_limit = 60
+tpm_limit = 100000
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 커스텀 Base URL
 
 기본 API 엔드포인트를 재정의합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic-custom"
     type: "anthropic"
     base_url: "https://custom-endpoint.example.com"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic-custom"
+type = "anthropic"
+base_url = "https://custom-endpoint.example.com"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 로깅 설정
 
@@ -323,16 +607,29 @@ providers:
 
 ### 로그 형식
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   format: "text"   # 사람이 읽기 쉬운 형식 (기본값)
   # format: "json" # 기계가 읽기 쉬운 형식, 로그 집계용
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+format = "text"   # 사람이 읽기 쉬운 형식 (기본값)
+# format = "json" # 기계가 읽기 쉬운 형식, 로그 집계용
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 디버그 옵션
 
 디버그 로깅에 대한 세밀한 제어:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   level: "debug"
@@ -342,6 +639,20 @@ logging:
     log_tls_metrics: true       # TLS 연결 정보 로깅
     max_body_log_size: 1000     # 본문에서 로깅할 최대 바이트
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+
+[logging.debug_options]
+log_request_body = true      # 요청 본문 로깅 (마스킹됨)
+log_response_headers = true  # 응답 헤더 로깅
+log_tls_metrics = true       # TLS 연결 정보 로깅
+max_body_log_size = 1000     # 본문에서 로깅할 최대 바이트
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 캐시 설정
 
@@ -359,6 +670,8 @@ CC-Relay는 다양한 배포 시나리오에 맞는 여러 백엔드 옵션을 �
 
 Ristretto는 고성능 동시성 지원 인메모리 캐시입니다. 단일 인스턴스 배포의 기본 모드입니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: single
@@ -367,6 +680,19 @@ cache:
     max_cost: 104857600    # 100 MB
     buffer_items: 64       # Admission buffer size
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "single"
+
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
@@ -378,6 +704,8 @@ cache:
 
 공유 캐시 상태가 필요한 다중 인스턴스 배포의 경우, 각 cc-relay 인스턴스가 Olric 노드를 실행하는 임베디드 Olric 모드를 사용합니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -394,6 +722,26 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["other-node:3322"]  # Memberlist port = bind_addr + 2
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
@@ -414,6 +762,8 @@ cache:
 
 임베디드 노드를 실행하는 대신 외부 Olric 클러스터에 연결합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -424,6 +774,22 @@ cache:
       - "olric-node-2:3320"
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = false
+addresses = [
+  "olric-node-1:3320",
+  "olric-node-2:3320",
+]
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -435,10 +801,20 @@ cache:
 
 디버깅용이거나 다른 곳에서 캐싱을 처리할 때 캐싱을 완전히 비활성화합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: disabled
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "disabled"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 HA 클러스터링 가이드 및 문제 해결을 포함한 전체 캐시 문서는 [캐싱](/ko/docs/caching/)을 참조하세요.
 
@@ -446,6 +822,8 @@ HA 클러스터링 가이드 및 문제 해결을 포함한 전체 캐시 문서
 
 CC-Relay는 프로바이더 간에 요청을 분배하기 위한 여러 라우팅 전략을 지원합니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # 라우팅 설정
@@ -460,6 +838,24 @@ routing:
   # 디버그 헤더 활성화 (X-CC-Relay-Strategy, X-CC-Relay-Provider)
   debug: false
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# 라우팅 설정
+# ==========================================================================
+[routing]
+# 전략: round_robin, weighted_round_robin, shuffle, failover (기본값)
+strategy = "failover"
+
+# 장애 조치 시도의 타임아웃 (밀리초, 기본값: 5000)
+failover_timeout = 5000
+
+# 디버그 헤더 활성화 (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 라우팅 전략
 
@@ -474,6 +870,8 @@ routing:
 
 가중치와 우선순위는 프로바이더의 첫 번째 키에서 설정합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -483,6 +881,20 @@ providers:
         weight: 3      # weighted-round-robin용 (높을수록 = 더 많은 트래픽)
         priority: 2    # failover용 (높을수록 = 먼저 시도)
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3      # weighted-round-robin용 (높을수록 = 더 많은 트래픽)
+priority = 2    # failover용 (높을수록 = 먼저 시도)
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 전략 설명, 디버그 헤더, 장애 조치 트리거를 포함한 자세한 라우팅 설정은 [라우팅](/ko/docs/routing/)을 참조하세요.
 
