@@ -21,6 +21,8 @@ CC-Relay 支持多种路由策略来分配跨供应商的请求。本页介绍�
 
 在 `config.yaml` 中配置路由：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   # 策略: round_robin, weighted_round_robin, shuffle, failover（默认）, model_based
@@ -34,12 +36,39 @@ routing:
 
   # 基于模型的路由配置（仅在 strategy: model_based 时使用）
   model_mapping:
-    claude-opus: anthropic
-    claude-sonnet: anthropic
-    glm-4: zai
-    qwen: ollama
+    claude-opus: anthropic    # claude-opus-* models → anthropic provider
+    claude-sonnet: anthropic  # claude-sonnet-* models → anthropic provider
+    glm-4: zai                # glm-4* models → zai provider
+    qwen: ollama              # qwen* models → ollama provider
+
+  # Default provider when no model mapping matches
   default_provider: anthropic
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+
+# Default provider when no model mapping matches
+default_provider = "anthropic"
+
+# Model-based routing configuration (only used when strategy: model_based)
+[routing.model_mapping]
+claude-opus = "anthropic"    # claude-opus-* models → anthropic provider
+claude-sonnet = "anthropic"  # claude-sonnet-* models → anthropic provider
+glm-4 = "zai"                # glm-4* models → zai provider
+qwen = "ollama"              # qwen* models → ollama provider
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **默认值:** 如果未指定 `strategy`，cc-relay 将使用 `failover` 作为最安全的选项。
 
@@ -49,10 +78,20 @@ routing:
 
 使用原子计数器进行顺序分配。在任何供应商收到第二个请求之前，每个供应商都会收到一个请求。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **工作原理:**
 
@@ -67,6 +106,8 @@ routing:
 
 根据供应商权重按比例分配请求。使用 Nginx smooth weighted round-robin 算法实现均匀分配。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -84,6 +125,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         weight: 1  # 接收 1 倍的请求
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3  # Receives 3x more requests
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+weight = 1  # Receives 1x requests
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **工作原理:**
 
@@ -99,10 +164,20 @@ providers:
 
 使用 Fisher-Yates "发牌" 模式的公平随机分配。每个人都拿到一张牌后，才有人拿第二张。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: shuffle
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "shuffle"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **工作原理:**
 
@@ -117,6 +192,8 @@ routing:
 
 按优先级顺序尝试供应商。失败时，并行请求剩余供应商以获得最快的成功响应。这是**默认策略**。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -134,6 +211,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1  # 备用
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first (higher = higher priority)
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **工作原理:**
 
@@ -150,15 +251,19 @@ providers:
 
 根据请求中的模型名称将请求路由到供应商。使用最长前缀匹配以提高特异性。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
     glm-4: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -166,14 +271,51 @@ providers:
     type: "anthropic"
     keys:
       - key: "${ANTHROPIC_API_KEY}"
+
   - name: "zai"
     type: "zai"
     keys:
       - key: "${ZAI_API_KEY}"
+
   - name: "ollama"
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+glm-4 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **工作原理:**
 
@@ -245,6 +387,8 @@ failover 策略在特定错误条件下触发重试：
 
 使用带优先级供应商的默认策略：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -262,11 +406,37 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 加权负载均衡
 
 根据供应商容量分配负载：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -284,11 +454,37 @@ providers:
       - key: "${SECONDARY_KEY}"
         weight: 1  # 25% 的流量
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "primary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${PRIMARY_KEY}"
+weight = 3  # 75% of traffic
+
+[[providers]]
+name = "secondary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${SECONDARY_KEY}"
+weight = 1  # 25% of traffic
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 带调试头的开发环境
 
 启用调试头进行故障排除：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
@@ -305,11 +501,36 @@ providers:
     keys:
       - key: "${ZAI_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+debug = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 快速故障转移的高可用性
 
 最小化故障转移延迟：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -328,20 +549,51 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+failover_timeout = 3000  # 3 second timeout
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 使用基于模型路由的多模型
 
 将不同模型路由到专用供应商：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
+    claude-haiku: anthropic
     glm-4: zai
+    glm-3: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -359,6 +611,43 @@ providers:
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+claude-haiku = "anthropic"
+glm-4 = "zai"
+glm-3 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 通过此配置：
 - Claude 模型 → Anthropic
@@ -370,6 +659,8 @@ providers:
 
 权重和优先级在供应商的密钥配置中指定：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "example"
@@ -380,6 +671,21 @@ providers:
         priority: 2    # 用于 failover（数值越高 = 优先尝试）
         rpm_limit: 60  # 速率限制跟踪
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "example"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${API_KEY}"
+weight = 3      # For weighted-round-robin (higher = more traffic)
+priority = 2    # For failover (higher = tried first)
+rpm_limit = 60  # Rate limit tracking
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **注意:** 权重和优先级从供应商密钥列表的**第一个密钥**读取。
 
