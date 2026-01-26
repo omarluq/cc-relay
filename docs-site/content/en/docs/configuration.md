@@ -792,9 +792,58 @@ Validate your configuration file:
 cc-relay config validate
 ```
 
+**Tip**: Always validate configuration changes before deploying. Hot-reload will reject invalid configurations, but validation catches errors before they reach production.
+
 ## Hot Reloading
 
-Configuration changes require a server restart. Hot-reloading is planned for a future release.
+CC-Relay automatically detects and applies configuration changes without requiring a restart. This enables zero-downtime configuration updates.
+
+### How It Works
+
+CC-Relay uses [fsnotify](https://github.com/fsnotify/fsnotify) to monitor the config file for changes:
+
+1. **File watching**: The parent directory is monitored to properly detect atomic writes (temp file + rename pattern used by most editors)
+2. **Debouncing**: Multiple rapid file events are coalesced with a 100ms debounce delay to handle editor save behavior
+3. **Atomic swap**: New configuration is loaded and swapped atomically using Go's `sync/atomic.Pointer`
+4. **In-flight preservation**: Requests in progress continue with the old configuration; new requests use the updated configuration
+
+### Events That Trigger Reload
+
+| Event | Triggers Reload |
+|-------|-----------------|
+| File write | Yes |
+| File create (atomic rename) | Yes |
+| File chmod | No (ignored) |
+| Other file in directory | No (ignored) |
+
+### Logging
+
+When hot-reload occurs, you'll see log messages:
+
+```
+INF config file reloaded path=/path/to/config.yaml
+INF config hot-reloaded successfully
+```
+
+If the new configuration is invalid:
+
+```
+ERR failed to reload config path=/path/to/config.yaml error="validation error"
+```
+
+Invalid configurations are rejected and the proxy continues with the previous valid configuration.
+
+### Limitations
+
+- **Provider changes**: Adding or removing providers requires a restart (routing infrastructure is initialized at startup)
+- **Listen address**: Changing `server.listen` requires a restart
+- **gRPC address**: Changing gRPC management API address requires a restart
+
+Configuration options that can be hot-reloaded:
+- Logging level and format
+- Rate limits on existing keys
+- Health check intervals
+- Routing strategy weights and priorities
 
 ## Next Steps
 
