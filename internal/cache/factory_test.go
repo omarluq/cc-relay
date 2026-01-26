@@ -77,7 +77,6 @@ func TestNew_ModeDisabled_CreatesNoop(t *testing.T) {
 		t.Errorf("Get() error = %v, want ErrNotFound", err)
 	}
 
-
 	// Verify Exists returns false
 	exists, err := c.Exists(ctx, key)
 	if err != nil {

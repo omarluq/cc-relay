@@ -13,12 +13,12 @@ import (
 
 func TestModelRewriter_RewriteRequest(t *testing.T) {
 	tests := []struct {
-		name           string
-		mapping        map[string]string
-		requestBody    string
-		expectedModel  string
-		shouldRewrite  bool
-		expectError    bool
+		name          string
+		mapping       map[string]string
+		requestBody   string
+		expectedModel string
+		shouldRewrite bool
+		expectError   bool
 	}{
 		{
 			name: "rewrites model when mapping exists",
@@ -82,9 +82,9 @@ func TestModelRewriter_RewriteRequest(t *testing.T) {
 		{
 			name: "rewrites with multiple mappings",
 			mapping: map[string]string{
-				"claude-opus-4-5-20251101":   "qwen3:8b",
-				"claude-sonnet-4-20250514":   "qwen3:4b",
-				"claude-haiku-3-5-20241022":  "qwen3:1b",
+				"claude-opus-4-5-20251101":  "qwen3:8b",
+				"claude-sonnet-4-20250514":  "qwen3:4b",
+				"claude-haiku-3-5-20241022": "qwen3:1b",
 			},
 			requestBody:   `{"model":"claude-sonnet-4-20250514","messages":[]}`,
 			expectedModel: "qwen3:4b",

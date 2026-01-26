@@ -155,6 +155,7 @@ func (k *KeyMetadata) UpdateFromHeaders(headers http.Header) error {
 }
 
 // parseRPMLimits parses request rate limit headers.
+//
 //nolint:dupl // Similar pattern repeated for each token type
 func (k *KeyMetadata) parseRPMLimits(headers http.Header) {
 	if val := headers.Get("anthropic-ratelimit-requests-limit"); val != "" {
@@ -177,6 +178,7 @@ func (k *KeyMetadata) parseRPMLimits(headers http.Header) {
 }
 
 // parseInputTokenLimits parses input token rate limit headers.
+//
 //nolint:dupl // Similar pattern repeated for each token type
 func (k *KeyMetadata) parseInputTokenLimits(headers http.Header) {
 	if val := headers.Get("anthropic-ratelimit-input-tokens-limit"); val != "" {
@@ -199,6 +201,7 @@ func (k *KeyMetadata) parseInputTokenLimits(headers http.Header) {
 }
 
 // parseOutputTokenLimits parses output token rate limit headers.
+//
 //nolint:dupl // Similar pattern repeated for each token type
 func (k *KeyMetadata) parseOutputTokenLimits(headers http.Header) {
 	if val := headers.Get("anthropic-ratelimit-output-tokens-limit"); val != "" {

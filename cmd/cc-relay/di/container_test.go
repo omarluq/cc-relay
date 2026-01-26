@@ -41,7 +41,6 @@ providers:
       - key: test-key-1
 `
 
-
 func TestNewContainer(t *testing.T) {
 	t.Run("creates container with valid config", func(t *testing.T) {
 		configPath := createTempConfigFile(t)

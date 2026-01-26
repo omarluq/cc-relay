@@ -12,9 +12,9 @@ import (
 
 // Custom header constants for relay metadata.
 const (
-	HeaderRelayKeyID     = "X-CC-Relay-Key-ID"        // Selected key ID (first 8 chars)
-	HeaderRelayCapacity  = "X-CC-Relay-Capacity"      // Remaining capacity %
-	HeaderRelayKeysTotal = "X-CC-Relay-Keys-Total"    // Total keys in pool
+	HeaderRelayKeyID     = "X-CC-Relay-Key-ID"         // Selected key ID (first 8 chars)
+	HeaderRelayCapacity  = "X-CC-Relay-Capacity"       // Remaining capacity %
+	HeaderRelayKeysTotal = "X-CC-Relay-Keys-Total"     // Total keys in pool
 	HeaderRelayKeysAvail = "X-CC-Relay-Keys-Available" // Available keys
 )
 

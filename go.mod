@@ -18,7 +18,6 @@ require (
 	github.com/samber/lo v1.52.0
 	github.com/samber/mo v1.16.0
 	github.com/samber/ro v0.2.0
-	github.com/samber/ro/plugins/observability/zerolog v0.0.0-20260110205613-a6ee93928797
 	github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260110205613-a6ee93928797
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/spf13/cobra v1.10.2

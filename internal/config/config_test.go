@@ -1299,4 +1299,3 @@ func TestProviderConfig_ValidateCloudConfig(t *testing.T) {
 		})
 	}
 }
-

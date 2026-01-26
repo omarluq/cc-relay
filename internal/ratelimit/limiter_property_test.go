@@ -87,9 +87,9 @@ func TestRateLimiter_Properties(t *testing.T) {
 			// After SetLimit, limits should reflect new values
 			return usage.RequestsLimit == newRPM && usage.TokensLimit == newTPM
 		},
-		gen.IntRange(1, 100),      // initialRPM
+		gen.IntRange(1, 100),       // initialRPM
 		gen.IntRange(1000, 100000), // initialTPM
-		gen.IntRange(2, 101),      // newRPM - different range to avoid gocritic
+		gen.IntRange(2, 101),       // newRPM - different range to avoid gocritic
 		gen.IntRange(1001, 100001), // newTPM - different range to avoid gocritic
 	))
 
@@ -118,7 +118,7 @@ func TestRateLimiter_Properties(t *testing.T) {
 
 			return true
 		},
-		gen.Bool(),                // testZeroRPM
+		gen.Bool(),                  // testZeroRPM
 		gen.OneConstOf(true, false), // testZeroTPM - different generator to avoid gocritic
 	))
 

@@ -30,7 +30,7 @@ func (m *mockProvider) TransformRequest(body []byte, endpoint string) (newBody [
 	return body, "http://test" + endpoint, nil
 }
 func (m *mockProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error { return nil }
-func (m *mockProvider) RequiresBodyTransform() bool                                      { return false }
+func (m *mockProvider) RequiresBodyTransform() bool                                     { return false }
 func (m *mockProvider) StreamingContentType() string {
 	return providers.ContentTypeSSE
 }

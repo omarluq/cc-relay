@@ -31,11 +31,11 @@ func getClusterTestPort() int {
 // testCacheCluster manages a group of embedded Olric nodes for testing.
 // It handles node creation, peer discovery, and cleanup.
 type testCacheCluster struct {
-	t            *testing.T
-	dmapName     string
-	members      []*olricCache
-	memberAddrs  []string // Memberlist addresses (host:memberlistPort) for peer discovery
-	mtx          sync.Mutex
+	t           *testing.T
+	dmapName    string
+	members     []*olricCache
+	memberAddrs []string // Memberlist addresses (host:memberlistPort) for peer discovery
+	mtx         sync.Mutex
 }
 
 // newTestCacheCluster creates a new test cluster.

@@ -37,8 +37,8 @@ type Handler struct {
 	defaultProvider providers.Provider        // Fallback for single-provider mode
 	router          router.ProviderRouter
 	healthTracker   *health.Tracker
-	signatureCache  *SignatureCache           // Thinking signature cache (may be nil)
-	routingConfig   *config.RoutingConfig     // For model-based routing configuration
+	signatureCache  *SignatureCache       // Thinking signature cache (may be nil)
+	routingConfig   *config.RoutingConfig // For model-based routing configuration
 	providers       []router.ProviderInfo
 	debugOpts       config.DebugOptions
 	routingDebug    bool

@@ -10,9 +10,9 @@ import (
 
 // Trigger name constants for logging.
 const (
-	TriggerStatusCode  = "status_code"
-	TriggerTimeout     = "timeout"
-	TriggerConnection  = "connection"
+	TriggerStatusCode = "status_code"
+	TriggerTimeout    = "timeout"
+	TriggerConnection = "connection"
 )
 
 // FailoverTrigger defines conditions that trigger failover to alternate providers.

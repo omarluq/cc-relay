@@ -10,12 +10,12 @@ import (
 
 func TestNewTokenBucketLimiter(t *testing.T) {
 	tests := []struct {
-		name     string
-		rpm      int
-		tpm      int
-		wantRPM  int
-		wantTPM  int
-		isUnlim  bool
+		name    string
+		rpm     int
+		tpm     int
+		wantRPM int
+		wantTPM int
+		isUnlim bool
 	}{
 		{
 			name:    "valid limits",

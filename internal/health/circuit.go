@@ -39,7 +39,7 @@ func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Lo
 
 	settings := gobreaker.Settings{
 		Name:        name,
-		MaxRequests: uint32(halfOpenProbes),    //nolint:gosec // validated non-negative above
+		MaxRequests: uint32(halfOpenProbes), //nolint:gosec // validated non-negative above
 		Timeout:     cfg.GetOpenDuration(),
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 			return counts.ConsecutiveFailures >= uint32(failureThreshold) //nolint:gosec // validated non-negative above
