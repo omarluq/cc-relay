@@ -52,8 +52,10 @@ stateDiagram-v2
 
 ## Konfiguration
 
-Konfigurieren Sie das Gesundheits-Tracking in Ihrer `config.yaml`:
+Konfigurieren Sie das Gesundheits-Tracking in Ihrer Konfigurationsdatei:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 health:
   # Health-Check-Einstellungen
@@ -74,6 +76,29 @@ health:
     # Im Halb-Offen-Zustand erlaubte Testanfragen (Standard: 3)
     half_open_probes: 3
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health]
+
+[health.health_check]
+# Enable periodic health checks (default: true)
+enabled = true
+# Check interval in milliseconds (default: 10000 = 10s)
+interval_ms = 10000
+
+[health.circuit_breaker]
+# Consecutive failures before opening circuit (default: 5)
+failure_threshold = 5
+
+# Time circuit stays open before half-open, in milliseconds (default: 30000 = 30s)
+open_duration_ms = 30000
+
+# Probes allowed in half-open state (default: 3)
+half_open_probes = 3
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Konfigurationsreferenz
 
@@ -165,11 +190,22 @@ Wenn `routing.debug: true` aktiviert ist, fuegt cc-relay Gesundheitsstatus in An
 
 Um Debug-Header zu aktivieren:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
   debug: true  # Diagnose-Header aktivieren
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+debug = true  # Enable diagnostic headers
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Sicherheitswarnung:** Debug-Header offenbaren interne Routing-Entscheidungen. Nur in Entwicklungs- oder vertrauenswuerdigen Umgebungen verwenden. Niemals in Produktion mit nicht vertrauenswuerdigen Clients aktivieren.
 
@@ -182,18 +218,40 @@ routing:
 **Moegliche Ursachen:**
 
 1. **`failure_threshold` zu niedrig:** Erhoehen, um mehr voruebergehende Fehler zu tolerieren
-   ```yaml
-   circuit_breaker:
-     failure_threshold: 10  # Toleranter
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  failure_threshold: 10  # Toleranter
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+failure_threshold = 10  # More tolerant
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Rate-Limits loesen Oeffnungen aus:** Wenn Sie Rate-Limits erreichen, fuegen Sie mehr API-Schluessel zu Ihrem Pool hinzu, anstatt den Circuit Breaker anzupassen
 
 3. **Langsame Antworten verursachen Timeouts:** Server-Timeout erhoehen
-   ```yaml
-   server:
-     timeout_ms: 300000  # 5 Minuten
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+server:
+  timeout_ms: 300000  # 5 Minuten
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+timeout_ms = 300000  # 5 minutes
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Erholung dauert zu lange
 
@@ -202,17 +260,40 @@ routing:
 **Loesungen:**
 
 1. **Open-Duration reduzieren:**
-   ```yaml
-   circuit_breaker:
-     open_duration_ms: 15000  # 15 Sekunden statt 30
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  open_duration_ms: 15000  # 15 Sekunden statt 30
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+open_duration_ms = 15000  # 15 seconds instead of 30
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Schnellere Health-Checks aktivieren:**
-   ```yaml
-   health_check:
-     enabled: true
-     interval_ms: 5000  # Alle 5 Sekunden pruefen
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+health_check:
+  enabled: true
+  interval_ms: 5000  # Alle 5 Sekunden pruefen
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health_check]
+enabled = true
+interval_ms = 5000  # Check every 5 seconds
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Circuit oeffnet bei gueltigen Fehlern
 
@@ -223,10 +304,21 @@ routing:
 1. Pruefen Sie, ob die tatsaechliche Antwort 429 (Rate-Limited) ist
 2. Verifizieren Sie, dass der Fehler nicht tatsaechlich ein 5xx ist, der falsch gemeldet wird
 3. Aktivieren Sie Debug-Logging, um tatsaechliche Antwortcodes zu sehen:
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Alle Provider ungesund
 

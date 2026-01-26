@@ -25,6 +25,8 @@ Der Anthropic Anbieter verbindet sich direkt mit Anthropics API. Dies ist der St
 
 ### Konfiguration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -43,6 +45,29 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60        # Requests per minute
+tpm_limit = 100000    # Tokens per minute
+priority = 2          # Higher = tried first in failover
+
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### API-Schluessel Einrichtung
 
@@ -55,11 +80,21 @@ providers:
 
 Der Anthropic Anbieter unterstuetzt transparente Authentifizierung fuer Claude Code Abonnement-Benutzer. Wenn aktiviert, leitet cc-relay Ihr Abonnement-Token unveraendert weiter:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ```bash
 # Ihr Abonnement-Token wird unveraendert weitergeleitet
@@ -75,6 +110,8 @@ Z.AI (Zhipu AI) bietet GLM Modelle ueber eine Anthropic-kompatible API. Dies erm
 
 ### Konfiguration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -98,6 +135,34 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Lower priority than Anthropic for failover
+
+# Map Claude model names to Z.AI models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### API-Schluessel Einrichtung
 
@@ -112,6 +177,8 @@ providers:
 
 Model Mapping uebersetzt Anthropic Modellnamen in Z.AI Aequivalente. Wenn Claude Code `claude-sonnet-4-5-20250514` anfordert, leitet cc-relay automatisch zu `GLM-4.7` weiter:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 model_mapping:
   # Claude Sonnet -> GLM-4.7 (Flaggschiff-Modell)
@@ -122,6 +189,20 @@ model_mapping:
   "claude-haiku-3-5-20241022": "GLM-4.5-Air"
   "claude-haiku-3-5": "GLM-4.5-Air"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Sonnet -> GLM-4.7 (flagship model)
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+
+# Claude Haiku -> GLM-4.5-Air (fast, economical)
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Kostenvergleich
 
@@ -138,6 +219,8 @@ Ollama ermoeglicht lokale LLM Inferenz ueber eine Anthropic-kompatible API (verf
 
 ### Konfiguration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -161,6 +244,34 @@ providers:
       - "qwen3:8b"
       - "codestral:latest"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+base_url = "http://localhost:11434"  # Optional, uses default
+
+[[providers.keys]]
+key = "ollama"  # Ollama accepts but ignores API keys
+priority = 0    # Lowest priority for failover
+
+# Map Claude model names to local Ollama models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "qwen3:32b"
+"claude-sonnet-4-5" = "qwen3:32b"
+"claude-haiku-3-5-20241022" = "qwen3:8b"
+"claude-haiku-3-5" = "qwen3:8b"
+
+models = [
+  "qwen3:32b",
+  "qwen3:8b",
+  "codestral:latest"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Ollama Einrichtung
 
@@ -203,6 +314,8 @@ Ollamas Anthropic-Kompatibilitaet ist teilweise. Einige Funktionen werden nicht 
 
 Bei cc-relay in Docker aber Ollama auf dem Host:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -210,6 +323,17 @@ providers:
     # Dockers Host-Gateway anstelle von localhost verwenden
     base_url: "http://host.docker.internal:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+# Use Docker's host gateway instead of localhost
+base_url = "http://host.docker.internal:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Alternativ cc-relay mit `--network host` ausfuehren:
 
@@ -221,60 +345,272 @@ docker run --network host cc-relay
 
 AWS Bedrock bietet Claude Zugang ueber Amazon Web Services mit Enterprise-Sicherheit und SigV4 Authentifizierung.
 
+### Konfiguration
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "bedrock"
     type: "bedrock"
     enabled: true
+
+    # AWS region (required)
     aws_region: "us-east-1"
+
+    # Explicit AWS credentials (optional)
+    # If not set, uses AWS SDK default credential chain:
+    # 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    # 2. Shared credentials file (~/.aws/credentials)
+    # 3. IAM role (EC2, ECS, Lambda)
+    aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+    aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+
+    # Map Claude model names to Bedrock model IDs
     model_mapping:
       "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
-    keys:
-      - key: "bedrock-internal"
-```
+      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+      "claude-haiku-3-5-20241022": "anthropic.claude-haiku-3-5-20241022-v1:0"
 
-Bedrock verwendet AWS SDK Standard-Credential-Chain (Umgebungsvariablen, IAM Rolle, etc.).
+    keys:
+      - key: "bedrock-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "bedrock"
+type = "bedrock"
+enabled = true
+
+# AWS region (required)
+aws_region = "us-east-1"
+
+# Explicit AWS credentials (optional)
+# If not set, uses AWS SDK default credential chain:
+# 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+# 2. Shared credentials file (~/.aws/credentials)
+# 3. IAM role (EC2, ECS, Lambda)
+aws_access_key_id = "${AWS_ACCESS_KEY_ID}"
+aws_secret_access_key = "${AWS_SECRET_ACCESS_KEY}"
+
+# Map Claude model names to Bedrock model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-sonnet-4-5" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-haiku-3-5-20241022" = "anthropic.claude-haiku-3-5-20241022-v1:0"
+
+[[providers.keys]]
+key = "bedrock-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### AWS Setup
+
+1. **Enable Bedrock Access**: In AWS Console, navigate to Bedrock > Model access and enable Claude models
+2. **Configure Credentials**: Use one of these methods:
+   - **Environment Variables**: `export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`
+   - **AWS CLI**: `aws configure`
+   - **IAM Role**: Attach Bedrock access policy to EC2/ECS/Lambda role
+
+### Bedrock Model IDs
+
+**Note:** Model IDs change frequently as AWS Bedrock adds new Claude versions. Verify the current list in [AWS Bedrock model access documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) before deploying.
+
+Bedrock uses a specific model ID format: `anthropic.{model}-v{version}:{minor}`
+
+| Claude Model | Bedrock Model ID |
+|--------------|------------------|
+| claude-sonnet-4-5-20250514 | `anthropic.claude-sonnet-4-5-20250514-v1:0` |
+| claude-opus-4-5-20250514 | `anthropic.claude-opus-4-5-20250514-v1:0` |
+| claude-haiku-3-5-20241022 | `anthropic.claude-haiku-3-5-20241022-v1:0` |
+
+### Event Stream Conversion
+
+Bedrock returns responses in AWS Event Stream format. CC-Relay automatically converts this to SSE format for Claude Code compatibility. No additional configuration is needed.
 
 ## Azure AI Foundry Anbieter
 
 Azure AI Foundry bietet Claude Zugang ueber Microsoft Azure mit Enterprise Azure Integration.
 
+### Konfiguration
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "azure"
     type: "azure"
     enabled: true
-    azure_resource_name: "mein-azure-resource"
+
+    # Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
+    azure_resource_name: "my-azure-resource"
+
+    # Azure API version (default: 2024-06-01)
     azure_api_version: "2024-06-01"
+
+    # Azure uses x-api-key authentication (Anthropic-compatible)
     keys:
       - key: "${AZURE_API_KEY}"
+
+    # Map Claude model names to Azure deployment names
     model_mapping:
       "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+      "claude-sonnet-4-5": "claude-sonnet-4-5"
+      "claude-haiku-3-5": "claude-haiku-3-5"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "azure"
+type = "azure"
+enabled = true
+
+# Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
+azure_resource_name = "my-azure-resource"
+
+# Azure API version (default: 2024-06-01)
+azure_api_version = "2024-06-01"
+
+# Azure uses x-api-key authentication (Anthropic-compatible)
+[[providers.keys]]
+key = "${AZURE_API_KEY}"
+
+# Map Claude model names to Azure deployment names
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5"
+"claude-sonnet-4-5" = "claude-sonnet-4-5"
+"claude-haiku-3-5" = "claude-haiku-3-5"
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### Azure Setup
+
+1. **Create Azure AI Resource**: In Azure Portal, create an Azure AI Foundry resource
+2. **Deploy Claude Model**: Deploy a Claude model in your AI Foundry workspace
+3. **Get API Key**: Copy the API key from Keys and Endpoint section
+4. **Note Resource Name**: Your URL is `https://{resource_name}.services.ai.azure.com`
+
+### Deployment Names
+
+Azure uses deployment names as model identifiers. Create deployments in Azure AI Foundry, then map them:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+model_mapping:
+  "claude-sonnet-4-5": "my-sonnet-deployment"  # Your deployment name
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+"claude-sonnet-4-5" = "my-sonnet-deployment"  # Your deployment name
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Google Vertex AI Anbieter
 
 Vertex AI bietet Claude Zugang ueber Google Cloud mit nahtloser GCP Integration.
 
+### Konfiguration
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "vertex"
     type: "vertex"
     enabled: true
+
+    # Google Cloud project ID (required)
     gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
+
+    # Google Cloud region (required)
     gcp_region: "us-east5"
+
+    # Map Claude model names to Vertex AI model IDs
     model_mapping:
       "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
-    keys:
-      - key: "vertex-internal"
-```
+      "claude-sonnet-4-5": "claude-sonnet-4-5@20250514"
+      "claude-haiku-3-5-20241022": "claude-haiku-3-5@20241022"
 
-Vertex verwendet Google Application Default Credentials oder gcloud CLI.
+    keys:
+      - key: "vertex-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "vertex"
+type = "vertex"
+enabled = true
+
+# Google Cloud project ID (required)
+gcp_project_id = "${GOOGLE_CLOUD_PROJECT}"
+
+# Google Cloud region (required)
+gcp_region = "us-east5"
+
+# Map Claude model names to Vertex AI model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5@20250514"
+"claude-sonnet-4-5" = "claude-sonnet-4-5@20250514"
+"claude-haiku-3-5-20241022" = "claude-haiku-3-5@20241022"
+
+[[providers.keys]]
+key = "vertex-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### GCP Setup
+
+1. **Enable Vertex AI API**: In GCP Console, enable the Vertex AI API
+2. **Request Claude Access**: Request access to Claude models through Vertex AI Model Garden
+3. **Configure Authentication**: Use one of these methods:
+   - **Application Default Credentials**: `gcloud auth application-default login`
+   - **Service Account**: Set `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+   - **GCE/GKE**: Uses attached service account automatically
+
+### Vertex AI Model IDs
+
+Vertex AI uses `{model}@{version}` format:
+
+| Claude Model | Vertex AI Model ID |
+|--------------|-------------------|
+| claude-sonnet-4-5-20250514 | `claude-sonnet-4-5@20250514` |
+| claude-opus-4-5-20250514 | `claude-opus-4-5@20250514` |
+| claude-haiku-3-5-20241022 | `claude-haiku-3-5@20241022` |
+
+### Regions
+
+Available regions for Claude on Vertex AI (check [Google Cloud documentation](https://cloud.google.com/vertex-ai/docs/general/locations) for the complete current list):
+- `us-east5` (default)
+- `us-central1`
+- `europe-west1`
+
+## Cloud Provider Comparison
+
+| Feature | Bedrock | Azure | Vertex AI |
+|---------|---------|-------|-----------|
+| Authentication | SigV4 (AWS) | API Key | OAuth2 (GCP) |
+| Streaming Format | Event Stream | SSE | SSE |
+| Body Transform | Yes | No | Yes |
+| Model in URL | Yes | No | Yes |
+| Enterprise SSO | AWS IAM | Entra ID | GCP IAM |
+| Regions | US, EU, APAC | Global | US, EU |
 
 ## Model Mapping
 
 Das `model_mapping` Feld uebersetzt eingehende Modellnamen in anbieter-spezifische Modelle:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -284,6 +620,20 @@ providers:
       "claude-sonnet-4-5-20250514": "GLM-4.7"
       "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+
+[providers.model_mapping]
+# Format: "incoming-model" = "provider-model"
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Wenn Claude Code sendet:
 ```json
@@ -305,6 +655,8 @@ CC-Relay leitet zu Z.AI weiter mit:
 
 Konfigurieren Sie mehrere Anbieter fuer Failover, Kostenoptimierung oder Lastverteilung:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   # Primaer: Anthropic (hoechste Qualitaet)
@@ -334,6 +686,44 @@ providers:
 routing:
   strategy: failover  # Anbieter in Prioritaetsreihenfolge versuchen
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Primary: Anthropic (highest quality)
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first
+
+# Secondary: Z.AI (cost-effective)
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+
+# Tertiary: Ollama (local, free)
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+
+[[providers.keys]]
+key = "ollama"
+priority = 0  # Last resort
+
+[routing]
+strategy = "failover"  # Try providers in priority order
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Mit dieser Konfiguration:
 1. Anfragen gehen zuerst zu Anthropic (Prioritaet 2)
@@ -397,6 +787,9 @@ curl -X POST https://api.z.ai/api/anthropic/v1/messages \
 - Modell nicht installiert (Ollama)
 
 **Loesungen:**
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # Sicherstellen dass Modell gelistet ist
 models:
@@ -406,6 +799,18 @@ models:
 model_mapping:
   "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Ensure model is listed
+models = ["GLM-4.7"]
+
+# Ensure mapping exists
+[model_mapping]
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Fuer Ollama pruefen ob Modell installiert ist:
 ```bash

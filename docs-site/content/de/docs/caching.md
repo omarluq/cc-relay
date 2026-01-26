@@ -88,6 +88,8 @@ sequenceDiagram
 
 Ristretto ist ein hochleistungsfaehiger, nebenlaeufiger Cache basierend auf Forschung der Caffeine-Bibliothek. Er verwendet eine TinyLFU-Admission-Policy fuer optimale Trefferquoten.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: single
@@ -106,6 +108,28 @@ cache:
     # Steuert die Groesse des Admission-Buffers
     buffer_items: 64
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "single"
+
+[cache.ristretto]
+# Number of 4-bit access counters
+# Recommended: 10x expected max items for optimal admission policy
+# Example: For 100,000 items, use 1,000,000 counters
+num_counters = 1000000
+
+# Maximum memory for cached values (in bytes)
+# 104857600 = 100 MB
+max_cost = 104857600
+
+# Number of keys per Get buffer (default: 64)
+# Controls admission buffer size
+buffer_items = 64
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Speicherberechnung:**
 
@@ -123,6 +147,8 @@ Olric bietet verteiltes Caching mit automatischer Cluster-Erkennung und Datenrep
 
 **Client-Modus** (Verbindung zu externem Cluster):
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -137,9 +163,26 @@ cache:
     # Name der verteilten Map (Standard: "cc-relay")
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+# Olric cluster member addresses
+addresses = ["olric-1:3320", "olric-2:3320", "olric-3:3320"]
+
+# Distributed map name (default: "cc-relay")
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Embedded-Modus** (Einzel-Knoten-HA oder Entwicklung):
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -158,13 +201,43 @@ cache:
 
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+# Run embedded Olric node
+embedded = true
+
+# Address to bind the embedded node
+bind_addr = "0.0.0.0:3320"
+
+# Peer addresses for cluster discovery (optional)
+peers = ["cc-relay-2:3320", "cc-relay-3:3320"]
+
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Disabled-Modus
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: disabled
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "disabled"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Alle Cache-Operationen kehren sofort zurueck, ohne Daten zu speichern. `Get`-Operationen geben immer `ErrNotFound` zurueck.
 
@@ -215,6 +288,8 @@ sudo ufw allow 3322/tcp
 
 **Knoten 1 (cc-relay-1):**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -231,9 +306,31 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322"]  # Memberlist port of node 2
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Knoten 2 (cc-relay-2):**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -250,9 +347,31 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-1:3322"]  # Memberlist port of node 1
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Drei-Knoten Docker Compose Beispiel
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 version: '3.8'
 
@@ -300,9 +419,34 @@ networks:
   cc-relay-net:
     driver: bridge
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Docker Compose uses YAML format for the compose file itself.
+# This tab shows the cc-relay config file (config-node1.toml):
+
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322", "cc-relay-3:3322"]
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **config-node1.yaml:**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -320,6 +464,26 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322", "cc-relay-3:3322"]
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **config-node2.yaml und config-node3.yaml:** Identisch zu node1, aber mit unterschiedlichen Peers-Listen, die auf die anderen Knoten verweisen.
 
@@ -477,10 +641,21 @@ Ristretto verwendet eine Admission-Policy, die Eintraege ablehnen kann, um hohe 
 3. **Adressen validieren**: Im Client-Modus stellen Sie sicher, dass mindestens eine Adresse in der Liste erreichbar ist.
 
 4. **Logs ueberwachen**: Aktivieren Sie Debug-Protokollierung, um Cluster-Mitgliedschafts-Ereignisse zu sehen:
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Speicherdruck
 
@@ -499,15 +674,29 @@ Ristretto verwendet eine Admission-Policy, die Eintraege ablehnen kann, um hohe 
 **Ursachen und Loesungen:**
 
 1. **Falscher Peer-Port:** Peers muessen den memberlist-Port verwenden (bind_addr + 2), nicht den Olric-Port.
-   ```yaml
-   # Falsch
-   peers:
-     - "other-node:3320"  # Dies ist der Olric-Port
 
-   # Richtig
-   peers:
-     - "other-node:3322"  # Memberlist-Port = 3320 + 2
-   ```
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+# Falsch
+peers:
+  - "other-node:3320"  # Dies ist der Olric-Port
+
+# Richtig
+peers:
+  - "other-node:3322"  # Memberlist-Port = 3320 + 2
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Wrong
+peers = ["other-node:3320"]  # This is the Olric port
+
+# Correct
+peers = ["other-node:3322"]  # Memberlist port = 3320 + 2
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Firewall blockiert:** Stellen Sie sicher, dass sowohl Olric- als auch memberlist-Ports offen sind.
    ```bash
@@ -529,6 +718,8 @@ Ristretto verwendet eine Admission-Policy, die Eintraege ablehnen kann, um hohe 
 
 **Loesung:** Stellen Sie sicher, dass `member_count_quorum` kleiner oder gleich der Anzahl tatsaechlich laufender Knoten ist.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # Fuer 2-Knoten-Cluster
 member_count_quorum: 2  # Erfordert beide Knoten
@@ -536,6 +727,17 @@ member_count_quorum: 2  # Erfordert beide Knoten
 # Fuer 3-Knoten-Cluster mit 1-Knoten-Fehlertoleranz
 member_count_quorum: 2  # Erlaubt, dass 1 Knoten ausfaellt
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# For 2-node cluster
+member_count_quorum = 2  # Requires both nodes
+
+# For 3-node cluster with 1-node fault tolerance
+member_count_quorum = 2  # Allows 1 node to be down
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Daten werden nicht repliziert
 
@@ -543,10 +745,20 @@ member_count_quorum: 2  # Erlaubt, dass 1 Knoten ausfaellt
 
 **Loesung:** Stellen Sie sicher, dass `replica_count` > 1 ist und genuegend Knoten vorhanden sind.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 replica_count: 2          # 2 Kopien speichern
 member_count_quorum: 2    # 2 Knoten zum Schreiben benoetigt
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+replica_count = 2          # Store 2 copies
+member_count_quorum = 2    # Need 2 nodes to write
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Fehlerbehandlung
 

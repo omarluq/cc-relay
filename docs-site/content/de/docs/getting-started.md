@@ -169,6 +169,8 @@ Flags:
 
 Hier ist eine minimale funktionsfaehige Konfiguration:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -180,6 +182,22 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Naechste Schritte
 
@@ -193,10 +211,20 @@ providers:
 
 Wenn Port 8787 bereits belegt ist, aendern Sie die Listen-Adresse in Ihrer Konfiguration:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8788"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8788"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Provider antwortet nicht
 
