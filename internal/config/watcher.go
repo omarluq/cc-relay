@@ -24,7 +24,9 @@ var ErrWatcherClosed = errors.New("config: watcher already closed")
 // It handles debouncing of rapid file changes (common with editors) and
 // watches the parent directory to properly detect atomic writes.
 type Watcher struct {
+	ctx           context.Context
 	fsWatcher     *fsnotify.Watcher
+	cancel        context.CancelFunc
 	path          string
 	callbacks     []ReloadCallback
 	debounceDelay time.Duration
@@ -57,11 +59,14 @@ func NewWatcher(path string, opts ...WatcherOption) (*Watcher, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	w := &Watcher{
 		path:          absPath,
 		fsWatcher:     fsWatcher,
 		callbacks:     make([]ReloadCallback, 0),
 		debounceDelay: 100 * time.Millisecond,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	for _, opt := range opts {
@@ -152,6 +157,13 @@ func (w *Watcher) handleEvent(timerMu *sync.Mutex, timer **time.Timer, pending *
 
 	*pending = true
 	*timer = time.AfterFunc(w.debounceDelay, func() {
+		// Check if watcher is still active before triggering reload.
+		// This prevents goroutine leak when timer fires after watcher is closed.
+		select {
+		case <-w.ctx.Done():
+			return // Watcher is closed, don't trigger reload
+		default:
+		}
 		timerMu.Lock()
 		*pending = false
 		timerMu.Unlock()
@@ -202,6 +214,9 @@ func (w *Watcher) Close() error {
 		return ErrWatcherClosed
 	}
 	w.closed = true
+
+	// Cancel context to prevent any pending timer callbacks from triggering reload
+	w.cancel()
 
 	return w.fsWatcher.Close()
 }
