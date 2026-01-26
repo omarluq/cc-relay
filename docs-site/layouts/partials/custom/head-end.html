@@ -8,10 +8,11 @@
 <script src="https://cdn.jsdelivr.net/npm/animejs@4.3.5/dist/bundles/anime.umd.min.js" integrity="sha384-GVTCcSfjdlQel2+BTqNPdndqoUSx/+aK372m+xenBPNnXxbI9B4Q3TzuNYYQH9+/" crossorigin="anonymous"></script>
 <script>
   (function() {
-    if (typeof anime === 'undefined') {
-      console.warn('AnimeJS failed to load from CDN');
+    if (typeof anime === 'undefined' || typeof anime.createTimeline !== 'function') {
+      console.warn('AnimeJS v4 failed to load from CDN');
       return;
     }
+    const { createTimeline } = anime;
     const config = {
       providerCount: 9,
       minDuration: 1500,
@@ -107,9 +108,9 @@
 
       const providerPathLength = providerPath.getTotalLength();
 
-      const timeline = anime.timeline({
-        easing: 'easeInOutQuart',
-        complete: function() {
+      const timeline = createTimeline({
+        defaults: { ease: 'inOutQuart' },
+        onComplete: function() {
           packet.remove();
           trails.forEach(function(t) { t.remove(); });
           requestCount++;
@@ -121,8 +122,8 @@
       const segment1Duration = 0.4 * duration;
       timeline.add({
         duration: segment1Duration,
-        update: function(anim) {
-          const progress = anim.progress / 100;
+        onUpdate: function(self) {
+          const progress = self.progress;
           const point = mainPath.getPointAtLength(progress * mainPathLength);
           packet.setAttribute('cx', point.x);
           packet.setAttribute('cy', point.y);
@@ -138,7 +139,7 @@
 
       timeline.add({
         duration: 50,
-        update: function() {
+        onUpdate: function() {
           const point = mainPath.getPointAtLength(mainPathLength);
           packet.setAttribute('cx', point.x);
           packet.setAttribute('cy', point.y);
@@ -148,8 +149,8 @@
       const segment2Duration = 0.5 * duration;
       timeline.add({
         duration: segment2Duration,
-        update: function(anim) {
-          const progress = anim.progress / 100;
+        onUpdate: function(self) {
+          const progress = self.progress;
           const point = providerPath.getPointAtLength(progress * providerPathLength);
           packet.setAttribute('cx', point.x);
           packet.setAttribute('cy', point.y);
@@ -165,11 +166,10 @@
         }
       });
 
-      timeline.add({
-        targets: [packet].concat(trails),
+      timeline.add([packet].concat(trails), {
         opacity: 0,
         duration: 150,
-        easing: 'easeOutQuad'
+        ease: 'outQuad'
       });
     }
 
