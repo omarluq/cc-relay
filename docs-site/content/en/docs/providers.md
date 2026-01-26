@@ -25,6 +25,8 @@ The Anthropic provider connects directly to Anthropic's API. This is the default
 
 ### Configuration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -43,6 +45,29 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60        # Requests per minute
+tpm_limit = 100000    # Tokens per minute
+priority = 2          # Higher = tried first in failover
+
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### API Key Setup
 
@@ -55,11 +80,21 @@ providers:
 
 The Anthropic provider supports transparent authentication for Claude Code subscription users. When enabled, cc-relay forwards your subscription token unchanged:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ```bash
 # Your subscription token flows through unchanged
@@ -75,6 +110,8 @@ Z.AI (Zhipu AI) offers GLM models through an Anthropic-compatible API. This prov
 
 ### Configuration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -98,6 +135,34 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Lower priority than Anthropic for failover
+
+# Map Claude model names to Z.AI models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### API Key Setup
 
@@ -112,6 +177,8 @@ providers:
 
 Model mapping translates Anthropic model names to Z.AI equivalents. When Claude Code requests `claude-sonnet-4-5-20250514`, cc-relay automatically routes to `GLM-4.7`:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 model_mapping:
   # Claude Sonnet -> GLM-4.7 (flagship model)
@@ -122,6 +189,20 @@ model_mapping:
   "claude-haiku-3-5-20241022": "GLM-4.5-Air"
   "claude-haiku-3-5": "GLM-4.5-Air"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Sonnet -> GLM-4.7 (flagship model)
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+
+# Claude Haiku -> GLM-4.5-Air (fast, economical)
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Cost Comparison
 
@@ -138,6 +219,8 @@ Ollama enables local LLM inference through an Anthropic-compatible API (availabl
 
 ### Configuration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -161,6 +244,34 @@ providers:
       - "qwen3:8b"
       - "codestral:latest"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+base_url = "http://localhost:11434"  # Optional, uses default
+
+[[providers.keys]]
+key = "ollama"  # Ollama accepts but ignores API keys
+priority = 0    # Lowest priority for failover
+
+# Map Claude model names to local Ollama models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "qwen3:32b"
+"claude-sonnet-4-5" = "qwen3:32b"
+"claude-haiku-3-5-20241022" = "qwen3:8b"
+"claude-haiku-3-5" = "qwen3:8b"
+
+models = [
+  "qwen3:32b",
+  "qwen3:8b",
+  "codestral:latest"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Ollama Setup
 
@@ -203,6 +314,8 @@ Ollama's Anthropic compatibility is partial. Some features are not supported:
 
 When running cc-relay in Docker but Ollama on the host:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -210,6 +323,17 @@ providers:
     # Use Docker's host gateway instead of localhost
     base_url: "http://host.docker.internal:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+# Use Docker's host gateway instead of localhost
+base_url = "http://host.docker.internal:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Alternatively, run cc-relay with `--network host`:
 
@@ -223,6 +347,8 @@ AWS Bedrock provides Claude access through Amazon Web Services with enterprise-g
 
 ### Configuration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "bedrock"
@@ -249,6 +375,36 @@ providers:
     keys:
       - key: "bedrock-internal"  # Internal key for cc-relay auth
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "bedrock"
+type = "bedrock"
+enabled = true
+
+# AWS region (required)
+aws_region = "us-east-1"
+
+# Explicit AWS credentials (optional)
+# If not set, uses AWS SDK default credential chain:
+# 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+# 2. Shared credentials file (~/.aws/credentials)
+# 3. IAM role (EC2, ECS, Lambda)
+aws_access_key_id = "${AWS_ACCESS_KEY_ID}"
+aws_secret_access_key = "${AWS_SECRET_ACCESS_KEY}"
+
+# Map Claude model names to Bedrock model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-sonnet-4-5" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-haiku-3-5-20241022" = "anthropic.claude-haiku-3-5-20241022-v1:0"
+
+[[providers.keys]]
+key = "bedrock-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### AWS Setup
 
@@ -280,6 +436,8 @@ Azure AI Foundry provides Claude access through Microsoft Azure with enterprise 
 
 ### Configuration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "azure"
@@ -302,6 +460,32 @@ providers:
       "claude-sonnet-4-5": "claude-sonnet-4-5"
       "claude-haiku-3-5": "claude-haiku-3-5"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "azure"
+type = "azure"
+enabled = true
+
+# Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
+azure_resource_name = "my-azure-resource"
+
+# Azure API version (default: 2024-06-01)
+azure_api_version = "2024-06-01"
+
+# Azure uses x-api-key authentication (Anthropic-compatible)
+[[providers.keys]]
+key = "${AZURE_API_KEY}"
+
+# Map Claude model names to Azure deployment names
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5"
+"claude-sonnet-4-5" = "claude-sonnet-4-5"
+"claude-haiku-3-5" = "claude-haiku-3-5"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Azure Setup
 
@@ -314,10 +498,20 @@ providers:
 
 Azure uses deployment names as model identifiers. Create deployments in Azure AI Foundry, then map them:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 model_mapping:
   "claude-sonnet-4-5": "my-sonnet-deployment"  # Your deployment name
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+"claude-sonnet-4-5" = "my-sonnet-deployment"  # Your deployment name
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Google Vertex AI Provider
 
@@ -325,6 +519,8 @@ Vertex AI provides Claude access through Google Cloud with seamless GCP integrat
 
 ### Configuration
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "vertex"
@@ -346,6 +542,31 @@ providers:
     keys:
       - key: "vertex-internal"  # Internal key for cc-relay auth
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "vertex"
+type = "vertex"
+enabled = true
+
+# Google Cloud project ID (required)
+gcp_project_id = "${GOOGLE_CLOUD_PROJECT}"
+
+# Google Cloud region (required)
+gcp_region = "us-east5"
+
+# Map Claude model names to Vertex AI model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5@20250514"
+"claude-sonnet-4-5" = "claude-sonnet-4-5@20250514"
+"claude-haiku-3-5-20241022" = "claude-haiku-3-5@20241022"
+
+[[providers.keys]]
+key = "vertex-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### GCP Setup
 
@@ -388,6 +609,8 @@ Available regions for Claude on Vertex AI (check [Google Cloud documentation](ht
 
 The `model_mapping` field translates incoming model names to provider-specific models:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -397,6 +620,20 @@ providers:
       "claude-sonnet-4-5-20250514": "GLM-4.7"
       "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+
+[providers.model_mapping]
+# Format: "incoming-model" = "provider-model"
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 When Claude Code sends:
 ```json
@@ -418,6 +655,8 @@ CC-Relay routes to Z.AI with:
 
 Configure multiple providers for failover, cost optimization, or load distribution:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   # Primary: Anthropic (highest quality)
@@ -447,6 +686,44 @@ providers:
 routing:
   strategy: failover  # Try providers in priority order
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Primary: Anthropic (highest quality)
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first
+
+# Secondary: Z.AI (cost-effective)
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+
+# Tertiary: Ollama (local, free)
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+
+[[providers.keys]]
+key = "ollama"
+priority = 0  # Last resort
+
+[routing]
+strategy = "failover"  # Try providers in priority order
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 With this configuration:
 1. Requests go to Anthropic first (priority 2)
@@ -510,6 +787,9 @@ curl -X POST https://api.z.ai/api/anthropic/v1/messages \
 - Model not installed (Ollama)
 
 **Solutions:**
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # Ensure model is listed
 models:
@@ -519,6 +799,18 @@ models:
 model_mapping:
   "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Ensure model is listed
+models = ["GLM-4.7"]
+
+# Ensure mapping exists
+[model_mapping]
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 For Ollama, verify model is installed:
 ```bash
