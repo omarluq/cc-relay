@@ -25,6 +25,8 @@ cc-relay config init
 
 CC-Relay 支持使用 `${VAR_NAME}` 语法扩展环境变量：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -32,6 +34,18 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"  # 加载时扩展
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"  # 加载时扩展
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 完整配置参考
 
@@ -296,11 +310,22 @@ debug = false
 
 `listen` 字段指定代理监听传入请求的位置：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"  # 仅本地（推荐）
   # listen: "0.0.0.0:8787"  # 所有接口（谨慎使用）
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"  # 仅本地（推荐）
+# listen = "0.0.0.0:8787"  # 所有接口（谨慎使用）
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 认证
 
@@ -310,11 +335,21 @@ CC-Relay 支持多种认证方式：
 
 要求客户端提供特定的 API 密钥：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 客户端必须包含请求头：`x-api-key: <your-proxy-key>`
 
@@ -322,11 +357,21 @@ server:
 
 允许 Claude Code 订阅用户连接：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 这将接受来自 Claude Code 的 `Authorization: Bearer` Token。
 
@@ -334,31 +379,63 @@ server:
 
 同时允许 API 密钥和订阅认证：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 #### 无认证
 
 禁用认证（不推荐用于生产环境）：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth: {}
   # 或直接省略 auth 部分
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# 省略 [server.auth] 部分
+# 或使用空表：
+# [server.auth]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### HTTP/2 支持
 
 启用 HTTP/2 以提高并发请求性能：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   enable_http2: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+enable_http2 = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 供应商配置
 
@@ -373,6 +450,8 @@ CC-Relay 目前支持两种供应商类型：
 
 ### Anthropic 供应商
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -390,11 +469,35 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # 可选
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60
+tpm_limit = 100000
+
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Z.AI 供应商
 
 Z.AI 以较低成本提供与 Anthropic 兼容的 API 和 GLM 模型：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -414,11 +517,37 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 多个 API 密钥
 
 池化多个 API 密钥以提高吞吐量：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -436,17 +565,54 @@ providers:
         rpm_limit: 60
         tpm_limit: 100000
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_1}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_2}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_3}"
+rpm_limit = 60
+tpm_limit = 100000
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 自定义基础 URL
 
 覆盖默认 API 端点：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic-custom"
     type: "anthropic"
     base_url: "https://custom-endpoint.example.com"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic-custom"
+type = "anthropic"
+base_url = "https://custom-endpoint.example.com"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 日志配置
 
@@ -461,16 +627,29 @@ providers:
 
 ### 日志格式
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   format: "text"   # 人类可读（默认）
   # format: "json" # 机器可读，用于日志聚合
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+format = "text"   # 人类可读（默认）
+# format = "json" # 机器可读，用于日志聚合
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 调试选项
 
 细粒度控制调试日志：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   level: "debug"
@@ -480,6 +659,20 @@ logging:
     log_tls_metrics: true       # 记录 TLS 连接信息
     max_body_log_size: 1000     # 记录请求体的最大字节数
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+
+[logging.debug_options]
+log_request_body = true      # 记录请求体（已脱敏）
+log_response_headers = true  # 记录响应头
+log_tls_metrics = true       # 记录 TLS 连接信息
+max_body_log_size = 1000     # 记录请求体的最大字节数
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 缓存配置
 
@@ -497,6 +690,8 @@ CC-Relay 提供统一的缓存层，支持多种后端选项以适应不同的�
 
 Ristretto 是一个高性能、支持并发的内存缓存。这是单实例部署的默认模式。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: single
@@ -505,6 +700,19 @@ cache:
     max_cost: 104857600    # 100 MB
     buffer_items: 64       # Admission buffer size
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "single"
+
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
@@ -516,6 +724,8 @@ cache:
 
 对于需要共享缓存状态的多实例部署，使用嵌入式 Olric 模式，每个 cc-relay 实例运行一个 Olric 节点。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -532,6 +742,26 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["other-node:3322"]  # Memberlist port = bind_addr + 2
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
@@ -552,6 +782,8 @@ cache:
 
 连接到外部 Olric 集群，而不是运行嵌入式节点：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -562,6 +794,19 @@ cache:
       - "olric-node-2:3320"
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = false
+addresses = ["olric-node-1:3320", "olric-node-2:3320"]
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | 字段 | 类型 | 描述 |
 |------|------|------|
@@ -573,10 +818,20 @@ cache:
 
 完全禁用缓存，用于调试或在其他地方处理缓存：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: disabled
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "disabled"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 有关包括HA集群指南和故障排除在内的完整缓存文档，请参阅[缓存](/zh-cn/docs/caching/)。
 
@@ -584,6 +839,8 @@ cache:
 
 CC-Relay 支持多种路由策略来分配跨供应商的请求。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # 路由配置
@@ -598,6 +855,24 @@ routing:
   # 启用调试头（X-CC-Relay-Strategy, X-CC-Relay-Provider）
   debug: false
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# 路由配置
+# ==========================================================================
+[routing]
+# 策略: round_robin, weighted_round_robin, shuffle, failover（默认）
+strategy = "failover"
+
+# 故障转移尝试的超时时间（毫秒，默认: 5000）
+failover_timeout = 5000
+
+# 启用调试头（X-CC-Relay-Strategy, X-CC-Relay-Provider）
+debug = false
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 路由策略
 
@@ -612,6 +887,8 @@ routing:
 
 权重和优先级在供应商的第一个密钥中配置：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -621,6 +898,20 @@ providers:
         weight: 3      # 用于 weighted-round-robin（数值越高 = 更多流量）
         priority: 2    # 用于 failover（数值越高 = 优先尝试）
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3      # 用于 weighted-round-robin（数值越高 = 更多流量）
+priority = 2    # 用于 failover（数值越高 = 优先尝试）
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 有关策略说明、调试头和故障转移触发器的详细路由配置，请参阅[路由](/zh-cn/docs/routing/)。
 
