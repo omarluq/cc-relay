@@ -88,6 +88,8 @@ sequenceDiagram
 
 Ristretto 是基于 Caffeine 库研究的高性能并发缓存。它使用 TinyLFU 准入策略以获得最佳命中率。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: single
@@ -106,6 +108,28 @@ cache:
     # 控制准入缓冲区大小
     buffer_items: 64
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "single"
+
+[cache.ristretto]
+# Number of 4-bit access counters
+# Recommended: 10x expected max items for optimal admission policy
+# Example: For 100,000 items, use 1,000,000 counters
+num_counters = 1000000
+
+# Maximum memory for cached values (in bytes)
+# 104857600 = 100 MB
+max_cost = 104857600
+
+# Number of keys per Get buffer (default: 64)
+# Controls admission buffer size
+buffer_items = 64
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **内存计算：**
 
@@ -123,6 +147,8 @@ Olric 提供具有自动集群发现和数据复制的分布式缓存。
 
 **客户端模式**（连接到外部集群）：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -137,9 +163,26 @@ cache:
     # 分布式映射名称（默认："cc-relay"）
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+# Olric cluster member addresses
+addresses = ["olric-1:3320", "olric-2:3320", "olric-3:3320"]
+
+# Distributed map name (default: "cc-relay")
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **嵌入式模式**（单节点 HA 或开发）：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -158,13 +201,43 @@ cache:
 
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+# Run embedded Olric node
+embedded = true
+
+# Address to bind the embedded node
+bind_addr = "0.0.0.0:3320"
+
+# Peer addresses for cluster discovery (optional)
+peers = ["cc-relay-2:3320", "cc-relay-3:3320"]
+
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Disabled 模式
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: disabled
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "disabled"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 所有缓存操作立即返回而不存储数据。`Get` 操作始终返回 `ErrNotFound`。
 
@@ -215,6 +288,8 @@ sudo ufw allow 3322/tcp
 
 **节点 1（cc-relay-1）：**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -231,9 +306,31 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322"]  # Memberlist port of node 2
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **节点 2（cc-relay-2）：**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -250,9 +347,31 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-1:3322"]  # Memberlist port of node 1
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 三节点Docker Compose示例
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 version: '3.8'
 
@@ -300,9 +419,34 @@ networks:
   cc-relay-net:
     driver: bridge
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Docker Compose uses YAML format for the compose file itself.
+# This tab shows the cc-relay config file (config-node1.toml):
+
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322", "cc-relay-3:3322"]
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **config-node1.yaml：**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -320,6 +464,26 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322", "cc-relay-3:3322"]
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **config-node2.yaml 和 config-node3.yaml：** 与节点 1 相同，但 peers 列表指向其他节点。
 
@@ -477,10 +641,21 @@ Ristretto 使用可能拒绝项目以保持高命中率的准入策略。这是�
 3. **验证地址**：在客户端模式下，确保列表中至少有一个地址可达。
 
 4. **监控日志**：启用调试日志以查看集群成员事件：
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 内存压力
 
@@ -499,15 +674,29 @@ Ristretto 使用可能拒绝项目以保持高命中率的准入策略。这是�
 **原因和解决方案：**
 
 1. **错误的对等端口：** 对等节点必须使用 memberlist 端口（bind_addr + 2），而不是 Olric 端口。
-   ```yaml
-   # 错误
-   peers:
-     - "other-node:3320"  # 这是 Olric 端口
 
-   # 正确
-   peers:
-     - "other-node:3322"  # memberlist 端口 = 3320 + 2
-   ```
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+# 错误
+peers:
+  - "other-node:3320"  # 这是 Olric 端口
+
+# 正确
+peers:
+  - "other-node:3322"  # memberlist 端口 = 3320 + 2
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Wrong
+peers = ["other-node:3320"]  # This is the Olric port
+
+# Correct
+peers = ["other-node:3322"]  # Memberlist port = 3320 + 2
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **防火墙阻止：** 确保 Olric 和 memberlist 端口都已开放。
    ```bash
@@ -529,6 +718,8 @@ Ristretto 使用可能拒绝项目以保持高命中率的准入策略。这是�
 
 **解决方案：** 确保 `member_count_quorum` 小于或等于实际运行的节点数。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # 2 节点集群
 member_count_quorum: 2  # 需要两个节点
@@ -536,6 +727,17 @@ member_count_quorum: 2  # 需要两个节点
 # 允许 1 个节点故障的 3 节点集群
 member_count_quorum: 2  # 允许 1 个节点宕机
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# For 2-node cluster
+member_count_quorum = 2  # Requires both nodes
+
+# For 3-node cluster with 1-node fault tolerance
+member_count_quorum = 2  # Allows 1 node to be down
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 数据未复制
 
@@ -543,10 +745,20 @@ member_count_quorum: 2  # 允许 1 个节点宕机
 
 **解决方案：** 确保 `replica_count` > 1 且有足够的节点。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 replica_count: 2          # 存储 2 个副本
 member_count_quorum: 2    # 写入需要 2 个节点
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+replica_count = 2          # Store 2 copies
+member_count_quorum = 2    # Need 2 nodes to write
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 错误处理
 

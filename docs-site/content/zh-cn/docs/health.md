@@ -54,6 +54,8 @@ stateDiagram-v2
 
 在 `config.yaml` 中配置健康跟踪：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 health:
   # 健康检查设置
@@ -74,6 +76,29 @@ health:
     # 半开状态下允许的探测次数（默认: 3）
     half_open_probes: 3
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health]
+
+[health.health_check]
+# Enable periodic health checks (default: true)
+enabled = true
+# Check interval in milliseconds (default: 10000 = 10s)
+interval_ms = 10000
+
+[health.circuit_breaker]
+# Consecutive failures before opening circuit (default: 5)
+failure_threshold = 5
+
+# Time circuit stays open before half-open, in milliseconds (default: 30000 = 30s)
+open_duration_ms = 30000
+
+# Probes allowed in half-open state (default: 3)
+half_open_probes = 3
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 配置参考
 
@@ -165,11 +190,22 @@ health:
 
 要启用调试头：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
   debug: true  # 启用诊断头
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+debug = true  # Enable diagnostic headers
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **安全警告:** 调试头会暴露内部路由决策。仅在开发或受信任的环境中使用。切勿在有不受信任客户端的生产环境中启用。
 
@@ -182,18 +218,40 @@ routing:
 **可能的原因:**
 
 1. **`failure_threshold` 太低:** 增加以容忍更多瞬时故障
-   ```yaml
-   circuit_breaker:
-     failure_threshold: 10  # 更宽容
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  failure_threshold: 10  # 更宽容
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+failure_threshold = 10  # More tolerant
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **速率限制触发打开:** 如果您达到速率限制，请向池中添加更多 API 密钥，而不是调整熔断器
 
 3. **慢响应导致超时:** 增加服务器超时
-   ```yaml
-   server:
-     timeout_ms: 300000  # 5 分钟
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+server:
+  timeout_ms: 300000  # 5 分钟
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+timeout_ms = 300000  # 5 minutes
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 恢复时间太长
 
@@ -202,17 +260,40 @@ routing:
 **解决方案:**
 
 1. **减少打开持续时间:**
-   ```yaml
-   circuit_breaker:
-     open_duration_ms: 15000  # 15 秒而不是 30 秒
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  open_duration_ms: 15000  # 15 秒而不是 30 秒
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+open_duration_ms = 15000  # 15 seconds instead of 30
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **启用更快的健康检查:**
-   ```yaml
-   health_check:
-     enabled: true
-     interval_ms: 5000  # 每 5 秒检查一次
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+health_check:
+  enabled: true
+  interval_ms: 5000  # 每 5 秒检查一次
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health_check]
+enabled = true
+interval_ms = 5000  # Check every 5 seconds
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 熔断器在有效错误时打开
 
@@ -223,10 +304,21 @@ routing:
 1. 检查实际响应是否为 429（速率受限）
 2. 验证错误不是实际上被错误报告的 5xx
 3. 启用调试日志以查看实际响应代码：
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 所有供应商不健康
 
