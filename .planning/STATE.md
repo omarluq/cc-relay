@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 6 - Cloud Providers (Bedrock, Azure, Vertex)
+**Current focus:** Phase 7 - Configuration Management (TOML, hot-reload, env expansion)
 
 ## Current Position
 
-Phase: 6 of 11+ (Cloud Providers) - COMPLETE
-Plan: 5 of 5 in phase - COMPLETE
-Status: Phase complete
-Last activity: 2026-01-25 - Completed 06-05 (Handler Integration)
+Phase: 7 of 11+ (Configuration Management)
+Plan: 1 of 4 in phase - COMPLETE
+Status: In progress
+Last activity: 2026-01-26 - Completed 07-01 (Dependencies and TOML Tags)
 
-Progress: [██████████] 63/63 plans total (Phase 6: 5/5 complete)
-Next: Phase 7 or production deployment testing
+Progress: [██████████░] 64/67 plans total (Phase 7: 1/4 complete)
+Next: Plan 07-02 (Config Loader)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 63
+- Total plans completed: 64
 - Average duration: 8.4 min
-- Total execution time: 9.9 hours
+- Total execution time: 10.0 hours
 
 **By Phase:**
 
@@ -44,10 +44,11 @@ Next: Phase 7 or production deployment testing
 | 04.3 (Health Docs) | 2 | 3 min | 1.5 min |
 | 05 (Additional Providers) | 2 | 12 min | 6 min |
 | 06 (Cloud Providers) | 5 | 60 min | 12 min |
+| 07 (Configuration Mgmt) | 1 | 6 min | 6 min |
 
 **Recent Trend:**
-- Last 5 plans: 06-01 (11min), 06-02 (5min), 06-03 (10min), 06-04 (19min), 06-05 (15min)
-- Trend: Handler integration and documentation completed Phase 6
+- Last 5 plans: 06-03 (10min), 06-04 (19min), 06-05 (15min), 07-01 (6min)
+- Trend: Starting Phase 7 with dependency installation
 
 *Updated after each plan completion*
 
@@ -57,6 +58,10 @@ Next: Phase 7 or production deployment testing
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 07-01 (Dependencies and TOML Tags):**
+- Used tools.go with build tag to track dependencies before implementation
+- TOML tag values match YAML tag values for consistent config behavior
 
 **From 06-05 (Handler Integration):**
 - createProvider helper extracted to reduce cognitive complexity in NewProviderMap
