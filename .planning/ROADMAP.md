@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4.3: Health Configuration Documentation** - Add health/circuit-breaker docs to site-docs (INSERTED)
 - [x] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [x] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support with transformer architecture
-- [ ] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
+- [x] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
 - [ ] **Phase 8: Observability** - Structured logging and Prometheus metrics
 - [ ] **Phase 9: gRPC Management API** - Real-time stats streaming and provider management
 - [ ] **Phase 10: TUI Dashboard** - Interactive Bubble Tea interface for monitoring
@@ -352,8 +352,8 @@ Plans:
 - [x] 07-02-PLAN.md - Format detection in loader and comprehensive validation
 - [x] 07-03-PLAN.md - Config file watcher with debounce
 - [x] 07-04-PLAN.md - DI integration for hot-reload with atomic config swap
-- [ ] 07-05-PLAN.md - Gap closure: English docs with TOML support and hot-reload documentation
-- [ ] 07-06-PLAN.md - Gap closure: Translate TOML and hot-reload docs to all 5 languages
+- [x] 07-05-PLAN.md - Gap closure: English docs with TOML support and hot-reload documentation
+- [x] 07-06-PLAN.md - Gap closure: Translate TOML and hot-reload docs to all 5 languages
 
 ### Phase 8: Observability
 **Goal**: Add structured JSON logging with request IDs, latency tracking per provider, and Prometheus metrics endpoint
@@ -450,7 +450,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
 | 5. Additional Providers | 2/2 | Complete | 2026-01-23 |
 | 6. Cloud Providers | 5/5 | Complete | 2026-01-24 |
-| 7. Configuration Management | 4/6 | In progress | - |
+| 7. Configuration Management | 6/6 | Complete | 2026-01-26 |
 | 8. Observability | 0/TBD | Not started | - |
 | 9. gRPC Management API | 0/TBD | Not started | - |
 | 10. TUI Dashboard | 0/TBD | Not started | - |
