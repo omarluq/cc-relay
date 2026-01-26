@@ -25,6 +25,7 @@ type APIKeyAuthenticator struct {
 // - Constant-time comparison prevents timing attacks (see Validate method).
 func NewAPIKeyAuthenticator(expectedKey string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{
+		// codeql[go/weak-sensitive-data-hashing] SHA-256 is appropriate for high-entropy API keys (not passwords)
 		// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 		expectedHash: sha256.Sum256([]byte(expectedKey)),
 	}
@@ -43,6 +44,7 @@ func (a *APIKeyAuthenticator) Validate(r *http.Request) Result {
 		}
 	}
 
+	// codeql[go/weak-sensitive-data-hashing] SHA-256 is appropriate for high-entropy API keys (not passwords)
 	// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 	providedHash := sha256.Sum256([]byte(providedKey))
 

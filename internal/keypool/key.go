@@ -72,6 +72,7 @@ type KeyMetadata struct {
 // SHA-256 provides a stable, reproducible identifier from the key material.
 func NewKeyMetadata(apiKey string, rpm, itpm, otpm int) *KeyMetadata {
 	// Generate ID from hash of API key (for logging/identification, not security)
+	// codeql[go/weak-sensitive-data-hashing] SHA-256 used for stable key identification, not security comparison
 	// #nosec G401 -- SHA-256 used for stable key identification, not security comparison
 	hash := sha256.Sum256([]byte(apiKey))
 	id := hex.EncodeToString(hash[:])[:8]

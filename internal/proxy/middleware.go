@@ -26,6 +26,7 @@ import (
 // - Constant-time comparison (subtle.ConstantTimeCompare) prevents timing attacks.
 func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 	// Pre-hash expected key at creation time (not per-request)
+	// codeql[go/weak-sensitive-data-hashing] SHA-256 is appropriate for high-entropy API keys (not passwords)
 	// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 	expectedHash := sha256.Sum256([]byte(expectedAPIKey))
 
@@ -40,6 +41,7 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 				return
 			}
 
+			// codeql[go/weak-sensitive-data-hashing] SHA-256 is appropriate for high-entropy API keys (not passwords)
 			// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 			providedHash := sha256.Sum256([]byte(providedKey))
 
