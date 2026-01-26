@@ -3,6 +3,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"time"
@@ -16,6 +17,9 @@ import (
 // it will be logged but the config reload is still considered successful.
 type ReloadCallback func(*Config) error
 
+// ErrWatcherClosed is returned when an operation is attempted on a closed watcher.
+var ErrWatcherClosed = errors.New("config: watcher already closed")
+
 // Watcher monitors a config file for changes and triggers reload callbacks.
 // It handles debouncing of rapid file changes (common with editors) and
 // watches the parent directory to properly detect atomic writes.
@@ -25,6 +29,7 @@ type Watcher struct {
 	callbacks     []ReloadCallback
 	debounceDelay time.Duration
 	mu            sync.RWMutex
+	closed        bool
 }
 
 // WatcherOption configures a Watcher.
@@ -188,6 +193,15 @@ func (w *Watcher) invokeCallbacks(cfg *Config) {
 }
 
 // Close stops watching and releases resources.
+// Returns ErrWatcherClosed if already closed.
 func (w *Watcher) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.closed {
+		return ErrWatcherClosed
+	}
+	w.closed = true
+
 	return w.fsWatcher.Close()
 }
