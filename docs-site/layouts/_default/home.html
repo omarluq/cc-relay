@@ -29,7 +29,7 @@
 
 <div class="network-section">
   <div class="network-visualization" id="network-viz">
-    <svg viewBox="0 0 1000 600" class="network-svg" preserveAspectRatio="xMidYMid meet">
+    <svg viewBox="20 0 960 630" class="network-svg" preserveAspectRatio="xMidYMid meet">
       <defs>
         <linearGradient id="relay-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" style="stop-color:#ec4899"/>
@@ -72,87 +72,87 @@
       </g>
 
       <g class="paths-container">
-        <path id="path-main" class="network-path" d="M 200 300 C 300 300, 400 300, 500 300" stroke="#6366f1" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-0" class="network-path" d="M 500 300 C 600 300, 700 45, 850 45" stroke="#d946ef" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-1" class="network-path" d="M 500 300 C 580 250, 700 110, 850 110" stroke="#8b5cf6" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-2" class="network-path" d="M 500 300 C 600 290, 700 175, 850 175" stroke="#6366f1" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-3" class="network-path" d="M 500 300 C 620 300, 700 240, 850 240" stroke="#3b82f6" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-4" class="network-path" d="M 500 300 C 620 300, 700 305, 850 305" stroke="#0ea5e9" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-5" class="network-path" d="M 500 300 C 600 310, 700 370, 850 370" stroke="#14b8a6" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-6" class="network-path" d="M 500 300 C 580 350, 700 435, 850 435" stroke="#f472b6" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-7" class="network-path" d="M 500 300 C 600 300, 700 500, 850 500" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.3"/>
-        <path id="path-8" class="network-path" d="M 500 300 C 600 350, 700 565, 850 565" stroke="#34d399" stroke-width="2" fill="none" opacity="0.3"/>
+        <path id="path-main" class="network-path" d="M 240 300 C 330 300, 420 300, 500 300" stroke="#6366f1" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-0" class="network-path" d="M 500 300 C 600 300, 700 42, 780 42" stroke="#d946ef" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-1" class="network-path" d="M 500 300 C 580 250, 700 116, 780 116" stroke="#8b5cf6" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-2" class="network-path" d="M 500 300 C 600 290, 700 190, 780 190" stroke="#6366f1" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-3" class="network-path" d="M 500 300 C 620 300, 700 264, 780 264" stroke="#3b82f6" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-4" class="network-path" d="M 500 300 C 620 300, 700 338, 780 338" stroke="#0ea5e9" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-5" class="network-path" d="M 500 300 C 600 310, 700 412, 780 412" stroke="#14b8a6" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-6" class="network-path" d="M 500 300 C 580 350, 700 486, 780 486" stroke="#f472b6" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-7" class="network-path" d="M 500 300 C 600 300, 700 560, 780 560" stroke="#a78bfa" stroke-width="3" fill="none" opacity="0.4"/>
+        <path id="path-8" class="network-path" d="M 500 300 C 600 350, 700 634, 780 634" stroke="#34d399" stroke-width="3" fill="none" opacity="0.4"/>
       </g>
 
       <g class="network-node claude-node" filter="url(#node-shadow)">
-        <rect x="80" y="250" width="140" height="100" rx="16" fill="rgba(30, 41, 59, 0.95)" stroke="url(#claude-gradient)" stroke-width="2"/>
-        <image href="/logos/claude-code.svg" x="115" y="265" width="50" height="50" class="node-logo"/>
-        <text x="150" y="335" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">Claude Code</text>
+        <rect x="40" y="220" width="200" height="160" rx="20" fill="rgba(30, 41, 59, 0.95)" stroke="url(#claude-gradient)" stroke-width="3"/>
+        <image href="/logos/claude-code.svg" x="85" y="238" width="80" height="80" class="node-logo"/>
+        <text x="140" y="355" text-anchor="middle" fill="#e2e8f0" font-size="18" font-weight="600">Claude Code</text>
       </g>
 
       <g class="relay-hub" filter="url(#glow)">
-        <circle class="relay-ring relay-ring-3" cx="500" cy="300" r="70" fill="none" stroke="#ec4899" stroke-width="1.5" opacity="0.3" stroke-dasharray="8 12"/>
-        <circle class="relay-ring relay-ring-2" cx="500" cy="300" r="55" fill="none" stroke="#8b5cf6" stroke-width="1.5" opacity="0.4" stroke-dasharray="6 10"/>
-        <circle class="relay-ring relay-ring-1" cx="500" cy="300" r="40" fill="none" stroke="#6366f1" stroke-width="2" opacity="0.5" stroke-dasharray="4 8"/>
-        <circle class="relay-core" cx="500" cy="300" r="35" fill="url(#relay-gradient)"/>
-        <text x="500" y="295" text-anchor="middle" fill="white" font-size="12" font-weight="700">CC</text>
-        <text x="500" y="310" text-anchor="middle" fill="white" font-size="12" font-weight="700">Relay</text>
+        <circle class="relay-ring relay-ring-3" cx="500" cy="300" r="110" fill="none" stroke="#ec4899" stroke-width="2.5" opacity="0.3" stroke-dasharray="12 16"/>
+        <circle class="relay-ring relay-ring-2" cx="500" cy="300" r="88" fill="none" stroke="#8b5cf6" stroke-width="2.5" opacity="0.4" stroke-dasharray="10 14"/>
+        <circle class="relay-ring relay-ring-1" cx="500" cy="300" r="66" fill="none" stroke="#6366f1" stroke-width="3" opacity="0.5" stroke-dasharray="8 12"/>
+        <circle class="relay-core" cx="500" cy="300" r="56" fill="url(#relay-gradient)"/>
+        <text x="500" y="292" text-anchor="middle" fill="white" font-size="18" font-weight="700">CC</text>
+        <text x="500" y="314" text-anchor="middle" fill="white" font-size="18" font-weight="700">Relay</text>
       </g>
 
       <g class="provider-nodes">
-        <g class="network-node provider-node provider-0" filter="url(#node-shadow)" transform="translate(820, 20)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#d946ef" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/anthropic.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Anthropic</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">Claude Models</text>
+        <g class="network-node provider-node provider-0" filter="url(#node-shadow)" transform="translate(780, 10)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#d946ef" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/anthropic.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Anthropic</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">Claude Models</text>
         </g>
-        <g class="network-node provider-node provider-1" filter="url(#node-shadow)" transform="translate(820, 85)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#8b5cf6" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/openai.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">OpenAI</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">GPT Models</text>
+        <g class="network-node provider-node provider-1" filter="url(#node-shadow)" transform="translate(780, 84)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#8b5cf6" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/openai.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">OpenAI</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">GPT Models</text>
         </g>
-        <g class="network-node provider-node provider-2" filter="url(#node-shadow)" transform="translate(820, 150)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#6366f1" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/gemini.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Gemini</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">Google AI</text>
+        <g class="network-node provider-node provider-2" filter="url(#node-shadow)" transform="translate(780, 158)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#6366f1" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/gemini.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Gemini</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">Google AI</text>
         </g>
-        <g class="network-node provider-node provider-3" filter="url(#node-shadow)" transform="translate(820, 215)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#3b82f6" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/zai.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Z.AI</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">GLM Models</text>
+        <g class="network-node provider-node provider-3" filter="url(#node-shadow)" transform="translate(780, 232)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#3b82f6" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/zai.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Z.AI</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">GLM Models</text>
         </g>
-        <g class="network-node provider-node provider-4" filter="url(#node-shadow)" transform="translate(820, 280)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#0ea5e9" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/kimi.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Kimi AI</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">Moonshot</text>
+        <g class="network-node provider-node provider-4" filter="url(#node-shadow)" transform="translate(780, 306)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#0ea5e9" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/kimi.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Kimi AI</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">Moonshot</text>
         </g>
-        <g class="network-node provider-node provider-5" filter="url(#node-shadow)" transform="translate(820, 345)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#14b8a6" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/ollama.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Ollama</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">Local Models</text>
+        <g class="network-node provider-node provider-5" filter="url(#node-shadow)" transform="translate(780, 380)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#14b8a6" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/ollama.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Ollama</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">Local Models</text>
         </g>
-        <g class="network-node provider-node provider-6" filter="url(#node-shadow)" transform="translate(820, 410)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#f472b6" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/aws.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Bedrock</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">AWS</text>
+        <g class="network-node provider-node provider-6" filter="url(#node-shadow)" transform="translate(780, 454)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#f472b6" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/aws.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Bedrock</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">AWS</text>
         </g>
-        <g class="network-node provider-node provider-7" filter="url(#node-shadow)" transform="translate(820, 475)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#a78bfa" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/azure.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Azure</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">OpenAI Service</text>
+        <g class="network-node provider-node provider-7" filter="url(#node-shadow)" transform="translate(780, 528)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#a78bfa" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/azure.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Azure</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">OpenAI Service</text>
         </g>
-        <g class="network-node provider-node provider-8" filter="url(#node-shadow)" transform="translate(820, 540)">
-          <rect x="0" y="0" width="150" height="50" rx="10" fill="rgba(30, 41, 59, 0.95)" stroke="#34d399" stroke-width="2" class="provider-rect"/>
-          <image href="/logos/gcp.svg" x="10" y="9" width="32" height="32" class="provider-logo"/>
-          <text x="52" y="24" text-anchor="start" fill="#e2e8f0" font-size="12" font-weight="600">Vertex AI</text>
-          <text x="52" y="38" text-anchor="start" fill="#94a3b8" font-size="9">Google Cloud</text>
+        <g class="network-node provider-node provider-8" filter="url(#node-shadow)" transform="translate(780, 602)">
+          <rect x="0" y="0" width="190" height="64" rx="14" fill="rgba(30, 41, 59, 0.95)" stroke="#34d399" stroke-width="3" class="provider-rect"/>
+          <image href="/logos/gcp.svg" x="14" y="12" width="40" height="40" class="provider-logo"/>
+          <text x="64" y="30" text-anchor="start" fill="#e2e8f0" font-size="16" font-weight="600">Vertex AI</text>
+          <text x="64" y="48" text-anchor="start" fill="#94a3b8" font-size="12">Google Cloud</text>
         </g>
       </g>
 

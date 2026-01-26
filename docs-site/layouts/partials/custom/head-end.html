@@ -87,7 +87,7 @@
 
       const startPoint = mainPath.getPointAtLength(0);
       const packet = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      packet.setAttribute('r', '4');
+      packet.setAttribute('r', '6');
       packet.setAttribute('fill', color);
       packet.setAttribute('cx', startPoint.x);
       packet.setAttribute('cy', startPoint.y);
@@ -97,9 +97,9 @@
       const trails = [];
       for (let i = 0; i < config.trailLength; i++) {
         const trail = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        trail.setAttribute('r', String(3 - 0.35 * i));
+        trail.setAttribute('r', String(5 - 0.5 * i));
         trail.setAttribute('fill', color);
-        trail.setAttribute('opacity', String(0.5 - 0.07 * i));
+        trail.setAttribute('opacity', String(0.6 - 0.08 * i));
         trail.setAttribute('cx', startPoint.x);
         trail.setAttribute('cy', startPoint.y);
         trail.classList.add('trail');
@@ -210,7 +210,10 @@
   .network-svg {
     width: 100%;
     height: auto;
+    min-height: 580px;
     display: block;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .network-path {
@@ -223,10 +226,6 @@
 
   .trail {
     pointer-events: none;
-  }
-
-  .provider-node {
-    cursor: pointer;
   }
 
   .provider-node .provider-rect {
@@ -249,7 +248,6 @@
   }
 
   .claude-node {
-    cursor: pointer;
     transition: transform 0.2s ease, filter 0.2s ease;
   }
 
@@ -321,6 +319,10 @@
     .network-visualization {
       padding: 0.5rem;
       border-radius: 12px;
+    }
+
+    .network-svg {
+      min-height: 350px;
     }
 
     .network-stats {
