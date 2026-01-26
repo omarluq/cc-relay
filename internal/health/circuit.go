@@ -25,7 +25,10 @@ type CircuitBreaker struct {
 	name string
 }
 
-// NewCircuitBreaker creates a new CircuitBreaker with the given configuration.
+// NewCircuitBreaker creates a CircuitBreaker configured with the provided name, configuration, and optional logger.
+// Negative half-open probe or failure-threshold values in cfg are replaced with package defaults.
+// If logger is non-nil, state transitions are logged (Info level, Warn when the breaker opens).
+// The breaker treats a nil error and context.Canceled as successful outcomes.
 func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Logger) *CircuitBreaker {
 	// Get config values with safe uint32 conversion
 	halfOpenProbes := cfg.GetHalfOpenProbes()
