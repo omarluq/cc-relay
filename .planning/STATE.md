@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 7 of 11+ (Configuration Management) - COMPLETE
-Plan: 4 of 4 in phase - COMPLETE (Wave 3)
+Plan: 5 of 5 in phase - COMPLETE (Gap Closure)
 Status: Phase complete
-Last activity: 2026-01-26 - Completed 07-04 (Hot-Reload Integration)
+Last activity: 2026-01-26 - Completed 07-05 (Configuration Documentation Gap Closure)
 
-Progress: [███████████] 67/67 plans total (Phase 7: 4/4 complete)
+Progress: [███████████] 68/68 plans total (Phase 7: 5/5 complete)
 Next: Phase 8 (gRPC Management API)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 67
-- Average duration: 8.4 min
-- Total execution time: 10.3 hours
+- Total plans completed: 68
+- Average duration: 8.3 min
+- Total execution time: 10.4 hours
 
 **By Phase:**
 
@@ -44,11 +44,11 @@ Next: Phase 8 (gRPC Management API)
 | 04.3 (Health Docs) | 2 | 3 min | 1.5 min |
 | 05 (Additional Providers) | 2 | 12 min | 6 min |
 | 06 (Cloud Providers) | 5 | 60 min | 12 min |
-| 07 (Configuration Mgmt) | 4 | 29 min | 7.3 min |
+| 07 (Configuration Mgmt) | 5 | 35 min | 7.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 07-01 (6min), 07-02 (8min), 07-03 (8min), 07-04 (7min)
-- Trend: Phase 7 completed efficiently with atomic/watcher integration
+- Last 5 plans: 07-01 (6min), 07-02 (8min), 07-03 (8min), 07-04 (7min), 07-05 (6min)
+- Trend: Phase 7 completed with documentation gap closure
 
 *Updated after each plan completion*
 
@@ -58,6 +58,11 @@ Next: Phase 8 (gRPC Management API)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
+
+**From 07-05 (Configuration Documentation Gap Closure):**
+- Use Hextra tabs shortcode for YAML/TOML examples (clean side-by-side comparison)
+- Document implementation details (fsnotify, debounce, atomic swap) for production users
+- Document hot-reload limitations explicitly to prevent user confusion
 
 **From 07-04 (Hot-Reload Integration):**
 - atomic.Pointer for lock-free reads - allows in-flight requests to complete with old config
@@ -618,7 +623,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-26
-Last activity: 2026-01-26 - Completed 07-04 (Hot-Reload Integration) - Phase 7 COMPLETE
+Last activity: 2026-01-26 - Completed 07-05 (Configuration Documentation Gap Closure) - Phase 7 COMPLETE
 Resume file: None
 Next action: Phase 8 (gRPC Management API) planning or production deployment testing
 
@@ -643,6 +648,12 @@ Next action: Phase 8 (gRPC Management API) planning or production deployment tes
   - cmd/cc-relay/serve.go: Watcher lifecycle with graceful shutdown
   - Duration: 7 min
   - 2 commits: aca31c6, f95054e
+- 07-05 COMPLETE: Configuration Documentation Gap Closure
+  - docs-site/content/en/docs/configuration.md: TOML support and hot-reload docs
+  - 5 tabbed YAML/TOML sections (env vars, complete ref, 3 examples)
+  - Hot-reload implementation details (fsnotify, debounce, atomic swap)
+  - Duration: 6 min
+  - 3 commits: bc87608, 2dde198, 07a5b4a
 
 **Phase 6 COMPLETE:**
 - 06-05 COMPLETE: Handler Integration
