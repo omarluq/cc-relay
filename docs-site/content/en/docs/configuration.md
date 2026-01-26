@@ -721,6 +721,8 @@ For detailed routing configuration including strategy explanations, debug header
 
 ### Minimal Single Provider
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -732,9 +734,27 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Multi-Provider Setup
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -760,9 +780,45 @@ logging:
   level: "info"
   format: "text"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[server.auth]
+allow_subscription = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+
+[logging]
+level = "info"
+format = "text"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Development with Debug Logging
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -783,6 +839,32 @@ logging:
     log_response_headers: true
     log_tls_metrics: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[logging]
+level = "debug"
+format = "text"
+pretty = true
+
+[logging.debug_options]
+log_request_body = true
+log_response_headers = true
+log_tls_metrics = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Validating Configuration
 
