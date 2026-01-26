@@ -1,6 +1,13 @@
 {{ define "main" }}
-<div class="landing-page">
+<div class='hx:mx-auto hx:flex hextra-max-page-width'>
+  {{ partial "sidebar.html" (dict "context" . "disableSidebar" true "displayPlaceholder" true) }}
+  {{ partial "toc.html" . }}
+  <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]">
+    <main class="hx:w-full hx:min-w-0 hx:max-w-6xl hx:px-6 hx:pt-4 hx:md:px-12">
+      {{ partial "breadcrumb.html" (dict "page" . "enable" false) }}
+      <br class="hx:mt-1.5 hx:text-sm" />
 
+<div class="landing-page">
 <div class="custom-hero">
   <h1 class="hero-title">{{ T "hero_title" }}</h1>
   <p class="hero-subtitle">
@@ -55,9 +62,6 @@
         <filter id="node-shadow" x="-20%" y="-20%" width="140%" height="140%" filterUnits="objectBoundingBox">
           <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
         </filter>
-        <pattern id="dash-pattern" patternUnits="userSpaceOnUse" width="20" height="1">
-          <line x1="0" y1="0" x2="10" y2="0" stroke="#6366f1" stroke-width="2" opacity="0.5"/>
-        </pattern>
       </defs>
 
       <g class="grid-bg" opacity="0.1">
@@ -310,212 +314,10 @@
   <p class="footer-powered">{{ T "footer_powered" }} <a href="https://gohugo.io" target="_blank" rel="noopener">Hugo</a> | <a href="https://github.com/omarluq/cc-relay/blob/main/LICENSE">{{ T "footer_license" }}</a></p>
   <p class="footer-copyright">{{ T "footer_copyright" }}</p>
 </div>
-
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
-<script>
-(function() {
-  'use strict';
-  var CONFIG = {
-    providerCount: 9,
-    minDuration: 1500,
-    maxDuration: 2500,
-    spawnInterval: 600,
-    trailLength: 6,
-    colors: ['#ec4899', '#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#3b82f6', '#0ea5e9', '#14b8a6', '#f472b6']
-  };
-  var requestCount = 0;
-  var svg, packetsContainer, trailsContainer, mainPath, providerPaths;
-  var spawnIntervalId = null;
-  var isPageVisible = true;
-
-  document.addEventListener('DOMContentLoaded', init);
-
-  function init() {
-    svg = document.querySelector('.network-svg');
-    if (!svg) return;
-    packetsContainer = svg.querySelector('.packets-container');
-    trailsContainer = svg.querySelector('.trails-container');
-    mainPath = document.getElementById('path-main');
-    providerPaths = [];
-    for (var i = 0; i < CONFIG.providerCount; i++) {
-      providerPaths.push(document.getElementById('path-' + i));
-    }
-
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    startPacketStream();
-  }
-
-  function handleVisibility() {
-    if (document.hidden) {
-      isPageVisible = false;
-      if (spawnIntervalId) {
-        clearInterval(spawnIntervalId);
-        spawnIntervalId = null;
-      }
-    } else {
-      isPageVisible = true;
-      if (!spawnIntervalId) {
-        setTimeout(function() {
-          if (isPageVisible) startPacketStream();
-        }, 500);
-      }
-    }
-  }
-
-  function startPacketStream() {
-    if (spawnIntervalId) return;
-    setTimeout(launchPacket, 200);
-    setTimeout(launchPacket, 800);
-    spawnIntervalId = setInterval(function() {
-      if (isPageVisible) launchPacket();
-    }, CONFIG.spawnInterval);
-  }
-
-  function launchPacket() {
-    if (!isPageVisible) return;
-
-    var providerIndex = Math.floor(Math.random() * CONFIG.providerCount);
-    var color = CONFIG.colors[providerIndex % CONFIG.colors.length];
-    var duration = CONFIG.minDuration + Math.random() * (CONFIG.maxDuration - CONFIG.minDuration);
-
-    var startPoint = mainPath.getPointAtLength(0);
-
-    var packet = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    packet.setAttribute('r', '4');
-    packet.setAttribute('fill', color);
-    packet.setAttribute('cx', startPoint.x);
-    packet.setAttribute('cy', startPoint.y);
-    packet.classList.add('packet');
-    packetsContainer.appendChild(packet);
-
-    var trails = [];
-    for (var i = 0; i < CONFIG.trailLength; i++) {
-      var trail = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      trail.setAttribute('r', String(3 - (i * 0.35)));
-      trail.setAttribute('fill', color);
-      trail.setAttribute('opacity', String(0.5 - (i * 0.07)));
-      trail.setAttribute('cx', startPoint.x);
-      trail.setAttribute('cy', startPoint.y);
-      trail.classList.add('trail');
-      trailsContainer.appendChild(trail);
-      trails.push(trail);
-    }
-
-    var mainPathLength = mainPath.getTotalLength();
-    var providerPath = providerPaths[providerIndex];
-    if (!providerPath) return;
-    var providerPathLength = providerPath.getTotalLength();
-
-    var timeline = anime.timeline({
-      easing: 'easeInOutQuart',
-      complete: function() {
-        packet.remove();
-        trails.forEach(function(t) { t.remove(); });
-        requestCount++;
-        var counter = document.getElementById('requests-count');
-        if (counter) counter.textContent = requestCount;
-      }
-    });
-
-    timeline.add({
-      duration: duration * 0.4,
-      update: function(anim) {
-        var progress = anim.progress / 100;
-        var point = mainPath.getPointAtLength(progress * mainPathLength);
-        packet.setAttribute('cx', point.x);
-        packet.setAttribute('cy', point.y);
-        trails.forEach(function(trail, i) {
-          var trailProgress = Math.max(0, progress - (i + 1) * 0.03);
-          var trailPoint = mainPath.getPointAtLength(trailProgress * mainPathLength);
-          trail.setAttribute('cx', trailPoint.x);
-          trail.setAttribute('cy', trailPoint.y);
-        });
-      }
-    });
-
-    timeline.add({
-      duration: 50,
-      update: function() {
-        var point = mainPath.getPointAtLength(mainPathLength);
-        packet.setAttribute('cx', point.x);
-        packet.setAttribute('cy', point.y);
-      }
-    });
-
-    timeline.add({
-      duration: duration * 0.5,
-      update: function(anim) {
-        var progress = anim.progress / 100;
-        var point = providerPath.getPointAtLength(progress * providerPathLength);
-        packet.setAttribute('cx', point.x);
-        packet.setAttribute('cy', point.y);
-        trails.forEach(function(trail, i) {
-          var trailProgress = Math.max(0, progress - (i + 1) * 0.04);
-          if (trailProgress > 0) {
-            var trailPoint = providerPath.getPointAtLength(trailProgress * providerPathLength);
-            trail.setAttribute('cx', trailPoint.x);
-            trail.setAttribute('cy', trailPoint.y);
-          }
-        });
-      }
-    });
-
-    timeline.add({
-      targets: [packet].concat(trails),
-      opacity: 0,
-      duration: 150,
-      easing: 'easeOutQuad'
-    });
-  }
-})();
-</script>
-
-<style>
-.network-section { margin: 2rem 0; }
-.network-visualization {
-  position: relative; width: 100%; max-width: 1100px; margin: 0 auto;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%);
-  border-radius: 20px; padding: 1rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  overflow: hidden;
-}
-.network-svg { width: 100%; height: auto; display: block; }
-.network-path { stroke-linecap: round; }
-.packet { filter: url(#glow-intense); }
-.trail { pointer-events: none; }
-
-.provider-node { cursor: pointer; }
-.provider-node .provider-rect { transition: filter 0.2s ease; }
-.provider-node:hover .provider-rect { filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4)); }
-
-.provider-logo { filter: brightness(0) saturate(100%) invert(100%); opacity: 0.85; transition: opacity 0.2s ease, filter 0.3s ease; }
-.provider-node:hover .provider-logo { opacity: 1; filter: brightness(1.2) saturate(150%) hue-rotate(-10deg) drop-shadow(0 0 6px rgba(236,72,153,0.5)); }
-
-.claude-node { cursor: pointer; transition: transform 0.2s ease, filter 0.2s ease; }
-.claude-node:hover { transform: scale(1.03); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
-
-.relay-ring-1 { animation: spin-cw 20s linear infinite; transform-box: fill-box; transform-origin: center; }
-.relay-ring-2 { animation: spin-ccw 30s linear infinite; transform-box: fill-box; transform-origin: center; }
-.relay-ring-3 { animation: spin-cw 40s linear infinite; transform-box: fill-box; transform-origin: center; }
-@keyframes spin-cw { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes spin-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-
-.network-stats {
-  position: absolute; bottom: 1.5rem; left: 1.5rem;
-  background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(99, 102, 241, 0.3);
-  border-radius: 12px; padding: 0.75rem 1rem; backdrop-filter: blur(8px);
-}
-.stat { display: flex; align-items: baseline; gap: 0.5rem; }
-.stat-value { font-size: 1.5rem; font-weight: 700; color: #ec4899; font-variant-numeric: tabular-nums; }
-.stat-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-
-@media (max-width: 768px) {
-  .network-visualization { padding: 0.5rem; border-radius: 12px; }
-  .network-stats { bottom: 0.75rem; left: 0.75rem; padding: 0.5rem 0.75rem; }
-  .stat-value { font-size: 1.25rem; }
-}
-</style>
+        <div class="hx:mb-16"></div>
+        {{ partial "components/comments.html" . }}
+      </main>
+    </article>
+  </div>
 {{ end }}

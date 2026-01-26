@@ -2,3 +2,185 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Recursive:slnt,wght,CASL,CRSV,MONO@-15..0,300..1000,0..1,0..1,0..1&display=swap" rel="stylesheet">
+
+{{/* Load AnimeJS for network animation on landing page */}}
+{{ if .IsHome }}
+<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+<script>
+  (function() {
+    const config = {
+      providerCount: 9,
+      minDuration: 1500,
+      maxDuration: 2500,
+      spawnInterval: 600,
+      trailLength: 6,
+      colors: ['#ec4899', '#d946ef', '#a855f7', '#8b5cf6', '#6366f1', '#3b82f6', '#0ea5e9', '#14b8a6', '#f472b6']
+    };
+
+    let requestCount = 0;
+    let svgElement = null;
+    let packetsContainer = null;
+    let trailsContainer = null;
+    let mainPath = null;
+    let providerPaths = [];
+    let spawnTimer = null;
+    let isPageVisible = true;
+
+    function init() {
+      svgElement = document.querySelector('.network-svg');
+      if (!svgElement) return;
+
+      packetsContainer = svgElement.querySelector('.packets-container');
+      trailsContainer = svgElement.querySelector('.trails-container');
+      mainPath = document.getElementById('path-main');
+      providerPaths = [];
+
+      for (let i = 0; i < config.providerCount; i++) {
+        providerPaths.push(document.getElementById('path-' + i));
+      }
+
+      startSpawning();
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        isPageVisible = false;
+        if (spawnTimer) {
+          clearInterval(spawnTimer);
+          spawnTimer = null;
+        }
+      } else {
+        isPageVisible = true;
+        if (!spawnTimer) {
+          setTimeout(startSpawning, 500);
+        }
+      }
+    }
+
+    function startSpawning() {
+      if (spawnTimer) return;
+
+      spawnPacket();
+      setTimeout(spawnPacket, 800);
+
+      spawnTimer = setInterval(function() {
+        if (isPageVisible) spawnPacket();
+      }, config.spawnInterval);
+    }
+
+    function spawnPacket() {
+      if (!isPageVisible) return;
+
+      const providerIndex = Math.floor(Math.random() * config.providerCount);
+      const color = config.colors[providerIndex % config.colors.length];
+      const duration = config.minDuration + Math.random() * (config.maxDuration - config.minDuration);
+
+      const startPoint = mainPath.getPointAtLength(0);
+      const packet = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      packet.setAttribute('r', '4');
+      packet.setAttribute('fill', color);
+      packet.setAttribute('cx', startPoint.x);
+      packet.setAttribute('cy', startPoint.y);
+      packet.classList.add('packet');
+      packetsContainer.appendChild(packet);
+
+      const trails = [];
+      for (let i = 0; i < config.trailLength; i++) {
+        const trail = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        trail.setAttribute('r', String(3 - 0.35 * i));
+        trail.setAttribute('fill', color);
+        trail.setAttribute('opacity', String(0.5 - 0.07 * i));
+        trail.setAttribute('cx', startPoint.x);
+        trail.setAttribute('cy', startPoint.y);
+        trail.classList.add('trail');
+        trailsContainer.appendChild(trail);
+        trails.push(trail);
+      }
+
+      const mainPathLength = mainPath.getTotalLength();
+      const providerPath = providerPaths[providerIndex];
+      if (!providerPath) return;
+
+      const providerPathLength = providerPath.getTotalLength();
+
+      const timeline = anime.timeline({
+        easing: 'easeInOutQuart',
+        complete: function() {
+          packet.remove();
+          trails.forEach(function(t) { t.remove(); });
+          requestCount++;
+          const countEl = document.getElementById('requests-count');
+          if (countEl) countEl.textContent = requestCount;
+        }
+      });
+
+      const segment1Duration = 0.4 * duration;
+      timeline.add({
+        duration: segment1Duration,
+        update: function(anim) {
+          const progress = anim.progress / 100;
+          const point = mainPath.getPointAtLength(progress * mainPathLength);
+          packet.setAttribute('cx', point.x);
+          packet.setAttribute('cy', point.y);
+
+          trails.forEach(function(trail, i) {
+            const trailProgress = Math.max(0, progress - (i + 1) * 0.03);
+            const trailPoint = mainPath.getPointAtLength(trailProgress * mainPathLength);
+            trail.setAttribute('cx', trailPoint.x);
+            trail.setAttribute('cy', trailPoint.y);
+          });
+        }
+      });
+
+      timeline.add({
+        duration: 50,
+        update: function() {
+          const point = mainPath.getPointAtLength(mainPathLength);
+          packet.setAttribute('cx', point.x);
+          packet.setAttribute('cy', point.y);
+        }
+      });
+
+      const segment2Duration = 0.5 * duration;
+      timeline.add({
+        duration: segment2Duration,
+        update: function(anim) {
+          const progress = anim.progress / 100;
+          const point = providerPath.getPointAtLength(progress * providerPathLength);
+          packet.setAttribute('cx', point.x);
+          packet.setAttribute('cy', point.y);
+
+          trails.forEach(function(trail, i) {
+            const trailProgress = Math.max(0, progress - (i + 1) * 0.04);
+            if (trailProgress > 0) {
+              const trailPoint = providerPath.getPointAtLength(trailProgress * providerPathLength);
+              trail.setAttribute('cx', trailPoint.x);
+              trail.setAttribute('cy', trailPoint.y);
+            }
+          });
+        }
+      });
+
+      timeline.add({
+        targets: [packet].concat(trails),
+        opacity: 0,
+        duration: 150,
+        easing: 'easeOutQuad'
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  })();
+</script>
+
+<style>
+.network-section{margin:2rem 0}.network-visualization{position:relative;width:100%;max-width:1100px;margin:0 auto;background:linear-gradient(135deg,rgba(15,23,42,.95) 0%,rgba(30,41,59,.9) 100%);border-radius:20px;padding:1rem;box-shadow:0 25px 50px -12px rgba(0,0,0,.5),0 0 0 1px rgba(99,102,241,.1),inset 0 1px 0 rgba(255,255,255,.05);overflow:hidden}.network-svg{width:100%;height:auto;display:block}.network-path{stroke-linecap:round}.packet{filter:url(#glow-intense)}.trail{pointer-events:none}.provider-node{cursor:pointer}.provider-node .provider-rect{transition:filter .2s ease}.provider-node:hover .provider-rect{filter:drop-shadow(0 2px 6px rgba(0,0,0,.4))}.provider-logo{filter:brightness(0) saturate(100%) invert(100%);opacity:.85;transition:opacity .2s ease,filter .3s ease}.provider-node:hover .provider-logo{opacity:1;filter:brightness(1.2) saturate(150%) hue-rotate(-10deg) drop-shadow(0 0 6px rgba(236,72,153,.5))}.claude-node{cursor:pointer;transition:transform .2s ease,filter .2s ease}.claude-node:hover{transform:scale(1.03);filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}.relay-ring-1{animation:spin-cw 20s linear infinite;transform-box:fill-box;transform-origin:center}.relay-ring-2{animation:spin-ccw 30s linear infinite;transform-box:fill-box;transform-origin:center}.relay-ring-3{animation:spin-cw 40s linear infinite;transform-box:fill-box;transform-origin:center}@keyframes spin-cw{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes spin-ccw{from{transform:rotate(0)}to{transform:rotate(-360deg)}}.network-stats{position:absolute;bottom:1.5rem;left:1.5rem;background:rgba(15,23,42,.8);border:1px solid rgba(99,102,241,.3);border-radius:12px;padding:.75rem 1rem;backdrop-filter:blur(8px)}.stat{display:flex;align-items:baseline;gap:.5rem}.stat-value{font-size:1.5rem;font-weight:700;color:#ec4899;font-variant-numeric:tabular-nums}.stat-label{font-size:.75rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em}@media (max-width:768px){.network-visualization{padding:.5rem;border-radius:12px}.network-stats{bottom:.75rem;left:.75rem;padding:.5rem .75rem}.stat-value{font-size:1.25rem}}
+</style>
+
+{{ end }}
