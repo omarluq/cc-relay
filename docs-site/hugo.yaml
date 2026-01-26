@@ -22,7 +22,7 @@ markup:
 
   # enable hextra syntax highlight
   highlight:
-    noClasses: false
+    noClasses: true
 
 # Multilingual configuration
 languages:
