@@ -24,16 +24,16 @@ const (
 type CircuitBreakerConfig struct {
 	// FailureThreshold is the number of consecutive failures before opening the circuit.
 	// Default: 5
-	FailureThreshold int `yaml:"failure_threshold"`
+	FailureThreshold int `yaml:"failure_threshold" toml:"failure_threshold"`
 
 	// OpenDurationMS is the duration in milliseconds the circuit stays open before
 	// transitioning to half-open state. Default: 30000 (30 seconds)
-	OpenDurationMS int `yaml:"open_duration_ms"`
+	OpenDurationMS int `yaml:"open_duration_ms" toml:"open_duration_ms"`
 
 	// HalfOpenProbes is the number of probe requests allowed in half-open state.
 	// If all probes succeed, circuit closes. If any fails, circuit reopens.
 	// Default: 3
-	HalfOpenProbes int `yaml:"half_open_probes"`
+	HalfOpenProbes int `yaml:"half_open_probes" toml:"half_open_probes"`
 }
 
 // GetFailureThreshold returns the configured failure threshold or default 5.
@@ -63,8 +63,8 @@ func (c *CircuitBreakerConfig) GetHalfOpenProbes() int {
 
 // CheckConfig defines health check behavior.
 type CheckConfig struct {
-	Enabled    *bool `yaml:"enabled"`
-	IntervalMS int   `yaml:"interval_ms"`
+	Enabled    *bool `yaml:"enabled" toml:"enabled"`
+	IntervalMS int   `yaml:"interval_ms" toml:"interval_ms"`
 }
 
 // GetInterval returns the health check interval as time.Duration.
@@ -87,6 +87,6 @@ func (c *CheckConfig) IsEnabled() bool {
 
 // Config combines circuit breaker and health check configuration.
 type Config struct {
-	HealthCheck    CheckConfig          `yaml:"health_check"`
-	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
+	HealthCheck    CheckConfig          `yaml:"health_check" toml:"health_check"`
+	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker" toml:"circuit_breaker"`
 }

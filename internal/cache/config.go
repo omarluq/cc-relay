@@ -36,9 +36,9 @@ const (
 // Config defines cache configuration.
 // Use Validate() to check for configuration errors before creating a cache.
 type Config struct {
-	Mode      Mode            `yaml:"mode"`
-	Olric     OlricConfig     `yaml:"olric"`
-	Ristretto RistrettoConfig `yaml:"ristretto"`
+	Mode      Mode            `yaml:"mode" toml:"mode"`
+	Olric     OlricConfig     `yaml:"olric" toml:"olric"`
+	Ristretto RistrettoConfig `yaml:"ristretto" toml:"ristretto"`
 }
 
 // RistrettoConfig configures the Ristretto local cache.
@@ -48,33 +48,33 @@ type RistrettoConfig struct {
 	// NumCounters is the number of 4-bit access counters.
 	// Recommended: 10x expected max items for optimal admission policy.
 	// Example: For 100,000 items, use 1,000,000 counters.
-	NumCounters int64 `yaml:"num_counters"`
+	NumCounters int64 `yaml:"num_counters" toml:"num_counters"`
 
 	// MaxCost is the maximum cost (memory) the cache can hold.
 	// Cost is measured in bytes of cached values.
 	// Example: 100 << 20 for 100 MB.
-	MaxCost int64 `yaml:"max_cost"`
+	MaxCost int64 `yaml:"max_cost" toml:"max_cost"`
 
 	// BufferItems is the number of keys per Get buffer.
 	// This controls the size of the admission buffer.
 	// Recommended: 64 (default).
-	BufferItems int64 `yaml:"buffer_items"`
+	BufferItems int64 `yaml:"buffer_items" toml:"buffer_items"`
 }
 
 // OlricConfig configures the Olric distributed cache.
 // Olric provides a distributed in-memory key/value store with clustering support.
 type OlricConfig struct {
-	DMapName          string        `yaml:"dmap_name"`
-	BindAddr          string        `yaml:"bind_addr"`
-	Environment       string        `yaml:"environment"`
-	Addresses         []string      `yaml:"addresses"`
-	Peers             []string      `yaml:"peers"`
-	ReplicaCount      int           `yaml:"replica_count"`
-	ReadQuorum        int           `yaml:"read_quorum"`
-	WriteQuorum       int           `yaml:"write_quorum"`
-	LeaveTimeout      time.Duration `yaml:"leave_timeout"`
-	MemberCountQuorum int32         `yaml:"member_count_quorum"`
-	Embedded          bool          `yaml:"embedded"`
+	DMapName          string        `yaml:"dmap_name" toml:"dmap_name"`
+	BindAddr          string        `yaml:"bind_addr" toml:"bind_addr"`
+	Environment       string        `yaml:"environment" toml:"environment"`
+	Addresses         []string      `yaml:"addresses" toml:"addresses"`
+	Peers             []string      `yaml:"peers" toml:"peers"`
+	ReplicaCount      int           `yaml:"replica_count" toml:"replica_count"`
+	ReadQuorum        int           `yaml:"read_quorum" toml:"read_quorum"`
+	WriteQuorum       int           `yaml:"write_quorum" toml:"write_quorum"`
+	LeaveTimeout      time.Duration `yaml:"leave_timeout" toml:"leave_timeout"`
+	MemberCountQuorum int32         `yaml:"member_count_quorum" toml:"member_count_quorum"`
+	Embedded          bool          `yaml:"embedded" toml:"embedded"`
 }
 
 // Validate checks OlricConfig for errors.

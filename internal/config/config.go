@@ -46,12 +46,12 @@ const (
 
 // Config represents the complete cc-relay configuration.
 type Config struct {
-	Providers []ProviderConfig `yaml:"providers"`
-	Routing   RoutingConfig    `yaml:"routing"`
-	Logging   LoggingConfig    `yaml:"logging"`
-	Health    health.Config    `yaml:"health"`
-	Server    ServerConfig     `yaml:"server"`
-	Cache     cache.Config     `yaml:"cache"`
+	Providers []ProviderConfig `yaml:"providers" toml:"providers"`
+	Routing   RoutingConfig    `yaml:"routing" toml:"routing"`
+	Logging   LoggingConfig    `yaml:"logging" toml:"logging"`
+	Health    health.Config    `yaml:"health" toml:"health"`
+	Server    ServerConfig     `yaml:"server" toml:"server"`
+	Cache     cache.Config     `yaml:"cache" toml:"cache"`
 }
 
 // RoutingConfig defines provider-level routing strategy behavior.
@@ -61,24 +61,24 @@ type RoutingConfig struct {
 	// Example: {"claude-opus": "anthropic", "glm-4": "zai", "qwen": "ollama"}
 	// Uses longest prefix match for specificity.
 	// Only used when Strategy is "model_based".
-	ModelMapping map[string]string `yaml:"model_mapping"`
+	ModelMapping map[string]string `yaml:"model_mapping" toml:"model_mapping"`
 
 	// Strategy defines the provider selection algorithm.
 	// Options: round_robin, weighted_round_robin, shuffle, failover (default), model_based
-	Strategy string `yaml:"strategy"`
+	Strategy string `yaml:"strategy" toml:"strategy"`
 
 	// DefaultProvider is the fallback provider when no model mapping matches.
 	// Only used when Strategy is "model_based".
-	DefaultProvider string `yaml:"default_provider"`
+	DefaultProvider string `yaml:"default_provider" toml:"default_provider"`
 
 	// FailoverTimeout is the timeout in milliseconds for failover attempts.
 	// When a provider fails, the router will try the next provider within this timeout.
 	// Default: 5000ms (5 seconds)
-	FailoverTimeout int `yaml:"failover_timeout"`
+	FailoverTimeout int `yaml:"failover_timeout" toml:"failover_timeout"`
 
 	// Debug enables routing debug headers (X-CC-Relay-Provider, X-CC-Relay-Strategy).
 	// Useful for debugging routing decisions but may leak internal info.
-	Debug bool `yaml:"debug"`
+	Debug bool `yaml:"debug" toml:"debug"`
 }
 
 // GetEffectiveStrategy returns the routing strategy with default fallback.
@@ -106,32 +106,32 @@ func (r *RoutingConfig) IsDebugEnabled() bool {
 
 // ServerConfig defines server-level settings.
 type ServerConfig struct {
-	Listen        string     `yaml:"listen"`
-	APIKey        string     `yaml:"api_key"` // Legacy: use Auth.APIKey instead
-	Auth          AuthConfig `yaml:"auth"`
-	TimeoutMS     int        `yaml:"timeout_ms"`
-	MaxConcurrent int        `yaml:"max_concurrent"`
-	EnableHTTP2   bool       `yaml:"enable_http2"` // Enable HTTP/2 cleartext (h2c) support
+	Listen        string     `yaml:"listen" toml:"listen"`
+	APIKey        string     `yaml:"api_key" toml:"api_key"` // Legacy: use Auth.APIKey instead
+	Auth          AuthConfig `yaml:"auth" toml:"auth"`
+	TimeoutMS     int        `yaml:"timeout_ms" toml:"timeout_ms"`
+	MaxConcurrent int        `yaml:"max_concurrent" toml:"max_concurrent"`
+	EnableHTTP2   bool       `yaml:"enable_http2" toml:"enable_http2"` // Enable HTTP/2 cleartext (h2c) support
 }
 
 // AuthConfig defines authentication settings for the proxy.
 type AuthConfig struct {
 	// APIKey is the expected value for x-api-key header authentication.
 	// If empty, API key authentication is disabled.
-	APIKey string `yaml:"api_key"`
+	APIKey string `yaml:"api_key" toml:"api_key"`
 
 	// BearerSecret is the expected Bearer token value.
 	// If empty but AllowBearer is true, any bearer token is accepted.
-	BearerSecret string `yaml:"bearer_secret"`
+	BearerSecret string `yaml:"bearer_secret" toml:"bearer_secret"`
 
 	// AllowBearer enables Authorization: Bearer token authentication.
 	// Used by Claude Code subscription users.
-	AllowBearer bool `yaml:"allow_bearer"`
+	AllowBearer bool `yaml:"allow_bearer" toml:"allow_bearer"`
 
 	// AllowSubscription is an alias for AllowBearer, provided for user-friendly config.
 	// Claude Code subscription users authenticate with Bearer tokens, so this enables
 	// the same passthrough Bearer authentication.
-	AllowSubscription bool `yaml:"allow_subscription"`
+	AllowSubscription bool `yaml:"allow_subscription" toml:"allow_subscription"`
 }
 
 // IsEnabled returns true if any authentication method is configured.
@@ -157,51 +157,51 @@ func (s *ServerConfig) GetEffectiveAPIKey() string {
 //
 //nolint:govet // Field order optimized for readability, not memory alignment
 type ProviderConfig struct {
-	ModelMapping map[string]string `yaml:"model_mapping"`
-	Name         string            `yaml:"name"`
-	Type         string            `yaml:"type"`
-	BaseURL      string            `yaml:"base_url"`
-	Keys         []KeyConfig       `yaml:"keys"`
-	Models       []string          `yaml:"models"`
-	Pooling      PoolingConfig     `yaml:"pooling"`
-	Enabled      bool              `yaml:"enabled"`
+	ModelMapping map[string]string `yaml:"model_mapping" toml:"model_mapping"`
+	Name         string            `yaml:"name" toml:"name"`
+	Type         string            `yaml:"type" toml:"type"`
+	BaseURL      string            `yaml:"base_url" toml:"base_url"`
+	Keys         []KeyConfig       `yaml:"keys" toml:"keys"`
+	Models       []string          `yaml:"models" toml:"models"`
+	Pooling      PoolingConfig     `yaml:"pooling" toml:"pooling"`
+	Enabled      bool              `yaml:"enabled" toml:"enabled"`
 
 	// Cloud provider fields (used when Type is bedrock, vertex, or azure)
 
 	// AWSRegion is the AWS region for Bedrock (e.g., "us-east-1", "us-west-2").
 	// Required when Type is "bedrock".
-	AWSRegion string `yaml:"aws_region"`
+	AWSRegion string `yaml:"aws_region" toml:"aws_region"`
 
 	// AWSAccessKeyID and AWSSecretAccessKey for explicit credentials.
 	// If empty, uses AWS SDK default credential chain (env vars, IAM role, etc.).
-	AWSAccessKeyID     string `yaml:"aws_access_key_id"`
-	AWSSecretAccessKey string `yaml:"aws_secret_access_key"`
+	AWSAccessKeyID     string `yaml:"aws_access_key_id" toml:"aws_access_key_id"`
+	AWSSecretAccessKey string `yaml:"aws_secret_access_key" toml:"aws_secret_access_key"`
 
 	// GCPProjectID is the Google Cloud project ID for Vertex AI.
 	// Required when Type is "vertex".
-	GCPProjectID string `yaml:"gcp_project_id"`
+	GCPProjectID string `yaml:"gcp_project_id" toml:"gcp_project_id"`
 
 	// GCPRegion is the Google Cloud region for Vertex AI (e.g., "us-central1").
 	// Required when Type is "vertex".
-	GCPRegion string `yaml:"gcp_region"`
+	GCPRegion string `yaml:"gcp_region" toml:"gcp_region"`
 
 	// AzureResourceName is the Azure resource name for Foundry.
 	// Required when Type is "azure".
-	AzureResourceName string `yaml:"azure_resource_name"`
+	AzureResourceName string `yaml:"azure_resource_name" toml:"azure_resource_name"`
 
 	// AzureDeploymentID is the deployment ID (model) for Azure Foundry.
 	// Optional - can be derived from model mapping.
-	AzureDeploymentID string `yaml:"azure_deployment_id"`
+	AzureDeploymentID string `yaml:"azure_deployment_id" toml:"azure_deployment_id"`
 
 	// AzureAPIVersion is the Azure API version (e.g., "2024-06-01").
 	// Defaults to "2024-06-01" if not specified.
-	AzureAPIVersion string `yaml:"azure_api_version"`
+	AzureAPIVersion string `yaml:"azure_api_version" toml:"azure_api_version"`
 }
 
 // PoolingConfig defines key pool behavior for a provider.
 type PoolingConfig struct {
-	Strategy string `yaml:"strategy"` // least_loaded (default), round_robin, random, weighted
-	Enabled  bool   `yaml:"enabled"`  // Enable pooling (default: true if multiple keys)
+	Strategy string `yaml:"strategy" toml:"strategy"` // least_loaded (default), round_robin, random, weighted
+	Enabled  bool   `yaml:"enabled" toml:"enabled"`   // Enable pooling (default: true if multiple keys)
 }
 
 // GetEffectiveStrategy returns the selection strategy with default fallback.
@@ -254,15 +254,15 @@ func (p *ProviderConfig) ValidateCloudConfig() error {
 
 // KeyConfig defines an API key with rate limits and selection metadata.
 type KeyConfig struct {
-	Key       string `yaml:"key"`        // API key value (supports ${ENV_VAR})
-	RPMLimit  int    `yaml:"rpm_limit"`  // Requests per minute (0 = unlimited/learn)
-	ITPMLimit int    `yaml:"itpm_limit"` // Input tokens per minute (0 = unlimited/learn)
-	OTPMLimit int    `yaml:"otpm_limit"` // Output tokens per minute (0 = unlimited/learn)
-	Priority  int    `yaml:"priority"`   // Selection priority: 0=low, 1=normal (default), 2=high
-	Weight    int    `yaml:"weight"`     // For weighted selection strategy (default: 1)
+	Key       string `yaml:"key" toml:"key"`               // API key value (supports ${ENV_VAR})
+	RPMLimit  int    `yaml:"rpm_limit" toml:"rpm_limit"`   // Requests per minute (0 = unlimited/learn)
+	ITPMLimit int    `yaml:"itpm_limit" toml:"itpm_limit"` // Input tokens per minute (0 = unlimited/learn)
+	OTPMLimit int    `yaml:"otpm_limit" toml:"otpm_limit"` // Output tokens per minute (0 = unlimited/learn)
+	Priority  int    `yaml:"priority" toml:"priority"`     // Selection priority: 0=low, 1=normal (default), 2=high
+	Weight    int    `yaml:"weight" toml:"weight"`         // For weighted selection strategy (default: 1)
 
 	// Deprecated: Use ITPMLimit + OTPMLimit instead
-	TPMLimit int `yaml:"tpm_limit"`
+	TPMLimit int `yaml:"tpm_limit" toml:"tpm_limit"`
 }
 
 // GetEffectiveTPM returns the combined TPM limit for backwards compatibility.
@@ -294,11 +294,11 @@ func (k *KeyConfig) Validate() error {
 
 // LoggingConfig defines logging behavior.
 type LoggingConfig struct {
-	Level        string       `yaml:"level"`         // debug, info, warn, error
-	Format       string       `yaml:"format"`        // json, console
-	Output       string       `yaml:"output"`        // stdout, stderr, or file path
-	Pretty       bool         `yaml:"pretty"`        // enable colored console output
-	DebugOptions DebugOptions `yaml:"debug_options"` // granular debug logging controls
+	Level        string       `yaml:"level" toml:"level"`                 // debug, info, warn, error
+	Format       string       `yaml:"format" toml:"format"`               // json, console
+	Output       string       `yaml:"output" toml:"output"`               // stdout, stderr, or file path
+	Pretty       bool         `yaml:"pretty" toml:"pretty"`               // enable colored console output
+	DebugOptions DebugOptions `yaml:"debug_options" toml:"debug_options"` // granular debug logging controls
 }
 
 // ParseLevel converts a string log level to zerolog.Level.
@@ -334,17 +334,17 @@ func (l *LoggingConfig) EnableAllDebugOptions() {
 type DebugOptions struct {
 	// LogRequestBody enables logging of request body in debug mode.
 	// Body is truncated to MaxBodyLogSize to prevent massive logs.
-	LogRequestBody bool `yaml:"log_request_body"`
+	LogRequestBody bool `yaml:"log_request_body" toml:"log_request_body"`
 
 	// LogResponseHeaders enables logging of response headers in debug mode.
-	LogResponseHeaders bool `yaml:"log_response_headers"`
+	LogResponseHeaders bool `yaml:"log_response_headers" toml:"log_response_headers"`
 
 	// LogTLSMetrics enables logging of TLS connection metrics (version, handshake time, reuse).
-	LogTLSMetrics bool `yaml:"log_tls_metrics"`
+	LogTLSMetrics bool `yaml:"log_tls_metrics" toml:"log_tls_metrics"`
 
 	// MaxBodyLogSize is the maximum number of bytes to log from request/response bodies.
 	// Default: 1000 bytes. Set to 0 for unlimited (not recommended).
-	MaxBodyLogSize int `yaml:"max_body_log_size"`
+	MaxBodyLogSize int `yaml:"max_body_log_size" toml:"max_body_log_size"`
 }
 
 // GetMaxBodyLogSize returns the effective max body log size with default fallback.
