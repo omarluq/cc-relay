@@ -52,8 +52,10 @@ stateDiagram-v2
 
 ## Configuracion
 
-Configure el rastreo de salud en su `config.yaml`:
+Configure el rastreo de salud en su archivo de configuracion:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 health:
   # Configuracion de health check
@@ -74,6 +76,29 @@ health:
     # Pruebas permitidas en estado medio abierto (predeterminado: 3)
     half_open_probes: 3
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health]
+
+[health.health_check]
+# Enable periodic health checks (default: true)
+enabled = true
+# Check interval in milliseconds (default: 10000 = 10s)
+interval_ms = 10000
+
+[health.circuit_breaker]
+# Consecutive failures before opening circuit (default: 5)
+failure_threshold = 5
+
+# Time circuit stays open before half-open, in milliseconds (default: 30000 = 30s)
+open_duration_ms = 30000
+
+# Probes allowed in half-open state (default: 3)
+half_open_probes = 3
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Referencia de Configuracion
 
@@ -165,11 +190,22 @@ Cuando `routing.debug: true` esta habilitado, cc-relay incluye el estado de salu
 
 Para habilitar cabeceras de depuracion:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
   debug: true  # Habilitar cabeceras de diagnostico
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+debug = true  # Enable diagnostic headers
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Advertencia de Seguridad:** Las cabeceras de depuracion exponen decisiones internas de routing. Use solo en desarrollo o entornos confiables. Nunca habilite en produccion con clientes no confiables.
 
@@ -182,18 +218,40 @@ routing:
 **Posibles causas:**
 
 1. **`failure_threshold` muy bajo:** Incremente para tolerar mas fallas transitorias
-   ```yaml
-   circuit_breaker:
-     failure_threshold: 10  # Mas tolerante
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  failure_threshold: 10  # Mas tolerante
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+failure_threshold = 10  # More tolerant
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Rate limits activando aperturas:** Si esta alcanzando rate limits, agregue mas claves API a su pool en lugar de ajustar el circuit breaker
 
 3. **Respuestas lentas causando timeouts:** Incremente el timeout del servidor
-   ```yaml
-   server:
-     timeout_ms: 300000  # 5 minutos
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+server:
+  timeout_ms: 300000  # 5 minutos
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+timeout_ms = 300000  # 5 minutes
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### La recuperacion toma demasiado tiempo
 
@@ -202,17 +260,40 @@ routing:
 **Soluciones:**
 
 1. **Reducir duracion abierta:**
-   ```yaml
-   circuit_breaker:
-     open_duration_ms: 15000  # 15 segundos en lugar de 30
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  open_duration_ms: 15000  # 15 segundos en lugar de 30
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+open_duration_ms = 15000  # 15 seconds instead of 30
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Habilitar health checks mas rapidos:**
-   ```yaml
-   health_check:
-     enabled: true
-     interval_ms: 5000  # Verificar cada 5 segundos
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+health_check:
+  enabled: true
+  interval_ms: 5000  # Verificar cada 5 segundos
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health_check]
+enabled = true
+interval_ms = 5000  # Check every 5 seconds
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### El circuito se abre con errores validos
 
@@ -223,10 +304,21 @@ routing:
 1. Verifique si la respuesta real es 429 (rate limited)
 2. Verifique que el error no sea realmente un 5xx mal reportado
 3. Habilite el registro de depuracion para ver los codigos de respuesta reales:
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Todos los proveedores no saludables
 
