@@ -308,11 +308,22 @@ debug = false
 
 `listen` フィールドは、プロキシが受信リクエストをリッスンする場所を指定します：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"  # ローカルのみ（推奨）
   # listen: "0.0.0.0:8787"  # すべてのインターフェース（注意して使用）
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"  # ローカルのみ（推奨）
+# listen = "0.0.0.0:8787"  # すべてのインターフェース（注意して使用）
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 認証
 
@@ -322,11 +333,21 @@ CC-Relay は複数の認証方法をサポートしています：
 
 クライアントに特定の API キーの提供を要求：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 クライアントはヘッダーを含める必要があります: `x-api-key: <your-proxy-key>`
 
@@ -334,11 +355,21 @@ server:
 
 Claude Code サブスクリプションユーザーの接続を許可：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 これは Claude Code からの `Authorization: Bearer` トークンを受け入れます。
 
@@ -346,31 +377,62 @@ server:
 
 API キーとサブスクリプション認証の両方を許可：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     api_key: "${PROXY_API_KEY}"
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+api_key = "${PROXY_API_KEY}"
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 #### 認証なし
 
 認証を無効にするには（本番環境では非推奨）：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth: {}
   # または auth セクションを省略
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# auth セクションを省略するか、空のテーブルを使用
+# [server.auth]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### HTTP/2 サポート
 
 同時リクエストのパフォーマンス向上のため HTTP/2 を有効化：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   enable_http2: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+enable_http2 = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## プロバイダー設定
 
@@ -385,6 +447,8 @@ CC-Relay は現在2つのプロバイダータイプをサポートしていま�
 
 ### Anthropic プロバイダー
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -402,11 +466,35 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # オプション
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60
+tpm_limit = 100000
+
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Z.AI プロバイダー
 
 Z.AI は低コストで GLM モデルを使用した Anthropic 互換 API を提供します：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -426,11 +514,37 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 複数 API キー
 
 高スループットのために複数の API キーをプール：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -448,17 +562,54 @@ providers:
         rpm_limit: 60
         tpm_limit: 100000
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_1}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_2}"
+rpm_limit = 60
+tpm_limit = 100000
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY_3}"
+rpm_limit = 60
+tpm_limit = 100000
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### カスタム Base URL
 
 デフォルトの API エンドポイントをオーバーライド：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic-custom"
     type: "anthropic"
     base_url: "https://custom-endpoint.example.com"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic-custom"
+type = "anthropic"
+base_url = "https://custom-endpoint.example.com"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## ログ設定
 
@@ -473,16 +624,29 @@ providers:
 
 ### ログ形式
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   format: "text"   # 人間が読みやすい形式（デフォルト）
   # format: "json" # 機械可読、ログ集約用
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+format = "text"   # 人間が読みやすい形式（デフォルト）
+# format = "json" # 機械可読、ログ集約用
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### デバッグオプション
 
 デバッグログの詳細な制御：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 logging:
   level: "debug"
@@ -492,6 +656,20 @@ logging:
     log_tls_metrics: true       # TLS 接続情報をログ
     max_body_log_size: 1000     # ボディからログする最大バイト数
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+
+[logging.debug_options]
+log_request_body = true      # リクエストボディをログ（編集済み）
+log_response_headers = true  # レスポンスヘッダーをログ
+log_tls_metrics = true       # TLS 接続情報をログ
+max_body_log_size = 1000     # ボディからログする最大バイト数
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## キャッシュ設定
 
@@ -509,6 +687,8 @@ CC-Relay は、さまざまなデプロイメントシナリオに対応する�
 
 Ristretto は、高性能で並行処理対応のインメモリキャッシュです。シングルインスタンスデプロイメントのデフォルトモードです。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: single
@@ -517,6 +697,19 @@ cache:
     max_cost: 104857600    # 100 MB
     buffer_items: 64       # Admission buffer size
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "single"
+
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | フィールド | タイプ | デフォルト | 説明 |
 |-------|------|---------|-------------|
@@ -528,6 +721,8 @@ cache:
 
 共有キャッシュ状態を必要とするマルチインスタンスデプロイメントには、各 cc-relay インスタンスが Olric ノードを実行する埋め込み Olric モードを使用します。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -544,6 +739,26 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["other-node:3322"]  # Memberlist port = bind_addr + 2
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | フィールド | タイプ | デフォルト | 説明 |
 |-------|------|---------|-------------|
@@ -564,6 +779,8 @@ cache:
 
 埋め込みノードを実行する代わりに、外部 Olric クラスターに接続します：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -574,6 +791,19 @@ cache:
       - "olric-node-2:3320"
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = false
+addresses = ["olric-node-1:3320", "olric-node-2:3320"]
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 | フィールド | タイプ | 説明 |
 |-------|------|-------------|
@@ -585,10 +815,20 @@ cache:
 
 デバッグ用または他の場所でキャッシングが処理される場合、キャッシングを完全に無効にします：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: disabled
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "disabled"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 HAクラスタリングガイドとトラブルシューティングを含む詳細なキャッシュドキュメントについては、[キャッシング](/ja/docs/caching/)を参照してください。
 
@@ -596,6 +836,8 @@ HAクラスタリングガイドとトラブルシューティングを含む詳
 
 CC-Relay は、プロバイダー間でリクエストを分配するための複数のルーティング戦略をサポートしています。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # ルーティング設定
@@ -610,6 +852,24 @@ routing:
   # デバッグヘッダーを有効化（X-CC-Relay-Strategy, X-CC-Relay-Provider）
   debug: false
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# ルーティング設定
+# ==========================================================================
+[routing]
+# 戦略: round_robin, weighted_round_robin, shuffle, failover（デフォルト）
+strategy = "failover"
+
+# フェイルオーバー試行のタイムアウト（ミリ秒、デフォルト: 5000）
+failover_timeout = 5000
+
+# デバッグヘッダーを有効化（X-CC-Relay-Strategy, X-CC-Relay-Provider）
+debug = false
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### ルーティング戦略
 
@@ -624,6 +884,8 @@ routing:
 
 重みと優先度はプロバイダーの最初のキーで設定します：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -633,6 +895,20 @@ providers:
         weight: 3      # weighted-round-robin 用（高い = より多くのトラフィック）
         priority: 2    # failover 用（高い = 最初に試行）
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3      # weighted-round-robin 用（高い = より多くのトラフィック）
+priority = 2    # failover 用（高い = 最初に試行）
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 戦略の説明、デバッグヘッダー、フェイルオーバートリガーを含む詳細なルーティング設定については、[ルーティング](/ja/docs/routing/)を参照してください。
 
