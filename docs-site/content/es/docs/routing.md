@@ -19,8 +19,10 @@ El routing determina como cc-relay elige que proveedor maneja cada solicitud. La
 
 ## Configuracion
 
-Configure el routing en su `config.yaml`:
+Configure el routing en su archivo de configuracion:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   # Estrategia: round_robin, weighted_round_robin, shuffle, failover (predeterminado), model_based
@@ -34,12 +36,39 @@ routing:
 
   # Configuracion de routing basado en modelo (solo usado cuando strategy: model_based)
   model_mapping:
-    claude-opus: anthropic
-    claude-sonnet: anthropic
-    glm-4: zai
-    qwen: ollama
+    claude-opus: anthropic    # claude-opus-* models → anthropic provider
+    claude-sonnet: anthropic  # claude-sonnet-* models → anthropic provider
+    glm-4: zai                # glm-4* models → zai provider
+    qwen: ollama              # qwen* models → ollama provider
+
+  # Default provider when no model mapping matches
   default_provider: anthropic
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+
+# Default provider when no model mapping matches
+default_provider = "anthropic"
+
+# Model-based routing configuration (only used when strategy: model_based)
+[routing.model_mapping]
+claude-opus = "anthropic"    # claude-opus-* models → anthropic provider
+claude-sonnet = "anthropic"  # claude-sonnet-* models → anthropic provider
+glm-4 = "zai"                # glm-4* models → zai provider
+qwen = "ollama"              # qwen* models → ollama provider
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Predeterminado:** Si `strategy` no se especifica, cc-relay usa `failover` como la opcion mas segura.
 
@@ -49,10 +78,20 @@ routing:
 
 Distribucion secuencial usando un contador atomico. Cada proveedor recibe una solicitud antes de que cualquier proveedor reciba una segunda.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Como funciona:**
 
@@ -67,6 +106,8 @@ routing:
 
 Distribuye solicitudes proporcionalmente basandose en los pesos de los proveedores. Usa el algoritmo Nginx smooth weighted round-robin para distribucion uniforme.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -84,6 +125,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         weight: 1  # Recibe 1x solicitudes
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3  # Receives 3x more requests
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+weight = 1  # Receives 1x requests
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Como funciona:**
 
@@ -99,10 +164,20 @@ Con pesos 3:1, de cada 4 solicitudes:
 
 Distribucion aleatoria justa usando el patron Fisher-Yates de "repartir cartas". Todos reciben una carta antes de que alguien reciba una segunda.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: shuffle
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "shuffle"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Como funciona:**
 
@@ -117,6 +192,8 @@ routing:
 
 Intenta proveedores en orden de prioridad. En caso de fallo, lanza carreras paralelas con los proveedores restantes para obtener la respuesta exitosa mas rapida. Esta es la **estrategia predeterminada**.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -134,6 +211,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1  # Respaldo
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first (higher = higher priority)
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Como funciona:**
 
@@ -150,15 +251,19 @@ providers:
 
 Enruta solicitudes a proveedores basandose en el nombre del modelo en la solicitud. Usa coincidencia de prefijo mas largo para especificidad.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
     glm-4: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -166,35 +271,71 @@ providers:
     type: "anthropic"
     keys:
       - key: "${ANTHROPIC_API_KEY}"
+
   - name: "zai"
     type: "zai"
     keys:
       - key: "${ZAI_API_KEY}"
+
   - name: "ollama"
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+glm-4 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Como funciona:**
 
-1. Extrae el parametro `model` de la solicitud
-2. Intenta encontrar la coincidencia de prefijo mas largo en `model_mapping`
-3. Enruta al proveedor correspondiente
-4. Recurre a `default_provider` si no se encuentra coincidencia
-5. Si no hay coincidencia ni `default_provider`, se usan todos los proveedores disponibles (sin filtrado) como comportamiento de reserva
+1. Extrae el nombre del modelo del cuerpo de la solicitud (ej., `claude-opus-4`)
+2. Encuentra el prefijo mas largo que coincida en `model_mapping` (ej., `claude-opus`)
+3. Enruta al proveedor mapeado (ej., `anthropic`)
+4. Si no hay coincidencia, usa `default_provider`
+5. Si no hay predeterminado, enruta a cualquier proveedor disponible
 
 **Ejemplos de coincidencia de prefijo:**
 
-| Modelo Solicitado | Entradas de Mapeo | Entrada Seleccionada | Proveedor |
-|-------------------|-------------------|---------------------|-----------|
-| `claude-opus-4` | `claude-opus`, `claude` | `claude-opus` | anthropic |
-| `claude-sonnet-3.5` | `claude-sonnet`, `claude` | `claude-sonnet` | anthropic |
-| `glm-4-plus` | `glm-4`, `glm` | `glm-4` | zai |
-| `qwen-72b` | `qwen`, `claude` | `qwen` | ollama |
-| `llama-3.2` | `llama`, `claude` | `llama` | ollama |
-| `gpt-4` | `claude`, `llama` | (sin coincidencia) | default_provider |
+| Modelo Solicitado | Mapping | Resultado |
+|-------------------|---------|-----------|
+| `claude-opus-4` | `claude-opus: anthropic` | anthropic |
+| `claude-sonnet-4-20250514` | `claude-sonnet: anthropic` | anthropic |
+| `glm-4.7` | `glm-4: zai` | zai |
+| `qwen3:8b` | `qwen: ollama` | ollama |
+| `unknown-model` | (sin coincidencia) | default_provider |
 
-**Mejor para:** Despliegues multi-modelo donde diferentes modelos necesitan enrutarse a diferentes proveedores.
+**Mejor para:** Configuraciones multi-proveedor donde diferentes proveedores manejan diferentes familias de modelos.
 
 ## Cabeceras de Depuracion
 
@@ -245,6 +386,8 @@ La estrategia de failover dispara reintento en condiciones de error especificas:
 
 Use la estrategia predeterminada con proveedores priorizados:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -262,11 +405,37 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Balanceo de Carga con Pesos
 
 Distribuir carga basada en capacidad del proveedor:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -284,11 +453,37 @@ providers:
       - key: "${SECONDARY_KEY}"
         weight: 1  # 25% del trafico
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "primary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${PRIMARY_KEY}"
+weight = 3  # 75% of traffic
+
+[[providers]]
+name = "secondary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${SECONDARY_KEY}"
+weight = 1  # 25% of traffic
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Desarrollo con Cabeceras de Depuracion
 
 Habilitar cabeceras de depuracion para solucion de problemas:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
@@ -305,11 +500,36 @@ providers:
     keys:
       - key: "${ZAI_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+debug = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Alta Disponibilidad con Failover Rapido
 
 Minimizar latencia de failover:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -328,20 +548,51 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+failover_timeout = 3000  # 3 second timeout
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Multi-Modelo con Routing Basado en Modelo
 
-Enrutar diferentes modelos a proveedores especializados:
+Enrutar diferentes familias de modelos a diferentes proveedores:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
+    claude-haiku: anthropic
     glm-4: zai
+    glm-3: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -359,17 +610,56 @@ providers:
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+claude-haiku = "anthropic"
+glm-4 = "zai"
+glm-3 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Con esta configuracion:
-- Modelos Claude → Anthropic
-- Modelos GLM → Z.AI
-- Modelos Qwen/Llama → Ollama (local)
-- Otros modelos → Anthropic (predeterminado)
+- `claude-opus-4` → anthropic
+- `glm-4.7` → zai
+- `qwen3:8b` → ollama
+- `unknown-model` → anthropic (predeterminado)
 
 ## Peso y Prioridad de Proveedor
 
 El peso y la prioridad se especifican en la configuracion de claves del proveedor:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "example"
@@ -380,6 +670,21 @@ providers:
         priority: 2    # Para failover (mayor = se intenta primero)
         rpm_limit: 60  # Seguimiento de limite de tasa
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "example"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${API_KEY}"
+weight = 3      # For weighted-round-robin (higher = more traffic)
+priority = 2    # For failover (higher = tried first)
+rpm_limit = 60  # Rate limit tracking
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Nota:** El peso y la prioridad se leen de la **primera clave** en la lista de claves del proveedor.
 

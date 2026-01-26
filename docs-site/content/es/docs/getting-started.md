@@ -169,6 +169,8 @@ Flags:
 
 Aqui hay una configuracion minima funcional:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -180,6 +182,22 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Siguientes Pasos
 
@@ -193,10 +211,20 @@ providers:
 
 Si el puerto 8787 ya esta en uso, cambia la direccion de escucha en tu configuracion:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8788"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8788"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Proveedor No Responde
 
