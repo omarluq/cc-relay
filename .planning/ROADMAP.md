@@ -345,11 +345,13 @@ Plans:
   4. Invalid configuration causes startup failure with clear error message
   5. Changing config file triggers automatic reload without restarting proxy
   6. Config reload happens without dropping in-flight requests
-**Plans**: TBD
+**Plans**: 4 plans in 3 waves
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
+- [ ] 07-01-PLAN.md - Install dependencies (fsnotify, go-toml/v2) and add TOML struct tags
+- [ ] 07-02-PLAN.md - Format detection in loader and comprehensive validation
+- [ ] 07-03-PLAN.md - Config file watcher with debounce
+- [ ] 07-04-PLAN.md - DI integration for hot-reload with atomic config swap
 
 ### Phase 8: Observability
 **Goal**: Add structured JSON logging with request IDs, latency tracking per provider, and Prometheus metrics endpoint
@@ -446,7 +448,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
 | 5. Additional Providers | 2/2 | Complete | 2026-01-23 |
 | 6. Cloud Providers | 5/5 | Complete | 2026-01-24 |
-| 7. Configuration Management | 0/TBD | Not started | - |
+| 7. Configuration Management | 0/4 | Not started | - |
 | 8. Observability | 0/TBD | Not started | - |
 | 9. gRPC Management API | 0/TBD | Not started | - |
 | 10. TUI Dashboard | 0/TBD | Not started | - |
