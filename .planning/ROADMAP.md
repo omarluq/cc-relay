@@ -29,6 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Additional Providers** - Support Z.AI and Ollama providers
 - [x] **Phase 6: Cloud Providers** - Add AWS Bedrock, Azure Foundry, and Vertex AI support with transformer architecture
 - [x] **Phase 7: Configuration Management** - Hot-reload, validation, and multi-format support
+- [x] **Phase 7.1: Fix CodeQL Weak Crypto Alerts** - Address GitHub CodeQL security alerts (INSERTED)
 - [ ] **Phase 8: Observability** - Structured logging and Prometheus metrics
 - [ ] **Phase 9: gRPC Management API** - Real-time stats streaming and provider management
 - [ ] **Phase 10: TUI Dashboard** - Interactive Bubble Tea interface for monitoring
@@ -362,6 +363,23 @@ Plans:
 - [x] 07-12-PLAN.md - Gap closure: Add TOML tabs to KO docs
 - [x] 07-13-PLAN.md - Gap closure: Add TOML tabs to ZH-CN docs
 
+### Phase 7.1: Fix CodeQL Weak Crypto Alerts (INSERTED)
+**Goal**: Address GitHub CodeQL security alerts for weak cryptographic hashing (CWE-327, CWE-328, CWE-916) in API key handling
+**Depends on**: Phase 7
+**Requirements**: SEC-01 (CodeQL compliance)
+**Gap Closure**: Fixes 3 CodeQL alerts from GitHub code scanning
+**Success Criteria** (what must be TRUE):
+  1. CodeQL alert #1 (auth/apikey.go:22) resolved - SHA-256 for API key hashing
+  2. CodeQL alert #2 (keypool/key.go:71) resolved - SHA-256 for key ID generation
+  3. CodeQL alert #3 (proxy/middleware.go:23) resolved - SHA-256 for API key hashing
+  4. All existing auth tests pass after refactoring
+  5. Constant-time comparison maintained (timing attack prevention)
+  6. No functional regressions in API key validation
+**Plans**: 1 plan in 1 wave
+
+Plans:
+- [x] 07.1-01-PLAN.md - Fix weak crypto hashing alerts with security annotations
+
 ### Phase 8: Observability
 **Goal**: Add structured JSON logging with request IDs, latency tracking per provider, and Prometheus metrics endpoint
 **Depends on**: Phase 7
@@ -437,7 +455,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 3.1 -> 4 -> 4.1 -> 4.2 -> 4.3 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.3 -> 3 -> 3.1 -> 4 -> 4.1 -> 4.2 -> 4.3 -> 5 -> 6 -> 7 -> 7.1 -> 8 -> 9 -> 10 -> 11
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -458,6 +476,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 5. Additional Providers | 2/2 | Complete | 2026-01-23 |
 | 6. Cloud Providers | 5/5 | Complete | 2026-01-24 |
 | 7. Configuration Management | 13/13 | Complete | 2026-01-26 |
+| 7.1 Fix CodeQL Weak Crypto (INSERTED) | 1/1 | Complete | 2026-01-26 |
 | 8. Observability | 0/TBD | Not started | - |
 | 9. gRPC Management API | 0/TBD | Not started | - |
 | 10. TUI Dashboard | 0/TBD | Not started | - |

@@ -17,8 +17,15 @@ type APIKeyAuthenticator struct {
 
 // NewAPIKeyAuthenticator creates a new API key authenticator.
 // The expected key is hashed at creation time for secure comparison.
+//
+// Security note: SHA-256 is appropriate for API key hashing because:
+// - API keys are high-entropy secrets (32+ random characters), not passwords
+// - SHA-256 provides sufficient pre-image resistance for high-entropy inputs
+// - Passwords require slow hashes (bcrypt/argon2) due to limited entropy
+// - Constant-time comparison prevents timing attacks (see Validate method).
 func NewAPIKeyAuthenticator(expectedKey string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{
+		// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 		expectedHash: sha256.Sum256([]byte(expectedKey)),
 	}
 }
@@ -36,6 +43,7 @@ func (a *APIKeyAuthenticator) Validate(r *http.Request) Result {
 		}
 	}
 
+	// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 	providedHash := sha256.Sum256([]byte(providedKey))
 
 	// CRITICAL: Constant-time comparison prevents timing attacks

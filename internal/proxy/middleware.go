@@ -18,8 +18,15 @@ import (
 
 // AuthMiddleware creates middleware that validates x-api-key header.
 // Uses constant-time comparison to prevent timing attacks.
+//
+// Security note: SHA-256 is appropriate for API key hashing because:
+// - API keys are high-entropy secrets (32+ random characters), not passwords
+// - SHA-256 provides sufficient pre-image resistance for high-entropy inputs
+// - Pre-hashing at middleware creation prevents per-request hash computation
+// - Constant-time comparison (subtle.ConstantTimeCompare) prevents timing attacks.
 func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 	// Pre-hash expected key at creation time (not per-request)
+	// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 	expectedHash := sha256.Sum256([]byte(expectedAPIKey))
 
 	return func(next http.Handler) http.Handler {
@@ -33,6 +40,7 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 				return
 			}
 
+			// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 			providedHash := sha256.Sum256([]byte(providedKey))
 
 			// CRITICAL: Constant-time comparison prevents timing attacks

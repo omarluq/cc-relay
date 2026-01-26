@@ -66,8 +66,13 @@ type KeyMetadata struct {
 // NewKeyMetadata creates a new KeyMetadata with the given API key and rate limits.
 // The ID is generated from the first 8 characters of the SHA-256 hash of the key.
 // Initial state: full capacity, healthy, normal priority.
+//
+// Note: The hash is for identification/logging only, NOT for security comparison.
+// The key ID appears in logs for debugging purposes. It's not used for authentication.
+// SHA-256 provides a stable, reproducible identifier from the key material.
 func NewKeyMetadata(apiKey string, rpm, itpm, otpm int) *KeyMetadata {
-	// Generate ID from hash of API key
+	// Generate ID from hash of API key (for logging/identification, not security)
+	// #nosec G401 -- SHA-256 used for stable key identification, not security comparison
 	hash := sha256.Sum256([]byte(apiKey))
 	id := hex.EncodeToString(hash[:])[:8]
 

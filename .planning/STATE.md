@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Access all models from all three providers (Anthropic, Z.AI, Ollama) in Claude Code and switch between them seamlessly.
-**Current focus:** Phase 7 - Configuration Management (TOML, hot-reload, env expansion)
+**Current focus:** Phase 7.1 - Fix CodeQL Weak Crypto Alerts (URGENT security fix)
 
 ## Current Position
 
-Phase: 7 of 11+ (Configuration Management) - COMPLETE (gap closure done)
-Plan: 13 of 13 in phase - All gap closure plans complete
-Status: TOML tabs for all 6 languages complete (EN, DE, ES, JA, KO, ZH-CN)
-Last activity: 2026-01-26 - Completed 07-13 (Add TOML Tabs to ZH-CN Configuration Docs)
+Phase: 7.1 of 11+ (Fix CodeQL Weak Crypto Alerts) - NOT STARTED
+Plan: 0 of 1 in phase - Plan not yet created
+Status: Phase 7.1 inserted for urgent security fix (3 CodeQL alerts)
+Last activity: 2026-01-26 - Inserted Phase 7.1 for CodeQL security alerts
 
-Progress: [███████████] 76/76 plans total (Phase 7: 13/13 complete)
-Next: Phase 7 complete, ready for Phase 8 or next work
+Progress: [███████████] 76/77 plans total (Phase 7.1: 0/1 not started)
+Next: Plan Phase 7.1 then execute to fix CodeQL alerts
 
 ## Performance Metrics
 
@@ -415,6 +415,14 @@ None.
 - ~~**Health Docs Gap**: docs-site missing dedicated health/circuit-breaker configuration page~~ FIXED in 04.3-01/04.3-02
 
 ### Roadmap Evolution
+
+- Phase 7.1 inserted after Phase 7: Fix CodeQL Weak Crypto Alerts (URGENT)
+  - 3 CodeQL security alerts from GitHub code scanning
+  - Alert #1: internal/auth/apikey.go:22 - SHA-256 for API key hashing
+  - Alert #2: internal/keypool/key.go:71 - SHA-256 for key ID generation
+  - Alert #3: internal/proxy/middleware.go:23 - SHA-256 for API key hashing
+  - CWE-327, CWE-328, CWE-916: Weak cryptographic hashing for sensitive data
+  - Directory: .planning/phases/07.1-fix-codeql-weak-crypto-alerts/
 
 - Phase 4.3 COMPLETE: Health Configuration Documentation
   - 04.3-01 COMPLETE: English health documentation
