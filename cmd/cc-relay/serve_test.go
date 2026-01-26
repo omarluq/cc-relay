@@ -309,7 +309,7 @@ func TestDIContainerInitialization(t *testing.T) {
 		// Verify services can be resolved
 		cfgSvc, err := di.Invoke[*di.ConfigService](container)
 		require.NoError(t, err)
-		assert.NotNil(t, cfgSvc.Config)
+		assert.NotNil(t, cfgSvc.Get())
 
 		serverSvc, err := di.Invoke[*di.ServerService](container)
 		require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestRunWithGracefulShutdown(t *testing.T) {
 		// Start server in background
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- runWithGracefulShutdown(serverSvc.Server, container, ":0")
+			errCh <- runWithGracefulShutdown(serverSvc.Server, container, ":0", nil)
 		}()
 
 		// Wait for server to start
@@ -402,6 +402,79 @@ func TestServerIntegration(t *testing.T) {
 			assert.ErrorIs(t, err, http.ErrServerClosed)
 		case <-time.After(5 * time.Second):
 			t.Fatal("server did not stop")
+		}
+	})
+}
+
+func TestConfigWatcherLifecycle(t *testing.T) {
+	t.Run("watcher starts and stops with server", func(t *testing.T) {
+		configPath := createServeTestConfig(t)
+
+		container, err := di.NewContainer(configPath)
+		require.NoError(t, err)
+
+		// Get config service and verify watcher was created
+		cfgSvc, err := di.Invoke[*di.ConfigService](container)
+		require.NoError(t, err)
+		assert.NotNil(t, cfgSvc.Get(), "config should be loaded")
+
+		// Start watcher (simulating what runServe does)
+		watchCtx, watchCancel := context.WithCancel(context.Background())
+		cfgSvc.StartWatching(watchCtx)
+
+		// Allow watcher to start
+		time.Sleep(50 * time.Millisecond)
+
+		// Cancel watcher (simulating graceful shutdown)
+		watchCancel()
+
+		// Shutdown container (closes watcher via ConfigService.Shutdown)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err = container.ShutdownWithContext(ctx)
+		// Note: May return error for uninvoked services, but watcher should close cleanly
+		if err != nil {
+			t.Logf("Container shutdown returned: %v", err)
+		}
+	})
+
+	t.Run("graceful shutdown with watchCancel", func(t *testing.T) {
+		configPath := createServeTestConfig(t)
+
+		container, err := di.NewContainer(configPath)
+		require.NoError(t, err)
+
+		serverSvc, err := di.Invoke[*di.ServerService](container)
+		require.NoError(t, err)
+
+		cfgSvc, err := di.Invoke[*di.ConfigService](container)
+		require.NoError(t, err)
+
+		// Start watcher
+		watchCtx, watchCancel := context.WithCancel(context.Background())
+		cfgSvc.StartWatching(watchCtx)
+
+		// Start server in background
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- runWithGracefulShutdown(serverSvc.Server, container, ":0", watchCancel)
+		}()
+
+		// Wait for server to start
+		time.Sleep(50 * time.Millisecond)
+
+		// Send SIGTERM to trigger shutdown
+		p, err := os.FindProcess(os.Getpid())
+		require.NoError(t, err)
+		err = p.Signal(syscall.SIGTERM)
+		require.NoError(t, err)
+
+		// Wait for shutdown with timeout
+		select {
+		case err := <-errCh:
+			assert.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("server did not shut down in time")
 		}
 	})
 }

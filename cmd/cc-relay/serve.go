@@ -60,7 +60,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 
 	// Get config service to apply CLI overrides and setup logging
 	cfgSvc := di.MustInvoke[*di.ConfigService](container)
-	cfg := cfgSvc.Config
+	cfg := cfgSvc.Get()
 
 	// Apply CLI flag overrides to logging config
 	if debugMode {
@@ -96,12 +96,23 @@ func runServe(_ *cobra.Command, _ []string) error {
 	checkerSvc := di.MustInvoke[*di.CheckerService](container)
 	checkerSvc.Checker.Start()
 
-	// Run server with graceful shutdown
-	return runWithGracefulShutdown(serverSvc.Server, container, cfg.Server.Listen)
+	// Start config file watcher for hot-reload support
+	// The watcher context is tied to container shutdown
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	cfgSvc.StartWatching(watchCtx)
+
+	// Run server with graceful shutdown (passes watchCancel for cleanup)
+	return runWithGracefulShutdown(serverSvc.Server, container, cfg.Server.Listen, watchCancel)
 }
 
 // runWithGracefulShutdown handles signal-based graceful shutdown.
-func runWithGracefulShutdown(server *proxy.Server, container *di.Container, listenAddr string) error {
+// The watchCancel function is called to stop the config watcher before container shutdown.
+func runWithGracefulShutdown(
+	server *proxy.Server,
+	container *di.Container,
+	listenAddr string,
+	watchCancel context.CancelFunc,
+) error {
 	// Graceful shutdown on SIGINT/SIGTERM
 	done := make(chan struct{})
 	go func() {
@@ -111,7 +122,12 @@ func runWithGracefulShutdown(server *proxy.Server, container *di.Container, list
 
 		log.Info().Msg("shutting down...")
 
-		// Shutdown server first (drain connections)
+		// Cancel config watcher first (stops file watching goroutine)
+		if watchCancel != nil {
+			watchCancel()
+		}
+
+		// Shutdown server (drain connections)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -119,7 +135,7 @@ func runWithGracefulShutdown(server *proxy.Server, container *di.Container, list
 			log.Error().Err(err).Msg("server shutdown error")
 		}
 
-		// Then shutdown all DI container services (cache, etc.)
+		// Then shutdown all DI container services (cache, watcher, etc.)
 		if err := container.ShutdownWithContext(ctx); err != nil {
 			log.Error().Err(err).Msg("service shutdown error")
 		}
