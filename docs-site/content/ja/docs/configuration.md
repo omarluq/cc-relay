@@ -3,7 +3,7 @@ title: 設定
 weight: 3
 ---
 
-CC-Relay は YAML ファイルで設定されます。このガイドでは、すべての設定オプションについて説明します。
+CC-Relay は YAML または TOML ファイルで設定されます。このガイドでは、すべての設定オプションについて説明します。
 
 ## 設定ファイルの場所
 
@@ -21,8 +21,10 @@ cc-relay config init
 
 ## 環境変数の展開
 
-CC-Relay は `${VAR_NAME}` 構文を使用した環境変数の展開をサポートしています：
+CC-Relay は YAML と TOML の両方のフォーマットで `${VAR_NAME}` 構文を使用した環境変数の展開をサポートしています：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -30,9 +32,23 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"  # ロード時に展開されます
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"  # ロード時に展開されます
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 完全な設定リファレンス
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # サーバー設定
@@ -149,6 +165,142 @@ cache:
     member_count_quorum: 2         # Min cluster members
     leave_timeout: 5s              # Leave broadcast duration
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# Server Configuration
+# ==========================================================================
+[server]
+# Address to listen on
+listen = "127.0.0.1:8787"
+
+# Request timeout in milliseconds (default: 600000 = 10 minutes)
+timeout_ms = 600000
+
+# Maximum concurrent requests (0 = unlimited)
+max_concurrent = 0
+
+# Enable HTTP/2 for better performance
+enable_http2 = true
+
+# Authentication configuration
+[server.auth]
+# Require specific API key for proxy access
+api_key = "${PROXY_API_KEY}"
+
+# Allow Claude Code subscription Bearer tokens
+allow_subscription = true
+
+# Specific Bearer token to validate (optional)
+bearer_secret = "${BEARER_SECRET}"
+
+# ==========================================================================
+# Provider Configurations
+# ==========================================================================
+
+# Anthropic Direct API
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60       # Requests per minute
+tpm_limit = 100000   # Tokens per minute
+
+# Optional: Specify available models
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+
+# Z.AI / Zhipu GLM
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+# Map Claude model names to Z.AI models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+# Optional: Specify available models
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+
+# ==========================================================================
+# Logging Configuration
+# ==========================================================================
+[logging]
+# Log level: debug, info, warn, error
+level = "info"
+
+# Log format: json, text
+format = "text"
+
+# Enable colored output (for text format)
+pretty = true
+
+# Granular debug options
+[logging.debug_options]
+log_request_body = false
+log_response_headers = false
+log_tls_metrics = false
+max_body_log_size = 1000
+
+# ==========================================================================
+# Cache Configuration
+# ==========================================================================
+[cache]
+# Cache mode: single, ha, disabled
+mode = "single"
+
+# Single mode (Ristretto) configuration
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+
+# HA mode (Olric) configuration
+[cache.olric]
+embedded = true                 # Run embedded Olric node
+bind_addr = "0.0.0.0:3320"      # Olric client port
+dmap_name = "cc-relay"          # Distributed map name
+environment = "lan"             # local, lan, or wan
+peers = ["other-node:3322"]     # Memberlist addresses (bind_addr + 2)
+replica_count = 2               # Copies per key
+read_quorum = 1                 # Min reads for success
+write_quorum = 1                # Min writes for success
+member_count_quorum = 2         # Min cluster members
+leave_timeout = "5s"            # Leave broadcast duration
+
+# ==========================================================================
+# Routing Configuration
+# ==========================================================================
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default)
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## サーバー設定
 
@@ -488,6 +640,8 @@ providers:
 
 ### 最小限のシングルプロバイダー
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -499,9 +653,27 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### マルチプロバイダーセットアップ
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -527,9 +699,45 @@ logging:
   level: "info"
   format: "text"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[server.auth]
+allow_subscription = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+
+[logging]
+level = "info"
+format = "text"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### デバッグログを使用した開発
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -550,6 +758,32 @@ logging:
     log_response_headers: true
     log_tls_metrics: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[logging]
+level = "debug"
+format = "text"
+pretty = true
+
+[logging.debug_options]
+log_request_body = true
+log_response_headers = true
+log_tls_metrics = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 設定の検証
 
@@ -559,9 +793,58 @@ logging:
 cc-relay config validate
 ```
 
+**ヒント**: デプロイ前に設定変更を必ず検証してください。ホットリロードは無効な設定を拒否しますが、検証により本番環境に到達する前にエラーを検出できます。
+
 ## ホットリロード
 
-設定変更にはサーバーの再起動が必要です。ホットリロードは将来のリリースで予定されています。
+CC-Relay は設定変更を自動的に検出して適用し、再起動を必要としません。これによりダウンタイムなしで設定を更新できます。
+
+### 動作の仕組み
+
+CC-Relay は [fsnotify](https://github.com/fsnotify/fsnotify) を使用して設定ファイルを監視します：
+
+1. **ファイル監視**: 親ディレクトリを監視し、アトミック書き込み（ほとんどのエディタが使用する一時ファイル + リネームパターン）を正しく検出
+2. **デバウンス**: 複数の高速ファイルイベントは100msの遅延で集約し、エディタの保存動作を処理
+3. **アトミックスワップ**: 新しい設定はGoの `sync/atomic.Pointer` を使用してアトミックにロードおよびスワップ
+4. **処理中リクエストの保持**: 処理中のリクエストは古い設定を継続使用、新しいリクエストは更新された設定を使用
+
+### リロードをトリガーするイベント
+
+| イベント | リロードをトリガー |
+|---------|------------------|
+| ファイル書き込み | はい |
+| ファイル作成（アトミックリネーム） | はい |
+| ファイル chmod | いいえ（無視） |
+| ディレクトリ内の他のファイル | いいえ（無視） |
+
+### ログ出力
+
+ホットリロード時には、ログメッセージが表示されます：
+
+```
+INF config file reloaded path=/path/to/config.yaml
+INF config hot-reloaded successfully
+```
+
+新しい設定が無効な場合：
+
+```
+ERR failed to reload config path=/path/to/config.yaml error="validation error"
+```
+
+無効な設定は拒否され、プロキシは以前の有効な設定で継続動作します。
+
+### 制限事項
+
+- **プロバイダーの変更**: プロバイダーの追加または削除には再起動が必要（ルーティングインフラストラクチャは起動時に初期化されます）
+- **リッスンアドレス**: `server.listen` の変更には再起動が必要
+- **gRPCアドレス**: gRPC管理APIアドレスの変更には再起動が必要
+
+ホットリロード可能な設定オプション：
+- ログレベルとフォーマット
+- 既存キーのレート制限
+- ヘルスチェック間隔
+- ルーティング戦略の重みと優先度
 
 ## 次のステップ
 
