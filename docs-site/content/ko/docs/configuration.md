@@ -3,15 +3,17 @@ title: 설정
 weight: 3
 ---
 
-CC-Relay는 YAML 파일로 설정됩니다. 이 가이드는 모든 설정 옵션을 다룹니다.
+CC-Relay는 YAML 또는 TOML 파일로 설정됩니다. 이 가이드는 모든 설정 옵션을 다룹니다.
 
 ## 설정 파일 위치
 
 기본 위치 (순서대로 확인):
 
-1. `./config.yaml` (현재 디렉토리)
-2. `~/.config/cc-relay/config.yaml`
+1. `./config.yaml` 또는 `./config.toml` (현재 디렉토리)
+2. `~/.config/cc-relay/config.yaml` 또는 `~/.config/cc-relay/config.toml`
 3. `--config` 플래그로 지정된 경로
+
+파일 확장자(`.yaml`, `.yml` 또는 `.toml`)에서 형식이 자동으로 감지됩니다。
 
 다음 명령으로 기본 설정을 생성하세요:
 
@@ -488,6 +490,8 @@ providers:
 
 ### 최소 단일 프로바이더
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -499,9 +503,27 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 멀티 프로바이더 설정
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -527,9 +549,45 @@ logging:
   level: "info"
   format: "text"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[server.auth]
+allow_subscription = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+
+[logging]
+level = "info"
+format = "text"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 디버그 로깅을 포함한 개발 설정
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -550,6 +608,32 @@ logging:
     log_response_headers: true
     log_tls_metrics: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[logging]
+level = "debug"
+format = "text"
+pretty = true
+
+[logging.debug_options]
+log_request_body = true
+log_response_headers = true
+log_tls_metrics = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 설정 검증
 
@@ -559,9 +643,58 @@ logging:
 cc-relay config validate
 ```
 
+**팁**: 배포 전에 항상 설정 변경 사항을 검증하세요. 핫 리로드는 유효하지 않은 설정을 거부하지만, 검증은 프로덕션에 도달하기 전에 오류를 감지합니다.
+
 ## 핫 리로딩
 
-설정 변경 시 서버를 재시작해야 합니다. 핫 리로딩은 향후 릴리스에 계획되어 있습니다.
+CC-Relay는 재시작 없이 설정 변경을 자동으로 감지하고 적용합니다. 이를 통해 다운타임 없이 설정을 업데이트할 수 있습니다.
+
+### 작동 방식
+
+CC-Relay는 [fsnotify](https://github.com/fsnotify/fsnotify)를 사용하여 설정 파일을 모니터링합니다:
+
+1. **파일 모니터링**: 상위 디렉토리를 모니터링하여 원자적 쓰기(대부분의 편집기에서 사용하는 임시 파일 + 이름 변경 패턴)를 올바르게 감지
+2. **디바운싱**: 여러 빠른 파일 이벤트는 100ms 지연으로 통합하여 편집기 저장 동작을 처리
+3. **원자적 스왑**: 새 설정은 Go의 `sync/atomic.Pointer`를 사용하여 원자적으로 로드 및 스왑
+4. **진행 중인 요청 보존**: 진행 중인 요청은 이전 설정을 계속 사용하고, 새 요청은 업데이트된 설정을 사용
+
+### 리로드를 트리거하는 이벤트
+
+| 이벤트 | 리로드 트리거 |
+|--------|--------------|
+| 파일 쓰기 | 예 |
+| 파일 생성 (원자적 이름 변경) | 예 |
+| 파일 chmod | 아니오 (무시) |
+| 디렉토리 내 다른 파일 | 아니오 (무시) |
+
+### 로깅
+
+핫 리로드 발생 시 로그 메시지가 표시됩니다:
+
+```
+INF config file reloaded path=/path/to/config.yaml
+INF config hot-reloaded successfully
+```
+
+새 설정이 유효하지 않은 경우:
+
+```
+ERR failed to reload config path=/path/to/config.yaml error="validation error"
+```
+
+유효하지 않은 설정은 거부되고 프록시는 이전의 유효한 설정으로 계속 실행됩니다.
+
+### 제한 사항
+
+- **프로바이더 변경**: 프로바이더 추가 또는 제거는 재시작 필요 (라우팅 인프라는 시작 시 초기화됩니다)
+- **리슨 주소**: `server.listen` 변경은 재시작 필요
+- **gRPC 주소**: gRPC 관리 API 주소 변경은 재시작 필요
+
+핫 리로드 가능한 설정 옵션:
+- 로그 레벨 및 형식
+- 기존 키의 속도 제한
+- 헬스 체크 간격
+- 라우팅 전략 가중치 및 우선순위
 
 ## 다음 단계
 
