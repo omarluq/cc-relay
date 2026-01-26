@@ -6,11 +6,13 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/dgraph-io/ristretto/v2 v2.4.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/memberlist v0.5.4
 	github.com/leanovate/gopter v0.2.11
 	github.com/mattn/go-isatty v0.0.20
 	github.com/olric-data/olric v0.7.2
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/do/v2 v2.0.0
 	github.com/samber/lo v1.52.0
