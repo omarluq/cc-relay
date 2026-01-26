@@ -19,8 +19,10 @@ Routing determines how cc-relay chooses which provider handles each request. The
 
 ## Configuration
 
-Configure routing in your `config.yaml`:
+Configure routing in your config file:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   # Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
@@ -42,6 +44,31 @@ routing:
   # Default provider when no model mapping matches
   default_provider: anthropic
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+
+# Default provider when no model mapping matches
+default_provider = "anthropic"
+
+# Model-based routing configuration (only used when strategy: model_based)
+[routing.model_mapping]
+claude-opus = "anthropic"    # claude-opus-* models → anthropic provider
+claude-sonnet = "anthropic"  # claude-sonnet-* models → anthropic provider
+glm-4 = "zai"                # glm-4* models → zai provider
+qwen = "ollama"              # qwen* models → ollama provider
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Default:** If `strategy` is not specified, cc-relay uses `failover` as the safest option.
 
@@ -51,10 +78,20 @@ routing:
 
 Sequential distribution using an atomic counter. Each provider receives one request before any provider receives a second.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **How it works:**
 
@@ -69,6 +106,8 @@ routing:
 
 Distributes requests proportionally based on provider weights. Uses the Nginx smooth weighted round-robin algorithm for even distribution.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -86,6 +125,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         weight: 1  # Receives 1x requests
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3  # Receives 3x more requests
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+weight = 1  # Receives 1x requests
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **How it works:**
 
@@ -101,10 +164,20 @@ With weights 3:1, out of every 4 requests:
 
 Fair random distribution using the Fisher-Yates "dealing cards" pattern. Everyone gets one card before anyone gets a second.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: shuffle
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "shuffle"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **How it works:**
 
@@ -119,6 +192,8 @@ routing:
 
 Tries providers in priority order. On failure, parallel races remaining providers for the fastest successful response. This is the **default strategy**.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -136,6 +211,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1  # Fallback
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first (higher = higher priority)
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **How it works:**
 
@@ -152,6 +251,8 @@ providers:
 
 Routes requests to providers based on the model name in the request. Uses longest prefix matching for specificity.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
@@ -180,6 +281,41 @@ providers:
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+glm-4 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **How it works:**
 
@@ -250,6 +386,8 @@ The failover strategy triggers retry on specific error conditions:
 
 Use the default strategy with prioritized providers:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -267,11 +405,37 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Load Balanced with Weights
 
 Distribute load based on provider capacity:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -289,11 +453,37 @@ providers:
       - key: "${SECONDARY_KEY}"
         weight: 1  # 25% of traffic
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "primary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${PRIMARY_KEY}"
+weight = 3  # 75% of traffic
+
+[[providers]]
+name = "secondary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${SECONDARY_KEY}"
+weight = 1  # 25% of traffic
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Development with Debug Headers
 
 Enable debug headers for troubleshooting:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
@@ -310,11 +500,36 @@ providers:
     keys:
       - key: "${ZAI_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+debug = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### High Availability with Fast Failover
 
 Minimize failover latency:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -333,11 +548,38 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+failover_timeout = 3000  # 3 second timeout
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Multi-Model with Model-Based Routing
 
 Route different model families to different providers:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
@@ -368,6 +610,43 @@ providers:
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+claude-haiku = "anthropic"
+glm-4 = "zai"
+glm-3 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 With this configuration:
 - `claude-opus-4` → anthropic
@@ -379,6 +658,8 @@ With this configuration:
 
 Weight and priority are specified in the provider's key configuration:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "example"
@@ -389,6 +670,21 @@ providers:
         priority: 2    # For failover (higher = tried first)
         rpm_limit: 60  # Rate limit tracking
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "example"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${API_KEY}"
+weight = 3      # For weighted-round-robin (higher = more traffic)
+priority = 2    # For failover (higher = tried first)
+rpm_limit = 60  # Rate limit tracking
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **Note:** Weight and priority are read from the **first key** in the provider's key list.
 
