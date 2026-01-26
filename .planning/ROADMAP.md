@@ -345,7 +345,7 @@ Plans:
   4. Invalid configuration causes startup failure with clear error message
   5. Changing config file triggers automatic reload without restarting proxy
   6. Config reload happens without dropping in-flight requests
-**Plans**: 6 plans in 4 waves
+**Plans**: 13 plans in 4 waves
 
 Plans:
 - [x] 07-01-PLAN.md - Install dependencies (fsnotify, go-toml/v2) and add TOML struct tags
@@ -354,6 +354,13 @@ Plans:
 - [x] 07-04-PLAN.md - DI integration for hot-reload with atomic config swap
 - [x] 07-05-PLAN.md - Gap closure: English docs with TOML support and hot-reload documentation
 - [x] 07-06-PLAN.md - Gap closure: Translate TOML and hot-reload docs to all 5 languages
+- [x] 07-07-PLAN.md - Gap closure: Fix Copilot PR review issues (rune conversion, goroutine leak)
+- [x] 07-08-PLAN.md - Gap closure: Add TOML tabs to EN docs (caching, getting-started, health, providers, routing)
+- [x] 07-09-PLAN.md - Gap closure: Add TOML tabs to DE docs
+- [x] 07-10-PLAN.md - Gap closure: Add TOML tabs to ES docs
+- [x] 07-11-PLAN.md - Gap closure: Add TOML tabs to JA docs
+- [x] 07-12-PLAN.md - Gap closure: Add TOML tabs to KO docs
+- [x] 07-13-PLAN.md - Gap closure: Add TOML tabs to ZH-CN docs
 
 ### Phase 8: Observability
 **Goal**: Add structured JSON logging with request IDs, latency tracking per provider, and Prometheus metrics endpoint
@@ -450,7 +457,7 @@ Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 1.3 -> 2 -> 2.1 -> 2.2 -> 2.
 | 4.3 Health Config Docs (INSERTED) | 2/2 | Complete | 2026-01-23 |
 | 5. Additional Providers | 2/2 | Complete | 2026-01-23 |
 | 6. Cloud Providers | 5/5 | Complete | 2026-01-24 |
-| 7. Configuration Management | 6/6 | Complete | 2026-01-26 |
+| 7. Configuration Management | 13/13 | Complete | 2026-01-26 |
 | 8. Observability | 0/TBD | Not started | - |
 | 9. gRPC Management API | 0/TBD | Not started | - |
 | 10. TUI Dashboard | 0/TBD | Not started | - |
