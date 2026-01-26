@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -569,7 +570,7 @@ func TestValidationError_MultipleErrors(t *testing.T) {
 	}
 
 	for i := 1; i <= 3; i++ {
-		if !strings.Contains(result, "error "+string(rune('0'+i))) {
+		if !strings.Contains(result, "error "+strconv.Itoa(i)) {
 			t.Errorf("Expected 'error %d' in message, got: %s", i, result)
 		}
 	}
