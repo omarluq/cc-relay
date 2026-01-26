@@ -21,6 +21,8 @@ CC-Relay は、プロバイダー間でリクエストを分配するための�
 
 `config.yaml` でルーティングを設定します：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   # 戦略: round_robin, weighted_round_robin, shuffle, failover（デフォルト）, model_based
@@ -34,12 +36,39 @@ routing:
 
   # モデルベースルーティング設定（strategy: model_based の場合のみ使用）
   model_mapping:
-    claude-opus: anthropic
-    claude-sonnet: anthropic
-    glm-4: zai
-    qwen: ollama
+    claude-opus: anthropic    # claude-opus-* models → anthropic provider
+    claude-sonnet: anthropic  # claude-sonnet-* models → anthropic provider
+    glm-4: zai                # glm-4* models → zai provider
+    qwen: ollama              # qwen* models → ollama provider
+
+  # Default provider when no model mapping matches
   default_provider: anthropic
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+
+# Default provider when no model mapping matches
+default_provider = "anthropic"
+
+# Model-based routing configuration (only used when strategy: model_based)
+[routing.model_mapping]
+claude-opus = "anthropic"    # claude-opus-* models → anthropic provider
+claude-sonnet = "anthropic"  # claude-sonnet-* models → anthropic provider
+glm-4 = "zai"                # glm-4* models → zai provider
+qwen = "ollama"              # qwen* models → ollama provider
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **デフォルト:** `strategy` が指定されていない場合、cc-relay は最も安全なオプションとして `failover` を使用します。
 
@@ -49,10 +78,20 @@ routing:
 
 アトミックカウンターを使用した順次分配。どのプロバイダーも2回目のリクエストを受ける前に、各プロバイダーが1つのリクエストを受け取ります。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **動作の仕組み:**
 
@@ -67,6 +106,8 @@ routing:
 
 プロバイダーの重みに基づいてリクエストを比例配分します。均等な分配のために Nginx smooth weighted round-robin アルゴリズムを使用します。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -84,6 +125,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         weight: 1  # 1倍のリクエストを受け取る
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3  # Receives 3x more requests
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+weight = 1  # Receives 1x requests
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **動作の仕組み:**
 
@@ -99,10 +164,20 @@ providers:
 
 Fisher-Yates「カード配り」パターンを使用したフェアランダム分配。誰かが2枚目のカードを受け取る前に、全員が1枚ずつ受け取ります。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: shuffle
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "shuffle"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **動作の仕組み:**
 
@@ -117,6 +192,8 @@ routing:
 
 優先度順にプロバイダーを試行します。失敗した場合、最も速い成功レスポンスを得るために残りのプロバイダーへ並列リクエストを実行します。これが**デフォルト戦略**です。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -134,6 +211,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1  # フォールバック
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first (higher = higher priority)
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **動作の仕組み:**
 
@@ -150,15 +251,19 @@ providers:
 
 リクエスト内のモデル名に基づいてプロバイダーにリクエストをルーティングします。特異性のために最長プレフィックスマッチングを使用します。
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
     glm-4: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -166,14 +271,51 @@ providers:
     type: "anthropic"
     keys:
       - key: "${ANTHROPIC_API_KEY}"
+
   - name: "zai"
     type: "zai"
     keys:
       - key: "${ZAI_API_KEY}"
+
   - name: "ollama"
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+glm-4 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **動作の仕組み:**
 
@@ -185,14 +327,13 @@ providers:
 
 **プレフィックスマッチングの例:**
 
-| リクエストされたモデル | マッピングエントリ | 選択されたエントリ | プロバイダー |
-|----------------------|-------------------|------------------|------------|
-| `claude-opus-4` | `claude-opus`, `claude` | `claude-opus` | anthropic |
-| `claude-sonnet-3.5` | `claude-sonnet`, `claude` | `claude-sonnet` | anthropic |
-| `glm-4-plus` | `glm-4`, `glm` | `glm-4` | zai |
-| `qwen-72b` | `qwen`, `claude` | `qwen` | ollama |
-| `llama-3.2` | `llama`, `claude` | `llama` | ollama |
-| `gpt-4` | `claude`, `llama` | (マッチなし) | default_provider |
+| リクエストモデル | マッピング | 結果 |
+|---------------|---------|--------|
+| `claude-opus-4` | `claude-opus: anthropic` | anthropic |
+| `claude-sonnet-4-20250514` | `claude-sonnet: anthropic` | anthropic |
+| `glm-4.7` | `glm-4: zai` | zai |
+| `qwen3:8b` | `qwen: ollama` | ollama |
+| `unknown-model` | (マッチなし) | default_provider |
 
 **最適な用途:** 異なるモデルを異なるプロバイダーにルーティングする必要があるマルチモデルデプロイメント。
 
@@ -245,6 +386,8 @@ failover 戦略は特定のエラー条件でリトライをトリガーしま�
 
 優先度付きプロバイダーでデフォルト戦略を使用：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -262,11 +405,37 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 重み付きロードバランシング
 
 プロバイダーの容量に基づいて負荷を分散：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -284,11 +453,37 @@ providers:
       - key: "${SECONDARY_KEY}"
         weight: 1  # トラフィックの 25%
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "primary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${PRIMARY_KEY}"
+weight = 3  # 75% of traffic
+
+[[providers]]
+name = "secondary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${SECONDARY_KEY}"
+weight = 1  # 25% of traffic
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### デバッグヘッダー付き開発環境
 
 トラブルシューティング用にデバッグヘッダーを有効化：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
@@ -305,11 +500,36 @@ providers:
     keys:
       - key: "${ZAI_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+debug = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 高速フェイルオーバーによる高可用性
 
 フェイルオーバーのレイテンシーを最小化：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -328,20 +548,51 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+failover_timeout = 3000  # 3 second timeout
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### モデルベースルーティングを使用したマルチモデル
 
 異なるモデルを専用プロバイダーにルーティング：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
+    claude-haiku: anthropic
     glm-4: zai
+    glm-3: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -359,17 +610,56 @@ providers:
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+claude-haiku = "anthropic"
+glm-4 = "zai"
+glm-3 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 この設定により：
-- Claudeモデル → Anthropic
-- GLMモデル → Z.AI
-- Qwen/Llamaモデル → Ollama（ローカル）
-- その他のモデル → Anthropic（デフォルト）
+- `claude-opus-4` → anthropic
+- `glm-4.7` → zai
+- `qwen3:8b` → ollama
+- `unknown-model` → anthropic（デフォルト）
 
 ## プロバイダーの重みと優先度
 
 重みと優先度はプロバイダーのキー設定で指定します：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "example"
@@ -380,6 +670,21 @@ providers:
         priority: 2    # failover 用（高い = 最初に試行）
         rpm_limit: 60  # レート制限トラッキング
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "example"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${API_KEY}"
+weight = 3      # For weighted-round-robin (higher = more traffic)
+priority = 2    # For failover (higher = tried first)
+rpm_limit = 60  # Rate limit tracking
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **注:** 重みと優先度はプロバイダーのキーリストの**最初のキー**から読み取られます。
 

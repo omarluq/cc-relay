@@ -54,6 +54,8 @@ stateDiagram-v2
 
 `config.yaml` でヘルストラッキングを設定します：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 health:
   # ヘルスチェック設定
@@ -74,6 +76,29 @@ health:
     # 半開状態で許可されるプローブ数（デフォルト: 3）
     half_open_probes: 3
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health]
+
+[health.health_check]
+# Enable periodic health checks (default: true)
+enabled = true
+# Check interval in milliseconds (default: 10000 = 10s)
+interval_ms = 10000
+
+[health.circuit_breaker]
+# Consecutive failures before opening circuit (default: 5)
+failure_threshold = 5
+
+# Time circuit stays open before half-open, in milliseconds (default: 30000 = 30s)
+open_duration_ms = 30000
+
+# Probes allowed in half-open state (default: 3)
+half_open_probes = 3
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 設定リファレンス
 
@@ -165,11 +190,22 @@ OPEN サーキットを持つプロバイダーは自動的にルーティング
 
 デバッグヘッダーを有効にするには：
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
   debug: true  # 診断ヘッダーを有効化
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+debug = true  # Enable diagnostic headers
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **セキュリティ警告:** デバッグヘッダーは内部のルーティング決定を公開します。開発環境または信頼できる環境でのみ使用してください。信頼できないクライアントがいる本番環境では決して有効にしないでください。
 
@@ -182,18 +218,40 @@ routing:
 **考えられる原因:**
 
 1. **`failure_threshold` が低すぎる:** 一時的な障害をより多く許容するために増加
-   ```yaml
-   circuit_breaker:
-     failure_threshold: 10  # より寛容
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  failure_threshold: 10  # より寛容
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+failure_threshold = 10  # More tolerant
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **Rate limit がオープンをトリガー:** rate limit に達している場合は、サーキットブレーカーを調整するのではなく、プールに API キーを追加
 
 3. **遅いレスポンスがタイムアウトを引き起こす:** サーバータイムアウトを増加
-   ```yaml
-   server:
-     timeout_ms: 300000  # 5分
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+server:
+  timeout_ms: 300000  # 5分
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+timeout_ms = 300000  # 5 minutes
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 回復に時間がかかりすぎる
 
@@ -202,17 +260,40 @@ routing:
 **解決策:**
 
 1. **オープン期間を短縮:**
-   ```yaml
-   circuit_breaker:
-     open_duration_ms: 15000  # 30秒ではなく15秒
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  open_duration_ms: 15000  # 30秒ではなく15秒
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+open_duration_ms = 15000  # 15 seconds instead of 30
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **より速いヘルスチェックを有効化:**
-   ```yaml
-   health_check:
-     enabled: true
-     interval_ms: 5000  # 5秒ごとにチェック
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+health_check:
+  enabled: true
+  interval_ms: 5000  # 5秒ごとにチェック
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health_check]
+enabled = true
+interval_ms = 5000  # Check every 5 seconds
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 有効なエラーでサーキットが開く
 
@@ -223,10 +304,21 @@ routing:
 1. 実際のレスポンスが 429（rate limited）かどうかを確認
 2. エラーが実際には誤って報告されている 5xx ではないことを確認
 3. 実際のレスポンスコードを確認するためにデバッグログを有効化：
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### すべてのプロバイダーが不健全
 

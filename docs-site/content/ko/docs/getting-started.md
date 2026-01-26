@@ -169,6 +169,8 @@ Flags:
 
 다음은 최소한으로 작동하는 설정입니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -180,6 +182,22 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 다음 단계
 
@@ -193,10 +211,20 @@ providers:
 
 8787 포트가 이미 사용 중이라면 설정에서 listen 주소를 변경하세요:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8788"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8788"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 프로바이더가 응답하지 않음
 

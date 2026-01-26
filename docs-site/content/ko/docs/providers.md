@@ -25,6 +25,8 @@ Anthropic 프로바이더는 Anthropic의 API에 직접 연결합니다. Claude 
 
 ### 설정
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -43,6 +45,29 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60        # Requests per minute
+tpm_limit = 100000    # Tokens per minute
+priority = 2          # Higher = tried first in failover
+
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### API 키 설정
 
@@ -55,11 +80,21 @@ providers:
 
 Anthropic 프로바이더는 Claude Code 구독 사용자의 투명 인증을 지원합니다. 활성화하면 cc-relay가 구독 토큰을 변경 없이 전달합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ```bash
 # 구독 토큰이 변경 없이 전달됩니다
@@ -75,6 +110,8 @@ Z.AI(Zhipu AI)는 Anthropic 호환 API를 통해 GLM 모델을 제공합니다. 
 
 ### 설정
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -98,6 +135,34 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Lower priority than Anthropic for failover
+
+# Map Claude model names to Z.AI models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### API 키 설정
 
@@ -112,6 +177,8 @@ providers:
 
 Model Mapping은 Anthropic 모델 이름을 Z.AI 동등 모델로 변환합니다. Claude Code가 `claude-sonnet-4-5-20250514`를 요청하면 cc-relay가 자동으로 `GLM-4.7`로 라우팅합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 model_mapping:
   # Claude Sonnet -> GLM-4.7 (플래그십 모델)
@@ -122,6 +189,20 @@ model_mapping:
   "claude-haiku-3-5-20241022": "GLM-4.5-Air"
   "claude-haiku-3-5": "GLM-4.5-Air"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Sonnet -> GLM-4.7 (flagship model)
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+
+# Claude Haiku -> GLM-4.5-Air (fast, economical)
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 비용 비교
 
@@ -138,6 +219,8 @@ Ollama는 Anthropic 호환 API(Ollama v0.14 이후 사용 가능)를 통해 로�
 
 ### 설정
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -161,6 +244,34 @@ providers:
       - "qwen3:8b"
       - "codestral:latest"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+base_url = "http://localhost:11434"  # Optional, uses default
+
+[[providers.keys]]
+key = "ollama"  # Ollama accepts but ignores API keys
+priority = 0    # Lowest priority for failover
+
+# Map Claude model names to local Ollama models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "qwen3:32b"
+"claude-sonnet-4-5" = "qwen3:32b"
+"claude-haiku-3-5-20241022" = "qwen3:8b"
+"claude-haiku-3-5" = "qwen3:8b"
+
+models = [
+  "qwen3:32b",
+  "qwen3:8b",
+  "codestral:latest"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Ollama 설정
 
@@ -203,6 +314,8 @@ Ollama의 Anthropic 호환성은 부분적입니다. 일부 기능은 지원되�
 
 Docker에서 cc-relay를 실행하고 호스트에서 Ollama를 실행할 때:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -210,6 +323,17 @@ providers:
     # localhost 대신 Docker의 호스트 게이트웨이 사용
     base_url: "http://host.docker.internal:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+# Use Docker's host gateway instead of localhost
+base_url = "http://host.docker.internal:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 또는 `--network host`로 cc-relay 실행:
 
@@ -221,60 +345,228 @@ docker run --network host cc-relay
 
 AWS Bedrock은 엔터프라이즈 보안과 SigV4 인증을 통해 Amazon Web Services를 통한 Claude 접근을 제공합니다.
 
+### 설정
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "bedrock"
     type: "bedrock"
     enabled: true
+
+    # AWS region (required)
     aws_region: "us-east-1"
+
+    # Explicit AWS credentials (optional)
+    # If not set, uses AWS SDK default credential chain:
+    # 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    # 2. Shared credentials file (~/.aws/credentials)
+    # 3. IAM role (EC2, ECS, Lambda)
+    aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+    aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+
+    # Map Claude model names to Bedrock model IDs
     model_mapping:
       "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
-    keys:
-      - key: "bedrock-internal"
-```
+      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+      "claude-haiku-3-5-20241022": "anthropic.claude-haiku-3-5-20241022-v1:0"
 
-Bedrock은 AWS SDK 표준 자격 증명 체인(환경 변수, IAM 역할 등)을 사용합니다.
+    keys:
+      - key: "bedrock-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "bedrock"
+type = "bedrock"
+enabled = true
+
+# AWS region (required)
+aws_region = "us-east-1"
+
+# Explicit AWS credentials (optional)
+# If not set, uses AWS SDK default credential chain:
+# 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+# 2. Shared credentials file (~/.aws/credentials)
+# 3. IAM role (EC2, ECS, Lambda)
+aws_access_key_id = "${AWS_ACCESS_KEY_ID}"
+aws_secret_access_key = "${AWS_SECRET_ACCESS_KEY}"
+
+# Map Claude model names to Bedrock model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-sonnet-4-5" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-haiku-3-5-20241022" = "anthropic.claude-haiku-3-5-20241022-v1:0"
+
+[[providers.keys]]
+key = "bedrock-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### AWS 설정
+
+1. **Enable Bedrock Access**: In AWS Console, navigate to Bedrock > Model access and enable Claude models
+2. **Configure Credentials**: Use one of these methods:
+   - **Environment Variables**: `export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`
+   - **AWS CLI**: `aws configure`
+   - **IAM Role**: Attach Bedrock access policy to EC2/ECS/Lambda role
 
 ## Azure AI Foundry 프로바이더
 
 Azure AI Foundry는 엔터프라이즈 Azure 통합을 통해 Microsoft Azure를 통한 Claude 접근을 제공합니다.
 
+### 설정
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "azure"
     type: "azure"
     enabled: true
+
+    # Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
     azure_resource_name: "my-azure-resource"
+
+    # Azure API version (default: 2024-06-01)
     azure_api_version: "2024-06-01"
+
+    # Azure uses x-api-key authentication (Anthropic-compatible)
     keys:
       - key: "${AZURE_API_KEY}"
+
+    # Map Claude model names to Azure deployment names
     model_mapping:
       "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+      "claude-sonnet-4-5": "claude-sonnet-4-5"
+      "claude-haiku-3-5": "claude-haiku-3-5"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "azure"
+type = "azure"
+enabled = true
+
+# Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
+azure_resource_name = "my-azure-resource"
+
+# Azure API version (default: 2024-06-01)
+azure_api_version = "2024-06-01"
+
+# Azure uses x-api-key authentication (Anthropic-compatible)
+[[providers.keys]]
+key = "${AZURE_API_KEY}"
+
+# Map Claude model names to Azure deployment names
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5"
+"claude-sonnet-4-5" = "claude-sonnet-4-5"
+"claude-haiku-3-5" = "claude-haiku-3-5"
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### Azure 설정
+
+1. **Create Azure AI Resource**: In Azure Portal, create an Azure AI Foundry resource
+2. **Deploy Claude Model**: Deploy a Claude model in your AI Foundry workspace
+3. **Get API Key**: Copy the API key from Keys and Endpoint section
+4. **Note Resource Name**: Your URL is `https://{resource_name}.services.ai.azure.com`
+
+### Deployment Names
+
+Azure uses deployment names as model identifiers. Create deployments in Azure AI Foundry, then map them:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+model_mapping:
+  "claude-sonnet-4-5": "my-sonnet-deployment"  # Your deployment name
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+"claude-sonnet-4-5" = "my-sonnet-deployment"  # Your deployment name
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Google Vertex AI 프로바이더
 
 Vertex AI는 원활한 GCP 통합을 통해 Google Cloud를 통한 Claude 접근을 제공합니다.
 
+### 설정
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "vertex"
     type: "vertex"
     enabled: true
+
+    # Google Cloud project ID (required)
     gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
+
+    # Google Cloud region (required)
     gcp_region: "us-east5"
+
+    # Map Claude model names to Vertex AI model IDs
     model_mapping:
       "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
-    keys:
-      - key: "vertex-internal"
-```
+      "claude-sonnet-4-5": "claude-sonnet-4-5@20250514"
+      "claude-haiku-3-5-20241022": "claude-haiku-3-5@20241022"
 
-Vertex는 Google Application Default Credentials 또는 gcloud CLI를 사용합니다.
+    keys:
+      - key: "vertex-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "vertex"
+type = "vertex"
+enabled = true
+
+# Google Cloud project ID (required)
+gcp_project_id = "${GOOGLE_CLOUD_PROJECT}"
+
+# Google Cloud region (required)
+gcp_region = "us-east5"
+
+# Map Claude model names to Vertex AI model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5@20250514"
+"claude-sonnet-4-5" = "claude-sonnet-4-5@20250514"
+"claude-haiku-3-5-20241022" = "claude-haiku-3-5@20241022"
+
+[[providers.keys]]
+key = "vertex-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### GCP 설정
+
+1. **Enable Vertex AI API**: In GCP Console, enable the Vertex AI API
+2. **Request Claude Access**: Request access to Claude models through Vertex AI Model Garden
+3. **Configure Authentication**: Use one of these methods:
+   - **Application Default Credentials**: `gcloud auth application-default login`
+   - **Service Account**: Set `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+   - **GCE/GKE**: Uses attached service account automatically
 
 ## Model Mapping
 
 `model_mapping` 필드는 들어오는 모델 이름을 프로바이더별 모델로 변환합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -284,6 +576,20 @@ providers:
       "claude-sonnet-4-5-20250514": "GLM-4.7"
       "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+
+[providers.model_mapping]
+# Format: "incoming-model" = "provider-model"
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Claude Code가 보낼 때:
 ```json
@@ -305,6 +611,8 @@ CC-Relay는 Z.AI로 라우팅:
 
 장애 조치, 비용 최적화 또는 부하 분산을 위해 여러 프로바이더를 설정합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   # 기본: Anthropic (최고 품질)
@@ -334,6 +642,44 @@ providers:
 routing:
   strategy: failover  # 우선순위 순서로 프로바이더 시도
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Primary: Anthropic (highest quality)
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first
+
+# Secondary: Z.AI (cost-effective)
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+
+# Tertiary: Ollama (local, free)
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+
+[[providers.keys]]
+key = "ollama"
+priority = 0  # Last resort
+
+[routing]
+strategy = "failover"  # Try providers in priority order
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 이 설정으로:
 1. 요청이 먼저 Anthropic으로 (우선순위 2)
@@ -397,6 +743,9 @@ curl -X POST https://api.z.ai/api/anthropic/v1/messages \
 - 모델 미설치 (Ollama)
 
 **해결책:**
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # 모델이 목록에 있는지 확인
 models:
@@ -406,6 +755,18 @@ models:
 model_mapping:
   "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Ensure model is listed
+models = ["GLM-4.7"]
+
+# Ensure mapping exists
+[model_mapping]
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Ollama의 경우 모델이 설치되어 있는지 확인:
 ```bash

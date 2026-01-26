@@ -25,6 +25,8 @@ Anthropicプロバイダーは直接AnthropicのAPIに接続します。これ�
 
 ### 設定
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -43,6 +45,29 @@ providers:
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60        # Requests per minute
+tpm_limit = 100000    # Tokens per minute
+priority = 2          # Higher = tried first in failover
+
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### APIキーの設定
 
@@ -55,11 +80,21 @@ providers:
 
 Anthropicプロバイダーは、Claude Codeサブスクリプションユーザーの透過的認証をサポートしています。有効にすると、cc-relayはサブスクリプショントークンをそのまま転送します:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   auth:
     allow_subscription: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server.auth]
+allow_subscription = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ```bash
 # サブスクリプショントークンはそのまま転送されます
@@ -75,6 +110,8 @@ Z.AI（Zhipu AI）はAnthropic互換APIを通じてGLMモデルを提供しま�
 
 ### 設定
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -98,6 +135,34 @@ providers:
       - "GLM-4.5-Air"
       - "GLM-4-Plus"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Lower priority than Anthropic for failover
+
+# Map Claude model names to Z.AI models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### APIキーの設定
 
@@ -112,6 +177,8 @@ providers:
 
 Model MappingはAnthropicモデル名をZ.AIの同等品に変換します。Claude Codeが`claude-sonnet-4-5-20250514`をリクエストすると、cc-relayは自動的に`GLM-4.7`にルーティングします:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 model_mapping:
   # Claude Sonnet -> GLM-4.7（フラッグシップモデル）
@@ -122,6 +189,20 @@ model_mapping:
   "claude-haiku-3-5-20241022": "GLM-4.5-Air"
   "claude-haiku-3-5": "GLM-4.5-Air"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Sonnet -> GLM-4.7 (flagship model)
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+
+# Claude Haiku -> GLM-4.5-Air (fast, economical)
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-haiku-3-5" = "GLM-4.5-Air"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### コスト比較
 
@@ -138,6 +219,8 @@ OllamaはAnthropic互換API（Ollama v0.14以降で利用可能）を通じて�
 
 ### 設定
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -161,6 +244,34 @@ providers:
       - "qwen3:8b"
       - "codestral:latest"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+base_url = "http://localhost:11434"  # Optional, uses default
+
+[[providers.keys]]
+key = "ollama"  # Ollama accepts but ignores API keys
+priority = 0    # Lowest priority for failover
+
+# Map Claude model names to local Ollama models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "qwen3:32b"
+"claude-sonnet-4-5" = "qwen3:32b"
+"claude-haiku-3-5-20241022" = "qwen3:8b"
+"claude-haiku-3-5" = "qwen3:8b"
+
+models = [
+  "qwen3:32b",
+  "qwen3:8b",
+  "codestral:latest"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Ollamaのセットアップ
 
@@ -203,6 +314,8 @@ OllamaのAnthropic互換性は部分的です。一部の機能はサポート�
 
 cc-relayをDockerで実行し、Ollamaをホストで実行する場合:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "ollama"
@@ -210,6 +323,17 @@ providers:
     # localhostの代わりにDockerのホストゲートウェイを使用
     base_url: "http://host.docker.internal:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "ollama"
+type = "ollama"
+# Use Docker's host gateway instead of localhost
+base_url = "http://host.docker.internal:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 または、cc-relayを`--network host`で実行:
 
@@ -221,60 +345,272 @@ docker run --network host cc-relay
 
 AWS Bedrockは、エンタープライズセキュリティとSigV4認証によるAmazon Web Servicesを通じてClaudeへのアクセスを提供します。
 
+### 設定
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "bedrock"
     type: "bedrock"
     enabled: true
+
+    # AWS region (required)
     aws_region: "us-east-1"
+
+    # Explicit AWS credentials (optional)
+    # If not set, uses AWS SDK default credential chain:
+    # 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    # 2. Shared credentials file (~/.aws/credentials)
+    # 3. IAM role (EC2, ECS, Lambda)
+    aws_access_key_id: "${AWS_ACCESS_KEY_ID}"
+    aws_secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+
+    # Map Claude model names to Bedrock model IDs
     model_mapping:
       "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
-    keys:
-      - key: "bedrock-internal"
-```
+      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+      "claude-haiku-3-5-20241022": "anthropic.claude-haiku-3-5-20241022-v1:0"
 
-BedrockはAWS SDK標準の認証情報チェーン（環境変数、IAMロールなど）を使用します。
+    keys:
+      - key: "bedrock-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "bedrock"
+type = "bedrock"
+enabled = true
+
+# AWS region (required)
+aws_region = "us-east-1"
+
+# Explicit AWS credentials (optional)
+# If not set, uses AWS SDK default credential chain:
+# 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+# 2. Shared credentials file (~/.aws/credentials)
+# 3. IAM role (EC2, ECS, Lambda)
+aws_access_key_id = "${AWS_ACCESS_KEY_ID}"
+aws_secret_access_key = "${AWS_SECRET_ACCESS_KEY}"
+
+# Map Claude model names to Bedrock model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-sonnet-4-5" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
+"claude-haiku-3-5-20241022" = "anthropic.claude-haiku-3-5-20241022-v1:0"
+
+[[providers.keys]]
+key = "bedrock-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### AWSセットアップ
+
+1. **Bedrockアクセスを有効化**: AWS ConsoleでBedrock > Model accessに移動してClaudeモデルを有効化
+2. **認証情報を設定**: 以下の方法のいずれかを使用:
+   - **環境変数**: `export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`
+   - **AWS CLI**: `aws configure`
+   - **IAMロール**: EC2/ECS/LambdaロールにBedrockアクセスポリシーをアタッチ
+
+### Bedrockモデル ID
+
+**注:** AWS Bedrockが新しいClaudeバージョンを追加するにつれてモデルIDは頻繁に変更されます。デプロイ前に[AWS Bedrockモデルアクセスドキュメント](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)で現在のリストを確認してください。
+
+Bedrockは特定のモデルID形式を使用します: `anthropic.{model}-v{version}:{minor}`
+
+| Claudeモデル | BedrockモデルID |
+|--------------|------------------|
+| claude-sonnet-4-5-20250514 | `anthropic.claude-sonnet-4-5-20250514-v1:0` |
+| claude-opus-4-5-20250514 | `anthropic.claude-opus-4-5-20250514-v1:0` |
+| claude-haiku-3-5-20241022 | `anthropic.claude-haiku-3-5-20241022-v1:0` |
+
+### イベントストリーム変換
+
+BedrockはAWS Event Stream形式でレスポンスを返します。CC-RelayはこれをClaude Code互換性のためにSSE形式に自動変換します。追加の設定は不要です。
 
 ## Azure AI Foundryプロバイダー
 
 Azure AI Foundryは、エンタープライズAzure統合によるMicrosoft Azureを通じてClaudeへのアクセスを提供します。
 
+### 設定
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "azure"
     type: "azure"
     enabled: true
+
+    # Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
     azure_resource_name: "my-azure-resource"
+
+    # Azure API version (default: 2024-06-01)
     azure_api_version: "2024-06-01"
+
+    # Azure uses x-api-key authentication (Anthropic-compatible)
     keys:
       - key: "${AZURE_API_KEY}"
+
+    # Map Claude model names to Azure deployment names
     model_mapping:
       "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+      "claude-sonnet-4-5": "claude-sonnet-4-5"
+      "claude-haiku-3-5": "claude-haiku-3-5"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "azure"
+type = "azure"
+enabled = true
+
+# Your Azure resource name (appears in URL: {name}.services.ai.azure.com)
+azure_resource_name = "my-azure-resource"
+
+# Azure API version (default: 2024-06-01)
+azure_api_version = "2024-06-01"
+
+# Azure uses x-api-key authentication (Anthropic-compatible)
+[[providers.keys]]
+key = "${AZURE_API_KEY}"
+
+# Map Claude model names to Azure deployment names
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5"
+"claude-sonnet-4-5" = "claude-sonnet-4-5"
+"claude-haiku-3-5" = "claude-haiku-3-5"
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### Azureセットアップ
+
+1. **Azure AIリソースを作成**: Azure PortalでAzure AI Foundryリソースを作成
+2. **Claudeモデルをデプロイ**: AI Foundryワークスペースでクモデルをデプロイ
+3. **APIキーを取得**: Keys and EndpointセクションからAPIキーをコピー
+4. **リソース名を確認**: URLは `https://{resource_name}.services.ai.azure.com`
+
+### デプロイ名
+
+AzureはモデルIDとしてデプロイ名を使用します。Azure AI Foundryでデプロイメントを作成してからマッピングしてください:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+model_mapping:
+  "claude-sonnet-4-5": "my-sonnet-deployment"  # Your deployment name
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+"claude-sonnet-4-5" = "my-sonnet-deployment"  # Your deployment name
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Google Vertex AIプロバイダー
 
 Vertex AIは、シームレスなGCP統合によるGoogle Cloudを通じてClaudeへのアクセスを提供します。
 
+### 設定
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "vertex"
     type: "vertex"
     enabled: true
+
+    # Google Cloud project ID (required)
     gcp_project_id: "${GOOGLE_CLOUD_PROJECT}"
+
+    # Google Cloud region (required)
     gcp_region: "us-east5"
+
+    # Map Claude model names to Vertex AI model IDs
     model_mapping:
       "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
-    keys:
-      - key: "vertex-internal"
-```
+      "claude-sonnet-4-5": "claude-sonnet-4-5@20250514"
+      "claude-haiku-3-5-20241022": "claude-haiku-3-5@20241022"
 
-VertexはGoogle Application Default Credentialsまたはgcloud CLIを使用します。
+    keys:
+      - key: "vertex-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "vertex"
+type = "vertex"
+enabled = true
+
+# Google Cloud project ID (required)
+gcp_project_id = "${GOOGLE_CLOUD_PROJECT}"
+
+# Google Cloud region (required)
+gcp_region = "us-east5"
+
+# Map Claude model names to Vertex AI model IDs
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5@20250514"
+"claude-sonnet-4-5" = "claude-sonnet-4-5@20250514"
+"claude-haiku-3-5-20241022" = "claude-haiku-3-5@20241022"
+
+[[providers.keys]]
+key = "vertex-internal"  # Internal key for cc-relay auth
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### GCPセットアップ
+
+1. **Vertex AI APIを有効化**: GCP ConsoleでVertex AI APIを有効化
+2. **Claudeアクセスをリクエスト**: Vertex AI Model GardenからClaudeモデルへのアクセスをリクエスト
+3. **認証を設定**: 以下の方法のいずれかを使用:
+   - **Application Default Credentials**: `gcloud auth application-default login`
+   - **サービスアカウント**: `GOOGLE_APPLICATION_CREDENTIALS`環境変数を設定
+   - **GCE/GKE**: アタッチされたサービスアカウントを自動的に使用
+
+### Vertex AIモデルID
+
+Vertex AIは `{model}@{version}` 形式を使用します:
+
+| Claudeモデル | Vertex AIモデルID |
+|--------------|-------------------|
+| claude-sonnet-4-5-20250514 | `claude-sonnet-4-5@20250514` |
+| claude-opus-4-5-20250514 | `claude-opus-4-5@20250514` |
+| claude-haiku-3-5-20241022 | `claude-haiku-3-5@20241022` |
+
+### リージョン
+
+Vertex AIでClaudeが利用可能なリージョン（完全な最新リストは[Google Cloudドキュメント](https://cloud.google.com/vertex-ai/docs/general/locations)を確認してください）:
+- `us-east5`（デフォルト）
+- `us-central1`
+- `europe-west1`
+
+## クラウドプロバイダー比較
+
+| 機能 | Bedrock | Azure | Vertex AI |
+|---------|---------|-------|-----------|
+| 認証 | SigV4（AWS） | APIキー | OAuth2（GCP） |
+| ストリーミング形式 | Event Stream | SSE | SSE |
+| ボディ変換 | あり | なし | あり |
+| URLにモデル | あり | なし | あり |
+| エンタープライズSSO | AWS IAM | Entra ID | GCP IAM |
+| リージョン | US, EU, APAC | グローバル | US, EU |
 
 ## Model Mapping
 
 `model_mapping`フィールドは、入力されるモデル名をプロバイダー固有のモデルに変換します:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "zai"
@@ -284,6 +620,20 @@ providers:
       "claude-sonnet-4-5-20250514": "GLM-4.7"
       "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "zai"
+type = "zai"
+
+[providers.model_mapping]
+# Format: "incoming-model" = "provider-model"
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Claude Codeが送信した場合:
 ```json
@@ -305,6 +655,8 @@ CC-RelayはZ.AIに以下でルーティング:
 
 フェイルオーバー、コスト最適化、または負荷分散のために複数のプロバイダーを設定:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   # プライマリ: Anthropic（最高品質）
@@ -334,6 +686,44 @@ providers:
 routing:
   strategy: failover  # 優先順位でプロバイダーを試行
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Primary: Anthropic (highest quality)
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first
+
+# Secondary: Z.AI (cost-effective)
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+
+# Tertiary: Ollama (local, free)
+[[providers]]
+name = "ollama"
+type = "ollama"
+enabled = true
+
+[[providers.keys]]
+key = "ollama"
+priority = 0  # Last resort
+
+[routing]
+strategy = "failover"  # Try providers in priority order
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 この設定では:
 1. リクエストは最初にAnthropicへ（優先度2）
@@ -397,6 +787,9 @@ curl -X POST https://api.z.ai/api/anthropic/v1/messages \
 - モデルがインストールされていない（Ollama）
 
 **解決策:**
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # モデルがリストされていることを確認
 models:
@@ -406,6 +799,18 @@ models:
 model_mapping:
   "claude-sonnet-4-5": "GLM-4.7"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Ensure model is listed
+models = ["GLM-4.7"]
+
+# Ensure mapping exists
+[model_mapping]
+"claude-sonnet-4-5" = "GLM-4.7"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 Ollamaの場合、モデルがインストールされているか確認:
 ```bash

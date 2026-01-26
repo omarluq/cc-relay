@@ -54,6 +54,8 @@ stateDiagram-v2
 
 `config.yaml`에서 헬스 트래킹을 설정합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 health:
   # 헬스 체크 설정
@@ -74,6 +76,29 @@ health:
     # 반열림 상태에서 허용되는 프로브 수 (기본값: 3)
     half_open_probes: 3
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health]
+
+[health.health_check]
+# Enable periodic health checks (default: true)
+enabled = true
+# Check interval in milliseconds (default: 10000 = 10s)
+interval_ms = 10000
+
+[health.circuit_breaker]
+# Consecutive failures before opening circuit (default: 5)
+failure_threshold = 5
+
+# Time circuit stays open before half-open, in milliseconds (default: 30000 = 30s)
+open_duration_ms = 30000
+
+# Probes allowed in half-open state (default: 3)
+half_open_probes = 3
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 설정 레퍼런스
 
@@ -165,11 +190,22 @@ OPEN 서킷이 있는 프로바이더는 라우팅 결정에서 자동으로 제
 
 디버그 헤더를 활성화하려면:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
   debug: true  # 진단 헤더 활성화
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+debug = true  # Enable diagnostic headers
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **보안 경고:** 디버그 헤더는 내부 라우팅 결정을 노출합니다. 개발 환경 또는 신뢰할 수 있는 환경에서만 사용하세요. 신뢰할 수 없는 클라이언트가 있는 프로덕션 환경에서는 절대 활성화하지 마세요.
 
@@ -182,18 +218,40 @@ routing:
 **가능한 원인:**
 
 1. **`failure_threshold`가 너무 낮음:** 더 많은 일시적 장애를 허용하도록 증가
-   ```yaml
-   circuit_breaker:
-     failure_threshold: 10  # 더 관대함
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  failure_threshold: 10  # 더 관대함
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+failure_threshold = 10  # More tolerant
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **속도 제한이 열림을 트리거:** 속도 제한에 도달한 경우 서킷 브레이커를 조정하는 대신 풀에 API 키를 더 추가
 
 3. **느린 응답이 타임아웃 발생:** 서버 타임아웃 증가
-   ```yaml
-   server:
-     timeout_ms: 300000  # 5분
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+server:
+  timeout_ms: 300000  # 5분
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+timeout_ms = 300000  # 5 minutes
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 복구가 너무 오래 걸림
 
@@ -202,17 +260,40 @@ routing:
 **해결책:**
 
 1. **열림 지속 시간 감소:**
-   ```yaml
-   circuit_breaker:
-     open_duration_ms: 15000  # 30초 대신 15초
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+circuit_breaker:
+  open_duration_ms: 15000  # 30초 대신 15초
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[circuit_breaker]
+open_duration_ms = 15000  # 15 seconds instead of 30
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **더 빠른 헬스 체크 활성화:**
-   ```yaml
-   health_check:
-     enabled: true
-     interval_ms: 5000  # 5초마다 체크
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+health_check:
+  enabled: true
+  interval_ms: 5000  # 5초마다 체크
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[health_check]
+enabled = true
+interval_ms = 5000  # Check every 5 seconds
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 유효한 오류에서 서킷이 열림
 
@@ -223,10 +304,21 @@ routing:
 1. 실제 응답이 429(속도 제한)인지 확인
 2. 오류가 실제로 잘못 보고된 5xx가 아닌지 확인
 3. 실제 응답 코드를 보기 위해 디버그 로깅 활성화:
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 모든 프로바이더가 비정상
 

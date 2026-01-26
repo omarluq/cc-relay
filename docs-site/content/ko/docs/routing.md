@@ -21,6 +21,8 @@ CC-Relay는 프로바이더 간에 요청을 분배하기 위한 여러 라우�
 
 `config.yaml`에서 라우팅을 설정합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   # 전략: round_robin, weighted_round_robin, shuffle, failover (기본값), model_based
@@ -34,12 +36,39 @@ routing:
 
   # 모델 기반 라우팅 설정 (strategy: model_based인 경우에만 사용)
   model_mapping:
-    claude-opus: anthropic
-    claude-sonnet: anthropic
-    glm-4: zai
-    qwen: ollama
+    claude-opus: anthropic    # claude-opus-* models → anthropic provider
+    claude-sonnet: anthropic  # claude-sonnet-* models → anthropic provider
+    glm-4: zai                # glm-4* models → zai provider
+    qwen: ollama              # qwen* models → ollama provider
+
+  # Default provider when no model mapping matches
   default_provider: anthropic
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default), model_based
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+
+# Default provider when no model mapping matches
+default_provider = "anthropic"
+
+# Model-based routing configuration (only used when strategy: model_based)
+[routing.model_mapping]
+claude-opus = "anthropic"    # claude-opus-* models → anthropic provider
+claude-sonnet = "anthropic"  # claude-sonnet-* models → anthropic provider
+glm-4 = "zai"                # glm-4* models → zai provider
+qwen = "ollama"              # qwen* models → ollama provider
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **기본값:** `strategy`가 지정되지 않으면 cc-relay는 가장 안전한 옵션인 `failover`를 사용합니다.
 
@@ -49,10 +78,20 @@ routing:
 
 원자적 카운터를 사용한 순차 분배. 어떤 프로바이더도 두 번째 요청을 받기 전에 각 프로바이더가 하나의 요청을 받습니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **작동 원리:**
 
@@ -67,6 +106,8 @@ routing:
 
 프로바이더 가중치에 따라 요청을 비례 분배합니다. 균등한 분배를 위해 Nginx smooth weighted round-robin 알고리즘을 사용합니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -84,6 +125,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         weight: 1  # 1배의 요청을 받음
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+weight = 3  # Receives 3x more requests
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+weight = 1  # Receives 1x requests
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **작동 원리:**
 
@@ -99,10 +164,20 @@ providers:
 
 Fisher-Yates "카드 배분" 패턴을 사용한 공정한 무작위 분배. 누군가 두 번째 카드를 받기 전에 모든 사람이 한 장씩 받습니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: shuffle
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "shuffle"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **작동 원리:**
 
@@ -117,6 +192,8 @@ routing:
 
 우선순위 순서로 프로바이더를 시도합니다. 실패 시 가장 빠른 성공 응답을 위해 나머지 프로바이더에 병렬 요청을 실행합니다. 이것이 **기본 전략**입니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -134,6 +211,30 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1  # 대체
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2  # Tried first (higher = higher priority)
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1  # Fallback
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **작동 원리:**
 
@@ -150,15 +251,19 @@ providers:
 
 요청의 모델 이름을 기반으로 프로바이더에 요청을 라우팅합니다. 특이성을 위해 최장 접두사 매칭을 사용합니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
     glm-4: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -166,14 +271,51 @@ providers:
     type: "anthropic"
     keys:
       - key: "${ANTHROPIC_API_KEY}"
+
   - name: "zai"
     type: "zai"
     keys:
       - key: "${ZAI_API_KEY}"
+
   - name: "ollama"
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+glm-4 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **작동 원리:**
 
@@ -245,6 +387,8 @@ failover 전략은 특정 오류 조건에서 재시도를 트리거합니다:
 
 우선순위가 지정된 프로바이더로 기본 전략 사용:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -262,11 +406,37 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 가중치 부하 분산
 
 프로바이더 용량에 따라 부하 분배:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: weighted_round_robin
@@ -284,11 +454,37 @@ providers:
       - key: "${SECONDARY_KEY}"
         weight: 1  # 트래픽의 25%
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "weighted_round_robin"
+
+[[providers]]
+name = "primary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${PRIMARY_KEY}"
+weight = 3  # 75% of traffic
+
+[[providers]]
+name = "secondary"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${SECONDARY_KEY}"
+weight = 1  # 25% of traffic
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 디버그 헤더를 포함한 개발 환경
 
 문제 해결을 위해 디버그 헤더 활성화:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: round_robin
@@ -305,11 +501,36 @@ providers:
     keys:
       - key: "${ZAI_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "round_robin"
+debug = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 빠른 장애 조치로 고가용성
 
 장애 조치 지연 시간 최소화:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: failover
@@ -328,20 +549,51 @@ providers:
       - key: "${ZAI_API_KEY}"
         priority: 1
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "failover"
+failover_timeout = 3000  # 3 second timeout
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+priority = 2
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+priority = 1
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 모델 기반 라우팅을 사용한 다중 모델
 
 다른 모델을 전용 프로바이더로 라우팅:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 routing:
   strategy: model_based
+
   model_mapping:
     claude-opus: anthropic
     claude-sonnet: anthropic
+    claude-haiku: anthropic
     glm-4: zai
+    glm-3: zai
     qwen: ollama
     llama: ollama
+
   default_provider: anthropic
 
 providers:
@@ -359,6 +611,43 @@ providers:
     type: "ollama"
     base_url: "http://localhost:11434"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[routing]
+strategy = "model_based"
+default_provider = "anthropic"
+
+[routing.model_mapping]
+claude-opus = "anthropic"
+claude-sonnet = "anthropic"
+claude-haiku = "anthropic"
+glm-4 = "zai"
+glm-3 = "zai"
+qwen = "ollama"
+llama = "ollama"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 이 설정으로:
 - Claude 모델 → Anthropic
@@ -370,6 +659,8 @@ providers:
 
 가중치와 우선순위는 프로바이더의 키 설정에서 지정합니다:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "example"
@@ -380,6 +671,21 @@ providers:
         priority: 2    # failover용 (높을수록 = 먼저 시도)
         rpm_limit: 60  # 속도 제한 추적
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "example"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${API_KEY}"
+weight = 3      # For weighted-round-robin (higher = more traffic)
+priority = 2    # For failover (higher = tried first)
+rpm_limit = 60  # Rate limit tracking
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **참고:** 가중치와 우선순위는 프로바이더 키 목록의 **첫 번째 키**에서 읽습니다.
 

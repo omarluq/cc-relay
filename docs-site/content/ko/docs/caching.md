@@ -88,6 +88,8 @@ sequenceDiagram
 
 Ristretto는 Caffeine 라이브러리의 연구를 기반으로 한 고성능 동시성 캐시입니다. 최적의 히트율을 위해 TinyLFU 승인 정책을 사용합니다.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: single
@@ -106,6 +108,28 @@ cache:
     # 승인 버퍼 크기 제어
     buffer_items: 64
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "single"
+
+[cache.ristretto]
+# Number of 4-bit access counters
+# Recommended: 10x expected max items for optimal admission policy
+# Example: For 100,000 items, use 1,000,000 counters
+num_counters = 1000000
+
+# Maximum memory for cached values (in bytes)
+# 104857600 = 100 MB
+max_cost = 104857600
+
+# Number of keys per Get buffer (default: 64)
+# Controls admission buffer size
+buffer_items = 64
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **메모리 계산:**
 
@@ -123,6 +147,8 @@ Olric은 자동 클러스터 검색과 데이터 복제를 통한 분산 캐싱�
 
 **클라이언트 모드** (외부 클러스터에 연결):
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -137,9 +163,26 @@ cache:
     # 분산 맵 이름 (기본값: "cc-relay")
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+# Olric cluster member addresses
+addresses = ["olric-1:3320", "olric-2:3320", "olric-3:3320"]
+
+# Distributed map name (default: "cc-relay")
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **임베디드 모드** (단일 노드 HA 또는 개발):
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -158,13 +201,43 @@ cache:
 
     dmap_name: "cc-relay"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+# Run embedded Olric node
+embedded = true
+
+# Address to bind the embedded node
+bind_addr = "0.0.0.0:3320"
+
+# Peer addresses for cluster discovery (optional)
+peers = ["cc-relay-2:3320", "cc-relay-3:3320"]
+
+dmap_name = "cc-relay"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### Disabled 모드
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: disabled
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "disabled"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 모든 캐시 작업은 데이터를 저장하지 않고 즉시 반환됩니다. `Get` 작업은 항상 `ErrNotFound`를 반환합니다.
 
@@ -215,6 +288,8 @@ sudo ufw allow 3322/tcp
 
 **노드 1 (cc-relay-1):**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -231,9 +306,31 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322"]  # Memberlist port of node 2
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **노드 2 (cc-relay-2):**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -250,9 +347,31 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-1:3322"]  # Memberlist port of node 1
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 3노드 Docker Compose 예제
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 version: '3.8'
 
@@ -300,9 +419,34 @@ networks:
   cc-relay-net:
     driver: bridge
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Docker Compose uses YAML format for the compose file itself.
+# This tab shows the cc-relay config file (config-node1.toml):
+
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322", "cc-relay-3:3322"]
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **config-node1.yaml:**
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 cache:
   mode: ha
@@ -320,6 +464,26 @@ cache:
     member_count_quorum: 2
     leave_timeout: 5s
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[cache]
+mode = "ha"
+
+[cache.olric]
+embedded = true
+bind_addr = "0.0.0.0:3320"
+dmap_name = "cc-relay"
+environment = "lan"
+peers = ["cc-relay-2:3322", "cc-relay-3:3322"]
+replica_count = 2
+read_quorum = 1
+write_quorum = 1
+member_count_quorum = 2
+leave_timeout = "5s"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 **config-node2.yaml 및 config-node3.yaml:** 노드 1과 동일하지만 peers 목록이 다른 노드를 가리킵니다.
 
@@ -477,10 +641,21 @@ Ristretto는 높은 히트율을 유지하기 위해 항목을 거부할 수 있
 3. **주소 검증**: 클라이언트 모드에서 목록의 최소 하나의 주소가 도달 가능한지 확인하세요.
 
 4. **로그 모니터링**: 클러스터 멤버십 이벤트를 보기 위해 디버그 로깅을 활성화하세요:
-   ```yaml
-   logging:
-     level: debug
-   ```
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+logging:
+  level: debug
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[logging]
+level = "debug"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 메모리 압력
 
@@ -499,15 +674,29 @@ Ristretto는 높은 히트율을 유지하기 위해 항목을 거부할 수 있
 **원인 및 해결 방법:**
 
 1. **잘못된 피어 포트:** 피어는 Olric 포트가 아닌 memberlist 포트(bind_addr + 2)를 사용해야 합니다.
-   ```yaml
-   # 잘못됨
-   peers:
-     - "other-node:3320"  # 이것은 Olric 포트입니다
 
-   # 올바름
-   peers:
-     - "other-node:3322"  # memberlist 포트 = 3320 + 2
-   ```
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+# 잘못됨
+peers:
+  - "other-node:3320"  # 이것은 Olric 포트입니다
+
+# 올바름
+peers:
+  - "other-node:3322"  # memberlist 포트 = 3320 + 2
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# Wrong
+peers = ["other-node:3320"]  # This is the Olric port
+
+# Correct
+peers = ["other-node:3322"]  # Memberlist port = 3320 + 2
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 2. **방화벽 차단:** Olric 및 memberlist 포트가 모두 열려 있는지 확인하세요.
    ```bash
@@ -529,6 +718,8 @@ Ristretto는 높은 히트율을 유지하기 위해 항목을 거부할 수 있
 
 **해결 방법:** `member_count_quorum`이 실제 실행 중인 노드 수보다 작거나 같은지 확인하세요.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # 2노드 클러스터의 경우
 member_count_quorum: 2  # 두 노드 모두 필요
@@ -536,6 +727,17 @@ member_count_quorum: 2  # 두 노드 모두 필요
 # 1노드 장애를 허용하는 3노드 클러스터의 경우
 member_count_quorum: 2  # 1노드 다운 허용
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# For 2-node cluster
+member_count_quorum = 2  # Requires both nodes
+
+# For 3-node cluster with 1-node fault tolerance
+member_count_quorum = 2  # Allows 1 node to be down
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 데이터가 복제되지 않음
 
@@ -543,10 +745,20 @@ member_count_quorum: 2  # 1노드 다운 허용
 
 **해결 방법:** `replica_count` > 1이고 충분한 노드가 있는지 확인하세요.
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 replica_count: 2          # 2개의 복사본 저장
 member_count_quorum: 2    # 쓰기에 2노드 필요
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+replica_count = 2          # Store 2 copies
+member_count_quorum = 2    # Need 2 nodes to write
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 오류 처리
 
