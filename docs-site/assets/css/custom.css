@@ -1921,3 +1921,76 @@ div[class*="mt-6"] > a,
     font-size: 0.8rem;
   }
 }
+
+/* ===== Unified Code Block Backgrounds =====
+   Apply consistent blue/teal background to ALL code blocks in docs
+   while preserving syntax highlighting text colors
+   ========================================== */
+
+/* Target all code blocks in documentation pages */
+.content pre,
+article pre,
+.prose pre {
+  background: linear-gradient(135deg,
+    rgba(15, 23, 42, 0.95) 0%,
+    rgba(30, 58, 95, 0.9) 50%,
+    rgba(15, 45, 75, 0.95) 100%) !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  border-radius: 0.75rem !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Ensure the code element inside also has transparent background */
+.content pre code,
+article pre code,
+.prose pre code {
+  background: transparent !important;
+}
+
+/* Adjust syntax highlighting colors for better contrast on blue/teal bg */
+.content pre .hljs-keyword,
+article pre .hljs-keyword,
+.prose pre .hljs-keyword {
+  color: #c792ea !important;
+}
+
+.content pre .hljs-string,
+article pre .hljs-string,
+.prose pre .hljs-string {
+  color: #c3e88d !important;
+}
+
+.content pre .hljs-number,
+article pre .hljs-number,
+.prose pre .hljs-number {
+  color: #f78c6c !important;
+}
+
+.content pre .hljs-comment,
+article pre .hljs-comment,
+.prose pre .hljs-comment {
+  color: #7c8a99 !important;
+}
+
+.content pre .hljs-function,
+article pre .hljs-function,
+.prose pre .hljs-function {
+  color: #82aaff !important;
+}
+
+.content pre .hljs-variable,
+article pre .hljs-variable,
+.prose pre .hljs-variable,
+.content pre .hljs-attr,
+article pre .hljs-attr,
+.prose pre .hljs-attr {
+  color: #ffcb6b !important;
+}
+
+.content pre .hljs-built_in,
+article pre .hljs-built_in,
+.prose pre .hljs-built_in {
+  color: #89ddff !important;
+}
