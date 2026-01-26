@@ -3,15 +3,17 @@ title: Configuration
 weight: 3
 ---
 
-CC-Relay is configured via YAML files. This guide covers all configuration options.
+CC-Relay is configured via YAML or TOML files. This guide covers all configuration options.
 
 ## Configuration File Location
 
 Default locations (checked in order):
 
-1. `./config.yaml` (current directory)
-2. `~/.config/cc-relay/config.yaml`
+1. `./config.yaml` or `./config.toml` (current directory)
+2. `~/.config/cc-relay/config.yaml` or `~/.config/cc-relay/config.toml`
 3. Path specified via `--config` flag
+
+The format is automatically detected from the file extension (`.yaml`, `.yml`, or `.toml`).
 
 Generate a default config with:
 
@@ -21,8 +23,10 @@ cc-relay config init
 
 ## Environment Variable Expansion
 
-CC-Relay supports environment variable expansion using `${VAR_NAME}` syntax:
+CC-Relay supports environment variable expansion using `${VAR_NAME}` syntax in both YAML and TOML formats:
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 providers:
   - name: "anthropic"
@@ -30,9 +34,23 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"  # Expanded at load time
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"  # Expanded at load time
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Complete Configuration Reference
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # Server Configuration
@@ -162,6 +180,142 @@ routing:
   # Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
   debug: false
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# Server Configuration
+# ==========================================================================
+[server]
+# Address to listen on
+listen = "127.0.0.1:8787"
+
+# Request timeout in milliseconds (default: 600000 = 10 minutes)
+timeout_ms = 600000
+
+# Maximum concurrent requests (0 = unlimited)
+max_concurrent = 0
+
+# Enable HTTP/2 for better performance
+enable_http2 = true
+
+# Authentication configuration
+[server.auth]
+# Require specific API key for proxy access
+api_key = "${PROXY_API_KEY}"
+
+# Allow Claude Code subscription Bearer tokens
+allow_subscription = true
+
+# Specific Bearer token to validate (optional)
+bearer_secret = "${BEARER_SECRET}"
+
+# ==========================================================================
+# Provider Configurations
+# ==========================================================================
+
+# Anthropic Direct API
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60       # Requests per minute
+tpm_limit = 100000   # Tokens per minute
+
+# Optional: Specify available models
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+
+# Z.AI / Zhipu GLM
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+# Map Claude model names to Z.AI models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+# Optional: Specify available models
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+
+# ==========================================================================
+# Logging Configuration
+# ==========================================================================
+[logging]
+# Log level: debug, info, warn, error
+level = "info"
+
+# Log format: json, text
+format = "text"
+
+# Enable colored output (for text format)
+pretty = true
+
+# Granular debug options
+[logging.debug_options]
+log_request_body = false
+log_response_headers = false
+log_tls_metrics = false
+max_body_log_size = 1000
+
+# ==========================================================================
+# Cache Configuration
+# ==========================================================================
+[cache]
+# Cache mode: single, ha, disabled
+mode = "single"
+
+# Single mode (Ristretto) configuration
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+
+# HA mode (Olric) configuration
+[cache.olric]
+embedded = true                 # Run embedded Olric node
+bind_addr = "0.0.0.0:3320"      # Olric client port
+dmap_name = "cc-relay"          # Distributed map name
+environment = "lan"             # local, lan, or wan
+peers = ["other-node:3322"]     # Memberlist addresses (bind_addr + 2)
+replica_count = 2               # Copies per key
+read_quorum = 1                 # Min reads for success
+write_quorum = 1                # Min writes for success
+member_count_quorum = 2         # Min cluster members
+leave_timeout = "5s"            # Leave broadcast duration
+
+# ==========================================================================
+# Routing Configuration
+# ==========================================================================
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default)
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Server Configuration
 
