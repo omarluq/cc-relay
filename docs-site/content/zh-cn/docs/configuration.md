@@ -3,15 +3,17 @@ title: 配置
 weight: 3
 ---
 
-CC-Relay 通过 YAML 文件进行配置。本指南涵盖所有配置选项。
+CC-Relay 通过 YAML 或 TOML 文件进行配置。本指南涵盖所有配置选项。
 
 ## 配置文件位置
 
 默认位置（按顺序检查）：
 
-1. `./config.yaml`（当前目录）
-2. `~/.config/cc-relay/config.yaml`
+1. `./config.yaml` 或 `./config.toml`（当前目录）
+2. `~/.config/cc-relay/config.yaml` 或 `~/.config/cc-relay/config.toml`
 3. 通过 `--config` 标志指定的路径
+
+文件格式根据扩展名（`.yaml`、`.yml` 或 `.toml`）自动检测。
 
 使用以下命令生成默认配置：
 
@@ -33,6 +35,8 @@ providers:
 
 ## 完整配置参考
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 # ==========================================================================
 # 服务器配置
@@ -149,6 +153,142 @@ cache:
     member_count_quorum: 2         # Min cluster members
     leave_timeout: 5s              # Leave broadcast duration
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+# ==========================================================================
+# Server Configuration
+# ==========================================================================
+[server]
+# Address to listen on
+listen = "127.0.0.1:8787"
+
+# Request timeout in milliseconds (default: 600000 = 10 minutes)
+timeout_ms = 600000
+
+# Maximum concurrent requests (0 = unlimited)
+max_concurrent = 0
+
+# Enable HTTP/2 for better performance
+enable_http2 = true
+
+# Authentication configuration
+[server.auth]
+# Require specific API key for proxy access
+api_key = "${PROXY_API_KEY}"
+
+# Allow Claude Code subscription Bearer tokens
+allow_subscription = true
+
+# Specific Bearer token to validate (optional)
+bearer_secret = "${BEARER_SECRET}"
+
+# ==========================================================================
+# Provider Configurations
+# ==========================================================================
+
+# Anthropic Direct API
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+base_url = "https://api.anthropic.com"  # Optional, uses default
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+rpm_limit = 60       # Requests per minute
+tpm_limit = 100000   # Tokens per minute
+
+# Optional: Specify available models
+models = [
+  "claude-sonnet-4-5-20250514",
+  "claude-opus-4-5-20250514",
+  "claude-haiku-3-5-20241022"
+]
+
+# Z.AI / Zhipu GLM
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+base_url = "https://api.z.ai/api/anthropic"
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+# Map Claude model names to Z.AI models
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+
+# Optional: Specify available models
+models = [
+  "GLM-4.7",
+  "GLM-4.5-Air",
+  "GLM-4-Plus"
+]
+
+# ==========================================================================
+# Logging Configuration
+# ==========================================================================
+[logging]
+# Log level: debug, info, warn, error
+level = "info"
+
+# Log format: json, text
+format = "text"
+
+# Enable colored output (for text format)
+pretty = true
+
+# Granular debug options
+[logging.debug_options]
+log_request_body = false
+log_response_headers = false
+log_tls_metrics = false
+max_body_log_size = 1000
+
+# ==========================================================================
+# Cache Configuration
+# ==========================================================================
+[cache]
+# Cache mode: single, ha, disabled
+mode = "single"
+
+# Single mode (Ristretto) configuration
+[cache.ristretto]
+num_counters = 1000000  # 10x expected max items
+max_cost = 104857600    # 100 MB
+buffer_items = 64       # Admission buffer size
+
+# HA mode (Olric) configuration
+[cache.olric]
+embedded = true                 # Run embedded Olric node
+bind_addr = "0.0.0.0:3320"      # Olric client port
+dmap_name = "cc-relay"          # Distributed map name
+environment = "lan"             # local, lan, or wan
+peers = ["other-node:3322"]     # Memberlist addresses (bind_addr + 2)
+replica_count = 2               # Copies per key
+read_quorum = 1                 # Min reads for success
+write_quorum = 1                # Min writes for success
+member_count_quorum = 2         # Min cluster members
+leave_timeout = "5s"            # Leave broadcast duration
+
+# ==========================================================================
+# Routing Configuration
+# ==========================================================================
+[routing]
+# Strategy: round_robin, weighted_round_robin, shuffle, failover (default)
+strategy = "failover"
+
+# Timeout for failover attempts in milliseconds (default: 5000)
+failover_timeout = 5000
+
+# Enable debug headers (X-CC-Relay-Strategy, X-CC-Relay-Provider)
+debug = false
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 服务器配置
 
@@ -488,6 +628,8 @@ providers:
 
 ### 最小单供应商配置
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -499,9 +641,27 @@ providers:
     keys:
       - key: "${ANTHROPIC_API_KEY}"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 多供应商配置
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -527,9 +687,45 @@ logging:
   level: "info"
   format: "text"
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[server.auth]
+allow_subscription = true
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[[providers]]
+name = "zai"
+type = "zai"
+enabled = true
+
+[[providers.keys]]
+key = "${ZAI_API_KEY}"
+
+[providers.model_mapping]
+"claude-sonnet-4-5-20250514" = "GLM-4.7"
+
+[logging]
+level = "info"
+format = "text"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ### 带调试日志的开发配置
 
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
 ```yaml
 server:
   listen: "127.0.0.1:8787"
@@ -550,6 +746,32 @@ logging:
     log_response_headers: true
     log_tls_metrics: true
 ```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+listen = "127.0.0.1:8787"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+enabled = true
+
+[[providers.keys]]
+key = "${ANTHROPIC_API_KEY}"
+
+[logging]
+level = "debug"
+format = "text"
+pretty = true
+
+[logging.debug_options]
+log_request_body = true
+log_response_headers = true
+log_tls_metrics = true
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## 验证配置
 
@@ -559,9 +781,58 @@ logging:
 cc-relay config validate
 ```
 
+**提示**: 部署前始终验证配置更改。热重载会拒绝无效配置，但验证可以在到达生产环境之前捕获错误。
+
 ## 热重载
 
-配置更改需要重启服务器。热重载功能计划在未来版本中实现。
+CC-Relay 自动检测并应用配置更改，无需重启。这使得可以在零停机时间内更新配置。
+
+### 工作原理
+
+CC-Relay 使用 [fsnotify](https://github.com/fsnotify/fsnotify) 监控配置文件：
+
+1. **文件监控**：监控父目录以正确检测原子写入（大多数编辑器使用的临时文件+重命名模式）
+2. **防抖动**：多个快速文件事件会以100毫秒延迟合并以处理编辑器保存行为
+3. **原子交换**：新配置使用 Go 的 `sync/atomic.Pointer` 原子加载和交换
+4. **保留进行中的请求**：正在处理的请求继续使用旧配置；新请求使用更新的配置
+
+### 触发重载的事件
+
+| 事件 | 触发重载 |
+|------|---------|
+| 文件写入 | 是 |
+| 文件创建（原子重命名） | 是 |
+| 文件 chmod | 否（忽略） |
+| 目录中的其他文件 | 否（忽略） |
+
+### 日志记录
+
+热重载发生时，您将看到日志消息：
+
+```
+INF config file reloaded path=/path/to/config.yaml
+INF config hot-reloaded successfully
+```
+
+如果新配置无效：
+
+```
+ERR failed to reload config path=/path/to/config.yaml error="validation error"
+```
+
+无效的配置会被拒绝，代理将继续使用之前的有效配置运行。
+
+### 限制
+
+- **提供者更改**：添加或删除提供者需要重启（路由基础设施在启动时初始化）
+- **监听地址**：更改 `server.listen` 需要重启
+- **gRPC 地址**：更改 gRPC 管理 API 地址需要重启
+
+可以热重载的配置选项：
+- 日志级别和格式
+- 现有密钥的速率限制
+- 健康检查间隔
+- 路由策略权重和优先级
 
 ## 下一步
 
