@@ -122,14 +122,51 @@ func SetupRoutesWithRouter(
 	healthTracker *health.Tracker,
 	signatureCache *SignatureCache,
 ) (http.Handler, error) {
+	return SetupRoutesWithRouterLive(
+		cfg,
+		provider,
+		func() []router.ProviderInfo { return providerInfos },
+		providerRouter,
+		providerKey,
+		pool,
+		providerPools,
+		providerKeys,
+		allProviders,
+		healthTracker,
+		signatureCache,
+	)
+}
+
+// SetupRoutesWithRouterLive creates the HTTP handler with hot-reloadable provider info and router.
+// This is the DI-friendly version that accepts functions for dynamic provider/router access.
+// ProviderInfosFunc is called per-request to get current provider routing information,
+// allowing changes to enabled/disabled, weights, and priorities to take effect without restart.
+// Routes:
+//   - POST /v1/messages - Proxy to backend provider with router-based selection
+//   - GET /v1/models - List available models from all providers (no auth required)
+//   - GET /v1/providers - List active providers with metadata (no auth required)
+//   - GET /health - Health check endpoint (no auth required)
+func SetupRoutesWithRouterLive(
+	cfg *config.Config,
+	provider providers.Provider,
+	providerInfosFunc ProviderInfoFunc,
+	providerRouter router.ProviderRouter,
+	providerKey string,
+	pool *keypool.KeyPool,
+	providerPools map[string]*keypool.KeyPool,
+	providerKeys map[string]string,
+	allProviders []providers.Provider,
+	healthTracker *health.Tracker,
+	signatureCache *SignatureCache,
+) (http.Handler, error) {
 	mux := http.NewServeMux()
 
-	// Create proxy handler with router support
+	// Create proxy handler with router support and live provider info
 	debugOpts := cfg.Logging.DebugOptions
 	routingDebug := cfg.Routing.IsDebugEnabled()
 
-	handler, err := NewHandler(
-		provider, providerInfos, providerRouter,
+	handler, err := NewHandlerWithLiveProviders(
+		provider, providerInfosFunc, providerRouter,
 		providerKey, pool, providerPools, providerKeys,
 		&cfg.Routing, debugOpts, routingDebug, healthTracker, signatureCache,
 	)

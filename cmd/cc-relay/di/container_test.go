@@ -224,10 +224,13 @@ func TestRouterService(t *testing.T) {
 		routerSvc, err := Invoke[*RouterService](container)
 		require.NoError(t, err)
 		assert.NotNil(t, routerSvc)
-		assert.NotNil(t, routerSvc.Router)
+
+		// GetRouter returns current router based on config
+		rtr := routerSvc.GetRouter()
+		assert.NotNil(t, rtr)
 
 		// Default strategy is failover
-		assert.Equal(t, router.StrategyFailover, routerSvc.Router.Name())
+		assert.Equal(t, router.StrategyFailover, rtr.Name())
 	})
 
 	t.Run("creates router with configured strategy", func(t *testing.T) {
@@ -238,10 +241,13 @@ func TestRouterService(t *testing.T) {
 
 		routerSvc, err := Invoke[*RouterService](container)
 		require.NoError(t, err)
-		assert.NotNil(t, routerSvc.Router)
+
+		// GetRouter returns current router based on config
+		rtr := routerSvc.GetRouter()
+		assert.NotNil(t, rtr)
 
 		// Should use configured strategy
-		assert.Equal(t, router.StrategyRoundRobin, routerSvc.Router.Name())
+		assert.Equal(t, router.StrategyRoundRobin, rtr.Name())
 	})
 
 	t.Run("router depends on config", func(t *testing.T) {
@@ -273,7 +279,7 @@ func TestRouterService(t *testing.T) {
 
 				routerSvc, err := Invoke[*RouterService](container)
 				require.NoError(t, err)
-				assert.Equal(t, strategy, routerSvc.Router.Name())
+				assert.Equal(t, strategy, routerSvc.GetRouter().Name())
 			})
 		}
 	})

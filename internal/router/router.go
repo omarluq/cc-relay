@@ -115,3 +115,29 @@ func NewRouter(strategy string, timeout time.Duration) (ProviderRouter, error) {
 		return nil, fmt.Errorf("router: unknown strategy %q", strategy)
 	}
 }
+
+// ProviderRouterFunc is a function that returns a provider router.
+// Used for hot-reloadable router access where the router may change
+// dynamically based on current configuration.
+type ProviderRouterFunc func() ProviderRouter
+
+// LiveRouter is a ProviderRouter that always gets the current router.
+// Each Select() call fetches the latest router, allowing routing strategy changes without restart.
+type LiveRouter struct {
+	fn ProviderRouterFunc
+}
+
+// NewLiveRouter creates a router that always delegates to the current router.
+func NewLiveRouter(fn ProviderRouterFunc) ProviderRouter {
+	return &LiveRouter{fn: fn}
+}
+
+// Select delegates to the current router from the provider.
+func (l *LiveRouter) Select(ctx context.Context, providerInfos []ProviderInfo) (ProviderInfo, error) {
+	return l.fn().Select(ctx, providerInfos)
+}
+
+// Name returns the name of the current router strategy.
+func (l *LiveRouter) Name() string {
+	return l.fn().Name()
+}

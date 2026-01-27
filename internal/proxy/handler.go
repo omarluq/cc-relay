@@ -31,6 +31,11 @@ const (
 	thinkingContextContextKey contextKey = "thinkingContext"
 )
 
+// ProviderInfoFunc is a function that returns current provider routing information.
+// This enables hot-reload of provider inputs (enabled/disabled, weights, priorities)
+// without recreating the handler.
+type ProviderInfoFunc func() []router.ProviderInfo
+
 // Handler proxies requests to a backend provider.
 type Handler struct {
 	providerProxies map[string]*ProviderProxy // Per-provider proxies for correct URL routing
@@ -39,7 +44,7 @@ type Handler struct {
 	healthTracker   *health.Tracker
 	signatureCache  *SignatureCache       // Thinking signature cache (may be nil)
 	routingConfig   *config.RoutingConfig // For model-based routing configuration
-	providers       []router.ProviderInfo
+	providers       ProviderInfoFunc      // Function to get live provider routing info
 	debugOpts       config.DebugOptions
 	routingDebug    bool
 }
@@ -52,6 +57,9 @@ type Handler struct {
 // routingConfig contains model-based routing configuration (may be nil).
 // If healthTracker is provided, success/failure will be reported to circuit breakers.
 // If signatureCache is provided, thinking signatures are cached for cross-provider reuse.
+//
+// For hot-reloadable provider inputs, pass a ProviderInfoFunc that returns the current
+// provider routing info. Otherwise, pass nil and providerInfos will be used directly.
 func NewHandler(
 	provider providers.Provider,
 	providerInfos []router.ProviderInfo,
@@ -66,10 +74,43 @@ func NewHandler(
 	healthTracker *health.Tracker,
 	signatureCache *SignatureCache,
 ) (*Handler, error) {
+	return NewHandlerWithLiveProviders(
+		provider,
+		func() []router.ProviderInfo { return providerInfos },
+		providerRouter,
+		apiKey,
+		pool,
+		providerPools,
+		providerKeys,
+		routingConfig,
+		debugOpts,
+		routingDebug,
+		healthTracker,
+		signatureCache,
+	)
+}
+
+// NewHandlerWithLiveProviders creates a new proxy handler with hot-reloadable provider info.
+// ProviderInfosFunc is called per-request to get current provider routing information,
+// allowing changes to enabled/disabled, weights, and priorities to take effect without restart.
+func NewHandlerWithLiveProviders(
+	provider providers.Provider,
+	providerInfosFunc ProviderInfoFunc,
+	providerRouter router.ProviderRouter,
+	apiKey string,
+	pool *keypool.KeyPool,
+	providerPools map[string]*keypool.KeyPool,
+	providerKeys map[string]string,
+	routingConfig *config.RoutingConfig,
+	debugOpts config.DebugOptions,
+	routingDebug bool,
+	healthTracker *health.Tracker,
+	signatureCache *SignatureCache,
+) (*Handler, error) {
 	h := &Handler{
 		providerProxies: make(map[string]*ProviderProxy),
 		defaultProvider: provider,
-		providers:       providerInfos,
+		providers:       providerInfosFunc,
 		router:          providerRouter,
 		routingConfig:   routingConfig,
 		debugOpts:       debugOpts,
@@ -79,8 +120,9 @@ func NewHandler(
 	}
 
 	// Create ProviderProxy for each provider in providerInfos (multi-provider mode)
-	if len(providerInfos) > 0 {
-		for _, info := range providerInfos {
+	initialInfos := providerInfosFunc()
+	if len(initialInfos) > 0 {
+		for _, info := range initialInfos {
 			prov := info.Provider
 			key := ""
 			if providerKeys != nil {
@@ -179,7 +221,7 @@ func (h *Handler) reportOutcome(resp *http.Response) {
 func (h *Handler) selectProvider(
 	ctx context.Context, model string, hasThinkingAffinity bool,
 ) (router.ProviderInfo, error) {
-	if h.router == nil || len(h.providers) == 0 {
+	if h.router == nil || h.providers == nil {
 		// Single provider mode - wrap static provider
 		return router.ProviderInfo{
 			Provider:  h.defaultProvider,
@@ -187,12 +229,21 @@ func (h *Handler) selectProvider(
 		}, nil
 	}
 
+	// Get live provider routing info (hot-reload aware)
+	candidates := h.providers()
+	if len(candidates) == 0 {
+		// Fallback to static provider if no live providers
+		return router.ProviderInfo{
+			Provider:  h.defaultProvider,
+			IsHealthy: func() bool { return true },
+		}, nil
+	}
+
 	// Filter providers if model-based routing is enabled
-	candidates := h.providers
 	if h.isModelBasedRouting() && model != "" {
 		candidates = FilterProvidersByModel(
 			model,
-			h.providers,
+			candidates,
 			h.routingConfig.ModelMapping,
 			h.routingConfig.DefaultProvider,
 		)
@@ -281,7 +332,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// To avoid unnecessary body reads in single-provider mode, only perform this
 	// check when multi-provider routing is enabled.
 	hasThinking := false
-	if h.router != nil && len(h.providers) > 1 {
+	if h.router != nil && h.providers != nil && len(h.providers()) > 1 {
 		hasThinking = HasThinkingSignature(r)
 		if hasThinking {
 			r = r.WithContext(CacheThinkingAffinityInContext(r.Context(), true))

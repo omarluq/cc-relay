@@ -109,9 +109,171 @@ type ProviderMapService struct {
 	AllProviders    []providers.Provider
 }
 
+// ProviderInfoService holds live provider routing information with atomic swap support.
+// Provider info (enabled/disabled, weights, priorities) is rebuilt on config reload
+// and atomically swapped for thread-safe access without mutex overhead.
+type ProviderInfoService struct {
+	// infos holds the current provider info slice via atomic pointer
+	infos atomic.Pointer[[]router.ProviderInfo]
+
+	// cfgSvc provides access to current config for rebuilding
+	cfgSvc *ConfigService
+
+	// providerSvc gives access to provider instances
+	providerSvc *ProviderMapService
+
+	// trackerSvc provides health check functions
+	trackerSvc *HealthTrackerService
+}
+
+// Get returns the current provider info slice (lock-free read).
+func (s *ProviderInfoService) Get() []router.ProviderInfo {
+	ptr := s.infos.Load()
+	if ptr == nil {
+		return nil
+	}
+	return *ptr
+}
+
+// Rebuild rebuilds the provider info slice from current config.
+// This should be called on config reload to update provider routing inputs.
+func (s *ProviderInfoService) Rebuild() {
+	cfg := s.cfgSvc.Get()
+	s.RebuildFrom(cfg)
+}
+
+// RebuildFrom rebuilds the provider info slice from the given config.
+// This is called from reload callbacks to ensure we use the fresh config
+// rather than racing with the atomic config swap.
+func (s *ProviderInfoService) RebuildFrom(cfg *config.Config) {
+	var providerInfos []router.ProviderInfo
+
+	for idx := range cfg.Providers {
+		pc := &cfg.Providers[idx]
+		if !pc.Enabled {
+			continue
+		}
+
+		prov, ok := s.providerSvc.Providers[pc.Name]
+		if !ok {
+			continue
+		}
+
+		// Get weight and priority from first key (provider-level defaults)
+		var weight, priority int
+		if len(pc.Keys) > 0 {
+			weight = pc.Keys[0].Weight
+			priority = pc.Keys[0].Priority
+		}
+
+		// Wire IsHealthy from tracker
+		providerName := pc.Name
+		providerInfos = append(providerInfos, router.ProviderInfo{
+			Provider:  prov,
+			Weight:    weight,
+			Priority:  priority,
+			IsHealthy: s.trackerSvc.Tracker.IsHealthyFunc(providerName),
+		})
+	}
+
+	s.infos.Store(&providerInfos)
+}
+
+// StartWatching begins watching config changes for provider info updates.
+// Registers a callback with the config watcher to rebuild provider info on reload.
+func (s *ProviderInfoService) StartWatching() {
+	if s.cfgSvc.watcher == nil {
+		return
+	}
+
+	// Register callback to rebuild provider info on config reload.
+	// Important: We rebuild from the newCfg passed to the callback, not from
+	// cfgSvc.Get(), to ensure we use the freshly loaded config regardless of
+	// callback registration order.
+	s.cfgSvc.watcher.OnReload(func(newCfg *config.Config) error {
+		s.RebuildFrom(newCfg)
+		log.Info().Msg("provider info rebuilt after config reload")
+		return nil
+	})
+}
+
 // RouterService wraps the provider router for DI.
+// It provides hot-reloadable router access with caching to preserve router state.
+//
+// Router instances are cached and only rebuilt when strategy or timeout changes.
+// This preserves state for stateful routers (round_robin, weighted_round_robin)
+// while still allowing config changes to take effect without restart.
 type RouterService struct {
-	Router router.ProviderRouter
+	cfgSvc *ConfigService
+
+	// Cached router with atomic swap support
+	router atomic.Pointer[routerCacheEntry]
+}
+
+// routerCacheEntry holds a cached router with its configuration key.
+type routerCacheEntry struct {
+	router   router.ProviderRouter
+	strategy string
+	timeout  time.Duration
+}
+
+// GetRouter returns the current router, using cache when config unchanged.
+// This method is safe for concurrent use and preserves router state.
+func (s *RouterService) GetRouter() router.ProviderRouter {
+	cfg := s.cfgSvc.Get()
+	strategy := cfg.Routing.GetEffectiveStrategy()
+	timeout := cfg.Routing.GetFailoverTimeoutOption().OrElse(5 * time.Second)
+
+	// Check cache for existing router with same config
+	cached := s.router.Load()
+	if cached != nil && cached.strategy == strategy && cached.timeout == timeout {
+		return cached.router
+	}
+
+	// Create new router for updated config
+	r, err := router.NewRouter(strategy, timeout)
+	if err != nil {
+		// Fallback to failover if strategy is invalid
+		var fallbackErr error
+		r, fallbackErr = router.NewRouter(router.StrategyFailover, timeout)
+		// If even failover fails, we have a configuration problem
+		if fallbackErr != nil {
+			// Return a failover router with default timeout as last resort
+			// At this point we log the error but continue with a known-good fallback
+			log.Error().Err(fallbackErr).Msg("failed to create failover router, using default")
+			r, err = router.NewRouter(router.StrategyFailover, 5*time.Second)
+			if err != nil {
+				// This should never happen unless there's a code bug
+				panic("router: failed to create default failover router")
+			}
+		}
+	}
+
+	// Atomically store new router (racing updates may overwrite, last wins)
+	newEntry := &routerCacheEntry{
+		router:   r,
+		strategy: strategy,
+		timeout:  timeout,
+	}
+	s.router.Store(newEntry)
+
+	return r
+}
+
+// GetRouterFunc returns a function that fetches the current router.
+// This is used with LiveRouter for per-request router access.
+func (s *RouterService) GetRouterFunc() router.ProviderRouterFunc {
+	return func() router.ProviderRouter {
+		return s.GetRouter()
+	}
+}
+
+// GetRouterAsFunc returns the router getter as a ProviderRouterFunc directly.
+// This is a convenience wrapper for passing to NewLiveRouter.
+func (s *RouterService) GetRouterAsFunc() router.ProviderRouterFunc {
+	return func() router.ProviderRouter {
+		return s.GetRouter()
+	}
 }
 
 // LoggerService wraps the zerolog logger for DI.
@@ -155,9 +317,10 @@ type ServerService struct {
 // 7. Router (depends on Config)
 // 8. HealthTracker (depends on Config, Logger)
 // 9. Checker (depends on HealthTracker, Config, Logger)
-// 10. SignatureCache (depends on Cache)
-// 11. Handler (depends on Config, KeyPool, KeyPoolMap, Providers, Router, HealthTracker, SignatureCache)
-// 12. Server (depends on Handler, Config).
+// 10. ProviderInfo (depends on Config, Providers, HealthTracker)
+// 11. SignatureCache (depends on Cache)
+// 12. Handler (depends on Config, KeyPool, KeyPoolMap, Providers, Router, ProviderInfo, HealthTracker, SignatureCache)
+// 13. Server (depends on Handler, Config).
 func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewConfig)
 	do.Provide(i, NewLogger)
@@ -168,6 +331,7 @@ func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewRouter)
 	do.Provide(i, NewHealthTracker)
 	do.Provide(i, NewChecker)
+	do.Provide(i, NewProviderInfo)
 	do.Provide(i, NewSignatureCache)
 	do.Provide(i, NewProxyHandler)
 	do.Provide(i, NewHTTPServer)
@@ -530,20 +694,33 @@ func NewKeyPoolMap(i do.Injector) (*KeyPoolMapService, error) {
 	return &KeyPoolMapService{Pools: pools, Keys: keys}, nil
 }
 
-// NewRouter creates the provider router based on configuration.
+// NewRouter creates the provider router service with hot-reload support.
+// The router is created dynamically per-request based on current config.
 func NewRouter(i do.Injector) (*RouterService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
-	routingCfg := cfgSvc.Config.Routing
+	return &RouterService{cfgSvc: cfgSvc}, nil
+}
 
-	// Get timeout with default fallback (5 seconds)
-	timeout := routingCfg.GetFailoverTimeoutOption().OrElse(5 * time.Second)
+// NewProviderInfo creates the provider info service with hot-reload support.
+// Provider info (enabled/disabled, weights, priorities) is rebuilt on config reload.
+func NewProviderInfo(i do.Injector) (*ProviderInfoService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](i)
+	providerSvc := do.MustInvoke[*ProviderMapService](i)
+	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
 
-	r, err := router.NewRouter(routingCfg.GetEffectiveStrategy(), timeout)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create router: %w", err)
+	svc := &ProviderInfoService{
+		cfgSvc:      cfgSvc,
+		providerSvc: providerSvc,
+		trackerSvc:  trackerSvc,
 	}
 
-	return &RouterService{Router: r}, nil
+	// Build initial provider info
+	svc.Rebuild()
+
+	// Start watching for config changes
+	svc.StartWatching()
+
+	return svc, nil
 }
 
 // NewProxyHandler creates the HTTP handler with all middleware.
@@ -553,46 +730,20 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	poolSvc := do.MustInvoke[*KeyPoolService](i)
 	poolMapSvc := do.MustInvoke[*KeyPoolMapService](i)
 	routerSvc := do.MustInvoke[*RouterService](i)
+	providerInfoSvc := do.MustInvoke[*ProviderInfoService](i)
 	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
 	sigCacheSvc := do.MustInvoke[*SignatureCacheService](i)
 
 	cfg := cfgSvc.Config
 
-	// Build ProviderInfo list from config and providers
-	var providerInfos []router.ProviderInfo
-	for idx := range cfg.Providers {
-		pc := &cfg.Providers[idx]
-		if !pc.Enabled {
-			continue
-		}
-
-		prov, ok := providerSvc.Providers[pc.Name]
-		if !ok {
-			continue
-		}
-
-		// Get weight and priority from first key (provider-level defaults)
-		var weight, priority int
-		if len(pc.Keys) > 0 {
-			weight = pc.Keys[0].Weight
-			priority = pc.Keys[0].Priority
-		}
-
-		// Wire IsHealthy from tracker (replaces stub)
-		providerName := pc.Name
-		providerInfos = append(providerInfos, router.ProviderInfo{
-			Provider:  prov,
-			Weight:    weight,
-			Priority:  priority,
-			IsHealthy: trackerSvc.Tracker.IsHealthyFunc(providerName),
-		})
-	}
-
-	handler, err := proxy.SetupRoutesWithRouter(
+	// Use SetupRoutesWithRouterLive for hot-reloadable provider info and router
+	// Pass a LiveRouter that calls GetRouterFunc(), enabling strategy/timeout changes without restart
+	liveRouter := router.NewLiveRouter(routerSvc.GetRouterAsFunc())
+	handler, err := proxy.SetupRoutesWithRouterLive(
 		cfg,
 		providerSvc.PrimaryProvider,
-		providerInfos,
-		routerSvc.Router,
+		providerInfoSvc.Get, // Hot-reloadable provider info
+		liveRouter,          // Live router for strategy changes
 		providerSvc.PrimaryKey,
 		poolSvc.Pool,
 		poolMapSvc.Pools,

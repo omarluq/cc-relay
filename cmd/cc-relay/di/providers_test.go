@@ -38,6 +38,21 @@ func shutdownInjector(i *do.RootScope) {
 	_ = i.Shutdown()
 }
 
+// waitFor polls fn until it returns true or the timeout is reached.
+func waitFor(t *testing.T, timeout time.Duration, fn func() bool, msg string) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	require.True(t, fn(), msg)
+}
+
 // Test configurations.
 const singleKeyConfig = `
 server:
@@ -233,6 +248,249 @@ providers:
 
 		// Original pointer should NOT be same (atomic swap happened)
 		assert.NotSame(t, initialCfg, reloadedCfg, "config pointer should change after reload")
+	})
+
+	t.Run("live readers observe routing changes without reinit", func(t *testing.T) {
+		initialConfig := `
+server:
+  listen: ":8787"
+routing:
+  strategy: failover
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+
+		updatedConfig := `
+server:
+  listen: ":8787"
+routing:
+  strategy: round_robin
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+
+		// Create config file
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.yaml")
+		err := os.WriteFile(path, []byte(initialConfig), 0o600)
+		require.NoError(t, err)
+
+		// Create injector and get config service
+		injector := do.New()
+		do.ProvideNamedValue(injector, ConfigPathKey, path)
+		RegisterSingletons(injector)
+		defer shutdownInjector(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+
+		// A live reader that always consults the current config.
+		type routingStrategyReader struct {
+			cfg interface {
+				Get() *config.Config
+			}
+		}
+
+		reader := routingStrategyReader{cfg: cfgSvc}
+
+		getStrategy := func() string {
+			return reader.cfg.Get().Routing.GetEffectiveStrategy()
+		}
+
+		require.Equal(t, "failover", getStrategy(), "initial strategy should be failover")
+
+		// Start watching for changes
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cfgSvc.StartWatching(ctx)
+
+		// Allow watcher to start
+		time.Sleep(50 * time.Millisecond)
+
+		// Update routing strategy on disk
+		err = os.WriteFile(path, []byte(updatedConfig), 0o600)
+		require.NoError(t, err)
+
+		// The same reader instance should observe the new strategy after reload.
+		waitFor(
+			t,
+			2*time.Second,
+			func() bool { return getStrategy() == "round_robin" },
+			"expected live reader to observe updated routing strategy",
+		)
+	})
+
+	t.Run("live reader updates while snapshot stays stale", func(t *testing.T) {
+		initialConfig := `
+server:
+  listen: ":8787"
+routing:
+  strategy: failover
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+
+		updatedConfig := `
+server:
+  listen: ":8787"
+routing:
+  strategy: round_robin
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.yaml")
+		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
+
+		injector := do.New()
+		do.ProvideNamedValue(injector, ConfigPathKey, path)
+		RegisterSingletons(injector)
+		defer shutdownInjector(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+
+		// Snapshot component: captures config once and never refreshes.
+		type snapshotReader struct {
+			cfg *config.Config
+		}
+		// Live component: consults config service on each read.
+		type liveReader struct {
+			cfg interface {
+				Get() *config.Config
+			}
+		}
+
+		snap := snapshotReader{cfg: cfgSvc.Get()}
+		live := liveReader{cfg: cfgSvc}
+
+		snapStrategy := func() string { return snap.cfg.Routing.GetEffectiveStrategy() }
+		liveStrategy := func() string { return live.cfg.Get().Routing.GetEffectiveStrategy() }
+
+		require.Equal(t, "failover", snapStrategy())
+		require.Equal(t, "failover", liveStrategy())
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cfgSvc.StartWatching(ctx)
+		time.Sleep(50 * time.Millisecond)
+
+		require.NoError(t, os.WriteFile(path, []byte(updatedConfig), 0o600))
+
+		// Live reader should update...
+		waitFor(t, 2*time.Second, func() bool { return liveStrategy() == "round_robin" },
+			"expected live reader to observe updated strategy")
+		// ...while snapshot remains stale, illustrating the intended integration pattern.
+		assert.Equal(t, "failover", snapStrategy(), "snapshot reader should remain stale")
+	})
+
+	t.Run("invalid reload does not replace the last good config", func(t *testing.T) {
+		initialConfig := `
+server:
+  listen: ":8787"
+routing:
+  strategy: failover
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+		updatedConfig := `
+server:
+  listen: ":8787"
+routing:
+  strategy: round_robin
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: https://api.anthropic.com
+    enabled: true
+    keys:
+      - key: test-key-1
+`
+		invalidConfig := "server: ["
+
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.yaml")
+		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
+
+		injector := do.New()
+		do.ProvideNamedValue(injector, ConfigPathKey, path)
+		RegisterSingletons(injector)
+		defer shutdownInjector(injector)
+
+		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		cfgSvc.StartWatching(ctx)
+		time.Sleep(50 * time.Millisecond)
+
+		// Write invalid config; it should not replace the last good config.
+		require.NoError(t, os.WriteFile(path, []byte(invalidConfig), 0o600))
+		time.Sleep(300 * time.Millisecond)
+		assert.Equal(t, "failover", cfgSvc.Get().Routing.GetEffectiveStrategy())
+
+		// Then write a valid config and ensure it updates.
+		require.NoError(t, os.WriteFile(path, []byte(updatedConfig), 0o600))
+		waitFor(t, 2*time.Second, func() bool {
+			return cfgSvc.Get().Routing.GetEffectiveStrategy() == "round_robin"
+		}, "expected valid config after invalid reload to be applied")
 	})
 
 	t.Run("concurrent reads during reload are safe", func(t *testing.T) {

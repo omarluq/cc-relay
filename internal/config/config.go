@@ -18,6 +18,21 @@ var (
 	ErrKeyRequired = errors.New("config: key is required")
 )
 
+// RuntimeConfig defines the interface for accessing runtime configuration that supports hot-reload.
+// Components that need to observe config changes should use this interface instead of
+// holding a direct *Config pointer, which would become stale after hot-reload.
+//
+// Usage pattern:
+//
+//	func (r *Router) Select(ctx context.Context, providers []ProviderInfo) (ProviderInfo, error) {
+//		cfg := r.runtime.Get()
+//		strategy := cfg.Routing.GetEffectiveStrategy()
+//		// Use strategy for this request...
+//	}
+type RuntimeConfig interface {
+	Get() *Config
+}
+
 // InvalidPriorityError is returned when priority is outside valid range.
 type InvalidPriorityError struct {
 	Priority int
