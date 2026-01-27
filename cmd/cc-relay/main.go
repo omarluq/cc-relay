@@ -20,11 +20,7 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:   "cc-relay",
 	Short: "Blazing fast LLMs API Gateway written in Go",
-	Long: `⚡️ CC-Relay is a Blazing fast LLMs API Gateway written in Go.
-
-It sits between Claude Code and multiple LLM providers (Anthropic, Z.AI, Ollama,
-Bedrock, Azure, Vertex), enabling seamless model switching, rate limit pooling,
-and intelligent routing.`,
+	Long: `⚡️ CC-Relay is a Blazing fast LLMs API Gateway written in Go.`,
 	Example: `  # Start the proxy server with default config:
   cc-relay serve
 

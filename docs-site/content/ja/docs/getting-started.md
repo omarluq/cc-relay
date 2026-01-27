@@ -151,7 +151,7 @@ CC-Relay はいくつかの CLI コマンドを提供します：
 | `cc-relay config init` | デフォルト設定ファイルを生成 |
 | `cc-relay config cc init` | cc-relay を使用するように Claude Code を設定 |
 | `cc-relay config cc remove` | Claude Code から cc-relay 設定を削除 |
-| `cc-relay version` | バージョン情報を表示 |
+| `cc-relay --version` | バージョン情報を表示 |
 
 ### Serve コマンドオプション
 

@@ -151,7 +151,7 @@ CC-Relay bietet mehrere CLI-Befehle:
 | `cc-relay config init` | Standard-Konfigurationsdatei erstellen |
 | `cc-relay config cc init` | Claude Code fuer cc-relay konfigurieren |
 | `cc-relay config cc remove` | cc-relay-Konfiguration aus Claude Code entfernen |
-| `cc-relay version` | Versionsinformationen anzeigen |
+| `cc-relay --version` | Versionsinformationen anzeigen |
 
 ### Serve-Befehl-Optionen
 

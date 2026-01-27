@@ -151,7 +151,7 @@ CC-Relay 提供以下 CLI 命令：
 | `cc-relay config init` | 生成默认配置文件 |
 | `cc-relay config cc init` | 配置 Claude Code 使用 cc-relay |
 | `cc-relay config cc remove` | 从 Claude Code 移除 cc-relay 配置 |
-| `cc-relay version` | 显示版本信息 |
+| `cc-relay --version` | 显示版本信息 |
 
 ### Serve 命令选项
 
