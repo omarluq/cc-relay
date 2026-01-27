@@ -2,9 +2,10 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"os"
 
+	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 )
 
@@ -29,8 +30,7 @@ func init() {
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	if err := fang.Execute(context.Background(), rootCmd); err != nil {
 		os.Exit(1)
 	}
 }
