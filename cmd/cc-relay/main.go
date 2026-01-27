@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
+
+	"github.com/omarluq/cc-relay/internal/version"
 )
 
 const (
@@ -17,10 +19,12 @@ var cfgFile string
 
 var rootCmd = &cobra.Command{
 	Use:   "cc-relay",
-	Short: "Multi-provider proxy for Claude Code",
-	Long: `cc-relay is a multi-provider proxy that sits between Claude Code and multiple
-LLM providers (Anthropic, Z.AI, Ollama), enabling seamless model switching,
-rate limit pooling, and intelligent routing.`,
+	Short: "Blazing fast LLMs API Gateway written in Go",
+	Long: `⚡️ CC-Relay is a Blazing fast LLMs API Gateway written in Go.
+
+It sits between Claude Code and multiple LLM providers (Anthropic, Z.AI, Ollama,
+Bedrock, Azure, Vertex), enabling seamless model switching, rate limit pooling,
+and intelligent routing.`,
 }
 
 func init() {
@@ -30,7 +34,13 @@ func init() {
 }
 
 func main() {
-	if err := fang.Execute(context.Background(), rootCmd); err != nil {
+	// Configure Fang with version info and styling
+	fangOpts := []fang.Option{
+		fang.WithVersion(version.Version),
+		fang.WithCommit(version.Commit),
+	}
+
+	if err := fang.Execute(context.Background(), rootCmd, fangOpts...); err != nil {
 		os.Exit(1)
 	}
 }
