@@ -4,6 +4,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
@@ -17,6 +19,7 @@ const (
 
 var cfgFile string
 
+// rootCmd is the root Cobra command for cc-relay.
 var rootCmd = &cobra.Command{
 	Use:   "cc-relay",
 	Short: "LLMs API Gateway",
@@ -34,20 +37,26 @@ var rootCmd = &cobra.Command{
   cc-relay completion bash`,
 }
 
+// init sets up global flags for the root command.
 func init() {
 	// Global flags available to all subcommands
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		"config file path (default: ./"+defaultConfigFile+" or ~/.config/cc-relay/"+defaultConfigFile+")")
 }
 
+// main is the entry point of the application.
+// It sets up signal handling and executes the CLI with Fang styling.
 func main() {
+	// Create signal-aware context for graceful shutdown on SIGINT/SIGTERM
+	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+
 	// Configure Fang with version info and styling
 	fangOpts := []fang.Option{
-		fang.WithVersion(version.Version),
+		fang.WithVersion(version.String()),
 		fang.WithCommit(version.Commit),
 	}
 
-	if err := fang.Execute(context.Background(), rootCmd, fangOpts...); err != nil {
+	if err := fang.Execute(ctx, rootCmd, fangOpts...); err != nil {
 		os.Exit(1)
 	}
 }
