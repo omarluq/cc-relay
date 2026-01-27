@@ -19,8 +19,8 @@ var cfgFile string
 
 var rootCmd = &cobra.Command{
 	Use:   "cc-relay",
-	Short: "Blazing fast LLMs API Gateway written in Go",
-	Long: `⚡️ CC-Relay is a Blazing fast LLMs API Gateway written in Go.`,
+	Short: "LLMs API Gateway",
+	Long:  `⚡️ Blazing fast LLMs API Gateway written in Go.`,
 	Example: `  # Start the proxy server with default config:
   cc-relay serve
 
