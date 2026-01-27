@@ -43,7 +43,7 @@ CC-Relay esta en desarrollo activo. Funciones actualmente implementadas:
 
 ```bash
 # Instalar
-go install github.com/omarluq/cc-relay@latest
+go install github.com/omarluq/cc-relay/cmd/cc-relay@latest
 
 # Inicializar configuracion
 cc-relay config init

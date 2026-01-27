@@ -16,7 +16,7 @@ Diese Anleitung fuehrt Sie durch die Installation, Konfiguration und den ersten 
 ### Mit Go Install
 
 ```bash
-go install github.com/omarluq/cc-relay@latest
+go install github.com/omarluq/cc-relay/cmd/cc-relay@latest
 ```
 
 Die Binaerdatei wird unter `$GOPATH/bin/cc-relay` oder `$HOME/go/bin/cc-relay` installiert.

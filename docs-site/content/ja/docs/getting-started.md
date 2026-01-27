@@ -16,7 +16,7 @@ weight: 2
 ### Go Install を使用
 
 ```bash
-go install github.com/omarluq/cc-relay@latest
+go install github.com/omarluq/cc-relay/cmd/cc-relay@latest
 ```
 
 バイナリは `$GOPATH/bin/cc-relay` または `$HOME/go/bin/cc-relay` にインストールされます。

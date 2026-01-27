@@ -16,7 +16,7 @@ weight: 2
 ### 使用 Go Install
 
 ```bash
-go install github.com/omarluq/cc-relay@latest
+go install github.com/omarluq/cc-relay/cmd/cc-relay@latest
 ```
 
 二进制文件将安装到 `$GOPATH/bin/cc-relay` 或 `$HOME/go/bin/cc-relay`。

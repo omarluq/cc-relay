@@ -43,7 +43,7 @@ CC-Relay는 활발하게 개발 중입니다. 현재 구현된 기능:
 
 ```bash
 # 설치
-go install github.com/omarluq/cc-relay@latest
+go install github.com/omarluq/cc-relay/cmd/cc-relay@latest
 
 # 설정 초기화
 cc-relay config init
