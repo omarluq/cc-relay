@@ -24,25 +24,18 @@ var rootCmd = &cobra.Command{
 
 It sits between Claude Code and multiple LLM providers (Anthropic, Z.AI, Ollama,
 Bedrock, Azure, Vertex), enabling seamless model switching, rate limit pooling,
-and intelligent routing.
+and intelligent routing.`,
+	Example: `  # Start the proxy server with default config:
+  cc-relay serve
 
-EXAMPLES
-    # Start the proxy server with default config:
-    cc-relay serve
+  # Start with a custom config file:
+  cc-relay serve --config /path/to/config.yaml
 
-    # Start with a custom config file:
-    cc-relay serve --config /path/to/config.yaml
+  # Check if the server is running:
+  cc-relay status
 
-    # Check if the server is running:
-    cc-relay status
-
-    # Generate shell completions:
-    cc-relay completion bash
-    cc-relay completion zsh
-    cc-relay completion fish
-
-    # Generate man pages:
-    cc-relay man`,
+  # Generate shell completions:
+  cc-relay completion bash`,
 }
 
 func init() {
