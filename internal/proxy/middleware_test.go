@@ -854,7 +854,7 @@ func TestLiveAuthMiddlewareConcurrentAccess(t *testing.T) {
 	const goroutines = 50
 	const requestsPerGoroutine = 20
 
-	runConcurrentRequests(t, wrappedHandler, goroutines, requestsPerGoroutine, func(_ int, j int) (string, int) {
+	runConcurrentRequests(t, wrappedHandler, goroutines, requestsPerGoroutine, func(_, j int) (string, int) {
 		if j%2 == 0 {
 			return concurrentKey, http.StatusOK
 		}

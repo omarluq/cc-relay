@@ -68,6 +68,22 @@ func newHandlerWithAPIKey(t *testing.T, provider providers.Provider) *Handler {
 	return newTestHandler(t, provider, nil, nil, testKey, nil, false, nil)
 }
 
+func serveJSONMessages(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
+	t.Helper()
+	return serveJSONMessagesBody(t, handler, `{}`)
+}
+
+func newJSONMessagesRequest(body string) *http.Request {
+	return newMessagesRequestWithHeaders(body,
+		headerPair{key: "Content-Type", value: "application/json"},
+	)
+}
+
+func serveJSONMessagesBody(t *testing.T, handler http.Handler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	return serveRequest(t, handler, newJSONMessagesRequest(body))
+}
+
 func newKeyPool(t *testing.T, keys []keypool.KeyConfig) *keypool.KeyPool {
 	t.Helper()
 	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
@@ -94,6 +110,42 @@ func serveMessages(t *testing.T, handler http.Handler) *httptest.ResponseRecorde
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
+}
+
+func newTrackedHandler(
+	t *testing.T,
+	providerName, backendURL, routerName string,
+	failureThreshold int,
+) (*Handler, *health.Tracker) {
+	t.Helper()
+
+	provider := newNamedProvider(providerName, backendURL)
+	logger := zerolog.Nop()
+	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: failureThreshold}, &logger)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: tracker.IsHealthyFunc(providerName)},
+	}
+
+	mockR := &mockRouter{
+		name: routerName,
+		selected: router.ProviderInfo{
+			Provider:  provider,
+			IsHealthy: tracker.IsHealthyFunc(providerName),
+		},
+	}
+
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: mockR,
+		APIKey:         testKey,
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+		HealthTracker:  tracker,
+	})
+	require.NoError(t, err)
+	return handler, tracker
 }
 
 func TestNewHandlerValidProvider(t *testing.T) {
@@ -1184,39 +1236,8 @@ func TestHandlerHealthHeaderWhenEnabled(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := newTestProvider(backend.URL)
-	logger := zerolog.Nop()
-	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 5}, &logger)
-
-	providerInfos := []router.ProviderInfo{
-		{Provider: provider, IsHealthy: tracker.IsHealthyFunc("test")},
-	}
-
-	mockR := &mockRouter{
-		name: "round_robin",
-		selected: router.ProviderInfo{
-			Provider:  provider,
-			IsHealthy: tracker.IsHealthyFunc("test"),
-		},
-	}
-
-	// routingDebug=true to enable X-CC-Relay-Health header
-	handler, err := NewHandler(&HandlerOptions{
-		Provider:       provider,
-		ProviderInfos:  providerInfos,
-		ProviderRouter: mockR,
-		APIKey:         testKey,
-		DebugOptions:   config.DebugOptions{},
-		RoutingDebug:   true,
-		HealthTracker:  tracker,
-	})
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
+	handler, _ := newTrackedHandler(t, "test", backend.URL, "round_robin", 5)
+	rr := serveJSONMessages(t, handler)
 
 	// Should have health header
 	healthHeader := rr.Header().Get("X-CC-Relay-Health")
@@ -1235,38 +1256,8 @@ func TestHandlerReportOutcomeSuccess(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := newTestProvider(backend.URL)
-	logger := zerolog.Nop()
-	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
-
-	providerInfos := []router.ProviderInfo{
-		{Provider: provider, IsHealthy: tracker.IsHealthyFunc("test")},
-	}
-
-	mockR := &mockRouter{
-		name: "test",
-		selected: router.ProviderInfo{
-			Provider:  provider,
-			IsHealthy: tracker.IsHealthyFunc("test"),
-		},
-	}
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider:       provider,
-		ProviderInfos:  providerInfos,
-		ProviderRouter: mockR,
-		APIKey:         testKey,
-		DebugOptions:   config.DebugOptions{},
-		RoutingDebug:   true,
-		HealthTracker:  tracker,
-	})
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
+	handler, tracker := newTrackedHandler(t, "test", backend.URL, "test", 2)
+	rr := serveJSONMessages(t, handler)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// Provider should still be healthy after successful request
@@ -1284,40 +1275,12 @@ func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := newNamedProvider(test500ProviderName, backend.URL)
-	logger := zerolog.Nop()
 	// Low threshold to trigger circuit opening quickly
-	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
-
-	providerInfos := []router.ProviderInfo{
-		{Provider: provider, IsHealthy: tracker.IsHealthyFunc(test500ProviderName)},
-	}
-
-	mockR := &mockRouter{
-		name: "test",
-		selected: router.ProviderInfo{
-			Provider:  provider,
-			IsHealthy: tracker.IsHealthyFunc(test500ProviderName),
-		},
-	}
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider:       provider,
-		ProviderInfos:  providerInfos,
-		ProviderRouter: mockR,
-		APIKey:         testKey,
-		DebugOptions:   config.DebugOptions{},
-		RoutingDebug:   true,
-		HealthTracker:  tracker,
-	})
-	require.NoError(t, err)
+	handler, tracker := newTrackedHandler(t, test500ProviderName, backend.URL, "test", 2)
 
 	// Make multiple requests to trip the circuit
 	for i := 0; i < 3; i++ {
-		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
-		req.Header.Set("Content-Type", "application/json")
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
+		rr := serveJSONMessages(t, handler)
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	}
 
@@ -1337,39 +1300,11 @@ func TestHandlerReportOutcomeFailure429(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := newNamedProvider(test429ProviderName, backend.URL)
-	logger := zerolog.Nop()
-	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
-
-	providerInfos := []router.ProviderInfo{
-		{Provider: provider, IsHealthy: tracker.IsHealthyFunc(test429ProviderName)},
-	}
-
-	mockR := &mockRouter{
-		name: "test",
-		selected: router.ProviderInfo{
-			Provider:  provider,
-			IsHealthy: tracker.IsHealthyFunc(test429ProviderName),
-		},
-	}
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider:       provider,
-		ProviderInfos:  providerInfos,
-		ProviderRouter: mockR,
-		APIKey:         testKey,
-		DebugOptions:   config.DebugOptions{},
-		RoutingDebug:   true,
-		HealthTracker:  tracker,
-	})
-	require.NoError(t, err)
+	handler, tracker := newTrackedHandler(t, test429ProviderName, backend.URL, "test", 2)
 
 	// Make multiple requests to trip the circuit
 	for i := 0; i < 3; i++ {
-		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
-		req.Header.Set("Content-Type", "application/json")
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
+		rr := serveJSONMessages(t, handler)
 		assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 	}
 
@@ -1388,32 +1323,7 @@ func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := newNamedProvider(test400ProviderName, backend.URL)
-	logger := zerolog.Nop()
-	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
-
-	providerInfos := []router.ProviderInfo{
-		{Provider: provider, IsHealthy: tracker.IsHealthyFunc(test400ProviderName)},
-	}
-
-	mockR := &mockRouter{
-		name: "test",
-		selected: router.ProviderInfo{
-			Provider:  provider,
-			IsHealthy: tracker.IsHealthyFunc(test400ProviderName),
-		},
-	}
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider:       provider,
-		ProviderInfos:  providerInfos,
-		ProviderRouter: mockR,
-		APIKey:         testKey,
-		DebugOptions:   config.DebugOptions{},
-		RoutingDebug:   true,
-		HealthTracker:  tracker,
-	})
-	require.NoError(t, err)
+	handler, tracker := newTrackedHandler(t, test400ProviderName, backend.URL, "test", 2)
 
 	// Make multiple 400 requests
 	for i := 0; i < 5; i++ {
@@ -1456,19 +1366,8 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	t.Parallel()
 
 	// Create two mock backends
-	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test1"}`))
-	}))
-	defer backend1.Close()
-
-	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test2"}`))
-	}))
-	defer backend2.Close()
+	backend1 := newJSONBackend(t, `{"id":"test1"}`)
+	backend2 := newJSONBackend(t, `{"id":"test2"}`)
 
 	provider1 := newNamedProvider("provider1", backend1.URL)
 	provider2 := newNamedProvider("provider2", backend2.URL)
@@ -1509,10 +1408,7 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 
 	// Make multiple requests with thinking - should always get first healthy provider
 	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(thinkingBody))
-		req.Header.Set("Content-Type", "application/json")
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
+		rr := serveJSONMessagesBody(t, handler, thinkingBody)
 		assert.Equal(t, http.StatusOK, rr.Code)
 	}
 
@@ -1523,10 +1419,7 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	}
 
 	// Check thinking affinity header is set
-	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(thinkingBody))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	rr := serveJSONMessagesBody(t, handler, thinkingBody)
 	assert.Equal(t, "true", rr.Header().Get("X-CC-Relay-Thinking-Affinity"))
 }
 
@@ -1534,19 +1427,8 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 	t.Parallel()
 
-	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test1"}`))
-	}))
-	defer backend1.Close()
-
-	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test2"}`))
-	}))
-	defer backend2.Close()
+	backend1 := newJSONBackend(t, `{"id":"test1"}`)
+	backend2 := newJSONBackend(t, `{"id":"test2"}`)
 
 	provider1 := newNamedProvider("provider1", backend1.URL)
 	provider2 := newNamedProvider("provider2", backend2.URL)
@@ -1578,10 +1460,7 @@ func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(thinkingBody))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	rr := serveJSONMessagesBody(t, handler, thinkingBody)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// Should use provider2 (first healthy after filtering)
@@ -1592,19 +1471,8 @@ func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 func TestHandlerNoThinkingUsesNormalRouting(t *testing.T) {
 	t.Parallel()
 
-	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test1"}`))
-	}))
-	defer backend1.Close()
-
-	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test2"}`))
-	}))
-	defer backend2.Close()
+	backend1 := newJSONBackend(t, `{"id":"test1"}`)
+	backend2 := newJSONBackend(t, `{"id":"test2"}`)
 
 	provider1 := newNamedProvider("provider1", backend1.URL)
 	provider2 := newNamedProvider("provider2", backend2.URL)
@@ -1647,10 +1515,7 @@ func TestHandlerNoThinkingUsesNormalRouting(t *testing.T) {
 	}`
 
 	// Make request without thinking
-	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(noThinkingBody))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	rr := serveJSONMessagesBody(t, handler, noThinkingBody)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// Should receive ALL providers (2), not just 1

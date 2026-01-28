@@ -14,7 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testAPIKey = "test-key"
+const (
+	testAPIKey    = "test-key"
+	okBackendBody = `{"status":"ok"}`
+)
 
 func newTestConfig(apiKey string) *config.Config {
 	return &config.Config{
@@ -28,6 +31,19 @@ func newTestConfigWithListen(apiKey, listen string) *config.Config {
 	cfg := newTestConfig(apiKey)
 	cfg.Server.Listen = listen
 	return cfg
+}
+
+func newAuthConfig(auth config.AuthConfig) *config.Config {
+	return &config.Config{
+		Server: config.ServerConfig{
+			Auth: auth,
+		},
+	}
+}
+
+func newOKBackend(t *testing.T) *httptest.Server {
+	t.Helper()
+	return newBackendServer(t, okBackendBody)
 }
 
 func TestSetupRoutesCreatesHandler(t *testing.T) {
@@ -64,7 +80,7 @@ func TestSetupRoutesAuthMiddlewareWithValidKey(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend server
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := newOKBackend(t)
 
 	cfg := newTestConfig(testAPIKey)
 	provider := newTestProvider(backend.URL)
@@ -367,14 +383,10 @@ func TestSetupRoutesMultiAuthWithBearerToken(t *testing.T) {
 
 	backend := newBackendServer(t, `{"status":"ok"}`)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				AllowBearer:  true,
-				BearerSecret: "test-bearer-token",
-			},
-		},
-	}
+	cfg := newAuthConfig(config.AuthConfig{
+		AllowBearer:  true,
+		BearerSecret: "test-bearer-token",
+	})
 	provider := newTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -393,14 +405,10 @@ func TestSetupRoutesMultiAuthWithBearerToken(t *testing.T) {
 func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 	t.Parallel()
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				AllowBearer:  true,
-				BearerSecret: "correct-token",
-			},
-		},
-	}
+	cfg := newAuthConfig(config.AuthConfig{
+		AllowBearer:  true,
+		BearerSecret: "correct-token",
+	})
 	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -419,17 +427,13 @@ func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := newOKBackend(t)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey:       "test-api-key",
-				AllowBearer:  true,
-				BearerSecret: "test-bearer-token",
-			},
-		},
-	}
+	cfg := newAuthConfig(config.AuthConfig{
+		APIKey:       "test-api-key",
+		AllowBearer:  true,
+		BearerSecret: "test-bearer-token",
+	})
 	provider := newTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -475,16 +479,12 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 func TestSetupRoutesMultiAuthBearerWithoutSecret(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := newOKBackend(t)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				AllowBearer:  true,
-				BearerSecret: "", // Any token accepted
-			},
-		},
-	}
+	cfg := newAuthConfig(config.AuthConfig{
+		AllowBearer:  true,
+		BearerSecret: "", // Any token accepted
+	})
 	provider := newTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -503,7 +503,7 @@ func TestSetupRoutesMultiAuthBearerWithoutSecret(t *testing.T) {
 func TestSetupRoutesLegacyAPIKeyFallback(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := newOKBackend(t)
 
 	// Use legacy Server.APIKey without Auth config
 	cfg := newTestConfig("legacy-key")
@@ -620,17 +620,13 @@ func TestSetupRoutesModelsEndpointEmptyProviders(t *testing.T) {
 func TestSetupRoutesSubscriptionTokenAuth(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := newOKBackend(t)
 
 	// Test that allow_subscription works as an alias for allow_bearer
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				AllowSubscription: true, // User-friendly config option
-				// BearerSecret empty = passthrough mode (any token accepted)
-			},
-		},
-	}
+	cfg := newAuthConfig(config.AuthConfig{
+		AllowSubscription: true, // User-friendly config option
+		// BearerSecret empty = passthrough mode (any token accepted)
+	})
 	provider := newTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -649,17 +645,13 @@ func TestSetupRoutesSubscriptionTokenAuth(t *testing.T) {
 func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := newOKBackend(t)
 
 	// Test that both subscription and API key auth work together
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey:            "test-api-key",
-				AllowSubscription: true,
-			},
-		},
-	}
+	cfg := newAuthConfig(config.AuthConfig{
+		APIKey:            "test-api-key",
+		AllowSubscription: true,
+	})
 	provider := newTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
