@@ -2,7 +2,7 @@
 
 # Build artifacts
 bin/
-cc-relay
+/cc-relay
 *.exe
 *.exe~
 *.dll
