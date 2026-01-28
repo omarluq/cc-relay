@@ -28,6 +28,8 @@ const (
 	testKey                = "test-key"
 	testSingleKey          = "test-single-key"
 	testProviderName       = "test-provider"
+	providerAName          = "provider-a"
+	providerBName          = "provider-b"
 	anthropicVersionHeader = "Anthropic-Version"
 	fallbackKey            = "fallback-key"
 	test500ProviderName    = "test-500"
@@ -1048,8 +1050,8 @@ func TestHandlerModelBasedRoutingHotReload(t *testing.T) {
 
 	backend := newJSONBackend(t, `{"id":"test"}`)
 
-	providerA := newNamedProvider("provider-a", backend.URL)
-	providerB := newNamedProvider("provider-b", backend.URL)
+	providerA := newNamedProvider(providerAName, backend.URL)
+	providerB := newNamedProvider(providerBName, backend.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: providerA, IsHealthy: func() bool { return true }},
@@ -1084,8 +1086,8 @@ func TestHandlerModelBasedRoutingHotReload(t *testing.T) {
 		Server: config.ServerConfig{APIKey: ""},
 		Routing: config.RoutingConfig{
 			Strategy:        router.StrategyModelBased,
-			ModelMapping:    map[string]string{"glm": "provider-b"},
-			DefaultProvider: "provider-a",
+			ModelMapping:    map[string]string{"glm": providerBName},
+			DefaultProvider: providerAName,
 		},
 	})
 
@@ -1093,7 +1095,7 @@ func TestHandlerModelBasedRoutingHotReload(t *testing.T) {
 	resp = serveRequest(t, handler, req)
 	require.Equal(t, http.StatusOK, resp.Code)
 	require.Len(t, capture.lastSeen, 1)
-	assert.Equal(t, "provider-b", capture.lastSeen[0].Provider.Name())
+	assert.Equal(t, providerBName, capture.lastSeen[0].Provider.Name())
 }
 
 func TestHandlerLazyProxyForNewProvider(t *testing.T) {
@@ -1113,8 +1115,8 @@ func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 	}))
 	defer backendB.Close()
 
-	providerA := newNamedProvider("provider-a", backendA.URL)
-	providerB := newNamedProvider("provider-b", backendB.URL)
+	providerA := newNamedProvider(providerAName, backendA.URL)
+	providerB := newNamedProvider(providerBName, backendB.URL)
 
 	infos := []router.ProviderInfo{
 		{Provider: providerA, IsHealthy: func() bool { return true }},
