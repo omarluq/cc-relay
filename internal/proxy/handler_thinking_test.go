@@ -15,7 +15,6 @@ import (
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/keypool"
-	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
@@ -33,7 +32,7 @@ func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
 
 	backend, recorder := newRecordingBackend(t)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler := newHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with thinking block (no signature - should use cached)
@@ -67,7 +66,7 @@ func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 
 	backend, recorder := newRecordingBackend(t)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler := newHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with valid client signature
@@ -102,7 +101,7 @@ func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 
 	backend, recorder := newRecordingBackend(t)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler := newHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with unsigned thinking block
@@ -138,7 +137,7 @@ func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 
 	backend, recorder := newRecordingBackend(t)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler := newHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with thinking block followed by tool_use
@@ -175,7 +174,7 @@ func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {
 
 	backend, recorder := newRecordingBackend(t)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler := newHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with text before thinking (wrong order)
@@ -219,7 +218,7 @@ func TestHandlerThinkingSignatureModelGroupSharing(t *testing.T) {
 
 	backend, recorder := newRecordingBackend(t)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler := newHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with different model but same group
@@ -281,8 +280,8 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 	defer backend2.Close()
 
 	// Create providers
-	provider1 := providers.NewAnthropicProvider("provider1", backend1.URL)
-	provider2 := providers.NewAnthropicProvider("provider2", backend2.URL)
+	provider1 := newNamedProvider("provider1", backend1.URL)
+	provider2 := newNamedProvider("provider2", backend2.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }},
@@ -343,7 +342,7 @@ func TestHandlerNoSignatureCachePassesThrough(t *testing.T) {
 	backend, recorder := newRecordingBackend(t)
 
 	// Create handler without signature cache
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider:     provider,
 		APIKey:       "test-key",

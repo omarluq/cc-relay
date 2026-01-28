@@ -24,6 +24,7 @@ import (
 const (
 	configFileName      = "config.yaml"
 	anthropicBaseURL    = "https://api.anthropic.com"
+	cacheDisabledConfig = "cache:\n  mode: disabled\n"
 	testKey1            = "test-key-1"
 	testKey2            = "test-key-2"
 	testKey             = "test-key"
@@ -73,8 +74,7 @@ server:
 logging:
   level: info
   format: json
-cache:
-  mode: disabled
+%s
 providers:
   - name: anthropic
     type: anthropic
@@ -82,7 +82,7 @@ providers:
     enabled: true
     keys:
       - key: %s
-`, anthropicBaseURL, testKey1)
+`, cacheDisabledConfig, anthropicBaseURL, testKey1)
 
 var multiKeyPoolingConfig = fmt.Sprintf(`
 server:
@@ -90,8 +90,7 @@ server:
 logging:
   level: info
   format: json
-cache:
-  mode: disabled
+%s
 providers:
   - name: anthropic
     type: anthropic
@@ -107,16 +106,14 @@ providers:
       - key: %s
         rpm_limit: 200
         priority: 2
-`, anthropicBaseURL, testKey1, testKey2)
+`, cacheDisabledConfig, anthropicBaseURL, testKey1, testKey2)
 
 const noProviderConfig = `
 server:
   listen: ":8787"
 logging:
   level: info
-cache:
-  mode: disabled
-providers: []
+` + cacheDisabledConfig + `providers: []
 `
 
 var multiProviderConfig = fmt.Sprintf(`

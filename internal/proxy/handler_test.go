@@ -55,18 +55,16 @@ func newTestHandler(
 	return handler
 }
 
+func newHandlerWithAPIKey(t *testing.T, provider providers.Provider) *Handler {
+	t.Helper()
+	return newTestHandler(t, provider, nil, nil, "test-key", nil, false, nil)
+}
+
 func TestNewHandlerValidProvider(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		APIKey:   "test-key",
-	})
-	if err != nil {
-		t.Fatalf("NewHandler failed: %v", err)
-	}
+	provider := newTestProvider("https://api.anthropic.com")
+	handler := newHandlerWithAPIKey(t, provider)
 
 	if handler == nil {
 		t.Error("Expected non-nil handler")
@@ -90,7 +88,7 @@ func TestNewHandlerInvalidURL(t *testing.T) {
 func TestNewHandlerWithLiveProvidersNilProviderInfosFunc(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := newTestProvider("https://api.anthropic.com")
 
 	// Should not panic with nil providerInfosFunc
 	handler, err := NewHandlerWithLiveProviders(&HandlerOptions{
@@ -125,15 +123,8 @@ func TestHandlerForwardsAnthropicHeaders(t *testing.T) {
 	defer backend.Close()
 
 	// Create provider pointing to mock backend
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		APIKey:   "test-key",
-	})
-	if err != nil {
-		t.Fatalf("NewHandler failed: %v", err)
-	}
+	provider := newTestProvider(backend.URL)
+	handler := newHandlerWithAPIKey(t, provider)
 
 	// Create request with anthropic headers
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
@@ -152,15 +143,8 @@ func TestHandlerForwardsAnthropicHeaders(t *testing.T) {
 func TestHandlerHasErrorHandler(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		APIKey:   "test-key",
-	})
-	if err != nil {
-		t.Fatalf("NewHandler failed: %v", err)
-	}
+	provider := newTestProvider("https://api.anthropic.com")
+	handler := newHandlerWithAPIKey(t, provider)
 
 	// Verify ProviderProxy exists and has ErrorHandler configured
 	pp, ok := handler.providerProxies[provider.Name()]
@@ -176,15 +160,8 @@ func TestHandlerHasErrorHandler(t *testing.T) {
 func TestHandlerStructureCorrect(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
-
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		APIKey:   "test-key",
-	})
-	if err != nil {
-		t.Fatalf("NewHandler failed: %v", err)
-	}
+	provider := newTestProvider("https://api.anthropic.com")
+	handler := newHandlerWithAPIKey(t, provider)
 
 	// Verify handler has providerProxies map
 	if handler.providerProxies == nil {
@@ -232,7 +209,7 @@ func TestHandlerPreservesToolUseId(t *testing.T) {
 	defer backend.Close()
 
 	// Create provider pointing to mock backend
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
@@ -339,13 +316,7 @@ func TestHandlerWithKeyPool(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		// Return success
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test","type":"message"}`))
-	}))
-	defer backend.Close()
+	backend := newJSONBackend(t, `{"id":"test","type":"message"}`)
 
 	// Create key pool with test keys
 	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
@@ -358,7 +329,7 @@ func TestHandlerWithKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create handler with key pool
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		Pool:     pool,
@@ -397,7 +368,7 @@ func TestHandlerAllKeysExhausted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create handler
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := newTestProvider("https://api.anthropic.com")
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		Pool:     pool,
@@ -452,7 +423,7 @@ func TestHandlerKeyPoolUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create handler
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		Pool:     pool,
@@ -496,7 +467,7 @@ func TestHandlerBackend429(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create handler
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		Pool:     pool,
@@ -534,7 +505,7 @@ func TestHandlerSingleKeyMode(t *testing.T) {
 	defer backend.Close()
 
 	// Create handler without key pool (nil)
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		APIKey:   "test-single-key",
@@ -573,7 +544,7 @@ func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		APIKey:   "our-fallback-key",
@@ -617,7 +588,7 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 	defer backend.Close()
 
 	// Create handler with a configured fallback key
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		APIKey:   "fallback-key",
@@ -660,7 +631,7 @@ func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		APIKey:   "fallback-key",
@@ -705,7 +676,7 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		Pool:     pool,
@@ -746,7 +717,7 @@ func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		Pool:     pool,
@@ -785,7 +756,7 @@ func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
 		APIKey:   "fallback-key",
@@ -969,7 +940,7 @@ func TestHandlerSingleProviderMode(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	// No router (nil), no providers list (nil) - single provider mode
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
@@ -998,8 +969,8 @@ func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider1 := providers.NewAnthropicProvider("provider1", backend.URL)
-	provider2 := providers.NewAnthropicProvider("provider2", backend.URL)
+	provider1 := newNamedProvider("provider1", backend.URL)
+	provider2 := newNamedProvider("provider2", backend.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }},
@@ -1045,8 +1016,8 @@ func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 	}))
 	defer backendB.Close()
 
-	providerA := providers.NewAnthropicProvider("provider-a", backendA.URL)
-	providerB := providers.NewAnthropicProvider("provider-b", backendB.URL)
+	providerA := newNamedProvider("provider-a", backendA.URL)
+	providerB := newNamedProvider("provider-b", backendB.URL)
 
 	infos := []router.ProviderInfo{
 		{Provider: providerA, IsHealthy: func() bool { return true }},
@@ -1095,7 +1066,7 @@ func TestHandlerDebugHeadersDisabledByDefault(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider, IsHealthy: func() bool { return true }},
 	}
@@ -1132,7 +1103,7 @@ func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test-provider", backend.URL)
+	provider := newNamedProvider("test-provider", backend.URL)
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider, IsHealthy: func() bool { return true }},
 	}
@@ -1161,7 +1132,7 @@ func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 func TestHandlerRouterSelectionError(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := newTestProvider("https://api.anthropic.com")
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider, IsHealthy: func() bool { return false }},
 	}
@@ -1193,7 +1164,7 @@ func TestHandlerRouterSelectionError(t *testing.T) {
 func TestHandlerSelectProviderSingleMode(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := newTestProvider("https://api.anthropic.com")
 
 	// No router, no providers - single provider mode
 	handler, err := NewHandler(&HandlerOptions{
@@ -1212,8 +1183,8 @@ func TestHandlerSelectProviderSingleMode(t *testing.T) {
 func TestHandlerSelectProviderMultiMode(t *testing.T) {
 	t.Parallel()
 
-	provider1 := providers.NewAnthropicProvider("provider1", "https://api.anthropic.com")
-	provider2 := providers.NewAnthropicProvider("provider2", "https://api.anthropic.com")
+	provider1 := newNamedProvider("provider1", "https://api.anthropic.com")
+	provider2 := newNamedProvider("provider2", "https://api.anthropic.com")
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }},
@@ -1247,7 +1218,7 @@ func TestHandlerHealthHeaderWhenEnabled(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	logger := zerolog.Nop()
 	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 5}, &logger)
 
@@ -1298,7 +1269,7 @@ func TestHandlerReportOutcomeSuccess(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := newTestProvider(backend.URL)
 	logger := zerolog.Nop()
 	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
 
@@ -1347,7 +1318,7 @@ func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test-500", backend.URL)
+	provider := newNamedProvider("test-500", backend.URL)
 	logger := zerolog.Nop()
 	// Low threshold to trigger circuit opening quickly
 	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
@@ -1400,7 +1371,7 @@ func TestHandlerReportOutcomeFailure429(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test-429", backend.URL)
+	provider := newNamedProvider("test-429", backend.URL)
 	logger := zerolog.Nop()
 	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
 
@@ -1451,7 +1422,7 @@ func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test-400", backend.URL)
+	provider := newNamedProvider("test-400", backend.URL)
 	logger := zerolog.Nop()
 	tracker := health.NewTracker(health.CircuitBreakerConfig{FailureThreshold: 2}, &logger)
 
@@ -1533,8 +1504,8 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	}))
 	defer backend2.Close()
 
-	provider1 := providers.NewAnthropicProvider("provider1", backend1.URL)
-	provider2 := providers.NewAnthropicProvider("provider2", backend2.URL)
+	provider1 := newNamedProvider("provider1", backend1.URL)
+	provider2 := newNamedProvider("provider2", backend2.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }},
@@ -1611,8 +1582,8 @@ func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 	}))
 	defer backend2.Close()
 
-	provider1 := providers.NewAnthropicProvider("provider1", backend1.URL)
-	provider2 := providers.NewAnthropicProvider("provider2", backend2.URL)
+	provider1 := newNamedProvider("provider1", backend1.URL)
+	provider2 := newNamedProvider("provider2", backend2.URL)
 
 	// Provider1 is unhealthy, provider2 is healthy
 	providerInfos := []router.ProviderInfo{
@@ -1669,8 +1640,8 @@ func TestHandlerNoThinkingUsesNormalRouting(t *testing.T) {
 	}))
 	defer backend2.Close()
 
-	provider1 := providers.NewAnthropicProvider("provider1", backend1.URL)
-	provider2 := providers.NewAnthropicProvider("provider2", backend2.URL)
+	provider1 := newNamedProvider("provider1", backend1.URL)
+	provider2 := newNamedProvider("provider2", backend2.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }},

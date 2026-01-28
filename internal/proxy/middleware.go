@@ -66,6 +66,22 @@ func failAuth(w http.ResponseWriter, r *http.Request, reason string) {
 	WriteError(w, http.StatusUnauthorized, "authentication_error", reason)
 }
 
+func handleAuthResult(ctx context.Context, w http.ResponseWriter, result auth.Result) bool {
+	if !result.Valid {
+		zerolog.Ctx(ctx).Warn().
+			Str("auth_type", string(result.Type)).
+			Str("error", result.Error).
+			Msg("authentication failed")
+		WriteError(w, http.StatusUnauthorized, "authentication_error", result.Error)
+		return false
+	}
+
+	zerolog.Ctx(ctx).Debug().
+		Str("auth_type", string(result.Type)).
+		Msg(authSucceededMsg)
+	return true
+}
+
 // MultiAuthMiddleware creates middleware supporting multiple authentication methods.
 // Supports both x-api-key and Authorization: Bearer token authentication.
 // If authConfig has no methods enabled, all requests pass through.
@@ -97,19 +113,10 @@ func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			result := chainAuth.Validate(r)
 
-			if !result.Valid {
-				zerolog.Ctx(r.Context()).Warn().
-					Str("auth_type", string(result.Type)).
-					Str("error", result.Error).
-					Msg("authentication failed")
-				WriteError(w, http.StatusUnauthorized, "authentication_error", result.Error)
-
+			if !handleAuthResult(r.Context(), w, result) {
 				return
 			}
 
-			zerolog.Ctx(r.Context()).Debug().
-				Str("auth_type", string(result.Type)).
-				Msg(authSucceededMsg)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -359,18 +366,10 @@ func LiveAuthMiddleware(cfgProvider config.RuntimeConfigGetter) func(http.Handle
 			}
 
 			result := cached.chain.Validate(r)
-			if !result.Valid {
-				zerolog.Ctx(r.Context()).Warn().
-					Str("auth_type", string(result.Type)).
-					Str("error", result.Error).
-					Msg("authentication failed")
-				WriteError(w, http.StatusUnauthorized, "authentication_error", result.Error)
+			if !handleAuthResult(r.Context(), w, result) {
 				return
 			}
 
-			zerolog.Ctx(r.Context()).Debug().
-				Str("auth_type", string(result.Type)).
-				Msg(authSucceededMsg)
 			next.ServeHTTP(w, r)
 		})
 	}

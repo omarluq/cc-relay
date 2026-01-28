@@ -62,10 +62,32 @@ func newBackendServer(t *testing.T, body string) *httptest.Server {
 	return server
 }
 
+func newJSONBackend(t *testing.T, body string) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if body != "" {
+			_, _ = w.Write([]byte(body))
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
 func newMessagesRequest(body io.Reader) *http.Request {
 	req := httptest.NewRequest("POST", "/v1/messages", body)
 	req.Header.Set("anthropic-version", anthropicVersion)
 	return req
+}
+
+func newTestProvider(url string) providers.Provider {
+	return providers.NewAnthropicProvider("test", url)
+}
+
+func newNamedProvider(name, url string) providers.Provider {
+	return providers.NewAnthropicProvider(name, url)
 }
 
 func newTestSignatureCache(t *testing.T) (sigCache *SignatureCache, cleanup func()) {
