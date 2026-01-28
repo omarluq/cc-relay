@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	anthropicVersion = "2023-06-01"
-	anthropicBaseURL = "https://api.anthropic.com"
+	anthropicVersion              = "2023-06-01"
+	anthropicBaseURL              = "https://api.anthropic.com"
+	anthropicVersion2024          = "2024-01-01"
+	anthropicBetaExtendedThinking = "extended-thinking-2024-01-01"
 )
 
 type recordingBackend struct {

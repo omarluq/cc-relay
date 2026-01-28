@@ -180,13 +180,13 @@ func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer token")
-	req.Header.Set("Anthropic-Version", "2024-01-01")
+	req.Header.Set("Anthropic-Version", anthropicVersion2024)
 	req.Header.Set("Anthropic-Beta", "extended-thinking")
 	w := httptest.NewRecorder()
 	pp.Proxy.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "2024-01-01", receivedVersion)
+	assert.Equal(t, anthropicVersion2024, receivedVersion)
 	assert.Equal(t, "extended-thinking", receivedBeta)
 }
 

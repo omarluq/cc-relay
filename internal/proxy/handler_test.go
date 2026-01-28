@@ -559,7 +559,7 @@ func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 
 	// Create request WITHOUT any auth headers
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set(anthropicVersionHeader, "2024-01-01")
+	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
 	// NO Authorization, NO x-api-key
 
 	w := httptest.NewRecorder()
@@ -604,7 +604,7 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 	// Create request WITH client Authorization header
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
 	req.Header.Set("Authorization", "Bearer sub_12345")
-	req.Header.Set(anthropicVersionHeader, "2024-01-01")
+	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -647,7 +647,7 @@ func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	// Create request WITH client x-api-key header
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
 	req.Header.Set("x-api-key", "sk-ant-client-key")
-	req.Header.Set(anthropicVersionHeader, "2024-01-01")
+	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -771,15 +771,15 @@ func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
 	req.Header.Set("Authorization", "Bearer client-token")
-	req.Header.Set(anthropicVersionHeader, "2024-01-01")
-	req.Header.Set("Anthropic-Beta", "extended-thinking-2024-01-01")
+	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
+	req.Header.Set("Anthropic-Beta", anthropicBetaExtendedThinking)
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "2024-01-01", receivedVersion)
-	assert.Equal(t, "extended-thinking-2024-01-01", receivedBeta)
+	assert.Equal(t, anthropicVersion2024, receivedVersion)
+	assert.Equal(t, anthropicBetaExtendedThinking, receivedBeta)
 }
 
 // TestHandler_NonTransparentProviderUsesConfiguredKeys tests that providers
@@ -808,7 +808,7 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 	// Client sends Authorization header (like Claude Code does)
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
 	req.Header.Set("Authorization", "Bearer client-anthropic-token")
-	req.Header.Set(anthropicVersionHeader, "2024-01-01")
+	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)

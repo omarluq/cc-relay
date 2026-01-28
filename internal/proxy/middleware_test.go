@@ -14,6 +14,10 @@ import (
 const (
 	wrongKey            = "wrong-key"
 	expectedStatusOKMsg = "expected status 200"
+	keyV1               = "key-v1"
+	keyV2               = "key-v2"
+	keyAlpha            = "key-alpha"
+	keyBeta             = "key-beta"
 )
 
 func assertStatus(t *testing.T, rec *httptest.ResponseRecorder, expected int, msg string) {
@@ -28,6 +32,69 @@ func assertStatusCode(t *testing.T, got, expected int, msg string) {
 	if got != expected {
 		t.Errorf("%s: got %d", msg, got)
 	}
+}
+
+func doAPIKeyRequest(t *testing.T, handler http.Handler, key string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := newMessagesRequest(http.NoBody)
+	req.Header.Set("x-api-key", key)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func assertKeyWithHandler(t *testing.T, handler http.Handler, key string, expected int, msg string) {
+	t.Helper()
+	rec := doAPIKeyRequest(t, handler, key)
+	assertStatus(t, rec, expected, msg)
+}
+
+func runConcurrentRequests(
+	t *testing.T,
+	handler http.Handler,
+	workers int,
+	iterations int,
+	keyFn func(workerID, iter int) (string, int),
+) {
+	t.Helper()
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for i := 0; i < workers; i++ {
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				key, expected := keyFn(id, j)
+				rec := doAPIKeyRequest(t, handler, key)
+				if rec.Code != expected {
+					t.Errorf("goroutine %d request %d: expected %d, got %d", id, j, expected, rec.Code)
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+func startConfigSwitcher(
+	wg *sync.WaitGroup,
+	runtime *config.Runtime,
+	cfg1, cfg2 *config.Config,
+	iterations int,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			if i%2 == 0 {
+				runtime.Store(cfg1)
+			} else {
+				runtime.Store(cfg2)
+			}
+			time.Sleep(time.Microsecond)
+		}
+	}()
 }
 
 func TestAuthMiddlewareValidKey(t *testing.T) {
@@ -650,7 +717,7 @@ func TestLiveAuthMiddlewareConfigSwitching(t *testing.T) {
 	cfg1 := &config.Config{
 		Server: config.ServerConfig{
 			Auth: config.AuthConfig{
-				APIKey: "key-v1",
+				APIKey: keyV1,
 			},
 		},
 	}
@@ -659,41 +726,23 @@ func TestLiveAuthMiddlewareConfigSwitching(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Request with key-v1 should succeed
-	req1 := newMessagesRequest(http.NoBody)
-	req1.Header.Set("x-api-key", "key-v1")
-	rec1 := httptest.NewRecorder()
-	wrappedHandler.ServeHTTP(rec1, req1)
-	if rec1.Code != http.StatusOK {
-		t.Errorf("key-v1 should work with cfg1: got %d", rec1.Code)
-	}
+	assertKeyWithHandler(t, wrappedHandler, keyV1, http.StatusOK, "key-v1 should work with cfg1")
 
 	// Switch to new API key
 	cfg2 := &config.Config{
 		Server: config.ServerConfig{
 			Auth: config.AuthConfig{
-				APIKey: "key-v2",
+				APIKey: keyV2,
 			},
 		},
 	}
 	runtime.Store(cfg2)
 
 	// Old key should now fail
-	req2 := newMessagesRequest(http.NoBody)
-	req2.Header.Set("x-api-key", "key-v1")
-	rec2 := httptest.NewRecorder()
-	wrappedHandler.ServeHTTP(rec2, req2)
-	if rec2.Code != http.StatusUnauthorized {
-		t.Errorf("key-v1 should fail after switch: got %d", rec2.Code)
-	}
+	assertKeyWithHandler(t, wrappedHandler, keyV1, http.StatusUnauthorized, "key-v1 should fail after switch")
 
 	// New key should work
-	req3 := newMessagesRequest(http.NoBody)
-	req3.Header.Set("x-api-key", "key-v2")
-	rec3 := httptest.NewRecorder()
-	wrappedHandler.ServeHTTP(rec3, req3)
-	if rec3.Code != http.StatusOK {
-		t.Errorf("key-v2 should work after switch: got %d", rec3.Code)
-	}
+	assertKeyWithHandler(t, wrappedHandler, keyV2, http.StatusOK, "key-v2 should work after switch")
 }
 
 func TestLiveAuthMiddlewareSwitchAuthMethods(t *testing.T) {
@@ -813,35 +862,12 @@ func TestLiveAuthMiddlewareConcurrentAccess(t *testing.T) {
 	const goroutines = 50
 	const requestsPerGoroutine = 20
 
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-
-	for i := range goroutines {
-		go func(id int) {
-			defer wg.Done()
-			for j := range requestsPerGoroutine {
-				// Mix of valid and invalid requests
-				req := newMessagesRequest(http.NoBody)
-				if j%2 == 0 {
-					req.Header.Set("x-api-key", "concurrent-key")
-				} else {
-					req.Header.Set("x-api-key", wrongKey)
-				}
-				rec := httptest.NewRecorder()
-				wrappedHandler.ServeHTTP(rec, req)
-
-				expected := http.StatusOK
-				if j%2 != 0 {
-					expected = http.StatusUnauthorized
-				}
-				if rec.Code != expected {
-					t.Errorf("goroutine %d request %d: expected %d, got %d", id, j, expected, rec.Code)
-				}
-			}
-		}(i)
-	}
-
-	wg.Wait()
+	runConcurrentRequests(t, wrappedHandler, goroutines, requestsPerGoroutine, func(_ int, j int) (string, int) {
+		if j%2 == 0 {
+			return "concurrent-key", http.StatusOK
+		}
+		return wrongKey, http.StatusUnauthorized
+	})
 }
 
 func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
@@ -852,14 +878,14 @@ func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
 	cfg1 := &config.Config{
 		Server: config.ServerConfig{
 			Auth: config.AuthConfig{
-				APIKey: "key-alpha",
+				APIKey: keyAlpha,
 			},
 		},
 	}
 	cfg2 := &config.Config{
 		Server: config.ServerConfig{
 			Auth: config.AuthConfig{
-				APIKey: "key-beta",
+				APIKey: keyBeta,
 			},
 		},
 	}
@@ -872,37 +898,17 @@ func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
 	const iterations = 50
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines + 1) // +1 for config switcher
+	startConfigSwitcher(&wg, runtime, cfg1, cfg2, iterations)
 
-	// Goroutine that switches config rapidly
-	go func() {
-		defer wg.Done()
-		for i := range iterations {
-			if i%2 == 0 {
-				runtime.Store(cfg1)
-			} else {
-				runtime.Store(cfg2)
-			}
-			time.Sleep(time.Microsecond)
-		}
-	}()
-
-	// Request goroutines
-	for i := range goroutines {
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
 			for range iterations {
-				// Try both keys - one should work depending on current config
-				for _, key := range []string{"key-alpha", "key-beta"} {
-					req := newMessagesRequest(http.NoBody)
-					req.Header.Set("x-api-key", key)
-					rec := httptest.NewRecorder()
-					wrappedHandler.ServeHTTP(rec, req)
-
-					// Should get either 200 (correct key) or 401 (wrong key)
-					// Never panic, never deadlock
-					if rec.Code != http.StatusOK && rec.Code != http.StatusUnauthorized {
-						t.Errorf("goroutine %d: unexpected status %d", id, rec.Code)
+				for _, key := range []string{keyAlpha, keyBeta} {
+					status := doAPIKeyRequest(t, wrappedHandler, key).Code
+					if status != http.StatusOK && status != http.StatusUnauthorized {
+						t.Errorf("goroutine %d: unexpected status %d", id, status)
 					}
 				}
 			}
