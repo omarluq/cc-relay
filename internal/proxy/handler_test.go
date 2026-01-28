@@ -21,6 +21,13 @@ import (
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
+const (
+	anthropicVersion = "2023-06-01"
+	poolKey1         = "pool-key-1"
+	localBaseURL     = "http://localhost:9999"
+	initialKey       = "initial-key"
+)
+
 // newTestHandler is a helper that creates a handler with common test defaults.
 //
 //nolint:unparam // pool and healthTracker are provided for interface consistency with NewHandler
@@ -35,24 +42,29 @@ func newTestHandler(
 	healthTracker *health.Tracker,
 ) *Handler {
 	t.Helper()
-	handler, err := NewHandler(
-		provider, providerInfos, providerRouter,
-		apiKey, pool, nil, nil, nil,
-		config.DebugOptions{}, routingDebug, healthTracker, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: providerRouter,
+		APIKey:         apiKey,
+		Pool:           pool,
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   routingDebug,
+		HealthTracker:  healthTracker,
+	})
 	require.NoError(t, err)
 	return handler
 }
 
-func TestNewHandler_ValidProvider(t *testing.T) {
+func TestNewHandlerValidProvider(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -62,31 +74,31 @@ func TestNewHandler_ValidProvider(t *testing.T) {
 	}
 }
 
-func TestNewHandler_InvalidURL(t *testing.T) {
+func TestNewHandlerInvalidURL(t *testing.T) {
 	t.Parallel()
 	// Create a mock provider with invalid URL
 	provider := &mockProvider{baseURL: "://invalid-url"}
 
-	_, err := NewHandler(provider, nil, nil, "test-key", nil, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	_, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	if err == nil {
 		t.Error("Expected error for invalid base URL, got nil")
 	}
 }
 
-func TestNewHandlerWithLiveProviders_NilProviderInfosFunc(t *testing.T) {
+func TestNewHandlerWithLiveProvidersNilProviderInfosFunc(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
 	// Should not panic with nil providerInfosFunc
-	handler, err := NewHandlerWithLiveProviders(
-		provider,
-		nil, // nil providerInfosFunc - should be guarded
-		nil,
-		"test-key",
-		nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandlerWithLiveProviders(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+		// nil ProviderInfosFunc - should be guarded
+	})
 	require.NoError(t, err)
 	require.NotNil(t, handler)
 
@@ -95,13 +107,13 @@ func TestNewHandlerWithLiveProviders_NilProviderInfosFunc(t *testing.T) {
 	assert.Len(t, handler.providerProxies, 1)
 }
 
-func TestHandler_ForwardsAnthropicHeaders(t *testing.T) {
+func TestHandlerForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that echoes headers
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check for anthropic headers
-		if r.Header.Get("Anthropic-Version") != "2023-06-01" {
+		if r.Header.Get("Anthropic-Version") != anthropicVersion {
 			t.Errorf("Expected Anthropic-Version header, got %q", r.Header.Get("Anthropic-Version"))
 		}
 
@@ -116,17 +128,17 @@ func TestHandler_ForwardsAnthropicHeaders(t *testing.T) {
 	// Create provider pointing to mock backend
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
 
 	// Create request with anthropic headers
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("Anthropic-Version", "2023-06-01")
+	req.Header.Set("Anthropic-Version", anthropicVersion)
 	req.Header.Set("Anthropic-Beta", "test-feature")
 
 	// Serve request
@@ -138,15 +150,15 @@ func TestHandler_ForwardsAnthropicHeaders(t *testing.T) {
 	}
 }
 
-func TestHandler_HasErrorHandler(t *testing.T) {
+func TestHandlerHasErrorHandler(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -162,15 +174,15 @@ func TestHandler_HasErrorHandler(t *testing.T) {
 	}
 }
 
-func TestHandler_StructureCorrect(t *testing.T) {
+func TestHandlerStructureCorrect(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -203,7 +215,7 @@ func TestHandler_StructureCorrect(t *testing.T) {
 	}
 }
 
-func TestHandler_PreservesToolUseId(t *testing.T) {
+func TestHandlerPreservesToolUseId(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that echoes request body
@@ -223,10 +235,10 @@ func TestHandler_PreservesToolUseId(t *testing.T) {
 	// Create provider pointing to mock backend
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	if err != nil {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
@@ -324,7 +336,7 @@ func (m *mockProvider) StreamingContentType() string {
 }
 
 // TestHandler_WithKeyPool tests handler with key pool integration.
-func TestHandler_WithKeyPool(t *testing.T) {
+func TestHandlerWithKeyPool(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend
@@ -348,7 +360,10 @@ func TestHandler_WithKeyPool(t *testing.T) {
 
 	// Create handler with key pool
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, nil, nil, "", pool, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
 	require.NoError(t, err)
 
 	// Make request
@@ -366,7 +381,7 @@ func TestHandler_WithKeyPool(t *testing.T) {
 }
 
 // TestHandler_AllKeysExhausted tests 429 response when all keys exhausted.
-func TestHandler_AllKeysExhausted(t *testing.T) {
+func TestHandlerAllKeysExhausted(t *testing.T) {
 	t.Parallel()
 
 	// Create key pool with single key and very low limit
@@ -384,7 +399,10 @@ func TestHandler_AllKeysExhausted(t *testing.T) {
 
 	// Create handler
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
-	handler, err := NewHandler(provider, nil, nil, "", pool, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
 	require.NoError(t, err)
 
 	// Make request (should return 429)
@@ -408,7 +426,7 @@ func TestHandler_AllKeysExhausted(t *testing.T) {
 }
 
 // TestHandler_KeyPoolUpdate tests that handler updates key state from response headers.
-func TestHandler_KeyPoolUpdate(t *testing.T) {
+func TestHandlerKeyPoolUpdate(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns rate limit headers
@@ -436,7 +454,10 @@ func TestHandler_KeyPoolUpdate(t *testing.T) {
 
 	// Create handler
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, nil, nil, "", pool, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
 	require.NoError(t, err)
 
 	// Make request
@@ -454,7 +475,7 @@ func TestHandler_KeyPoolUpdate(t *testing.T) {
 }
 
 // TestHandler_Backend429 tests that handler marks key exhausted on backend 429.
-func TestHandler_Backend429(t *testing.T) {
+func TestHandlerBackend429(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns 429
@@ -477,7 +498,10 @@ func TestHandler_Backend429(t *testing.T) {
 
 	// Create handler
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, nil, nil, "", pool, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
 	require.NoError(t, err)
 
 	// Make request
@@ -497,7 +521,7 @@ func TestHandler_Backend429(t *testing.T) {
 }
 
 // TestHandler_SingleKeyMode tests backwards compatibility with nil pool.
-func TestHandler_SingleKeyMode(t *testing.T) {
+func TestHandlerSingleKeyMode(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend
@@ -512,10 +536,10 @@ func TestHandler_SingleKeyMode(t *testing.T) {
 
 	// Create handler without key pool (nil)
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-single-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-single-key",
+	})
 	require.NoError(t, err)
 
 	// Make request
@@ -533,7 +557,7 @@ func TestHandler_SingleKeyMode(t *testing.T) {
 
 // TestHandler_UsesFallbackKeyWhenNoClientAuth tests that configured provider keys
 // are used when client provides no auth headers.
-func TestHandler_UsesFallbackKeyWhenNoClientAuth(t *testing.T) {
+func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	t.Parallel()
 
 	var receivedAuthHeader string
@@ -551,10 +575,10 @@ func TestHandler_UsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "our-fallback-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "our-fallback-key",
+	})
 	require.NoError(t, err)
 
 	// Create request WITHOUT any auth headers
@@ -576,7 +600,7 @@ func TestHandler_UsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 
 // TestHandler_ForwardsClientAuthWhenPresent tests that client Authorization header
 // is forwarded unchanged when present (transparent proxy mode).
-func TestHandler_ForwardsClientAuthWhenPresent(t *testing.T) {
+func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 	t.Parallel()
 
 	var receivedAuthHeader string
@@ -595,10 +619,10 @@ func TestHandler_ForwardsClientAuthWhenPresent(t *testing.T) {
 
 	// Create handler with a configured fallback key
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "fallback-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "fallback-key",
+	})
 	require.NoError(t, err)
 
 	// Create request WITH client Authorization header
@@ -621,7 +645,7 @@ func TestHandler_ForwardsClientAuthWhenPresent(t *testing.T) {
 
 // TestHandler_ForwardsClientAPIKeyWhenPresent tests that client x-api-key header
 // is forwarded unchanged when present (transparent proxy mode).
-func TestHandler_ForwardsClientAPIKeyWhenPresent(t *testing.T) {
+func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	t.Parallel()
 
 	var receivedAuthHeader string
@@ -638,10 +662,10 @@ func TestHandler_ForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "fallback-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "fallback-key",
+	})
 	require.NoError(t, err)
 
 	// Create request WITH client x-api-key header
@@ -663,7 +687,7 @@ func TestHandler_ForwardsClientAPIKeyWhenPresent(t *testing.T) {
 
 // TestHandler_TransparentModeSkipsKeyPool tests that key pool is skipped
 // when client provides auth (rate limiting is their problem).
-func TestHandler_TransparentModeSkipsKeyPool(t *testing.T) {
+func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -677,13 +701,16 @@ func TestHandler_TransparentModeSkipsKeyPool(t *testing.T) {
 	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
 		Strategy: "least_loaded",
 		Keys: []keypool.KeyConfig{
-			{APIKey: "pool-key-1", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
+			{APIKey: poolKey1, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
 		},
 	})
 	require.NoError(t, err)
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, nil, nil, "", pool, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
 	require.NoError(t, err)
 
 	// Create request WITH client auth
@@ -702,7 +729,7 @@ func TestHandler_TransparentModeSkipsKeyPool(t *testing.T) {
 
 // TestHandler_FallbackModeUsesKeyPool tests that key pool is used
 // when client provides no auth.
-func TestHandler_FallbackModeUsesKeyPool(t *testing.T) {
+func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -715,13 +742,16 @@ func TestHandler_FallbackModeUsesKeyPool(t *testing.T) {
 	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
 		Strategy: "least_loaded",
 		Keys: []keypool.KeyConfig{
-			{APIKey: "pool-key-1", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
+			{APIKey: poolKey1, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
 		},
 	})
 	require.NoError(t, err)
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(provider, nil, nil, "", pool, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
 	require.NoError(t, err)
 
 	// Create request WITHOUT client auth
@@ -740,7 +770,7 @@ func TestHandler_FallbackModeUsesKeyPool(t *testing.T) {
 
 // TestHandler_TransparentModeForwardsAnthropicHeaders tests that anthropic-* headers
 // are forwarded in transparent mode.
-func TestHandler_TransparentModeForwardsAnthropicHeaders(t *testing.T) {
+func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
 	var receivedVersion string
@@ -757,10 +787,10 @@ func TestHandler_TransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "fallback-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "fallback-key",
+	})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
@@ -779,7 +809,7 @@ func TestHandler_TransparentModeForwardsAnthropicHeaders(t *testing.T) {
 // TestHandler_NonTransparentProviderUsesConfiguredKeys tests that providers
 // that don't support transparent auth (like Z.AI) use configured keys even
 // when client sends Authorization header.
-func TestHandler_NonTransparentProviderUsesConfiguredKeys(t *testing.T) {
+func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 	t.Parallel()
 
 	var receivedAPIKey string
@@ -817,7 +847,7 @@ func TestHandler_NonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 
 // TestHandler_NonTransparentProviderWithKeyPool tests that non-transparent providers
 // use key pool even when client sends auth headers.
-func TestHandler_NonTransparentProviderWithKeyPool(t *testing.T) {
+func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	t.Parallel()
 
 	var receivedAPIKey string
@@ -842,7 +872,10 @@ func TestHandler_NonTransparentProviderWithKeyPool(t *testing.T) {
 
 	// Z.AI provider does NOT support transparent auth
 	provider := providers.NewZAIProvider("test-zai", backend.URL)
-	handler, err := NewHandler(provider, nil, nil, "", pool, nil, nil, nil, config.DebugOptions{}, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
 	require.NoError(t, err)
 
 	// Client sends Authorization header
@@ -927,7 +960,7 @@ func (m *mockRouter) Name() string {
 }
 
 // TestHandler_SingleProviderMode tests that handler works without router (backwards compat).
-func TestHandler_SingleProviderMode(t *testing.T) {
+func TestHandlerSingleProviderMode(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -939,10 +972,10 @@ func TestHandler_SingleProviderMode(t *testing.T) {
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 	// No router (nil), no providers list (nil) - single provider mode
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
@@ -956,7 +989,7 @@ func TestHandler_SingleProviderMode(t *testing.T) {
 }
 
 // TestHandler_MultiProviderModeUsesRouter tests that handler uses router for selection.
-func TestHandler_MultiProviderModeUsesRouter(t *testing.T) {
+func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -996,7 +1029,7 @@ func TestHandler_MultiProviderModeUsesRouter(t *testing.T) {
 	assert.Equal(t, "provider2", w.Header().Get("X-CC-Relay-Provider"))
 }
 
-func TestHandler_LazyProxyForNewProvider(t *testing.T) {
+func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 	t.Parallel()
 
 	backendA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1026,20 +1059,14 @@ func TestHandler_LazyProxyForNewProvider(t *testing.T) {
 		selected: router.ProviderInfo{Provider: providerB, IsHealthy: func() bool { return true }},
 	}
 
-	handler, err := NewHandlerWithLiveProviders(
-		providerA,
-		providerInfosFunc,
-		mockR,
-		"test-key",
-		nil,
-		nil,
-		nil,
-		nil,
-		config.DebugOptions{},
-		false,
-		nil,
-		nil,
-	)
+	handler, err := NewHandlerWithLiveProviders(&HandlerOptions{
+		Provider:          providerA,
+		ProviderInfosFunc: providerInfosFunc,
+		ProviderRouter:    mockR,
+		APIKey:            "test-key",
+		DebugOptions:      config.DebugOptions{},
+		RoutingDebug:      false,
+	})
 	require.NoError(t, err)
 
 	// Simulate reload: provider B becomes enabled
@@ -1050,7 +1077,7 @@ func TestHandler_LazyProxyForNewProvider(t *testing.T) {
 
 	reqBody := []byte(`{"model":"test","messages":[]}`)
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader(reqBody))
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-version", anthropicVersion)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -1059,7 +1086,7 @@ func TestHandler_LazyProxyForNewProvider(t *testing.T) {
 }
 
 // TestHandler_DebugHeadersDisabledByDefault tests that debug headers are not added when disabled.
-func TestHandler_DebugHeadersDisabledByDefault(t *testing.T) {
+func TestHandlerDebugHeadersDisabledByDefault(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1096,7 +1123,7 @@ func TestHandler_DebugHeadersDisabledByDefault(t *testing.T) {
 }
 
 // TestHandler_DebugHeadersWhenEnabled tests debug headers are added when routing.debug=true.
-func TestHandler_DebugHeadersWhenEnabled(t *testing.T) {
+func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1132,7 +1159,7 @@ func TestHandler_DebugHeadersWhenEnabled(t *testing.T) {
 }
 
 // TestHandler_RouterSelectionError tests error handling when router fails.
-func TestHandler_RouterSelectionError(t *testing.T) {
+func TestHandlerRouterSelectionError(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
@@ -1164,16 +1191,16 @@ func TestHandler_RouterSelectionError(t *testing.T) {
 }
 
 // TestHandler_SelectProviderSingleMode tests selectProvider in single provider mode.
-func TestHandler_SelectProviderSingleMode(t *testing.T) {
+func TestHandlerSelectProviderSingleMode(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
 	// No router, no providers - single provider mode
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		APIKey:   "test-key",
+	})
 	require.NoError(t, err)
 
 	info, err := handler.selectProvider(context.Background(), "", false)
@@ -1183,7 +1210,7 @@ func TestHandler_SelectProviderSingleMode(t *testing.T) {
 }
 
 // TestHandler_SelectProviderMultiMode tests selectProvider uses router.
-func TestHandler_SelectProviderMultiMode(t *testing.T) {
+func TestHandlerSelectProviderMultiMode(t *testing.T) {
 	t.Parallel()
 
 	provider1 := providers.NewAnthropicProvider("provider1", "https://api.anthropic.com")
@@ -1211,7 +1238,7 @@ func TestHandler_SelectProviderMultiMode(t *testing.T) {
 }
 
 // TestHandler_HealthHeaderWhenEnabled tests X-CC-Relay-Health debug header.
-func TestHandler_HealthHeaderWhenEnabled(t *testing.T) {
+func TestHandlerHealthHeaderWhenEnabled(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend
@@ -1238,10 +1265,15 @@ func TestHandler_HealthHeaderWhenEnabled(t *testing.T) {
 	}
 
 	// routingDebug=true to enable X-CC-Relay-Health header
-	handler, err := NewHandler(
-		provider, providerInfos, mockR, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, true, tracker, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: mockR,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+		HealthTracker:  tracker,
+	})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
@@ -1257,7 +1289,7 @@ func TestHandler_HealthHeaderWhenEnabled(t *testing.T) {
 }
 
 // TestHandler_ReportOutcome_Success tests successful responses record to tracker.
-func TestHandler_ReportOutcome_Success(t *testing.T) {
+func TestHandlerReportOutcomeSuccess(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns 200
@@ -1283,10 +1315,15 @@ func TestHandler_ReportOutcome_Success(t *testing.T) {
 		},
 	}
 
-	handler, err := NewHandler(
-		provider, providerInfos, mockR, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, true, tracker, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: mockR,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+		HealthTracker:  tracker,
+	})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
@@ -1301,7 +1338,7 @@ func TestHandler_ReportOutcome_Success(t *testing.T) {
 }
 
 // TestHandler_ReportOutcome_Failure5xx tests 5xx responses count as failures.
-func TestHandler_ReportOutcome_Failure5xx(t *testing.T) {
+func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns 500
@@ -1328,10 +1365,15 @@ func TestHandler_ReportOutcome_Failure5xx(t *testing.T) {
 		},
 	}
 
-	handler, err := NewHandler(
-		provider, providerInfos, mockR, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, true, tracker, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: mockR,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+		HealthTracker:  tracker,
+	})
 	require.NoError(t, err)
 
 	// Make multiple requests to trip the circuit
@@ -1348,7 +1390,7 @@ func TestHandler_ReportOutcome_Failure5xx(t *testing.T) {
 }
 
 // TestHandler_ReportOutcome_Failure429 tests rate limit responses count as failures.
-func TestHandler_ReportOutcome_Failure429(t *testing.T) {
+func TestHandlerReportOutcomeFailure429(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns 429
@@ -1375,10 +1417,15 @@ func TestHandler_ReportOutcome_Failure429(t *testing.T) {
 		},
 	}
 
-	handler, err := NewHandler(
-		provider, providerInfos, mockR, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, true, tracker, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: mockR,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+		HealthTracker:  tracker,
+	})
 	require.NoError(t, err)
 
 	// Make multiple requests to trip the circuit
@@ -1395,7 +1442,7 @@ func TestHandler_ReportOutcome_Failure429(t *testing.T) {
 }
 
 // TestHandler_ReportOutcome_4xxNotFailure tests 4xx (except 429) don't count as failures.
-func TestHandler_ReportOutcome_4xxNotFailure(t *testing.T) {
+func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns 400
@@ -1421,10 +1468,15 @@ func TestHandler_ReportOutcome_4xxNotFailure(t *testing.T) {
 		},
 	}
 
-	handler, err := NewHandler(
-		provider, providerInfos, mockR, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, true, tracker, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: mockR,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+		HealthTracker:  tracker,
+	})
 	require.NoError(t, err)
 
 	// Make multiple 400 requests
@@ -1464,7 +1516,7 @@ func (r *trackingRouter) Name() string {
 }
 
 // TestHandler_ThinkingAffinity_UsesConsistentProvider tests that thinking requests use deterministic selection.
-func TestHandler_ThinkingAffinity_UsesConsistentProvider(t *testing.T) {
+func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	t.Parallel()
 
 	// Create two mock backends
@@ -1492,13 +1544,16 @@ func TestHandler_ThinkingAffinity_UsesConsistentProvider(t *testing.T) {
 
 	tracker := &trackingRouter{name: "tracking"}
 
-	handler, err := NewHandler(
-		provider1, providerInfos, tracker,
-		"test-key", nil,
-		map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		map[string]string{"provider1": "key1", "provider2": "key2"},
-		nil, config.DebugOptions{}, true, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider1,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: tracker,
+		APIKey:         "test-key",
+		ProviderPools:  map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		ProviderKeys:   map[string]string{"provider1": "key1", "provider2": "key2"},
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+	})
 	require.NoError(t, err)
 
 	// Request body with thinking signature
@@ -1540,7 +1595,7 @@ func TestHandler_ThinkingAffinity_UsesConsistentProvider(t *testing.T) {
 }
 
 // TestHandler_ThinkingAffinity_FallsBackToSecondProvider tests fallback when first provider unhealthy.
-func TestHandler_ThinkingAffinity_FallsBackToSecondProvider(t *testing.T) {
+func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 	t.Parallel()
 
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1568,13 +1623,16 @@ func TestHandler_ThinkingAffinity_FallsBackToSecondProvider(t *testing.T) {
 
 	tracker := &trackingRouter{name: "tracking"}
 
-	handler, err := NewHandler(
-		provider1, providerInfos, tracker,
-		"test-key", nil,
-		map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		map[string]string{"provider1": "key1", "provider2": "key2"},
-		nil, config.DebugOptions{}, false, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider1,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: tracker,
+		APIKey:         "test-key",
+		ProviderPools:  map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		ProviderKeys:   map[string]string{"provider1": "key1", "provider2": "key2"},
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   false,
+	})
 	require.NoError(t, err)
 
 	// Request with thinking signature
@@ -1595,7 +1653,7 @@ func TestHandler_ThinkingAffinity_FallsBackToSecondProvider(t *testing.T) {
 }
 
 // TestHandler_NoThinking_UsesNormalRouting tests non-thinking requests use normal routing.
-func TestHandler_NoThinking_UsesNormalRouting(t *testing.T) {
+func TestHandlerNoThinkingUsesNormalRouting(t *testing.T) {
 	t.Parallel()
 
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1630,13 +1688,16 @@ func TestHandler_NoThinking_UsesNormalRouting(t *testing.T) {
 		fallbackResult: providerInfos[0],
 	}
 
-	handler, err := NewHandler(
-		provider1, providerInfos, countingRouter,
-		"test-key", nil,
-		map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		map[string]string{"provider1": "key1", "provider2": "key2"},
-		nil, config.DebugOptions{}, true, nil, nil,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider1,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: countingRouter,
+		APIKey:         "test-key",
+		ProviderPools:  map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		ProviderKeys:   map[string]string{"provider1": "key1", "provider2": "key2"},
+		DebugOptions:   config.DebugOptions{},
+		RoutingDebug:   true,
+	})
 	require.NoError(t, err)
 
 	// Request WITHOUT thinking signature (normal text conversation)
@@ -1689,49 +1750,51 @@ func (r *countingMockRouter) Name() string {
 
 // TestHandler_GetOrCreateProxy_KeyMatching tests the key-matching logic in getOrCreateProxy
 // without requiring network listeners. Validates behavior for nil key maps and single-provider mode.
-func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
+func TestHandlerGetOrCreateProxyKeyMatching(t *testing.T) {
 	t.Parallel()
 
 	t.Run("nil_keys_map_preserves_existing_proxy", func(t *testing.T) {
 		t.Parallel()
 
 		// Create provider with valid URL (required for proxy creation)
-		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		prov := &mockProvider{baseURL: localBaseURL}
 
 		// Create handler with a key but nil maps (single-provider mode)
-		handler, err := NewHandler(
-			prov, nil, nil, "initial-key", nil, nil, nil, nil,
-			config.DebugOptions{}, false, nil, nil,
-		)
+		handler, err := NewHandler(&HandlerOptions{
+			Provider:     prov,
+			APIKey:       initialKey,
+			DebugOptions: config.DebugOptions{},
+		})
 		require.NoError(t, err)
 
 		// Get proxy - should have the initial key
 		pp1, err := handler.getOrCreateProxy(prov)
 		require.NoError(t, err)
-		assert.Equal(t, "initial-key", pp1.APIKey)
+		assert.Equal(t, initialKey, pp1.APIKey)
 
 		// Get proxy again - with nil keys map, should return same proxy
 		pp2, err := handler.getOrCreateProxy(prov)
 		require.NoError(t, err)
 		assert.Same(t, pp1, pp2, "should return same proxy instance")
-		assert.Equal(t, "initial-key", pp2.APIKey)
+		assert.Equal(t, initialKey, pp2.APIKey)
 	})
 
 	t.Run("nil_pools_map_preserves_existing_proxy", func(t *testing.T) {
 		t.Parallel()
 
-		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		prov := &mockProvider{baseURL: localBaseURL}
 		pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
 			Strategy: "least_loaded",
-			Keys:     []keypool.KeyConfig{{APIKey: "pool-key-1"}},
+			Keys:     []keypool.KeyConfig{{APIKey: poolKey1}},
 		})
 		require.NoError(t, err)
 
 		// Create handler with a pool but nil pools map (single-provider mode)
-		handler, err := NewHandler(
-			prov, nil, nil, "", pool, nil, nil, nil,
-			config.DebugOptions{}, false, nil, nil,
-		)
+		handler, err := NewHandler(&HandlerOptions{
+			Provider:     prov,
+			Pool:         pool,
+			DebugOptions: config.DebugOptions{},
+		})
 		require.NoError(t, err)
 
 		pp1, err := handler.getOrCreateProxy(prov)
@@ -1748,15 +1811,16 @@ func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
 	t.Run("multi_provider_mode_detects_key_change", func(t *testing.T) {
 		t.Parallel()
 
-		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		prov := &mockProvider{baseURL: localBaseURL}
 		provName := prov.Name()
 
 		// Create handler with keys map (multi-provider mode)
 		keysMap := map[string]string{provName: "key-v1"}
-		handler, err := NewHandler(
-			prov, nil, nil, "", nil, nil, keysMap, nil,
-			config.DebugOptions{}, false, nil, nil,
-		)
+		handler, err := NewHandler(&HandlerOptions{
+			Provider:     prov,
+			ProviderKeys: keysMap,
+			DebugOptions: config.DebugOptions{},
+		})
 		require.NoError(t, err)
 
 		pp1, err := handler.getOrCreateProxy(prov)
@@ -1776,12 +1840,12 @@ func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
 	t.Run("multi_provider_mode_detects_pool_change", func(t *testing.T) {
 		t.Parallel()
 
-		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		prov := &mockProvider{baseURL: localBaseURL}
 		provName := prov.Name()
 
 		pool1, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
 			Strategy: "least_loaded",
-			Keys:     []keypool.KeyConfig{{APIKey: "pool-key-1"}},
+			Keys:     []keypool.KeyConfig{{APIKey: poolKey1}},
 		})
 		require.NoError(t, err)
 		pool2, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
@@ -1792,10 +1856,11 @@ func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
 
 		// Create handler with pools map (multi-provider mode)
 		poolsMap := map[string]*keypool.KeyPool{provName: pool1}
-		handler, err := NewHandler(
-			prov, nil, nil, "", nil, poolsMap, nil, nil,
-			config.DebugOptions{}, false, nil, nil,
-		)
+		handler, err := NewHandler(&HandlerOptions{
+			Provider:      prov,
+			ProviderPools: poolsMap,
+			DebugOptions:  config.DebugOptions{},
+		})
 		require.NoError(t, err)
 
 		pp1, err := handler.getOrCreateProxy(prov)
@@ -1815,18 +1880,19 @@ func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
 	t.Run("provider_baseurl_change_creates_new_proxy", func(t *testing.T) {
 		t.Parallel()
 
-		prov1 := &mockProvider{baseURL: "http://localhost:9999"}
+		prov1 := &mockProvider{baseURL: localBaseURL}
 		prov2 := &mockProvider{baseURL: "http://localhost:8888"} // Different URL, same name
 
-		handler, err := NewHandler(
-			prov1, nil, nil, "test-key", nil, nil, nil, nil,
-			config.DebugOptions{}, false, nil, nil,
-		)
+		handler, err := NewHandler(&HandlerOptions{
+			Provider:     prov1,
+			APIKey:       "test-key",
+			DebugOptions: config.DebugOptions{},
+		})
 		require.NoError(t, err)
 
 		pp1, err := handler.getOrCreateProxy(prov1)
 		require.NoError(t, err)
-		assert.Equal(t, "http://localhost:9999", pp1.Provider.BaseURL())
+		assert.Equal(t, localBaseURL, pp1.Provider.BaseURL())
 
 		// Request proxy with different baseURL provider
 		pp2, err := handler.getOrCreateProxy(prov2)
@@ -1838,7 +1904,7 @@ func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
 	t.Run("live_keys_func_used_over_static_map", func(t *testing.T) {
 		t.Parallel()
 
-		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		prov := &mockProvider{baseURL: localBaseURL}
 		provName := prov.Name()
 
 		// Static map has old key
@@ -1857,20 +1923,12 @@ func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
 			}
 		}
 
-		handler, err := NewHandlerWithLiveProviders(
-			prov,
-			nil,
-			nil,
-			"",
-			nil,
-			nil,
-			staticKeys,
-			nil,
-			config.DebugOptions{},
-			false,
-			nil,
-			nil,
-		)
+		handler, err := NewHandlerWithLiveProviders(&HandlerOptions{
+			Provider:     prov,
+			ProviderKeys: staticKeys,
+			DebugOptions: config.DebugOptions{},
+			RoutingDebug: false,
+		})
 		require.NoError(t, err)
 
 		// Set the live keys func

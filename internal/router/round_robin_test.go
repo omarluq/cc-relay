@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestRoundRobinRouter_Name(t *testing.T) {
+func TestRoundRobinRouterName(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()
@@ -16,7 +16,7 @@ func TestRoundRobinRouter_Name(t *testing.T) {
 	}
 }
 
-func TestRoundRobinRouter_EmptyProviders(t *testing.T) {
+func TestRoundRobinRouterEmptyProviders(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()
@@ -27,7 +27,7 @@ func TestRoundRobinRouter_EmptyProviders(t *testing.T) {
 	}
 }
 
-func TestRoundRobinRouter_AllUnhealthy(t *testing.T) {
+func TestRoundRobinRouterAllUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()
@@ -44,7 +44,7 @@ func TestRoundRobinRouter_AllUnhealthy(t *testing.T) {
 	}
 }
 
-func TestRoundRobinRouter_EvenDistribution(t *testing.T) {
+func TestRoundRobinRouterEvenDistribution(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()
@@ -76,7 +76,7 @@ func TestRoundRobinRouter_EvenDistribution(t *testing.T) {
 	}
 }
 
-func TestRoundRobinRouter_SequentialOrder(t *testing.T) {
+func TestRoundRobinRouterSequentialOrder(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()
@@ -108,7 +108,7 @@ func TestRoundRobinRouter_SequentialOrder(t *testing.T) {
 	}
 }
 
-func TestRoundRobinRouter_SkipsUnhealthy(t *testing.T) {
+func TestRoundRobinRouterSkipsUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()
@@ -131,7 +131,7 @@ func TestRoundRobinRouter_SkipsUnhealthy(t *testing.T) {
 	}
 }
 
-func TestRoundRobinRouter_ConcurrentSafety(t *testing.T) {
+func TestRoundRobinRouterConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()
@@ -157,14 +157,14 @@ func TestRoundRobinRouter_ConcurrentSafety(t *testing.T) {
 	wg.Wait()
 }
 
-func TestRoundRobinRouter_ImplementsInterface(t *testing.T) {
+func TestRoundRobinRouterImplementsInterface(t *testing.T) {
 	t.Parallel()
 
 	// Compile-time interface compliance check
 	var _ ProviderRouter = (*RoundRobinRouter)(nil)
 }
 
-func TestRoundRobinRouter_NilIsHealthyTreatedAsHealthy(t *testing.T) {
+func TestRoundRobinRouterNilIsHealthyTreatedAsHealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewRoundRobinRouter()

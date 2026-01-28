@@ -123,7 +123,7 @@ func TestSupportsStreaming(t *testing.T) {
 	}
 }
 
-func TestForwardHeaders_EdgeCases(t *testing.T) {
+func TestForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	provider := NewAnthropicProvider("test", "")
@@ -184,7 +184,7 @@ func TestForwardHeaders_EdgeCases(t *testing.T) {
 	}
 }
 
-func TestListModels_WithConfiguredModels(t *testing.T) {
+func TestListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
 	models := []string{"claude-sonnet-4-5-20250514", "claude-opus-4-5-20250514"}
@@ -219,7 +219,7 @@ func TestListModels_WithConfiguredModels(t *testing.T) {
 	}
 }
 
-func TestListModels_Defaults(t *testing.T) {
+func TestListModelsDefaults(t *testing.T) {
 	t.Parallel()
 
 	provider := NewAnthropicProvider("test", "")
@@ -232,7 +232,7 @@ func TestListModels_Defaults(t *testing.T) {
 	}
 }
 
-func TestListModels_NilModels(t *testing.T) {
+func TestListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
 	provider := NewAnthropicProviderWithModels("test", "", nil)

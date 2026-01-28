@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestNew_ModeSingle_CreatesRistretto(t *testing.T) {
+func TestNewModeSingleCreatesRistretto(t *testing.T) {
 	cfg := Config{
 		Mode: ModeSingle,
 		Ristretto: RistrettoConfig{
@@ -51,7 +51,7 @@ func TestNew_ModeSingle_CreatesRistretto(t *testing.T) {
 	}
 }
 
-func TestNew_ModeDisabled_CreatesNoop(t *testing.T) {
+func TestNewModeDisabledCreatesNoop(t *testing.T) {
 	cfg := Config{
 		Mode: ModeDisabled,
 	}
@@ -87,7 +87,7 @@ func TestNew_ModeDisabled_CreatesNoop(t *testing.T) {
 	}
 }
 
-func TestNew_ModeHA_CreatesOlric(t *testing.T) {
+func TestNewModeHACreatesOlric(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping HA test in short mode (requires embedded Olric)")
 	}
@@ -127,7 +127,7 @@ func TestNew_ModeHA_CreatesOlric(t *testing.T) {
 	}
 }
 
-func TestNew_InvalidMode_ReturnsError(t *testing.T) {
+func TestNewInvalidModeReturnsError(t *testing.T) {
 	cfg := Config{
 		Mode: Mode("invalid-mode"),
 	}
@@ -144,7 +144,7 @@ func TestNew_InvalidMode_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestNew_InvalidConfig_ReturnsError(t *testing.T) {
+func TestNewInvalidConfigReturnsError(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct field alignment is not critical
 		cfg     Config
 		name    string
@@ -219,7 +219,7 @@ func TestNew_InvalidConfig_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestNew_DefaultConfig_Works(t *testing.T) {
+func TestNewDefaultConfigWorks(t *testing.T) {
 	// Test that DefaultRistrettoConfig produces a valid single-mode config
 	cfg := Config{
 		Mode:      ModeSingle,

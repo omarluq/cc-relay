@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetupRoutes_CreatesHandler(t *testing.T) {
+func TestSetupRoutesCreatesHandler(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -34,7 +34,7 @@ func TestSetupRoutes_CreatesHandler(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_AuthMiddlewareApplied(t *testing.T) {
+func TestSetupRoutesAuthMiddlewareApplied(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -56,7 +56,7 @@ func TestSetupRoutes_AuthMiddlewareApplied(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_AuthMiddlewareWithValidKey(t *testing.T) {
+func TestSetupRoutesAuthMiddlewareWithValidKey(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend server
@@ -83,7 +83,7 @@ func TestSetupRoutes_AuthMiddlewareWithValidKey(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_NoAuthWhenAPIKeyEmpty(t *testing.T) {
+func TestSetupRoutesNoAuthWhenAPIKeyEmpty(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend server
@@ -109,7 +109,7 @@ func TestSetupRoutes_NoAuthWhenAPIKeyEmpty(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_HealthEndpoint(t *testing.T) {
+func TestSetupRoutesHealthEndpoint(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -136,7 +136,7 @@ func TestSetupRoutes_HealthEndpoint(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_HealthEndpointWithAuth(t *testing.T) {
+func TestSetupRoutesHealthEndpointWithAuth(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -160,7 +160,7 @@ func TestSetupRoutes_HealthEndpointWithAuth(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_OnlyPOSTToMessages(t *testing.T) {
+func TestSetupRoutesOnlyPOSTToMessages(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -183,7 +183,7 @@ func TestSetupRoutes_OnlyPOSTToMessages(t *testing.T) {
 	}
 }
 
-func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
+func TestSetupRoutesWithLiveKeyPoolsRoutingDebugToggles(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"ok":true}`)
@@ -219,7 +219,7 @@ func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
 	assert.Empty(t, rec2.Header().Get("X-CC-Relay-Strategy"))
 }
 
-func TestSetupRoutesWithLiveKeyPools_AuthToggle(t *testing.T) {
+func TestSetupRoutesWithLiveKeyPoolsAuthToggle(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"ok":true}`)
@@ -254,37 +254,37 @@ func TestSetupRoutesWithLiveKeyPools_AuthToggle(t *testing.T) {
 	assert.Equal(t, http.StatusOK, okRec.Code)
 }
 
-type nilRuntimeConfig struct{}
+type nilRuntimeConfigGetter struct{}
 
-func (nilRuntimeConfig) Get() *config.Config {
+func (nilRuntimeConfigGetter) Get() *config.Config {
 	return nil
 }
 
-func TestSetupRoutesWithLiveKeyPools_NilConfigProvider(t *testing.T) {
+func TestSetupRoutesWithLiveKeyPoolsNilConfigProvider(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "http://example.com")
 	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
 	require.NoError(t, err)
 
-	handler, err := SetupRoutesWithLiveKeyPools(
-		nilRuntimeConfig{},
-		provider,
-		func() []router.ProviderInfo { return nil },
-		routerInstance,
-		"",
-		nil,
-		nil,
-		nil,
-		[]providers.Provider{provider},
-		nil,
-		nil,
-	)
+	handler, err := SetupRoutesWithLiveKeyPools(&RoutesOptions{
+		ConfigProvider:    nilRuntimeConfigGetter{},
+		Provider:          provider,
+		ProviderInfosFunc: func() []router.ProviderInfo { return nil },
+		ProviderRouter:    routerInstance,
+		ProviderKey:       "",
+		Pool:              nil,
+		GetProviderPools:  nil,
+		GetProviderKeys:   nil,
+		AllProviders:      []providers.Provider{provider},
+		HealthTracker:     nil,
+		SignatureCache:    nil,
+	})
 	require.Error(t, err)
 	assert.Nil(t, handler)
 }
 
-func TestSetupRoutes_OnlyGETToHealth(t *testing.T) {
+func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -337,7 +337,7 @@ func setupRoutesHandler(t *testing.T, cfg *config.Config, provider providers.Pro
 
 func newLiveKeyPoolsHandler(
 	t *testing.T,
-	runtimeCfg config.RuntimeConfig,
+	runtimeCfg config.RuntimeConfigGetter,
 	provider providers.Provider,
 	providerInfos []router.ProviderInfo,
 ) http.Handler {
@@ -346,25 +346,25 @@ func newLiveKeyPoolsHandler(
 	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
 	require.NoError(t, err)
 
-	handler, err := SetupRoutesWithLiveKeyPools(
-		runtimeCfg,
-		provider,
-		func() []router.ProviderInfo { return providerInfos },
-		routerInstance,
-		"",
-		nil,
-		nil,
-		nil,
-		[]providers.Provider{provider},
-		nil,
-		nil,
-	)
+	handler, err := SetupRoutesWithLiveKeyPools(&RoutesOptions{
+		ConfigProvider:    runtimeCfg,
+		Provider:          provider,
+		ProviderInfosFunc: func() []router.ProviderInfo { return providerInfos },
+		ProviderRouter:    routerInstance,
+		ProviderKey:       "",
+		Pool:              nil,
+		GetProviderPools:  nil,
+		GetProviderKeys:   nil,
+		AllProviders:      []providers.Provider{provider},
+		HealthTracker:     nil,
+		SignatureCache:    nil,
+	})
 	require.NoError(t, err)
 
 	return handler
 }
 
-func TestSetupRoutes_InvalidProviderBaseURL(t *testing.T) {
+func TestSetupRoutesInvalidProviderBaseURL(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -386,7 +386,7 @@ func TestSetupRoutes_InvalidProviderBaseURL(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_404ForUnknownPath(t *testing.T) {
+func TestSetupRoutes404ForUnknownPath(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -408,7 +408,7 @@ func TestSetupRoutes_404ForUnknownPath(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_MessagesPathMustBeExact(t *testing.T) {
+func TestSetupRoutesMessagesPathMustBeExact(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -432,7 +432,7 @@ func TestSetupRoutes_MessagesPathMustBeExact(t *testing.T) {
 
 // Tests for new multi-auth middleware (Bearer + API key support)
 
-func TestSetupRoutes_MultiAuthWithBearerToken(t *testing.T) {
+func TestSetupRoutesMultiAuthWithBearerToken(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"status":"ok"}`)
@@ -461,7 +461,7 @@ func TestSetupRoutes_MultiAuthWithBearerToken(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_MultiAuthWithInvalidBearerToken(t *testing.T) {
+func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -488,7 +488,7 @@ func TestSetupRoutes_MultiAuthWithInvalidBearerToken(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
+func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"status":"ok"}`)
@@ -548,7 +548,7 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 	})
 }
 
-func TestSetupRoutes_MultiAuthBearerWithoutSecret(t *testing.T) {
+func TestSetupRoutesMultiAuthBearerWithoutSecret(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"status":"ok"}`)
@@ -577,7 +577,7 @@ func TestSetupRoutes_MultiAuthBearerWithoutSecret(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_LegacyAPIKeyFallback(t *testing.T) {
+func TestSetupRoutesLegacyAPIKeyFallback(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"status":"ok"}`)
@@ -607,7 +607,7 @@ func TestSetupRoutes_LegacyAPIKeyFallback(t *testing.T) {
 
 // Tests for /v1/models endpoint
 
-func TestSetupRoutes_ModelsEndpoint(t *testing.T) {
+func TestSetupRoutesModelsEndpoint(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -656,7 +656,7 @@ func TestSetupRoutes_ModelsEndpoint(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_ModelsEndpointOnlyGET(t *testing.T) {
+func TestSetupRoutesModelsEndpointOnlyGET(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -686,7 +686,7 @@ func TestSetupRoutes_ModelsEndpointOnlyGET(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_ModelsEndpointEmptyProviders(t *testing.T) {
+func TestSetupRoutesModelsEndpointEmptyProviders(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -711,7 +711,7 @@ func TestSetupRoutes_ModelsEndpointEmptyProviders(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_SubscriptionTokenAuth(t *testing.T) {
+func TestSetupRoutesSubscriptionTokenAuth(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"status":"ok"}`)
@@ -741,7 +741,7 @@ func TestSetupRoutes_SubscriptionTokenAuth(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
+func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	t.Parallel()
 
 	backend := newBackendServer(t, `{"status":"ok"}`)

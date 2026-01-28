@@ -13,7 +13,7 @@ import (
 
 // TestHotReload_RoutingStrategy verifies that changing routing strategy
 // in config and triggering reload updates the router without restart.
-func TestHotReload_RoutingStrategy(t *testing.T) {
+func TestHotReloadRoutingStrategy(t *testing.T) {
 	t.Parallel()
 
 	// Start with config A: round_robin strategy
@@ -57,7 +57,7 @@ func TestHotReload_RoutingStrategy(t *testing.T) {
 
 // TestHotReload_LiveRouter verifies that LiveRouter delegates
 // to the current router after config changes.
-func TestHotReload_LiveRouter(t *testing.T) {
+func TestHotReloadLiveRouter(t *testing.T) {
 	t.Parallel()
 
 	configA := &config.Config{
@@ -98,7 +98,7 @@ func TestHotReload_LiveRouter(t *testing.T) {
 
 // TestHotReload_ConcurrentAccess verifies that concurrent config reads
 // during hot-reload don't cause races or panics.
-func TestHotReload_ConcurrentAccess(t *testing.T) {
+func TestHotReloadConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	if testing.Short() {
@@ -184,7 +184,7 @@ func TestHotReload_ConcurrentAccess(t *testing.T) {
 
 // TestConfigService_GetVsDirect verifies that Get() returns the current
 // config while direct Config field may become stale after hot-reload.
-func TestConfigService_GetVsDirect(t *testing.T) {
+func TestConfigServiceGetVsDirect(t *testing.T) {
 	t.Parallel()
 
 	cfgSvc := &ConfigService{}
@@ -220,7 +220,7 @@ func TestConfigService_GetVsDirect(t *testing.T) {
 
 // BenchmarkHotReload_GetRouter benchmarks the per-request router creation.
 // This establishes a baseline for hot-reload performance overhead.
-func BenchmarkHotReload_GetRouter(b *testing.B) {
+func BenchmarkHotReloadGetRouter(b *testing.B) {
 	cfgSvc := &ConfigService{}
 	cfgSvc.config.Store(&config.Config{
 		Routing: config.RoutingConfig{
@@ -239,7 +239,7 @@ func BenchmarkHotReload_GetRouter(b *testing.B) {
 }
 
 // BenchmarkHotReload_AtomicStore benchmarks the config swap operation.
-func BenchmarkHotReload_AtomicStore(b *testing.B) {
+func BenchmarkHotReloadAtomicStore(b *testing.B) {
 	cfgSvc := &ConfigService{}
 	cfgSvc.config.Store(&config.Config{})
 	_ = cfgSvc.config.Load() // Initialize Config field (unused in benchmark)

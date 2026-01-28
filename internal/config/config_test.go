@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func TestLoggingConfig_ParseLevel(t *testing.T) {
+func TestLoggingConfigParseLevel(t *testing.T) {
 	tests := []struct {
 		name     string
 		level    string
@@ -69,7 +69,7 @@ func TestLoggingConfig_ParseLevel(t *testing.T) {
 	}
 }
 
-func TestAuthConfig_IsEnabled(t *testing.T) {
+func TestAuthConfigIsEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -126,7 +126,7 @@ func TestAuthConfig_IsEnabled(t *testing.T) {
 	}
 }
 
-func TestAuthConfig_IsBearerEnabled(t *testing.T) {
+func TestAuthConfigIsBearerEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -178,7 +178,7 @@ func TestAuthConfig_IsBearerEnabled(t *testing.T) {
 	}
 }
 
-func TestServerConfig_GetEffectiveAPIKey(t *testing.T) {
+func TestServerConfigGetEffectiveAPIKey(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct { //nolint:govet // test table struct alignment
@@ -220,7 +220,7 @@ func TestServerConfig_GetEffectiveAPIKey(t *testing.T) {
 	}
 }
 
-func TestLoggingConfig_EnableAllDebugOptions(t *testing.T) {
+func TestLoggingConfigEnableAllDebugOptions(t *testing.T) {
 	t.Parallel()
 
 	cfg := LoggingConfig{
@@ -255,7 +255,7 @@ func TestLoggingConfig_EnableAllDebugOptions(t *testing.T) {
 	}
 }
 
-func TestDebugOptions_GetMaxBodyLogSize(t *testing.T) {
+func TestDebugOptionsGetMaxBodyLogSize(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -297,7 +297,7 @@ func TestDebugOptions_GetMaxBodyLogSize(t *testing.T) {
 	}
 }
 
-func TestDebugOptions_IsEnabled(t *testing.T) {
+func TestDebugOptionsIsEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -349,7 +349,7 @@ func TestDebugOptions_IsEnabled(t *testing.T) {
 	}
 }
 
-func TestKeyConfig_GetEffectiveTPM(t *testing.T) {
+func TestKeyConfigGetEffectiveTPM(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -424,7 +424,7 @@ func TestKeyConfig_GetEffectiveTPM(t *testing.T) {
 	}
 }
 
-func TestKeyConfig_Validate(t *testing.T) {
+func TestKeyConfigValidate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -560,7 +560,7 @@ func TestKeyConfig_Validate(t *testing.T) {
 	}
 }
 
-func TestProviderConfig_GetEffectiveStrategy(t *testing.T) {
+func TestProviderConfigGetEffectiveStrategy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -623,7 +623,7 @@ func TestProviderConfig_GetEffectiveStrategy(t *testing.T) {
 	}
 }
 
-func TestProviderConfig_IsPoolingEnabled(t *testing.T) {
+func TestProviderConfigIsPoolingEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -715,7 +715,7 @@ func TestProviderConfig_IsPoolingEnabled(t *testing.T) {
 
 // Tests for mo.Option helper methods
 
-func TestDebugOptions_GetMaxBodyLogSizeOption(t *testing.T) {
+func TestDebugOptionsGetMaxBodyLogSizeOption(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -759,7 +759,7 @@ func TestDebugOptions_GetMaxBodyLogSizeOption(t *testing.T) {
 	}
 }
 
-func TestServerConfig_GetTimeoutOption(t *testing.T) {
+func TestServerConfigGetTimeoutOption(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -803,7 +803,7 @@ func TestServerConfig_GetTimeoutOption(t *testing.T) {
 	}
 }
 
-func TestServerConfig_GetMaxConcurrentOption(t *testing.T) {
+func TestServerConfigGetMaxConcurrentOption(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -847,7 +847,7 @@ func TestServerConfig_GetMaxConcurrentOption(t *testing.T) {
 	}
 }
 
-func TestKeyConfig_GetRPMLimitOption(t *testing.T) {
+func TestKeyConfigGetRPMLimitOption(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -891,7 +891,7 @@ func TestKeyConfig_GetRPMLimitOption(t *testing.T) {
 	}
 }
 
-func TestKeyConfig_GetITPMLimitOption(t *testing.T) {
+func TestKeyConfigGetITPMLimitOption(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -930,7 +930,7 @@ func TestKeyConfig_GetITPMLimitOption(t *testing.T) {
 	}
 }
 
-func TestKeyConfig_GetOTPMLimitOption(t *testing.T) {
+func TestKeyConfigGetOTPMLimitOption(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -970,7 +970,7 @@ func TestKeyConfig_GetOTPMLimitOption(t *testing.T) {
 }
 
 // Test Option usage with OrElse pattern.
-func TestOption_OrElse_Pattern(t *testing.T) {
+func TestOptionOrElsePattern(t *testing.T) {
 	t.Parallel()
 
 	t.Run("timeout with OrElse", func(t *testing.T) {
@@ -1016,7 +1016,7 @@ func TestOption_OrElse_Pattern(t *testing.T) {
 
 // Tests for RoutingConfig
 
-func TestRoutingConfig_GetEffectiveStrategy(t *testing.T) {
+func TestRoutingConfigGetEffectiveStrategy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1068,7 +1068,7 @@ func TestRoutingConfig_GetEffectiveStrategy(t *testing.T) {
 	}
 }
 
-func TestRoutingConfig_GetFailoverTimeoutOption(t *testing.T) {
+func TestRoutingConfigGetFailoverTimeoutOption(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1118,7 +1118,7 @@ func TestRoutingConfig_GetFailoverTimeoutOption(t *testing.T) {
 	}
 }
 
-func TestRoutingConfig_IsDebugEnabled(t *testing.T) {
+func TestRoutingConfigIsDebugEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1156,7 +1156,7 @@ func TestRoutingConfig_IsDebugEnabled(t *testing.T) {
 }
 
 // Test Option usage with OrElse pattern for RoutingConfig.
-func TestRoutingConfig_Option_OrElse_Pattern(t *testing.T) {
+func TestRoutingConfigOptionOrElsePattern(t *testing.T) {
 	t.Parallel()
 
 	t.Run("failover timeout with OrElse", func(t *testing.T) {
@@ -1180,7 +1180,7 @@ func TestRoutingConfig_Option_OrElse_Pattern(t *testing.T) {
 	})
 }
 
-func TestProviderConfig_GetAzureAPIVersion(t *testing.T) {
+func TestProviderConfigGetAzureAPIVersion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1211,7 +1211,7 @@ func TestProviderConfig_GetAzureAPIVersion(t *testing.T) {
 	}
 }
 
-func TestProviderConfig_ValidateCloudConfig(t *testing.T) {
+func TestProviderConfigValidateCloudConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

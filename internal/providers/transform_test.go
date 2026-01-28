@@ -241,7 +241,7 @@ func TestTransformBodyForCloudProvider(t *testing.T) {
 	}
 }
 
-func TestTransformBodyForCloudProvider_PreservesFields(t *testing.T) {
+func TestTransformBodyForCloudProviderPreservesFields(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{

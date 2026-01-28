@@ -12,7 +12,7 @@ import (
 
 // Property-based tests for KeySelector implementations
 
-func TestLeastLoadedSelector_Properties(t *testing.T) {
+func TestLeastLoadedSelectorProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -105,7 +105,7 @@ func TestLeastLoadedSelector_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestRoundRobinSelector_Properties(t *testing.T) {
+func TestRoundRobinSelectorProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -226,7 +226,7 @@ func TestRoundRobinSelector_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestNewSelector_Properties(t *testing.T) {
+func TestNewSelectorProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	properties := gopter.NewProperties(parameters)

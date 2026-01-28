@@ -13,7 +13,7 @@ import (
 // strategy takes effect without rebuilding the handler.
 //
 // This is a regression test for F1 in claude-code-action-items.md.
-func TestLiveRouter_HotReloadStrategyChange(t *testing.T) {
+func TestLiveRouterHotReloadStrategyChange(t *testing.T) {
 	t.Parallel()
 
 	// Start with round_robin strategy
@@ -76,7 +76,7 @@ func TestLiveRouter_HotReloadStrategyChange(t *testing.T) {
 
 // TestLiveRouter_HotReloadTimeoutChange verifies that changing the failover
 // timeout takes effect without rebuilding the handler.
-func TestLiveRouter_HotReloadTimeoutChange(t *testing.T) {
+func TestLiveRouterHotReloadTimeoutChange(t *testing.T) {
 	t.Parallel()
 
 	cfg1 := &config.Config{

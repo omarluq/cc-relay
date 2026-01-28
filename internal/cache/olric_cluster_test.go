@@ -11,7 +11,7 @@ import (
 )
 
 // TestOlricCluster_Formation tests that multiple nodes can form a cluster.
-func TestOlricCluster_Formation(t *testing.T) {
+func TestOlricClusterFormation(t *testing.T) {
 	cluster := newTestCacheCluster(t)
 
 	// Start first node
@@ -48,7 +48,7 @@ func TestOlricCluster_Formation(t *testing.T) {
 }
 
 // TestOlricCluster_DataReplication tests that data is replicated across nodes.
-func TestOlricCluster_DataReplication(t *testing.T) {
+func TestOlricClusterDataReplication(t *testing.T) {
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -88,7 +88,7 @@ func TestOlricCluster_DataReplication(t *testing.T) {
 }
 
 // TestOlricCluster_NodeLeave tests that a node can leave gracefully.
-func TestOlricCluster_NodeLeave(t *testing.T) {
+func TestOlricClusterNodeLeave(t *testing.T) {
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -141,7 +141,7 @@ func TestOlricCluster_NodeLeave(t *testing.T) {
 }
 
 // TestOlricCluster_DynamicJoin tests that new nodes can join an existing cluster.
-func TestOlricCluster_DynamicJoin(t *testing.T) {
+func TestOlricClusterDynamicJoin(t *testing.T) {
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -194,7 +194,7 @@ func TestOlricCluster_DynamicJoin(t *testing.T) {
 }
 
 // TestOlricCluster_ThreeNode tests a 3-node cluster with full replication.
-func TestOlricCluster_ThreeNode(t *testing.T) {
+func TestOlricClusterThreeNode(t *testing.T) {
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -247,7 +247,7 @@ func TestOlricCluster_ThreeNode(t *testing.T) {
 }
 
 // TestOlricCluster_WriteReadConsistency tests that writes are immediately readable.
-func TestOlricCluster_WriteReadConsistency(t *testing.T) {
+func TestOlricClusterWriteReadConsistency(t *testing.T) {
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -296,7 +296,7 @@ func TestOlricCluster_WriteReadConsistency(t *testing.T) {
 }
 
 // TestOlricCluster_TTLReplication tests that TTL is preserved across nodes.
-func TestOlricCluster_TTLReplication(t *testing.T) {
+func TestOlricClusterTTLReplication(t *testing.T) {
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 

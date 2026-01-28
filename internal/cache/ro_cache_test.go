@@ -105,7 +105,7 @@ func TestNewROCache(t *testing.T) {
 	assert.Equal(t, mock, roCache.Underlying())
 }
 
-func TestROCache_Get(t *testing.T) {
+func TestROCacheGet(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -129,7 +129,7 @@ func TestROCache_Get(t *testing.T) {
 	})
 }
 
-func TestROCache_Set(t *testing.T) {
+func TestROCacheSet(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -158,7 +158,7 @@ func TestROCache_Set(t *testing.T) {
 	})
 }
 
-func TestROCache_Exists(t *testing.T) {
+func TestROCacheExists(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -182,7 +182,7 @@ func TestROCache_Exists(t *testing.T) {
 	})
 }
 
-func TestROCache_Invalidate(t *testing.T) {
+func TestROCacheInvalidate(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -199,7 +199,7 @@ func TestROCache_Invalidate(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrNotFound))
 }
 
-func TestROCache_InvalidateMany(t *testing.T) {
+func TestROCacheInvalidateMany(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -226,7 +226,7 @@ func TestROCache_InvalidateMany(t *testing.T) {
 	assert.Equal(t, []byte("value3"), val)
 }
 
-func TestROCache_GetOrFetch(t *testing.T) {
+func TestROCacheGetOrFetch(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -410,7 +410,7 @@ func TestStream(t *testing.T) {
 	}
 }
 
-func TestROCache_ErrorHandling(t *testing.T) {
+func TestROCacheErrorHandling(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -446,7 +446,7 @@ func TestROCache_ErrorHandling(t *testing.T) {
 	})
 }
 
-func TestROCache_ConcurrentAccess(t *testing.T) {
+func TestROCacheConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -485,7 +485,7 @@ func TestROCache_ConcurrentAccess(t *testing.T) {
 	// Test passes if no race conditions detected
 }
 
-func BenchmarkROCache_Get(b *testing.B) {
+func BenchmarkROCacheGet(b *testing.B) {
 	ctx := context.Background()
 	mock := newMockCache()
 	mock.data["key"] = []byte("value")
@@ -497,7 +497,7 @@ func BenchmarkROCache_Get(b *testing.B) {
 	}
 }
 
-func BenchmarkROCache_GetOrFetch_CacheHit(b *testing.B) {
+func BenchmarkROCacheGetOrFetchCacheHit(b *testing.B) {
 	ctx := context.Background()
 	mock := newMockCache()
 	mock.data["key"] = []byte("cached")
@@ -513,7 +513,7 @@ func BenchmarkROCache_GetOrFetch_CacheHit(b *testing.B) {
 	}
 }
 
-func BenchmarkROCache_GetOrFetch_CacheMiss(b *testing.B) {
+func BenchmarkROCacheGetOrFetchCacheMiss(b *testing.B) {
 	ctx := context.Background()
 	mock := newMockCache()
 	roCache := NewROCache(mock, time.Minute)

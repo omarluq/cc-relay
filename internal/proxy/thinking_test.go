@@ -72,7 +72,7 @@ func TestHasThinkingBlocks(t *testing.T) {
 	}
 }
 
-func TestProcessRequestThinking_CachedSignature(t *testing.T) {
+func TestProcessRequestThinkingCachedSignature(t *testing.T) {
 	cfg := cache.Config{
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
@@ -113,7 +113,7 @@ func TestProcessRequestThinking_CachedSignature(t *testing.T) {
 	assert.Equal(t, 0, thinkingCtx.DroppedBlocks, "should not drop block with cached sig")
 }
 
-func TestProcessRequestThinking_ClientSignature(t *testing.T) {
+func TestProcessRequestThinkingClientSignature(t *testing.T) {
 	ctx := context.Background()
 
 	// Valid client signature
@@ -137,7 +137,7 @@ func TestProcessRequestThinking_ClientSignature(t *testing.T) {
 	assert.Equal(t, 0, thinkingCtx.DroppedBlocks)
 }
 
-func TestProcessRequestThinking_UnsignedBlockDropped(t *testing.T) {
+func TestProcessRequestThinkingUnsignedBlockDropped(t *testing.T) {
 	ctx := context.Background()
 
 	body := `{
@@ -160,7 +160,7 @@ func TestProcessRequestThinking_UnsignedBlockDropped(t *testing.T) {
 	assert.Equal(t, 1, thinkingCtx.DroppedBlocks, "should record dropped block")
 }
 
-func TestProcessRequestThinking_ToolUseInheritance(t *testing.T) {
+func TestProcessRequestThinkingToolUseInheritance(t *testing.T) {
 	ctx := context.Background()
 
 	// Valid signature for thinking block
@@ -186,7 +186,7 @@ func TestProcessRequestThinking_ToolUseInheritance(t *testing.T) {
 	assert.Equal(t, thinkingSig, thinkingCtx.CurrentSignature)
 }
 
-func TestProcessRequestThinking_BlockReordering(t *testing.T) {
+func TestProcessRequestThinkingBlockReordering(t *testing.T) {
 	ctx := context.Background()
 
 	// Valid signature
@@ -365,7 +365,7 @@ func BenchmarkHasThinkingBlocks(b *testing.B) {
 	})
 }
 
-func BenchmarkHasThinkingBlocks_NoThinking(b *testing.B) {
+func BenchmarkHasThinkingBlocksNoThinking(b *testing.B) {
 	bodyWithoutThinking := []byte(`{
 		"model": "claude-sonnet-4",
 		"messages": [

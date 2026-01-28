@@ -105,7 +105,7 @@ func TestNewAzureProvider(t *testing.T) {
 	})
 }
 
-func TestAzureProvider_Authenticate(t *testing.T) {
+func TestAzureProviderAuthenticate(t *testing.T) {
 	t.Run("uses x-api-key for api_key auth", func(t *testing.T) {
 		cfg := &AzureConfig{
 			Name:         "test-azure",
@@ -157,7 +157,7 @@ func TestAzureProvider_Authenticate(t *testing.T) {
 	})
 }
 
-func TestAzureProvider_ForwardHeaders(t *testing.T) {
+func TestAzureProviderForwardHeaders(t *testing.T) {
 	cfg := &AzureConfig{
 		Name:         "test-azure",
 		ResourceName: "my-resource",
@@ -197,7 +197,7 @@ func TestAzureProvider_ForwardHeaders(t *testing.T) {
 	})
 }
 
-func TestAzureProvider_TransformRequest(t *testing.T) {
+func TestAzureProviderTransformRequest(t *testing.T) {
 	t.Run("constructs correct URL with api-version", func(t *testing.T) {
 		cfg := &AzureConfig{
 			Name:         "test-azure",
@@ -269,7 +269,7 @@ func TestAzureProvider_TransformRequest(t *testing.T) {
 	})
 }
 
-func TestAzureProvider_RequiresBodyTransform(t *testing.T) {
+func TestAzureProviderRequiresBodyTransform(t *testing.T) {
 	cfg := &AzureConfig{
 		Name:         "test-azure",
 		ResourceName: "my-resource",
@@ -280,7 +280,7 @@ func TestAzureProvider_RequiresBodyTransform(t *testing.T) {
 	assert.False(t, p.RequiresBodyTransform())
 }
 
-func TestAzureProvider_SupportsStreaming(t *testing.T) {
+func TestAzureProviderSupportsStreaming(t *testing.T) {
 	cfg := &AzureConfig{
 		Name:         "test-azure",
 		ResourceName: "my-resource",
@@ -291,7 +291,7 @@ func TestAzureProvider_SupportsStreaming(t *testing.T) {
 	assert.True(t, p.SupportsStreaming())
 }
 
-func TestAzureProvider_StreamingContentType(t *testing.T) {
+func TestAzureProviderStreamingContentType(t *testing.T) {
 	cfg := &AzureConfig{
 		Name:         "test-azure",
 		ResourceName: "my-resource",
@@ -302,7 +302,7 @@ func TestAzureProvider_StreamingContentType(t *testing.T) {
 	assert.Equal(t, "text/event-stream", p.StreamingContentType())
 }
 
-func TestAzureProvider_SupportsTransparentAuth(t *testing.T) {
+func TestAzureProviderSupportsTransparentAuth(t *testing.T) {
 	cfg := &AzureConfig{
 		Name:         "test-azure",
 		ResourceName: "my-resource",
@@ -314,7 +314,7 @@ func TestAzureProvider_SupportsTransparentAuth(t *testing.T) {
 	assert.False(t, p.SupportsTransparentAuth())
 }
 
-func TestAzureProvider_ModelMapping(t *testing.T) {
+func TestAzureProviderModelMapping(t *testing.T) {
 	cfg := &AzureConfig{
 		Name:         "test-azure",
 		ResourceName: "my-resource",
@@ -334,7 +334,7 @@ func TestAzureProvider_ModelMapping(t *testing.T) {
 	})
 }
 
-func TestAzureProvider_GetModelMapping(t *testing.T) {
+func TestAzureProviderGetModelMapping(t *testing.T) {
 	t.Run("returns model mapping when configured", func(t *testing.T) {
 		cfg := &AzureConfig{
 			Name:         "test-azure",
@@ -364,7 +364,7 @@ func TestAzureProvider_GetModelMapping(t *testing.T) {
 	})
 }
 
-func TestAzureProvider_ListModels(t *testing.T) {
+func TestAzureProviderListModels(t *testing.T) {
 	t.Run("returns default models with correct metadata", func(t *testing.T) {
 		cfg := &AzureConfig{
 			Name:         "test-azure",

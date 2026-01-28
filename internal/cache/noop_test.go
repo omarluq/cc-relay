@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestNoopCache_Get_ReturnsNotFound(t *testing.T) {
+func TestNoopCacheGetReturnsNotFound(t *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -20,7 +20,7 @@ func TestNoopCache_Get_ReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestNoopCache_Set_ReturnsNil(t *testing.T) {
+func TestNoopCacheSetReturnsNil(t *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -38,7 +38,7 @@ func TestNoopCache_Set_ReturnsNil(t *testing.T) {
 	}
 }
 
-func TestNoopCache_SetWithTTL_ReturnsNil(t *testing.T) {
+func TestNoopCacheSetWithTTLReturnsNil(t *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -56,7 +56,7 @@ func TestNoopCache_SetWithTTL_ReturnsNil(t *testing.T) {
 	}
 }
 
-func TestNoopCache_Delete_ReturnsNil(t *testing.T) {
+func TestNoopCacheDeleteReturnsNil(t *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -76,7 +76,7 @@ func TestNoopCache_Delete_ReturnsNil(t *testing.T) {
 	}
 }
 
-func TestNoopCache_Exists_ReturnsFalse(t *testing.T) {
+func TestNoopCacheExistsReturnsFalse(t *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -102,7 +102,7 @@ func TestNoopCache_Exists_ReturnsFalse(t *testing.T) {
 	}
 }
 
-func TestNoopCache_Close_Idempotent(t *testing.T) {
+func TestNoopCacheCloseIdempotent(t *testing.T) {
 	c := newNoopCache()
 
 	// First close should succeed
@@ -124,7 +124,7 @@ func TestNoopCache_Close_Idempotent(t *testing.T) {
 	}
 }
 
-func TestNoopCache_OperationsAfterClose_ReturnErrClosed(t *testing.T) {
+func TestNoopCacheOperationsAfterCloseReturnErrClosed(t *testing.T) {
 	c := newNoopCache()
 	ctx := context.Background()
 
@@ -171,7 +171,7 @@ func TestNoopCache_OperationsAfterClose_ReturnErrClosed(t *testing.T) {
 	})
 }
 
-func TestNoopCache_Stats_ReturnsZero(t *testing.T) {
+func TestNoopCacheStatsReturnsZero(t *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -204,7 +204,7 @@ func TestNoopCache_Stats_ReturnsZero(t *testing.T) {
 	}
 }
 
-func TestNoopCache_ConcurrentAccess(_ *testing.T) {
+func TestNoopCacheConcurrentAccess(_ *testing.T) {
 	c := newNoopCache()
 	defer c.Close()
 
@@ -244,7 +244,7 @@ func TestNoopCache_ConcurrentAccess(_ *testing.T) {
 	wg.Wait()
 }
 
-func TestNoopCache_ImplementsInterfaces(t *testing.T) {
+func TestNoopCacheImplementsInterfaces(t *testing.T) {
 	t.Helper()
 	c := newNoopCache()
 	defer c.Close()

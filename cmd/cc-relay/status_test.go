@@ -47,7 +47,7 @@ func TestFindConfigFileForStatus(t *testing.T) {
 	}
 }
 
-func TestFindConfigFileForStatus_NotFound(t *testing.T) {
+func TestFindConfigFileForStatusNotFound(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -80,7 +80,7 @@ func TestFindConfigFileForStatus_NotFound(t *testing.T) {
 	}
 }
 
-func TestFindConfigFileForStatus_InHomeDir(t *testing.T) {
+func TestFindConfigFileForStatusInHomeDir(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -124,7 +124,7 @@ func TestFindConfigFileForStatus_InHomeDir(t *testing.T) {
 	}
 }
 
-func TestRunStatus_ServerRunning(t *testing.T) {
+func TestRunStatusServerRunning(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create a mock server that returns 200 OK on /health
@@ -161,7 +161,7 @@ func TestRunStatus_ServerRunning(t *testing.T) {
 	}
 }
 
-func TestRunStatus_ServerNotRunning(t *testing.T) {
+func TestRunStatusServerNotRunning(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create temp config file pointing to a non-existent server
@@ -185,7 +185,7 @@ func TestRunStatus_ServerNotRunning(t *testing.T) {
 	}
 }
 
-func TestRunStatus_ServerUnhealthy(t *testing.T) {
+func TestRunStatusServerUnhealthy(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create a mock server that returns 500 on /health
@@ -222,7 +222,7 @@ func TestRunStatus_ServerUnhealthy(t *testing.T) {
 	}
 }
 
-func TestRunStatus_InvalidConfig(t *testing.T) {
+func TestRunStatusInvalidConfig(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original cfgFile

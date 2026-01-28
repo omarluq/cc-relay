@@ -10,7 +10,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/providers"
 )
 
-func TestModelsHandler_ReturnsCorrectFormat(t *testing.T) {
+func TestModelsHandlerReturnsCorrectFormat(t *testing.T) {
 	t.Parallel()
 
 	// Create providers with models
@@ -66,7 +66,7 @@ func TestModelsHandler_ReturnsCorrectFormat(t *testing.T) {
 	}
 }
 
-func TestModelsHandler_MultipleProviders(t *testing.T) {
+func TestModelsHandlerMultipleProviders(t *testing.T) {
 	t.Parallel()
 
 	anthropicProvider := providers.NewAnthropicProviderWithModels(
@@ -116,7 +116,7 @@ func TestModelsHandler_MultipleProviders(t *testing.T) {
 	}
 }
 
-func TestModelsHandler_EmptyProviders(t *testing.T) {
+func TestModelsHandlerEmptyProviders(t *testing.T) {
 	t.Parallel()
 
 	handler := NewModelsHandler([]providers.Provider{})
@@ -144,7 +144,7 @@ func TestModelsHandler_EmptyProviders(t *testing.T) {
 	}
 }
 
-func TestModelsHandler_ProviderWithDefaultModels(t *testing.T) {
+func TestModelsHandlerProviderWithDefaultModels(t *testing.T) {
 	t.Parallel()
 
 	// Provider without configured models gets default models
@@ -173,7 +173,7 @@ func TestModelsHandler_ProviderWithDefaultModels(t *testing.T) {
 	}
 }
 
-func TestModelsHandler_NilProviders(t *testing.T) {
+func TestModelsHandlerNilProviders(t *testing.T) {
 	t.Parallel()
 
 	handler := NewModelsHandler(nil)

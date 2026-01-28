@@ -108,7 +108,7 @@ func TestNewVertexProviderWithTokenSource(t *testing.T) {
 	})
 }
 
-func TestVertexProvider_Authenticate(t *testing.T) {
+func TestVertexProviderAuthenticate(t *testing.T) {
 	t.Run("adds Bearer token from TokenSource", func(t *testing.T) {
 		cfg := &VertexConfig{
 			Name:      "test-vertex",
@@ -175,7 +175,7 @@ func TestVertexProvider_Authenticate(t *testing.T) {
 	})
 }
 
-func TestVertexProvider_ForwardHeaders(t *testing.T) {
+func TestVertexProviderForwardHeaders(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",
@@ -209,7 +209,7 @@ func TestVertexProvider_ForwardHeaders(t *testing.T) {
 	})
 }
 
-func TestVertexProvider_TransformRequest(t *testing.T) {
+func TestVertexProviderTransformRequest(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",
@@ -329,7 +329,7 @@ func TestVertexProvider_TransformRequest(t *testing.T) {
 	})
 }
 
-func TestVertexProvider_RequiresBodyTransform(t *testing.T) {
+func TestVertexProviderRequiresBodyTransform(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",
@@ -341,7 +341,7 @@ func TestVertexProvider_RequiresBodyTransform(t *testing.T) {
 	assert.True(t, p.RequiresBodyTransform())
 }
 
-func TestVertexProvider_SupportsStreaming(t *testing.T) {
+func TestVertexProviderSupportsStreaming(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",
@@ -353,7 +353,7 @@ func TestVertexProvider_SupportsStreaming(t *testing.T) {
 	assert.True(t, p.SupportsStreaming())
 }
 
-func TestVertexProvider_StreamingContentType(t *testing.T) {
+func TestVertexProviderStreamingContentType(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",
@@ -366,7 +366,7 @@ func TestVertexProvider_StreamingContentType(t *testing.T) {
 	assert.Equal(t, "text/event-stream", p.StreamingContentType())
 }
 
-func TestVertexProvider_RefreshToken(t *testing.T) {
+func TestVertexProviderRefreshToken(t *testing.T) {
 	t.Run("successfully refreshes token", func(t *testing.T) {
 		cfg := &VertexConfig{
 			Name:      "test-vertex",
@@ -408,7 +408,7 @@ func TestVertexProvider_RefreshToken(t *testing.T) {
 	})
 }
 
-func TestVertexProvider_ModelMapping(t *testing.T) {
+func TestVertexProviderModelMapping(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",
@@ -430,12 +430,12 @@ func TestVertexProvider_ModelMapping(t *testing.T) {
 	})
 }
 
-func TestVertexProvider_InterfaceCompliance(_ *testing.T) {
+func TestVertexProviderInterfaceCompliance(_ *testing.T) {
 	// Compile-time check that VertexProvider implements Provider
 	var _ Provider = (*VertexProvider)(nil)
 }
 
-func TestVertexProvider_Owner(t *testing.T) {
+func TestVertexProviderOwner(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",
@@ -447,7 +447,7 @@ func TestVertexProvider_Owner(t *testing.T) {
 	assert.Equal(t, "google", p.Owner())
 }
 
-func TestVertexProvider_SupportsTransparentAuth(t *testing.T) {
+func TestVertexProviderSupportsTransparentAuth(t *testing.T) {
 	cfg := &VertexConfig{
 		Name:      "test-vertex",
 		ProjectID: "my-project",

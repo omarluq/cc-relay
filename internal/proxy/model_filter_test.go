@@ -129,7 +129,7 @@ func TestFilterProvidersByModel(t *testing.T) {
 	}
 }
 
-func TestFilterProvidersByModel_EmptyMapping(t *testing.T) {
+func TestFilterProvidersByModelEmptyMapping(t *testing.T) {
 	t.Parallel()
 
 	anthropic := &mockProviderForFilter{name: "anthropic"}
@@ -146,7 +146,7 @@ func TestFilterProvidersByModel_EmptyMapping(t *testing.T) {
 	assert.Len(t, result, 1)
 }
 
-func TestFilterProvidersByModel_LongestPrefixMatch(t *testing.T) {
+func TestFilterProvidersByModelLongestPrefixMatch(t *testing.T) {
 	t.Parallel()
 
 	anthropic := &mockProviderForFilter{name: "anthropic"}
@@ -173,7 +173,7 @@ func TestFilterProvidersByModel_LongestPrefixMatch(t *testing.T) {
 	assert.Equal(t, "anthropic", result[0].Provider.Name())
 }
 
-func TestFilterProvidersByModel_GracefulDegradation(t *testing.T) {
+func TestFilterProvidersByModelGracefulDegradation(t *testing.T) {
 	t.Parallel()
 
 	anthropic := &mockProviderForFilter{name: "anthropic"}

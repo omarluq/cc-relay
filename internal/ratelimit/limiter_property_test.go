@@ -12,7 +12,7 @@ import (
 
 // Property-based tests for RateLimiter interface implementations
 
-func TestRateLimiter_Properties(t *testing.T) {
+func TestRateLimiterProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -141,7 +141,7 @@ func TestRateLimiter_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestRateLimiter_BurstProperty(t *testing.T) {
+func TestRateLimiterBurstProperty(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)
@@ -174,7 +174,7 @@ func TestRateLimiter_BurstProperty(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestRateLimiter_ConcurrentAccess_Properties(t *testing.T) {
+func TestRateLimiterConcurrentAccessProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)

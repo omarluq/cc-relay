@@ -39,7 +39,7 @@ func createTestSignatureCache(t *testing.T) (sigCache *SignatureCache, cleanup f
 	return sigCache, cleanup
 }
 
-func TestHandler_ThinkingSignature_CacheHit(t *testing.T) {
+func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
 	t.Parallel()
 
 	sigCache, cleanup := createTestSignatureCache(t)
@@ -65,10 +65,12 @@ func TestHandler_ThinkingSignature_CacheHit(t *testing.T) {
 
 	// Create handler with signature cache
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, sigCache,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		SignatureCache: sigCache,
+	})
 	require.NoError(t, err)
 
 	// Request with thinking block (no signature - should use cached)
@@ -94,7 +96,7 @@ func TestHandler_ThinkingSignature_CacheHit(t *testing.T) {
 	assert.Equal(t, validSig, sig, "should use cached signature")
 }
 
-func TestHandler_ThinkingSignature_CacheMiss_ClientSignature(t *testing.T) {
+func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 	t.Parallel()
 
 	sigCache, cleanup := createTestSignatureCache(t)
@@ -114,10 +116,12 @@ func TestHandler_ThinkingSignature_CacheMiss_ClientSignature(t *testing.T) {
 
 	// Create handler with signature cache
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, sigCache,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		SignatureCache: sigCache,
+	})
 	require.NoError(t, err)
 
 	// Request with valid client signature
@@ -144,7 +148,7 @@ func TestHandler_ThinkingSignature_CacheMiss_ClientSignature(t *testing.T) {
 	assert.Equal(t, clientSig, sig, "should preserve valid client signature")
 }
 
-func TestHandler_ThinkingSignature_UnsignedBlock_Dropped(t *testing.T) {
+func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 	t.Parallel()
 
 	sigCache, cleanup := createTestSignatureCache(t)
@@ -163,10 +167,12 @@ func TestHandler_ThinkingSignature_UnsignedBlock_Dropped(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, sigCache,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		SignatureCache: sigCache,
+	})
 	require.NoError(t, err)
 
 	// Request with unsigned thinking block
@@ -194,7 +200,7 @@ func TestHandler_ThinkingSignature_UnsignedBlock_Dropped(t *testing.T) {
 	assert.Equal(t, "text", content.Array()[0].Get("type").String())
 }
 
-func TestHandler_ThinkingSignature_ToolUseInheritance(t *testing.T) {
+func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 	t.Parallel()
 
 	sigCache, cleanup := createTestSignatureCache(t)
@@ -213,10 +219,12 @@ func TestHandler_ThinkingSignature_ToolUseInheritance(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, sigCache,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		SignatureCache: sigCache,
+	})
 	require.NoError(t, err)
 
 	// Request with thinking block followed by tool_use
@@ -245,7 +253,7 @@ func TestHandler_ThinkingSignature_ToolUseInheritance(t *testing.T) {
 	assert.Equal(t, thinkingSig, toolBlock.Get("signature").String())
 }
 
-func TestHandler_ThinkingSignature_BlockReordering(t *testing.T) {
+func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {
 	t.Parallel()
 
 	sigCache, cleanup := createTestSignatureCache(t)
@@ -264,10 +272,12 @@ func TestHandler_ThinkingSignature_BlockReordering(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, sigCache,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		SignatureCache: sigCache,
+	})
 	require.NoError(t, err)
 
 	// Request with text before thinking (wrong order)
@@ -297,7 +307,7 @@ func TestHandler_ThinkingSignature_BlockReordering(t *testing.T) {
 	assert.Equal(t, "text", content.Array()[1].Get("type").String(), "text should be second")
 }
 
-func TestHandler_ThinkingSignature_ModelGroupSharing(t *testing.T) {
+func TestHandlerThinkingSignatureModelGroupSharing(t *testing.T) {
 	t.Parallel()
 
 	sigCache, cleanup := createTestSignatureCache(t)
@@ -322,10 +332,12 @@ func TestHandler_ThinkingSignature_ModelGroupSharing(t *testing.T) {
 	defer backend.Close()
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, sigCache,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider,
+		APIKey:         "test-key",
+		DebugOptions:   config.DebugOptions{},
+		SignatureCache: sigCache,
+	})
 	require.NoError(t, err)
 
 	// Request with different model but same group
@@ -351,7 +363,7 @@ func TestHandler_ThinkingSignature_ModelGroupSharing(t *testing.T) {
 	assert.Equal(t, validSig, sig, "should use signature from same model group")
 }
 
-func TestHandler_ThinkingSignature_CrossProviderRouting(t *testing.T) {
+func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 	t.Parallel()
 
 	sigCache, cleanup := createTestSignatureCache(t)
@@ -398,13 +410,16 @@ func TestHandler_ThinkingSignature_CrossProviderRouting(t *testing.T) {
 	// Create round-robin router
 	mockRouter := &roundRobinMock{providers: providerInfos, index: 0}
 
-	handler, err := NewHandler(
-		provider1, providerInfos, mockRouter,
-		"test-key", nil,
-		map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		map[string]string{"provider1": "key1", "provider2": "key2"},
-		nil, config.DebugOptions{}, false, nil, sigCache,
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:       provider1,
+		ProviderInfos:  providerInfos,
+		ProviderRouter: mockRouter,
+		APIKey:         "test-key",
+		ProviderPools:  map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		ProviderKeys:   map[string]string{"provider1": "key1", "provider2": "key2"},
+		DebugOptions:   config.DebugOptions{},
+		SignatureCache: sigCache,
+	})
 	require.NoError(t, err)
 
 	// First request - should go to first provider
@@ -440,7 +455,7 @@ func (r *roundRobinMock) Name() string {
 	return "round-robin"
 }
 
-func TestHandler_NoSignatureCache_PassesThrough(t *testing.T) {
+func TestHandlerNoSignatureCachePassesThrough(t *testing.T) {
 	t.Parallel()
 
 	// Create backend server
@@ -457,10 +472,12 @@ func TestHandler_NoSignatureCache_PassesThrough(t *testing.T) {
 
 	// Create handler without signature cache
 	provider := providers.NewAnthropicProvider("test", backend.URL)
-	handler, err := NewHandler(
-		provider, nil, nil, "test-key", nil, nil, nil, nil,
-		config.DebugOptions{}, false, nil, nil, // nil signature cache
-	)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:     provider,
+		APIKey:       "test-key",
+		DebugOptions: config.DebugOptions{},
+		// nil signature cache
+	})
 	require.NoError(t, err)
 
 	// Request with thinking block

@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestHasThinkingSignature_NoMessages(t *testing.T) {
+func TestHasThinkingSignatureNoMessages(t *testing.T) {
 	body := `{"model": "claude-3-5-sonnet-20241022", "messages": []}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
@@ -19,7 +19,7 @@ func TestHasThinkingSignature_NoMessages(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_NoThinkingBlocks(t *testing.T) {
+func TestHasThinkingSignatureNoThinkingBlocks(t *testing.T) {
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
 		"messages": [
@@ -35,7 +35,7 @@ func TestHasThinkingSignature_NoThinkingBlocks(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_HasThinkingBlock(t *testing.T) {
+func TestHasThinkingSignatureHasThinkingBlock(t *testing.T) {
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
 		"messages": [
@@ -57,7 +57,7 @@ func TestHasThinkingSignature_HasThinkingBlock(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_ThinkingWithoutSignature(t *testing.T) {
+func TestHasThinkingSignatureThinkingWithoutSignature(t *testing.T) {
 	// Edge case: thinking block exists but no signature (shouldn't happen in practice)
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
@@ -73,7 +73,7 @@ func TestHasThinkingSignature_ThinkingWithoutSignature(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_ThinkingInUserMessage(t *testing.T) {
+func TestHasThinkingSignatureThinkingInUserMessage(t *testing.T) {
 	// Thinking blocks in user messages should not trigger affinity
 	// (only assistant messages contain provider signatures)
 	body := `{
@@ -90,7 +90,7 @@ func TestHasThinkingSignature_ThinkingInUserMessage(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_MalformedJSON(t *testing.T) {
+func TestHasThinkingSignatureMalformedJSON(t *testing.T) {
 	body := `{invalid json`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
@@ -100,7 +100,7 @@ func TestHasThinkingSignature_MalformedJSON(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_NilBody(t *testing.T) {
+func TestHasThinkingSignatureNilBody(t *testing.T) {
 	r := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 	r.Body = nil
 
@@ -110,7 +110,7 @@ func TestHasThinkingSignature_NilBody(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_BodyRestored(t *testing.T) {
+func TestHasThinkingSignatureBodyRestored(t *testing.T) {
 	originalBody := `{"model": "test", "messages": []}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(originalBody)))
 
@@ -128,7 +128,7 @@ func TestHasThinkingSignature_BodyRestored(t *testing.T) {
 	}
 }
 
-func TestHasThinkingSignature_MultipleAssistantMessages(t *testing.T) {
+func TestHasThinkingSignatureMultipleAssistantMessages(t *testing.T) {
 	// Test conversation with multiple turns, only later message has thinking
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
@@ -170,7 +170,7 @@ func TestCacheThinkingAffinityInContext(t *testing.T) {
 	}
 }
 
-func TestGetThinkingAffinityFromContext_NotCached(t *testing.T) {
+func TestGetThinkingAffinityFromContextNotCached(t *testing.T) {
 	ctx := context.Background()
 	got := GetThinkingAffinityFromContext(ctx)
 	if got {

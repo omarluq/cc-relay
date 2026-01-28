@@ -8,7 +8,7 @@ import (
 )
 
 // TestRuntime_GetStore verifies atomic config storage and retrieval.
-func TestRuntime_GetStore(t *testing.T) {
+func TestRuntimeGetStore(t *testing.T) {
 	t.Parallel()
 
 	cfg1 := &Config{
@@ -39,7 +39,7 @@ func TestRuntime_GetStore(t *testing.T) {
 }
 
 // TestRuntime_ConcurrentAccess verifies thread-safe config access.
-func TestRuntime_ConcurrentAccess(t *testing.T) {
+func TestRuntimeConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	runtime := NewRuntime(&Config{
@@ -73,12 +73,12 @@ func TestRuntime_ConcurrentAccess(t *testing.T) {
 	assert.NotNil(t, cfg)
 }
 
-// TestRuntime_ImplementsRuntimeConfig verifies interface compliance.
-func TestRuntime_ImplementsRuntimeConfig(t *testing.T) {
+// TestRuntime_ImplementsRuntimeConfigGetter verifies interface compliance.
+func TestRuntimeImplementsRuntimeConfigGetter(t *testing.T) {
 	t.Parallel()
 
-	var _ RuntimeConfig = (*Runtime)(nil)
+	var _ RuntimeConfigGetter = (*Runtime)(nil)
 
 	runtime := NewRuntime(&Config{})
-	assert.Implements(t, (*RuntimeConfig)(nil), runtime)
+	assert.Implements(t, (*RuntimeConfigGetter)(nil), runtime)
 }

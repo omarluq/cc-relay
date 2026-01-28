@@ -26,7 +26,7 @@ func newTestRistrettoCache(t *testing.T) *ristrettoCache {
 	return cache
 }
 
-func TestRistrettoCache_GetSet(t *testing.T) {
+func TestRistrettoCacheGetSet(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
 
@@ -58,7 +58,7 @@ func TestRistrettoCache_GetSet(t *testing.T) {
 	}
 }
 
-func TestRistrettoCache_SetWithTTL_Expires(t *testing.T) {
+func TestRistrettoCacheSetWithTTLExpires(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
 
@@ -93,7 +93,7 @@ func TestRistrettoCache_SetWithTTL_Expires(t *testing.T) {
 	}
 }
 
-func TestRistrettoCache_Delete(t *testing.T) {
+func TestRistrettoCacheDelete(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
 
@@ -132,7 +132,7 @@ func TestRistrettoCache_Delete(t *testing.T) {
 	}
 }
 
-func TestRistrettoCache_Exists(t *testing.T) {
+func TestRistrettoCacheExists(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
 
@@ -165,7 +165,7 @@ func TestRistrettoCache_Exists(t *testing.T) {
 	}
 }
 
-func TestRistrettoCache_Close(t *testing.T) {
+func TestRistrettoCacheClose(t *testing.T) {
 	cfg := RistrettoConfig{
 		NumCounters: 100_000,
 		MaxCost:     10 << 20,
@@ -224,7 +224,7 @@ func TestRistrettoCache_Close(t *testing.T) {
 	}
 }
 
-func TestRistrettoCache_Stats(t *testing.T) {
+func TestRistrettoCacheStats(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
 
@@ -266,7 +266,7 @@ func TestRistrettoCache_Stats(t *testing.T) {
 	}
 }
 
-func TestRistrettoCache_ContextCancellation(t *testing.T) {
+func TestRistrettoCacheContextCancellation(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 
 	// Create canceled context
@@ -300,7 +300,7 @@ func TestRistrettoCache_ContextCancellation(t *testing.T) {
 	}
 }
 
-func TestRistrettoCache_ConcurrentAccess(t *testing.T) {
+func TestRistrettoCacheConcurrentAccess(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
 
@@ -341,7 +341,7 @@ func TestRistrettoCache_ConcurrentAccess(t *testing.T) {
 	// If we get here without race detector complaints or panics, test passes
 }
 
-func TestRistrettoCache_ValueIsolation(t *testing.T) {
+func TestRistrettoCacheValueIsolation(t *testing.T) {
 	cache := newTestRistrettoCache(t)
 	ctx := context.Background()
 
@@ -384,7 +384,7 @@ func TestRistrettoCache_ValueIsolation(t *testing.T) {
 	}
 }
 
-func BenchmarkRistrettoCache_Get(b *testing.B) {
+func BenchmarkRistrettoCacheGet(b *testing.B) {
 	cfg := RistrettoConfig{
 		NumCounters: 1_000_000,
 		MaxCost:     100 << 20,
@@ -412,7 +412,7 @@ func BenchmarkRistrettoCache_Get(b *testing.B) {
 	})
 }
 
-func BenchmarkRistrettoCache_Set(b *testing.B) {
+func BenchmarkRistrettoCacheSet(b *testing.B) {
 	cfg := RistrettoConfig{
 		NumCounters: 1_000_000,
 		MaxCost:     100 << 20,
@@ -438,7 +438,7 @@ func BenchmarkRistrettoCache_Set(b *testing.B) {
 	})
 }
 
-func TestRistrettoCache_StatsAfterClose(t *testing.T) {
+func TestRistrettoCacheStatsAfterClose(t *testing.T) {
 	cfg := RistrettoConfig{
 		NumCounters: 100_000,
 		MaxCost:     10 << 20,
@@ -472,7 +472,7 @@ func TestRistrettoCache_StatsAfterClose(t *testing.T) {
 	}
 }
 
-func TestNewRistrettoCache_DefaultBufferItems(t *testing.T) {
+func TestNewRistrettoCacheDefaultBufferItems(t *testing.T) {
 	// Test that zero buffer_items uses default
 	cfg := RistrettoConfig{
 		NumCounters: 100_000,
@@ -494,7 +494,7 @@ func TestNewRistrettoCache_DefaultBufferItems(t *testing.T) {
 	}
 }
 
-func TestNewRistrettoCache_NegativeBufferItems(t *testing.T) {
+func TestNewRistrettoCacheNegativeBufferItems(t *testing.T) {
 	// Test that negative buffer_items uses default
 	cfg := RistrettoConfig{
 		NumCounters: 100_000,
@@ -516,7 +516,7 @@ func TestNewRistrettoCache_NegativeBufferItems(t *testing.T) {
 	}
 }
 
-func BenchmarkRistrettoCache_Mixed(b *testing.B) {
+func BenchmarkRistrettoCacheMixed(b *testing.B) {
 	cfg := RistrettoConfig{
 		NumCounters: 1_000_000,
 		MaxCost:     100 << 20,

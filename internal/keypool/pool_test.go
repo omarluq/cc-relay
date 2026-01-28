@@ -96,7 +96,7 @@ func TestNewKeyPool(t *testing.T) {
 	})
 }
 
-func TestGetKey_Success(t *testing.T) {
+func TestGetKeySuccess(t *testing.T) {
 	t.Run("returns key when capacity available", func(t *testing.T) {
 		pool := newTestPool(3, "least_loaded")
 		ctx := context.Background()
@@ -140,7 +140,7 @@ func TestGetKey_Success(t *testing.T) {
 	})
 }
 
-func TestGetKey_AllExhausted(t *testing.T) {
+func TestGetKeyAllExhausted(t *testing.T) {
 	t.Run("all keys at capacity returns error", func(t *testing.T) {
 		pool := newTestPool(2, "least_loaded")
 		ctx := context.Background()
@@ -183,7 +183,7 @@ func TestGetKey_AllExhausted(t *testing.T) {
 	})
 }
 
-func TestGetKey_SkipsUnavailable(t *testing.T) {
+func TestGetKeySkipsUnavailable(t *testing.T) {
 	t.Run("skips unhealthy keys", func(t *testing.T) {
 		pool := newTestPool(3, "least_loaded")
 		ctx := context.Background()
@@ -557,7 +557,7 @@ func TestConcurrency(t *testing.T) {
 
 // Tests for mo.Result-based methods
 
-func TestKeyPool_GetKeyResult(t *testing.T) {
+func TestKeyPoolGetKeyResult(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns Ok with KeySelection on success", func(t *testing.T) {
@@ -633,7 +633,7 @@ func TestKeyPool_GetKeyResult(t *testing.T) {
 	})
 }
 
-func TestKeyPool_UpdateKeyFromHeadersResult(t *testing.T) {
+func TestKeyPoolUpdateKeyFromHeadersResult(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns Ok on success", func(t *testing.T) {

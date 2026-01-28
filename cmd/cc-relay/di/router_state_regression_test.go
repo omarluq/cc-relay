@@ -17,7 +17,7 @@ import (
 // counter and always return the first provider.
 //
 // See: claude-code-action-items.md F1) Router state resets on every request.
-func TestRouterService_CachesRoundRobinState(t *testing.T) {
+func TestRouterServiceCachesRoundRobinState(t *testing.T) {
 	t.Parallel()
 
 	// Create a config service with round_robin strategy
@@ -66,7 +66,7 @@ func TestRouterService_CachesRoundRobinState(t *testing.T) {
 
 // TestRouterService_RebuildsOnConfigChange verifies that RouterService rebuilds
 // the router when strategy or timeout changes, but preserves state otherwise.
-func TestRouterService_RebuildsOnConfigChange(t *testing.T) {
+func TestRouterServiceRebuildsOnConfigChange(t *testing.T) {
 	t.Parallel()
 
 	cfg1 := &config.Config{
@@ -105,7 +105,7 @@ func TestRouterService_RebuildsOnConfigChange(t *testing.T) {
 
 // TestRouterService_RebuildsOnTimeoutChange verifies that router is rebuilt
 // when timeout configuration changes.
-func TestRouterService_RebuildsOnTimeoutChange(t *testing.T) {
+func TestRouterServiceRebuildsOnTimeoutChange(t *testing.T) {
 	t.Parallel()
 
 	cfg1 := &config.Config{
@@ -143,7 +143,7 @@ func TestRouterService_RebuildsOnTimeoutChange(t *testing.T) {
 // the counter to 0, so all requests went to provider 0.
 //
 // After fix: RouterService caches the router, so the counter is preserved.
-func TestLiveRouter_DoesNotResetRoundRobinState(t *testing.T) {
+func TestLiveRouterDoesNotResetRoundRobinState(t *testing.T) {
 	t.Parallel()
 
 	// Create a live router that always calls GetRouter()
@@ -182,7 +182,7 @@ func TestLiveRouter_DoesNotResetRoundRobinState(t *testing.T) {
 
 // TestRouterService_ConcurrentAccess verifies that cached router access
 // is thread-safe under concurrent GetRouter() calls.
-func TestRouterService_ConcurrentAccess(t *testing.T) {
+func TestRouterServiceConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{

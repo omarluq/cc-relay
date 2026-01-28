@@ -36,7 +36,7 @@ func TestAuthTypes(t *testing.T) {
 }
 
 // TestAPIKeyAuthenticator_Validate tests API key authentication.
-func TestAPIKeyAuthenticator_Validate(t *testing.T) {
+func TestAPIKeyAuthenticatorValidate(t *testing.T) {
 	t.Parallel()
 
 	authenticator := auth.NewAPIKeyAuthenticator("test-api-key-12345")
@@ -97,7 +97,7 @@ func TestAPIKeyAuthenticator_Validate(t *testing.T) {
 }
 
 // TestAPIKeyAuthenticator_Type verifies the type method.
-func TestAPIKeyAuthenticator_Type(t *testing.T) {
+func TestAPIKeyAuthenticatorType(t *testing.T) {
 	t.Parallel()
 
 	authenticator := auth.NewAPIKeyAuthenticator("test-key")
@@ -108,7 +108,7 @@ func TestAPIKeyAuthenticator_Type(t *testing.T) {
 }
 
 // TestBearerAuthenticator_Validate tests Bearer token authentication.
-func TestBearerAuthenticator_Validate(t *testing.T) {
+func TestBearerAuthenticatorValidate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct { //nolint:govet // test table struct alignment
@@ -203,7 +203,7 @@ func TestBearerAuthenticator_Validate(t *testing.T) {
 }
 
 // TestBearerAuthenticator_Type verifies the type method.
-func TestBearerAuthenticator_Type(t *testing.T) {
+func TestBearerAuthenticatorType(t *testing.T) {
 	t.Parallel()
 
 	authenticator := auth.NewBearerAuthenticator("")
@@ -214,7 +214,7 @@ func TestBearerAuthenticator_Type(t *testing.T) {
 }
 
 // TestChainAuthenticator_Validate tests chained authentication.
-func TestChainAuthenticator_Validate(t *testing.T) {
+func TestChainAuthenticatorValidate(t *testing.T) {
 	t.Parallel()
 
 	apiKeyAuth := auth.NewAPIKeyAuthenticator("secret-key")
@@ -289,7 +289,7 @@ func TestChainAuthenticator_Validate(t *testing.T) {
 }
 
 // TestChainAuthenticator_Type verifies the type method.
-func TestChainAuthenticator_Type(t *testing.T) {
+func TestChainAuthenticatorType(t *testing.T) {
 	t.Parallel()
 
 	chainAuth := auth.NewChainAuthenticator()
@@ -300,7 +300,7 @@ func TestChainAuthenticator_Type(t *testing.T) {
 }
 
 // TestChainAuthenticator_EmptyChain tests the chain with no authenticators.
-func TestChainAuthenticator_EmptyChain(t *testing.T) {
+func TestChainAuthenticatorEmptyChain(t *testing.T) {
 	t.Parallel()
 
 	chainAuth := auth.NewChainAuthenticator() // No authenticators
@@ -324,7 +324,7 @@ func TestChainAuthenticator_EmptyChain(t *testing.T) {
 // Tests for mo.Result-based authentication methods
 
 // TestAPIKeyAuthenticator_ValidateResult tests the mo.Result-returning method.
-func TestAPIKeyAuthenticator_ValidateResult(t *testing.T) {
+func TestAPIKeyAuthenticatorValidateResult(t *testing.T) {
 	t.Parallel()
 
 	authenticator := auth.NewAPIKeyAuthenticator("test-api-key-12345")
@@ -389,7 +389,7 @@ func TestAPIKeyAuthenticator_ValidateResult(t *testing.T) {
 }
 
 // TestBearerAuthenticator_ValidateResult tests the mo.Result-returning method.
-func TestBearerAuthenticator_ValidateResult(t *testing.T) {
+func TestBearerAuthenticatorValidateResult(t *testing.T) {
 	t.Parallel()
 
 	authenticator := auth.NewBearerAuthenticator("my-secret-token")
@@ -437,7 +437,7 @@ func TestBearerAuthenticator_ValidateResult(t *testing.T) {
 }
 
 // TestChainAuthenticator_ValidateResult tests the mo.Result-returning method.
-func TestChainAuthenticator_ValidateResult(t *testing.T) {
+func TestChainAuthenticatorValidateResult(t *testing.T) {
 	t.Parallel()
 
 	apiKeyAuth := auth.NewAPIKeyAuthenticator("secret-key")
@@ -525,7 +525,7 @@ func TestValidationError(t *testing.T) {
 }
 
 // TestValidateResult_RailwayPattern demonstrates Railway-Oriented Programming.
-func TestValidateResult_RailwayPattern(t *testing.T) {
+func TestValidateResultRailwayPattern(t *testing.T) {
 	t.Parallel()
 
 	apiKeyAuth := auth.NewAPIKeyAuthenticator("valid-key")

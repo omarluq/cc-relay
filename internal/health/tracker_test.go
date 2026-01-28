@@ -27,7 +27,7 @@ func TestNewTracker(t *testing.T) {
 	}
 }
 
-func TestTracker_GetOrCreateCircuit_CreatesOnDemand(t *testing.T) {
+func TestTrackerGetOrCreateCircuitCreatesOnDemand(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 5,
@@ -46,7 +46,7 @@ func TestTracker_GetOrCreateCircuit_CreatesOnDemand(t *testing.T) {
 	}
 }
 
-func TestTracker_GetOrCreateCircuit_ReturnsSame(t *testing.T) {
+func TestTrackerGetOrCreateCircuitReturnsSame(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{}
 
@@ -60,7 +60,7 @@ func TestTracker_GetOrCreateCircuit_ReturnsSame(t *testing.T) {
 	}
 }
 
-func TestTracker_IsHealthyFunc_ReturnsTrueWhenClosed(t *testing.T) {
+func TestTrackerIsHealthyFuncReturnsTrueWhenClosed(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 5,
@@ -77,7 +77,7 @@ func TestTracker_IsHealthyFunc_ReturnsTrueWhenClosed(t *testing.T) {
 	}
 }
 
-func TestTracker_IsHealthyFunc_ReturnsFalseWhenOpen(t *testing.T) {
+func TestTrackerIsHealthyFuncReturnsFalseWhenOpen(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -99,7 +99,7 @@ func TestTracker_IsHealthyFunc_ReturnsFalseWhenOpen(t *testing.T) {
 	}
 }
 
-func TestTracker_IsHealthyFunc_ReturnsTrueWhenHalfOpen(t *testing.T) {
+func TestTrackerIsHealthyFuncReturnsTrueWhenHalfOpen(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -129,7 +129,7 @@ func TestTracker_IsHealthyFunc_ReturnsTrueWhenHalfOpen(t *testing.T) {
 	}
 }
 
-func TestTracker_RecordSuccess(t *testing.T) {
+func TestTrackerRecordSuccess(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 5,
@@ -148,7 +148,7 @@ func TestTracker_RecordSuccess(t *testing.T) {
 	}
 }
 
-func TestTracker_RecordFailure(t *testing.T) {
+func TestTrackerRecordFailure(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -168,7 +168,7 @@ func TestTracker_RecordFailure(t *testing.T) {
 	}
 }
 
-func TestTracker_AllStates(t *testing.T) {
+func TestTrackerAllStates(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -197,7 +197,7 @@ func TestTracker_AllStates(t *testing.T) {
 	}
 }
 
-func TestTracker_GetState_ReturnsClosedForUnknown(t *testing.T) {
+func TestTrackerGetStateReturnsClosedForUnknown(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{}
 
@@ -209,7 +209,7 @@ func TestTracker_GetState_ReturnsClosedForUnknown(t *testing.T) {
 	}
 }
 
-func TestTracker_ConcurrentAccess(t *testing.T) {
+func TestTrackerConcurrentAccess(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 100, // High threshold to avoid opening

@@ -11,7 +11,23 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 )
 
-func TestAuthMiddleware_ValidKey(t *testing.T) {
+const wrongKey = "wrong-key"
+
+func assertStatus(t *testing.T, rec *httptest.ResponseRecorder, expected int, msg string) {
+	t.Helper()
+	if rec.Code != expected {
+		t.Errorf("%s: got %d", msg, rec.Code)
+	}
+}
+
+func assertStatusCode(t *testing.T, got, expected int, msg string) {
+	t.Helper()
+	if got != expected {
+		t.Errorf("%s: got %d", msg, got)
+	}
+}
+
+func TestAuthMiddlewareValidKey(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -24,12 +40,10 @@ func TestAuthMiddleware_ValidKey(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200")
 }
 
-func TestAuthMiddleware_InvalidKey(t *testing.T) {
+func TestAuthMiddlewareInvalidKey(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -37,17 +51,15 @@ func TestAuthMiddleware_InvalidKey(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	req := newMessagesRequest(http.NoBody)
-	req.Header.Set("x-api-key", "wrong-key")
+	req.Header.Set("x-api-key", wrongKey)
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("Expected status 401, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusUnauthorized, "expected status 401")
 }
 
-func TestAuthMiddleware_MissingKey(t *testing.T) {
+func TestAuthMiddlewareMissingKey(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -60,9 +72,7 @@ func TestAuthMiddleware_MissingKey(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("Expected status 401, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusUnauthorized, "expected status 401")
 
 	// Verify error message
 	if !strings.Contains(rec.Body.String(), "missing x-api-key header") {
@@ -70,7 +80,7 @@ func TestAuthMiddleware_MissingKey(t *testing.T) {
 	}
 }
 
-func TestMultiAuthMiddleware_NoAuthConfigured(t *testing.T) {
+func TestMultiAuthMiddlewareNoAuthConfigured(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -85,12 +95,10 @@ func TestMultiAuthMiddleware_NoAuthConfigured(t *testing.T) {
 	wrappedHandler.ServeHTTP(rec, req)
 
 	// Should pass through when no auth configured
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200 when no auth configured, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200 when no auth configured")
 }
 
-func TestMultiAuthMiddleware_BearerOnly(t *testing.T) {
+func TestMultiAuthMiddlewareBearerOnly(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -108,12 +116,10 @@ func TestMultiAuthMiddleware_BearerOnly(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200 with valid bearer, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200 with valid bearer")
 }
 
-func TestMultiAuthMiddleware_APIKeyOnly(t *testing.T) {
+func TestMultiAuthMiddlewareAPIKeyOnly(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -130,12 +136,10 @@ func TestMultiAuthMiddleware_APIKeyOnly(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200 with valid API key, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200 with valid API key")
 }
 
-func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
+func TestMultiAuthMiddlewareBothMethods(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -156,9 +160,7 @@ func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("Expected status 200 with bearer, got %d", rec.Code)
-		}
+		assertStatus(t, rec, http.StatusOK, "expected status 200 with bearer")
 	})
 
 	// Test with API key - should work
@@ -170,13 +172,11 @@ func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("Expected status 200 with API key, got %d", rec.Code)
-		}
+		assertStatus(t, rec, http.StatusOK, "expected status 200 with API key")
 	})
 }
 
-func TestMultiAuthMiddleware_SubscriptionAlias(t *testing.T) {
+func TestMultiAuthMiddlewareSubscriptionAlias(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -193,12 +193,10 @@ func TestMultiAuthMiddleware_SubscriptionAlias(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200 with subscription token, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200 with subscription token")
 }
 
-func TestLiveAuthMiddleware_ToggleAPIKey(t *testing.T) {
+func TestLiveAuthMiddlewareToggleAPIKey(t *testing.T) {
 	t.Parallel()
 
 	runtimeCfg := config.NewRuntime(&config.Config{
@@ -228,7 +226,7 @@ func TestLiveAuthMiddleware_ToggleAPIKey(t *testing.T) {
 	}
 }
 
-func TestRequestIDMiddleware_GeneratesID(t *testing.T) {
+func TestRequestIDMiddlewareGeneratesID(t *testing.T) {
 	t.Parallel()
 
 	var capturedRequestID string
@@ -256,7 +254,7 @@ func TestRequestIDMiddleware_GeneratesID(t *testing.T) {
 	}
 }
 
-func TestRequestIDMiddleware_UsesProvidedID(t *testing.T) {
+func TestRequestIDMiddlewareUsesProvidedID(t *testing.T) {
 	t.Parallel()
 
 	providedID := "custom-request-id-123"
@@ -287,7 +285,7 @@ func TestRequestIDMiddleware_UsesProvidedID(t *testing.T) {
 	}
 }
 
-func TestLoggingMiddleware_LogsRequest(t *testing.T) {
+func TestLoggingMiddlewareLogsRequest(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -302,9 +300,7 @@ func TestLoggingMiddleware_LogsRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200")
 }
 
 func TestFormatDuration(t *testing.T) {
@@ -312,24 +308,24 @@ func TestFormatDuration(t *testing.T) {
 
 	tests := []struct { //nolint:govet // test table struct alignment
 		name     string
-		ms       int
+		d        time.Duration
 		expected string
 	}{
-		{"fast request", 100, "100ms"},
-		{"medium request", 500, "500ms"},
-		{"slow request", 1500, "1.50s"},
-		{"very slow request", 5000, "5.00s"},
-		{"zero", 0, "0ms"},
+		{"micro request", 500 * time.Microsecond, "500µs"},
+		{"fast request", 100 * time.Millisecond, "100.00ms"},
+		{"medium request", 500 * time.Millisecond, "500.00ms"},
+		{"slow request", 1500 * time.Millisecond, "1.50s"},
+		{"very slow request", 5 * time.Second, "5.00s"},
+		{"minutes request", 2*time.Minute + 3*time.Second, "2m3s"},
+		{"zero", 0, "0s"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			// Convert ms to duration
-			d := tt.ms * 1000000 // nanoseconds
-			got := formatDuration(time.Duration(d))
+			got := formatDuration(tt.d)
 			if got != tt.expected {
-				t.Errorf("formatDuration(%d ms) = %s, want %s", tt.ms, got, tt.expected)
+				t.Errorf("formatDuration(%s) = %s, want %s", tt.d, got, tt.expected)
 			}
 		})
 	}
@@ -399,19 +395,17 @@ func TestRedactSensitiveFields(t *testing.T) {
 	}
 }
 
-func TestResponseWriter_CapturesStatusCode(t *testing.T) {
+func TestResponseWriterCapturesStatusCode(t *testing.T) {
 	t.Parallel()
 
 	rw := newTestResponseWriter()
 
 	rw.WriteHeader(http.StatusNotFound)
 
-	if rw.statusCode != http.StatusNotFound {
-		t.Errorf("Expected status 404, got %d", rw.statusCode)
-	}
+	assertStatusCode(t, rw.statusCode, http.StatusNotFound, "expected status 404")
 }
 
-func TestResponseWriter_DetectsStreaming(t *testing.T) {
+func TestResponseWriterDetectsStreaming(t *testing.T) {
 	t.Parallel()
 
 	rw := newTestResponseWriter()
@@ -424,7 +418,7 @@ func TestResponseWriter_DetectsStreaming(t *testing.T) {
 	}
 }
 
-func TestResponseWriter_CountsSSEEvents(t *testing.T) {
+func TestResponseWriterCountsSSEEvents(t *testing.T) {
 	t.Parallel()
 
 	rw := newTestResponseWriter()
@@ -532,7 +526,7 @@ func newTestResponseWriter() *responseWriter {
 	return &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
 }
 
-func TestLiveAuthMiddleware_NilProvider(t *testing.T) {
+func TestLiveAuthMiddlewareNilProvider(t *testing.T) {
 	t.Parallel()
 
 	called := false
@@ -548,12 +542,10 @@ func TestLiveAuthMiddleware_NilProvider(t *testing.T) {
 	if !called {
 		t.Error("handler should be called when provider is nil")
 	}
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200")
 }
 
-func TestLiveAuthMiddleware_NilConfig(t *testing.T) {
+func TestLiveAuthMiddlewareNilConfig(t *testing.T) {
 	t.Parallel()
 
 	called := false
@@ -570,12 +562,10 @@ func TestLiveAuthMiddleware_NilConfig(t *testing.T) {
 	if !called {
 		t.Error("handler should be called when config is nil")
 	}
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200")
 }
 
-func TestLiveAuthMiddleware_NoAuthConfigured(t *testing.T) {
+func TestLiveAuthMiddlewareNoAuthConfigured(t *testing.T) {
 	t.Parallel()
 
 	called := false
@@ -597,13 +587,11 @@ func TestLiveAuthMiddleware_NoAuthConfigured(t *testing.T) {
 	if !called {
 		t.Error("handler should be called when no auth configured")
 	}
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
-	}
+	assertStatus(t, rec, http.StatusOK, "expected status 200")
 }
 
 //nolint:tparallel // subtests share wrappedHandler to test cache behavior
-func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
+func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -625,14 +613,12 @@ func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", rec.Code)
-		}
+		assertStatus(t, rec, http.StatusOK, "expected status 200")
 	})
 
 	t.Run("invalid key", func(t *testing.T) {
 		req := newMessagesRequest(http.NoBody)
-		req.Header.Set("x-api-key", "wrong-key")
+		req.Header.Set("x-api-key", wrongKey)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -652,7 +638,7 @@ func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
 	})
 }
 
-func TestLiveAuthMiddleware_ConfigSwitching(t *testing.T) {
+func TestLiveAuthMiddlewareConfigSwitching(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -707,7 +693,7 @@ func TestLiveAuthMiddleware_ConfigSwitching(t *testing.T) {
 	}
 }
 
-func TestLiveAuthMiddleware_SwitchAuthMethods(t *testing.T) {
+func TestLiveAuthMiddlewareSwitchAuthMethods(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -763,7 +749,7 @@ func TestLiveAuthMiddleware_SwitchAuthMethods(t *testing.T) {
 	}
 }
 
-func TestLiveAuthMiddleware_SwitchToNoAuth(t *testing.T) {
+func TestLiveAuthMiddlewareSwitchToNoAuth(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -805,7 +791,7 @@ func TestLiveAuthMiddleware_SwitchToNoAuth(t *testing.T) {
 	}
 }
 
-func TestLiveAuthMiddleware_ConcurrentAccess(t *testing.T) {
+func TestLiveAuthMiddlewareConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
@@ -836,7 +822,7 @@ func TestLiveAuthMiddleware_ConcurrentAccess(t *testing.T) {
 				if j%2 == 0 {
 					req.Header.Set("x-api-key", "concurrent-key")
 				} else {
-					req.Header.Set("x-api-key", "wrong-key")
+					req.Header.Set("x-api-key", wrongKey)
 				}
 				rec := httptest.NewRecorder()
 				wrappedHandler.ServeHTTP(rec, req)
@@ -855,7 +841,7 @@ func TestLiveAuthMiddleware_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 }
 
-func TestLiveAuthMiddleware_ConcurrentConfigSwitch(t *testing.T) {
+func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()

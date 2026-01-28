@@ -51,7 +51,7 @@ func newTestOlricCache(t *testing.T) *olricCache {
 	return cache
 }
 
-func TestOlricCache_GetSet(t *testing.T) {
+func TestOlricCacheGetSet(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -80,7 +80,7 @@ func TestOlricCache_GetSet(t *testing.T) {
 	}
 }
 
-func TestOlricCache_SetWithTTL_Expires(t *testing.T) {
+func TestOlricCacheSetWithTTLExpires(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -112,7 +112,7 @@ func TestOlricCache_SetWithTTL_Expires(t *testing.T) {
 	}
 }
 
-func TestOlricCache_Delete(t *testing.T) {
+func TestOlricCacheDelete(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -150,7 +150,7 @@ func TestOlricCache_Delete(t *testing.T) {
 	}
 }
 
-func TestOlricCache_Exists(t *testing.T) {
+func TestOlricCacheExists(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -182,7 +182,7 @@ func TestOlricCache_Exists(t *testing.T) {
 	}
 }
 
-func TestOlricCache_Close(t *testing.T) {
+func TestOlricCacheClose(t *testing.T) {
 	port := getNextPort()
 	cfg := OlricConfig{
 		DMapName: fmt.Sprintf("close-test-dmap-%d", port),
@@ -242,7 +242,7 @@ func TestOlricCache_Close(t *testing.T) {
 	}
 }
 
-func TestOlricCache_Ping(t *testing.T) {
+func TestOlricCachePing(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -253,7 +253,7 @@ func TestOlricCache_Ping(t *testing.T) {
 	}
 }
 
-func TestOlricCache_Stats(t *testing.T) {
+func TestOlricCacheStats(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -285,7 +285,7 @@ func TestOlricCache_Stats(t *testing.T) {
 		stats.Hits, stats.Misses, stats.KeyCount, stats.BytesUsed, stats.Evictions)
 }
 
-func TestOlricCache_ContextTimeout(t *testing.T) {
+func TestOlricCacheContextTimeout(t *testing.T) {
 	cache := newTestOlricCache(t)
 
 	// Create already canceled context
@@ -319,7 +319,7 @@ func TestOlricCache_ContextTimeout(t *testing.T) {
 	}
 }
 
-func TestOlricCache_ConcurrentAccess(t *testing.T) {
+func TestOlricCacheConcurrentAccess(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -360,7 +360,7 @@ func TestOlricCache_ConcurrentAccess(t *testing.T) {
 	// If we get here without race detector complaints or panics, test passes
 }
 
-func TestOlricCache_ValueIsolation(t *testing.T) {
+func TestOlricCacheValueIsolation(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -402,7 +402,7 @@ func TestOlricCache_ValueIsolation(t *testing.T) {
 	}
 }
 
-func TestOlricCache_LargeValues(t *testing.T) {
+func TestOlricCacheLargeValues(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -439,7 +439,7 @@ func TestOlricCache_LargeValues(t *testing.T) {
 	}
 }
 
-func TestOlricCache_SpecialKeys(t *testing.T) {
+func TestOlricCacheSpecialKeys(t *testing.T) {
 	cache := newTestOlricCache(t)
 	ctx := context.Background()
 
@@ -476,7 +476,7 @@ func TestOlricCache_SpecialKeys(t *testing.T) {
 // Benchmark tests are skipped by default as they take a long time
 // Run with: go test -bench=. -run=^$ ./internal/cache/
 
-func BenchmarkOlricCache_Get(b *testing.B) {
+func BenchmarkOlricCacheGet(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
 
 	port := int(portCounter.Add(1))
@@ -507,7 +507,7 @@ func BenchmarkOlricCache_Get(b *testing.B) {
 	})
 }
 
-func BenchmarkOlricCache_Set(b *testing.B) {
+func BenchmarkOlricCacheSet(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
 
 	port := int(portCounter.Add(1))
@@ -537,7 +537,7 @@ func BenchmarkOlricCache_Set(b *testing.B) {
 	})
 }
 
-func BenchmarkOlricCache_Mixed(b *testing.B) {
+func BenchmarkOlricCacheMixed(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
 
 	port := int(portCounter.Add(1))
@@ -577,7 +577,7 @@ func BenchmarkOlricCache_Mixed(b *testing.B) {
 	})
 }
 
-func TestOlricCache_ClusterInfo(t *testing.T) {
+func TestOlricCacheClusterInfo(t *testing.T) {
 	cache := newTestOlricCache(t)
 
 	// Type assert to ClusterInfo
@@ -613,7 +613,7 @@ func TestOlricCache_ClusterInfo(t *testing.T) {
 	// 3. Methods don't panic and return safe defaults when stats unavailable
 }
 
-func TestOlricCache_ClusterInfo_ClientMode(t *testing.T) {
+func TestOlricCacheClusterInfoClientMode(t *testing.T) {
 	// Skip this test in CI - requires external Olric cluster
 	// This documents expected behavior for client mode
 	t.Skip("Skipping client mode test - requires external Olric cluster")
@@ -622,7 +622,7 @@ func TestOlricCache_ClusterInfo_ClientMode(t *testing.T) {
 	// This is intentional - client doesn't know about memberlist details
 }
 
-func TestOlricCache_GracefulShutdown(t *testing.T) {
+func TestOlricCacheGracefulShutdown(t *testing.T) {
 	port := getNextPort()
 	cfg := OlricConfig{
 		DMapName:     fmt.Sprintf("shutdown-test-%d", port),
@@ -663,7 +663,7 @@ func TestOlricCache_GracefulShutdown(t *testing.T) {
 	t.Logf("Graceful shutdown completed in %v", duration)
 }
 
-func TestOlricCache_ClusterInfo_AfterClose(t *testing.T) {
+func TestOlricCacheClusterInfoAfterClose(t *testing.T) {
 	cache := newTestOlricCache(t)
 
 	// Close the cache first
@@ -689,7 +689,7 @@ func TestOlricCache_ClusterInfo_AfterClose(t *testing.T) {
 	}
 }
 
-func TestOlricCache_HAConfiguration(t *testing.T) {
+func TestOlricCacheHAConfiguration(t *testing.T) {
 	port := getNextPort()
 	cfg := OlricConfig{
 		DMapName:          fmt.Sprintf("ha-test-dmap-%d", port),
@@ -731,7 +731,7 @@ func TestOlricCache_HAConfiguration(t *testing.T) {
 	}
 }
 
-func TestOlricCache_PingAfterClose(t *testing.T) {
+func TestOlricCachePingAfterClose(t *testing.T) {
 	port := getNextPort()
 	cfg := OlricConfig{
 		DMapName: fmt.Sprintf("ping-close-test-%d", port),
@@ -758,7 +758,7 @@ func TestOlricCache_PingAfterClose(t *testing.T) {
 	}
 }
 
-func TestOlricCache_StatsAfterClose(t *testing.T) {
+func TestOlricCacheStatsAfterClose(t *testing.T) {
 	port := getNextPort()
 	cfg := OlricConfig{
 		DMapName: fmt.Sprintf("stats-close-test-%d", port),
@@ -792,7 +792,7 @@ func TestOlricCache_StatsAfterClose(t *testing.T) {
 	}
 }
 
-func TestOlricCache_PingWithCanceledContext(t *testing.T) {
+func TestOlricCachePingWithCanceledContext(t *testing.T) {
 	cache := newTestOlricCache(t)
 
 	// Create already canceled context
@@ -835,7 +835,7 @@ func TestParseBindAddr(t *testing.T) {
 	}
 }
 
-func TestOlricCache_EnvironmentPresets(t *testing.T) {
+func TestOlricCacheEnvironmentPresets(t *testing.T) {
 	testCases := []struct {
 		name        string
 		environment string

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestConfig_Validate_ValidSingleMode(t *testing.T) {
+func TestConfigValidateValidSingleMode(t *testing.T) {
 	cfg := Config{
 		Mode: ModeSingle,
 		Ristretto: RistrettoConfig{
@@ -20,7 +20,7 @@ func TestConfig_Validate_ValidSingleMode(t *testing.T) {
 	}
 }
 
-func TestConfig_Validate_ValidHAMode(t *testing.T) {
+func TestConfigValidateValidHAMode(t *testing.T) {
 	cfg := Config{
 		Mode: ModeHA,
 		Olric: OlricConfig{
@@ -34,7 +34,7 @@ func TestConfig_Validate_ValidHAMode(t *testing.T) {
 	}
 }
 
-func TestConfig_Validate_ValidDisabledMode(t *testing.T) {
+func TestConfigValidateValidDisabledMode(t *testing.T) {
 	cfg := Config{
 		Mode: ModeDisabled,
 	}
@@ -44,7 +44,7 @@ func TestConfig_Validate_ValidDisabledMode(t *testing.T) {
 	}
 }
 
-func TestConfig_Validate_EmptyMode(t *testing.T) {
+func TestConfigValidateEmptyMode(t *testing.T) {
 	cfg := Config{
 		Mode: "",
 	}
@@ -58,7 +58,7 @@ func TestConfig_Validate_EmptyMode(t *testing.T) {
 	}
 }
 
-func TestConfig_Validate_UnknownMode(t *testing.T) {
+func TestConfigValidateUnknownMode(t *testing.T) {
 	cfg := Config{
 		Mode: "invalid-mode",
 	}
@@ -72,7 +72,7 @@ func TestConfig_Validate_UnknownMode(t *testing.T) {
 	}
 }
 
-func TestConfig_Validate_SingleModeZeroMaxCost(t *testing.T) {
+func TestConfigValidateSingleModeZeroMaxCost(t *testing.T) {
 	cfg := Config{
 		Mode: ModeSingle,
 		Ristretto: RistrettoConfig{
@@ -91,7 +91,7 @@ func TestConfig_Validate_SingleModeZeroMaxCost(t *testing.T) {
 	}
 }
 
-func TestConfig_Validate_SingleModeZeroNumCounters(t *testing.T) {
+func TestConfigValidateSingleModeZeroNumCounters(t *testing.T) {
 	cfg := Config{
 		Mode: ModeSingle,
 		Ristretto: RistrettoConfig{
@@ -110,7 +110,7 @@ func TestConfig_Validate_SingleModeZeroNumCounters(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_EmbeddedNoBindAddr(t *testing.T) {
+func TestOlricConfigValidateEmbeddedNoBindAddr(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded: true,
 		BindAddr: "",
@@ -125,7 +125,7 @@ func TestOlricConfig_Validate_EmbeddedNoBindAddr(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_ClientModeNoAddresses(t *testing.T) {
+func TestOlricConfigValidateClientModeNoAddresses(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:  false,
 		Addresses: nil,
@@ -140,7 +140,7 @@ func TestOlricConfig_Validate_ClientModeNoAddresses(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_InvalidEnvironment(t *testing.T) {
+func TestOlricConfigValidateInvalidEnvironment(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:    true,
 		BindAddr:    "127.0.0.1:3320",
@@ -156,7 +156,7 @@ func TestOlricConfig_Validate_InvalidEnvironment(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_ValidEnvironments(t *testing.T) {
+func TestOlricConfigValidateValidEnvironments(t *testing.T) {
 	tests := []struct {
 		name string
 		env  string
@@ -182,7 +182,7 @@ func TestOlricConfig_Validate_ValidEnvironments(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_WriteQuorumExceedsReplicaCount(t *testing.T) {
+func TestOlricConfigValidateWriteQuorumExceedsReplicaCount(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:     true,
 		BindAddr:     "127.0.0.1:3320",
@@ -199,7 +199,7 @@ func TestOlricConfig_Validate_WriteQuorumExceedsReplicaCount(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_ReadQuorumExceedsReplicaCount(t *testing.T) {
+func TestOlricConfigValidateReadQuorumExceedsReplicaCount(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:     true,
 		BindAddr:     "127.0.0.1:3320",
@@ -216,7 +216,7 @@ func TestOlricConfig_Validate_ReadQuorumExceedsReplicaCount(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_NegativeMemberCountQuorum(t *testing.T) {
+func TestOlricConfigValidateNegativeMemberCountQuorum(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:          true,
 		BindAddr:          "127.0.0.1:3320",
@@ -232,7 +232,7 @@ func TestOlricConfig_Validate_NegativeMemberCountQuorum(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_NegativeLeaveTimeout(t *testing.T) {
+func TestOlricConfigValidateNegativeLeaveTimeout(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:     true,
 		BindAddr:     "127.0.0.1:3320",
@@ -248,7 +248,7 @@ func TestOlricConfig_Validate_NegativeLeaveTimeout(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_ValidQuorum(t *testing.T) {
+func TestOlricConfigValidateValidQuorum(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:          true,
 		BindAddr:          "127.0.0.1:3320",
@@ -304,7 +304,7 @@ func TestDefaultOlricConfig(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_ClientModeWithAddresses(t *testing.T) {
+func TestOlricConfigValidateClientModeWithAddresses(t *testing.T) {
 	cfg := OlricConfig{
 		Embedded:  false,
 		Addresses: []string{"127.0.0.1:3320", "127.0.0.1:3321"},
@@ -315,7 +315,7 @@ func TestOlricConfig_Validate_ClientModeWithAddresses(t *testing.T) {
 	}
 }
 
-func TestOlricConfig_Validate_ZeroQuorumValues(t *testing.T) {
+func TestOlricConfigValidateZeroQuorumValues(t *testing.T) {
 	// Zero quorum values should be valid (uses Olric defaults)
 	cfg := OlricConfig{
 		Embedded:     true,

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestShuffleRouter_Name(t *testing.T) {
+func TestShuffleRouterName(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -16,7 +16,7 @@ func TestShuffleRouter_Name(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_EmptyProviders(t *testing.T) {
+func TestShuffleRouterEmptyProviders(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -27,7 +27,7 @@ func TestShuffleRouter_EmptyProviders(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_AllUnhealthy(t *testing.T) {
+func TestShuffleRouterAllUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -44,7 +44,7 @@ func TestShuffleRouter_AllUnhealthy(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_DealingCards_EachGetsOneBeforeSeconds(t *testing.T) {
+func TestShuffleRouterDealingCardsEachGetsOneBeforeSeconds(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -85,7 +85,7 @@ func TestShuffleRouter_DealingCards_EachGetsOneBeforeSeconds(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_ReshufflesWhenExhausted(t *testing.T) {
+func TestShuffleRouterReshufflesWhenExhausted(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -106,7 +106,7 @@ func TestShuffleRouter_ReshufflesWhenExhausted(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_ReshufflesWhenProviderCountChanges(t *testing.T) {
+func TestShuffleRouterReshufflesWhenProviderCountChanges(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -137,7 +137,7 @@ func TestShuffleRouter_ReshufflesWhenProviderCountChanges(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_SkipsUnhealthy(t *testing.T) {
+func TestShuffleRouterSkipsUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -160,7 +160,7 @@ func TestShuffleRouter_SkipsUnhealthy(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_ConcurrentSafety(t *testing.T) {
+func TestShuffleRouterConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -186,14 +186,14 @@ func TestShuffleRouter_ConcurrentSafety(t *testing.T) {
 	wg.Wait()
 }
 
-func TestShuffleRouter_ImplementsInterface(t *testing.T) {
+func TestShuffleRouterImplementsInterface(t *testing.T) {
 	t.Parallel()
 
 	// Compile-time interface compliance check
 	var _ ProviderRouter = (*ShuffleRouter)(nil)
 }
 
-func TestShuffleRouter_NilIsHealthyTreatedAsHealthy(t *testing.T) {
+func TestShuffleRouterNilIsHealthyTreatedAsHealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -218,7 +218,7 @@ func TestShuffleRouter_NilIsHealthyTreatedAsHealthy(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_SingleProvider(t *testing.T) {
+func TestShuffleRouterSingleProvider(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()
@@ -237,7 +237,7 @@ func TestShuffleRouter_SingleProvider(t *testing.T) {
 	}
 }
 
-func TestShuffleRouter_EvenDistributionOverManyRounds(t *testing.T) {
+func TestShuffleRouterEvenDistributionOverManyRounds(t *testing.T) {
 	t.Parallel()
 
 	router := NewShuffleRouter()

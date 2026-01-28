@@ -12,7 +12,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/cache"
 )
 
-func TestIsStreamingRequest_True(t *testing.T) {
+func TestIsStreamingRequestTrue(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{"stream": true}`)
@@ -21,7 +21,7 @@ func TestIsStreamingRequest_True(t *testing.T) {
 	}
 }
 
-func TestIsStreamingRequest_False(t *testing.T) {
+func TestIsStreamingRequestFalse(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{"stream": false}`)
@@ -30,7 +30,7 @@ func TestIsStreamingRequest_False(t *testing.T) {
 	}
 }
 
-func TestIsStreamingRequest_Missing(t *testing.T) {
+func TestIsStreamingRequestMissing(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{}`)
@@ -39,7 +39,7 @@ func TestIsStreamingRequest_Missing(t *testing.T) {
 	}
 }
 
-func TestIsStreamingRequest_InvalidJSON(t *testing.T) {
+func TestIsStreamingRequestInvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{invalid json}`)
@@ -77,7 +77,7 @@ func TestSetSSEHeaders(t *testing.T) {
 	}
 }
 
-func TestSSESignatureProcessor_AccumulatesThinking(t *testing.T) {
+func TestSSESignatureProcessorAccumulatesThinking(t *testing.T) {
 	t.Parallel()
 
 	processor := NewSSESignatureProcessor(nil, "claude-sonnet-4")
@@ -99,7 +99,7 @@ func TestSSESignatureProcessor_AccumulatesThinking(t *testing.T) {
 	assert.Empty(t, processor.GetCurrentSignature(), "no signature yet")
 }
 
-func TestSSESignatureProcessor_CachesSignature(t *testing.T) {
+func TestSSESignatureProcessorCachesSignature(t *testing.T) {
 	t.Parallel()
 
 	cfg := cache.Config{
@@ -137,7 +137,7 @@ func TestSSESignatureProcessor_CachesSignature(t *testing.T) {
 	assert.Equal(t, sig, processor.GetCurrentSignature())
 }
 
-func TestSSESignatureProcessor_PassesThroughNonThinking(t *testing.T) {
+func TestSSESignatureProcessorPassesThroughNonThinking(t *testing.T) {
 	t.Parallel()
 
 	processor := NewSSESignatureProcessor(nil, "claude-sonnet-4")
