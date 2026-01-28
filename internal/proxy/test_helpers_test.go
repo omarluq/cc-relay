@@ -23,6 +23,8 @@ const (
 	anthropicBetaExtendedThinking = "extended-thinking-2024-01-01"
 	messagesPath                  = "/v1/messages"
 	apiKeyHeader                  = "x-api-key"
+	contentTypeHeader             = "Content-Type"
+	jsonContentType               = "application/json"
 )
 
 type recordingBackend struct {
