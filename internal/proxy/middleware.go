@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -150,6 +151,11 @@ func logRequestCompletion(
 		Int("status", wrapped.statusCode).
 		Str("duration", durationStr)
 
+	if timings := getRequestTimings(ctx); timings != nil {
+		addDurationFieldsCtx(&logCtx, "auth_time", timings.Auth)
+		addDurationFieldsCtx(&logCtx, "route_time", timings.Routing)
+	}
+
 	if wrapped.isStreaming && wrapped.sseEvents > 0 {
 		logCtx = logCtx.Int("sse_events", wrapped.sseEvents)
 	}
@@ -189,6 +195,10 @@ func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Hand
 			// Log request details in debug mode
 			LogRequestDetails(r.Context(), r, debugOpts)
 
+			// Attach timings container for downstream middleware/handlers
+			ctx, _ := withRequestTimings(r.Context())
+			r = r.WithContext(ctx)
+
 			// Wrap ResponseWriter to capture status code
 			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
@@ -226,11 +236,21 @@ type authCache struct {
 func authFingerprint(bearerEnabled bool, bearerSecret, apiKey string) string {
 	// Format: "b<0|1>|<len>:<bearerSecret>|<len>:<apiKey>"
 	// Length-prefix prevents collision when secrets contain delimiters.
-	b := "0"
+	b := byte('0')
 	if bearerEnabled {
-		b = "1"
+		b = '1'
 	}
-	return fmt.Sprintf("b%s|%d:%s|%d:%s", b, len(bearerSecret), bearerSecret, len(apiKey), apiKey)
+
+	buf := make([]byte, 0, 8+len(bearerSecret)+len(apiKey))
+	buf = append(buf, 'b', b, '|')
+	buf = strconv.AppendInt(buf, int64(len(bearerSecret)), 10)
+	buf = append(buf, ':')
+	buf = append(buf, bearerSecret...)
+	buf = append(buf, '|')
+	buf = strconv.AppendInt(buf, int64(len(apiKey)), 10)
+	buf = append(buf, ':')
+	buf = append(buf, apiKey...)
+	return string(buf)
 }
 
 // LiveAuthMiddleware creates middleware that enforces auth based on live config.
@@ -304,7 +324,11 @@ func LiveAuthMiddleware(cfgProvider config.RuntimeConfig) func(http.Handler) htt
 			effectiveKey := cfg.Server.GetEffectiveAPIKey()
 			fp := authFingerprint(authConfig.IsBearerEnabled(), authConfig.BearerSecret, effectiveKey)
 
+			start := time.Now()
 			cached := getOrBuildCache(fp, authConfig, effectiveKey)
+			if timings := getRequestTimings(r.Context()); timings != nil {
+				timings.Auth = time.Since(start)
+			}
 
 			if cached.chain == nil {
 				next.ServeHTTP(w, r)

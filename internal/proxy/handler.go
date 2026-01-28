@@ -493,53 +493,76 @@ func (h *Handler) proxyMatches(
 func (h *Handler) selectProvider(
 	ctx context.Context, model string, hasThinkingAffinity bool,
 ) (router.ProviderInfo, error) {
+	start := time.Now()
+	if timings := getRequestTimings(ctx); timings != nil {
+		defer func() {
+			timings.Routing = time.Since(start)
+		}()
+	}
+
 	if h.router == nil || h.providers == nil {
-		// Single provider mode - wrap static provider
-		return router.ProviderInfo{
-			Provider:  h.defaultProvider,
-			IsHealthy: func() bool { return true },
-		}, nil
+		return h.defaultProviderInfo(), nil
 	}
 
 	// Get live provider routing info (hot-reload aware)
 	candidates := h.providers()
 	if len(candidates) == 0 {
 		// Fallback to static provider if no live providers
-		return router.ProviderInfo{
-			Provider:  h.defaultProvider,
-			IsHealthy: func() bool { return true },
-		}, nil
+		return h.defaultProviderInfo(), nil
 	}
 
 	// Filter providers if model-based routing is enabled
-	if h.isModelBasedRouting() && model != "" {
-		routingConfig := h.getRoutingConfig()
-		if routingConfig == nil {
-			return router.ProviderInfo{
-				Provider:  h.defaultProvider,
-				IsHealthy: func() bool { return true },
-			}, nil
-		}
-		candidates = FilterProvidersByModel(
-			model,
-			candidates,
-			routingConfig.ModelMapping,
-			routingConfig.DefaultProvider,
-		)
+	var ok bool
+	candidates, ok = h.applyModelRouting(candidates, model)
+	if !ok {
+		return h.defaultProviderInfo(), nil
 	}
 
 	// If thinking affinity is required, use deterministic selection.
 	// This ensures that thinking-enabled conversations always route to the same
 	// provider (the first healthy one), preventing signature validation failures.
-	if hasThinkingAffinity && len(candidates) > 1 {
-		healthy := router.FilterHealthy(candidates)
-		if len(healthy) > 0 {
-			// Force single candidate - first healthy provider (deterministic)
-			candidates = healthy[:1]
-		}
-	}
+	candidates = h.applyThinkingAffinity(candidates, hasThinkingAffinity)
 
 	return h.router.Select(ctx, candidates)
+}
+
+func (h *Handler) defaultProviderInfo() router.ProviderInfo {
+	return router.ProviderInfo{
+		Provider:  h.defaultProvider,
+		IsHealthy: func() bool { return true },
+	}
+}
+
+func (h *Handler) applyModelRouting(
+	candidates []router.ProviderInfo, model string,
+) ([]router.ProviderInfo, bool) {
+	if !h.isModelBasedRouting() || model == "" {
+		return candidates, true
+	}
+	routingConfig := h.getRoutingConfig()
+	if routingConfig == nil {
+		return nil, false
+	}
+	return FilterProvidersByModel(
+		model,
+		candidates,
+		routingConfig.ModelMapping,
+		routingConfig.DefaultProvider,
+	), true
+}
+
+func (h *Handler) applyThinkingAffinity(
+	candidates []router.ProviderInfo, hasThinkingAffinity bool,
+) []router.ProviderInfo {
+	if !hasThinkingAffinity || len(candidates) <= 1 {
+		return candidates
+	}
+	healthy := router.FilterHealthy(candidates)
+	if len(healthy) > 0 {
+		// Force single candidate - first healthy provider (deterministic)
+		return healthy[:1]
+	}
+	return candidates
 }
 
 // isModelBasedRouting returns true if model-based routing is configured.

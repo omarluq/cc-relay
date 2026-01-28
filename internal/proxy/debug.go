@@ -218,13 +218,13 @@ func LogTLSMetrics(ctx context.Context, metrics TLSMetrics, opts config.DebugOpt
 		return
 	}
 
-	logger.Debug().
+	logEvent := logger.Debug().
 		Str("tls_version", metrics.Version).
-		Bool("tls_reused", metrics.Reused).
-		Dur("dns_time_ms", metrics.DNSTime).
-		Dur("connect_time_ms", metrics.ConnectTime).
-		Dur("tls_handshake_ms", metrics.TLSTime).
-		Msg("tls metrics")
+		Bool("tls_reused", metrics.Reused)
+	logEvent = addDurationFields(logEvent, "dns_time", metrics.DNSTime)
+	logEvent = addDurationFields(logEvent, "connect_time", metrics.ConnectTime)
+	logEvent = addDurationFields(logEvent, "tls_handshake", metrics.TLSTime)
+	logEvent.Msg("tls metrics")
 }
 
 // LogProxyMetrics logs proxy-level performance metrics in debug mode.
@@ -235,9 +235,9 @@ func LogProxyMetrics(ctx context.Context, metrics Metrics, _ config.DebugOptions
 		return
 	}
 
-	logEvent := logger.Debug().
-		Dur("backend_time_ms", metrics.BackendTime).
-		Dur("total_time_ms", metrics.TotalTime)
+	logEvent := logger.Debug()
+	logEvent = addDurationFields(logEvent, "backend_time", metrics.BackendTime)
+	logEvent = addDurationFields(logEvent, "total_time", metrics.TotalTime)
 
 	if metrics.BytesSent > 0 {
 		logEvent.Int64("bytes_sent", metrics.BytesSent)
