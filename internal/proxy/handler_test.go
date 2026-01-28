@@ -1249,12 +1249,7 @@ func TestHandlerHealthHeaderWhenEnabled(t *testing.T) {
 func TestHandlerReportOutcomeSuccess(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend that returns 200
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"msg_123","type":"message"}`))
-	}))
-	defer backend.Close()
+	backend := newStatusBackend(t, http.StatusOK, `{"id":"msg_123","type":"message"}`, nil)
 
 	handler, tracker := newTrackedHandler(t, "test", backend.URL, "test", 2)
 	rr := serveJSONMessages(t, handler)
@@ -1268,12 +1263,7 @@ func TestHandlerReportOutcomeSuccess(t *testing.T) {
 func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend that returns 500
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":"internal"}`))
-	}))
-	defer backend.Close()
+	backend := newStatusBackend(t, http.StatusInternalServerError, `{"error":"internal"}`, nil)
 
 	// Low threshold to trigger circuit opening quickly
 	handler, tracker := newTrackedHandler(t, test500ProviderName, backend.URL, "test", 2)
@@ -1292,13 +1282,9 @@ func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 func TestHandlerReportOutcomeFailure429(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend that returns 429
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Retry-After", "60")
-		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = w.Write([]byte(`{"error":"rate_limited"}`))
-	}))
-	defer backend.Close()
+	backend := newStatusBackend(t, http.StatusTooManyRequests, `{"error":"rate_limited"}`, map[string]string{
+		"Retry-After": "60",
+	})
 
 	handler, tracker := newTrackedHandler(t, test429ProviderName, backend.URL, "test", 2)
 
@@ -1316,21 +1302,13 @@ func TestHandlerReportOutcomeFailure429(t *testing.T) {
 func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend that returns 400
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"bad_request"}`))
-	}))
-	defer backend.Close()
+	backend := newStatusBackend(t, http.StatusBadRequest, `{"error":"bad_request"}`, nil)
 
 	handler, tracker := newTrackedHandler(t, test400ProviderName, backend.URL, "test", 2)
 
 	// Make multiple 400 requests
 	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
-		req.Header.Set(contentTypeHeader, jsonContentType)
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
+		rr := serveJSONMessages(t, handler)
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	}
 

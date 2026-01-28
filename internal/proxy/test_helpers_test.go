@@ -51,7 +51,7 @@ func newRecordingBackend(t *testing.T) (*httptest.Server, *recordingBackend) {
 		recorder.body = body
 		recorder.mu.Unlock()
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"content": []}`))
 	}))
@@ -76,8 +76,24 @@ func newJSONBackend(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
+		if body != "" {
+			_, _ = w.Write([]byte(body))
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func newStatusBackend(t *testing.T, status int, body string, headers map[string]string) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		for key, value := range headers {
+			w.Header().Set(key, value)
+		}
+		w.WriteHeader(status)
 		if body != "" {
 			_, _ = w.Write([]byte(body))
 		}
