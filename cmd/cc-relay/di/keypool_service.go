@@ -28,6 +28,27 @@ type KeyPoolService struct {
 	ProviderName string
 }
 
+func buildPoolConfig(p *config.ProviderConfig) keypool.PoolConfig {
+	poolCfg := keypool.PoolConfig{
+		Strategy: p.GetEffectiveStrategy(),
+		Keys:     make([]keypool.KeyConfig, len(p.Keys)),
+	}
+
+	for j, k := range p.Keys {
+		itpm, otpm := k.GetEffectiveTPM()
+		poolCfg.Keys[j] = keypool.KeyConfig{
+			APIKey:    k.Key,
+			RPMLimit:  k.RPMLimit,
+			ITPMLimit: itpm,
+			OTPMLimit: otpm,
+			Priority:  k.Priority,
+			Weight:    k.Weight,
+		}
+	}
+
+	return poolCfg
+}
+
 // Get returns the current primary key pool (live, hot-reload aware).
 func (s *KeyPoolService) Get() *keypool.KeyPool {
 	d := s.data.Load()
@@ -53,22 +74,7 @@ func (s *KeyPoolService) RebuildFrom(cfg *config.Config) error {
 			return nil
 		}
 
-		poolCfg := keypool.PoolConfig{
-			Strategy: p.GetEffectiveStrategy(),
-			Keys:     make([]keypool.KeyConfig, len(p.Keys)),
-		}
-
-		for j, k := range p.Keys {
-			itpm, otpm := k.GetEffectiveTPM()
-			poolCfg.Keys[j] = keypool.KeyConfig{
-				APIKey:    k.Key,
-				RPMLimit:  k.RPMLimit,
-				ITPMLimit: itpm,
-				OTPMLimit: otpm,
-				Priority:  k.Priority,
-				Weight:    k.Weight,
-			}
-		}
+		poolCfg := buildPoolConfig(p)
 
 		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
 		if err != nil {
@@ -162,23 +168,7 @@ func (s *KeyPoolMapService) RebuildFrom(cfg *config.Config) error {
 			continue
 		}
 
-		// Build pool configuration for provider
-		poolCfg := keypool.PoolConfig{
-			Strategy: p.GetEffectiveStrategy(),
-			Keys:     make([]keypool.KeyConfig, len(p.Keys)),
-		}
-
-		for j, k := range p.Keys {
-			itpm, otpm := k.GetEffectiveTPM()
-			poolCfg.Keys[j] = keypool.KeyConfig{
-				APIKey:    k.Key,
-				RPMLimit:  k.RPMLimit,
-				ITPMLimit: itpm,
-				OTPMLimit: otpm,
-				Priority:  k.Priority,
-				Weight:    k.Weight,
-			}
-		}
+		poolCfg := buildPoolConfig(p)
 
 		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
 		if err != nil {

@@ -229,9 +229,6 @@ func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
 		{Provider: provider, IsHealthy: func() bool { return true }},
 	}
 
-	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
-	require.NoError(t, err)
-
 	cfgA := &config.Config{
 		Server:  config.ServerConfig{APIKey: ""},
 		Routing: config.RoutingConfig{Debug: true},
@@ -241,21 +238,7 @@ func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
 		Routing: config.RoutingConfig{Debug: false},
 	}
 	runtimeCfg := config.NewRuntime(cfgA)
-
-	handler, err := SetupRoutesWithLiveKeyPools(
-		runtimeCfg,
-		provider,
-		func() []router.ProviderInfo { return providerInfos },
-		routerInstance,
-		"",
-		nil,
-		nil,
-		nil,
-		[]providers.Provider{provider},
-		nil,
-		nil,
-	)
-	require.NoError(t, err)
+	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
 
 	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(`{"model":"test","messages":[]}`)))
 	req.Header.Set("anthropic-version", "2023-06-01")
@@ -288,9 +271,6 @@ func TestSetupRoutesWithLiveKeyPools_AuthToggle(t *testing.T) {
 		{Provider: provider, IsHealthy: func() bool { return true }},
 	}
 
-	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
-	require.NoError(t, err)
-
 	cfgA := &config.Config{
 		Server: config.ServerConfig{
 			APIKey: "test-key",
@@ -301,20 +281,7 @@ func TestSetupRoutesWithLiveKeyPools_AuthToggle(t *testing.T) {
 	}
 
 	runtimeCfg := config.NewRuntime(cfgA)
-	handler, err := SetupRoutesWithLiveKeyPools(
-		runtimeCfg,
-		provider,
-		func() []router.ProviderInfo { return providerInfos },
-		routerInstance,
-		"",
-		nil,
-		nil,
-		nil,
-		[]providers.Provider{provider},
-		nil,
-		nil,
-	)
-	require.NoError(t, err)
+	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
 
 	unauthReq := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 	unauthReq.Header.Set("anthropic-version", "2023-06-01")
@@ -385,6 +352,35 @@ func TestSetupRoutes_OnlyGETToHealth(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405 for POST to /health, got %d", rec.Code)
 	}
+}
+
+func newLiveKeyPoolsHandler(
+	t *testing.T,
+	runtimeCfg config.RuntimeConfig,
+	provider providers.Provider,
+	providerInfos []router.ProviderInfo,
+) http.Handler {
+	t.Helper()
+
+	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
+	require.NoError(t, err)
+
+	handler, err := SetupRoutesWithLiveKeyPools(
+		runtimeCfg,
+		provider,
+		func() []router.ProviderInfo { return providerInfos },
+		routerInstance,
+		"",
+		nil,
+		nil,
+		nil,
+		[]providers.Provider{provider},
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+
+	return handler
 }
 
 func TestSetupRoutes_InvalidProviderBaseURL(t *testing.T) {

@@ -430,8 +430,7 @@ func TestRedactSensitiveFields(t *testing.T) {
 func TestResponseWriter_CapturesStatusCode(t *testing.T) {
 	t.Parallel()
 
-	rec := httptest.NewRecorder()
-	rw := &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
+	rw := newTestResponseWriter()
 
 	rw.WriteHeader(http.StatusNotFound)
 
@@ -443,8 +442,7 @@ func TestResponseWriter_CapturesStatusCode(t *testing.T) {
 func TestResponseWriter_DetectsStreaming(t *testing.T) {
 	t.Parallel()
 
-	rec := httptest.NewRecorder()
-	rw := &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
+	rw := newTestResponseWriter()
 
 	rw.Header().Set("Content-Type", "text/event-stream")
 	rw.WriteHeader(http.StatusOK)
@@ -457,8 +455,7 @@ func TestResponseWriter_DetectsStreaming(t *testing.T) {
 func TestResponseWriter_CountsSSEEvents(t *testing.T) {
 	t.Parallel()
 
-	rec := httptest.NewRecorder()
-	rw := &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
+	rw := newTestResponseWriter()
 
 	rw.Header().Set("Content-Type", "text/event-stream")
 	rw.WriteHeader(http.StatusOK)
@@ -543,6 +540,11 @@ func TestAuthFingerprint(t *testing.T) {
 			t.Error("fingerprints should not collide with length-like patterns")
 		}
 	})
+}
+
+func newTestResponseWriter() *responseWriter {
+	rec := httptest.NewRecorder()
+	return &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
 }
 
 func TestLiveAuthMiddleware_NilProvider(t *testing.T) {

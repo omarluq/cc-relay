@@ -114,11 +114,16 @@ func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.
 // DebugOptionsProvider returns current debug options for live-config logging.
 type DebugOptionsProvider func() config.DebugOptions
 
-func logRequestStart(ctx context.Context, r *http.Request, shortID string) {
-	logEvent := zerolog.Ctx(ctx).Info().
+func withRequestFields(ctx context.Context, r *http.Request, shortID string) zerolog.Context {
+	return zerolog.Ctx(ctx).With().
 		Str("method", r.Method).
 		Str("path", r.URL.Path).
 		Str("req_id", shortID)
+}
+
+func logRequestStart(ctx context.Context, r *http.Request, shortID string) {
+	logger := withRequestFields(ctx, r, shortID).Logger()
+	logEvent := logger.Info()
 
 	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
 		bodyPreview := getBodyPreview(r)
@@ -141,12 +146,9 @@ func logRequestCompletion(
 	statusMsg := statusSymbol(wrapped.statusCode)
 	completionMsg := formatCompletionMessage(wrapped.statusCode, statusMsg, durationStr)
 
-	logCtx := zerolog.Ctx(ctx).With().
-		Str("method", r.Method).
-		Str("path", r.URL.Path).
+	logCtx := withRequestFields(ctx, r, shortID).
 		Int("status", wrapped.statusCode).
-		Str("duration", durationStr).
-		Str("req_id", shortID)
+		Str("duration", durationStr)
 
 	if wrapped.isStreaming && wrapped.sseEvents > 0 {
 		logCtx = logCtx.Int("sse_events", wrapped.sseEvents)
