@@ -122,15 +122,16 @@ func SetupRoutesWithRouter(
 	healthTracker *health.Tracker,
 	signatureCache *SignatureCache,
 ) (http.Handler, error) {
+	runtimeCfg := config.NewRuntime(cfg)
 	return SetupRoutesWithRouterLive(
-		cfg,
+		runtimeCfg,
 		provider,
 		func() []router.ProviderInfo { return providerInfos },
 		providerRouter,
 		providerKey,
 		pool,
-		providerPools,
-		providerKeys,
+		func() map[string]*keypool.KeyPool { return providerPools },
+		func() map[string]string { return providerKeys },
 		allProviders,
 		healthTracker,
 		signatureCache,
@@ -147,32 +148,75 @@ func SetupRoutesWithRouter(
 //   - GET /v1/providers - List active providers with metadata (no auth required)
 //   - GET /health - Health check endpoint (no auth required)
 func SetupRoutesWithRouterLive(
-	cfg *config.Config,
+	cfgProvider config.RuntimeConfig,
 	provider providers.Provider,
 	providerInfosFunc ProviderInfoFunc,
 	providerRouter router.ProviderRouter,
 	providerKey string,
 	pool *keypool.KeyPool,
-	providerPools map[string]*keypool.KeyPool,
-	providerKeys map[string]string,
+	getProviderPools KeyPoolsFunc,
+	getProviderKeys KeysFunc,
+	allProviders []providers.Provider,
+	healthTracker *health.Tracker,
+	signatureCache *SignatureCache,
+) (http.Handler, error) {
+	return SetupRoutesWithLiveKeyPools(
+		cfgProvider,
+		provider,
+		providerInfosFunc,
+		providerRouter,
+		providerKey,
+		pool,
+		getProviderPools,
+		getProviderKeys,
+		allProviders,
+		healthTracker,
+		signatureCache,
+	)
+}
+
+// SetupRoutesWithLiveKeyPools creates the HTTP handler with full hot-reload support.
+// Extends SetupRoutesWithRouterLive with live key pool accessors, enabling:
+// - Hot-reloadable provider info (enabled/disabled, weights, priorities)
+// - Hot-reloadable routing strategy and timeout
+// - Hot-reloadable key pools (newly enabled providers get keys immediately)
+// Routes:
+//   - POST /v1/messages - Proxy to backend provider with router-based selection
+//   - GET /v1/models - List available models from all providers (no auth required)
+//   - GET /v1/providers - List active providers with metadata (no auth required)
+//   - GET /health - Health check endpoint (no auth required)
+func SetupRoutesWithLiveKeyPools(
+	cfgProvider config.RuntimeConfig,
+	provider providers.Provider,
+	providerInfosFunc ProviderInfoFunc,
+	providerRouter router.ProviderRouter,
+	providerKey string,
+	pool *keypool.KeyPool,
+	getProviderPools KeyPoolsFunc,
+	getProviderKeys KeysFunc,
 	allProviders []providers.Provider,
 	healthTracker *health.Tracker,
 	signatureCache *SignatureCache,
 ) (http.Handler, error) {
 	mux := http.NewServeMux()
 
-	// Create proxy handler with router support and live provider info
+	// Create proxy handler with full hot-reload support
+	cfg := cfgProvider.Get()
+	if cfg == nil {
+		return nil, fmt.Errorf("config provider returned nil config")
+	}
 	debugOpts := cfg.Logging.DebugOptions
 	routingDebug := cfg.Routing.IsDebugEnabled()
 
-	handler, err := NewHandlerWithLiveProviders(
+	handler, err := NewHandlerWithLiveKeyPools(
 		provider, providerInfosFunc, providerRouter,
-		providerKey, pool, providerPools, providerKeys,
+		providerKey, pool, getProviderPools, getProviderKeys,
 		&cfg.Routing, debugOpts, routingDebug, healthTracker, signatureCache,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
+	handler.SetRuntimeConfig(cfgProvider)
 
 	// Apply middleware in order:
 	// 1. RequestIDMiddleware (first - generates ID)
@@ -181,15 +225,14 @@ func SetupRoutesWithRouterLive(
 	// 4. Handler
 	var messagesHandler http.Handler = handler
 
-	// Use new multi-auth middleware if Auth config is present
-	if cfg.Server.Auth.IsEnabled() {
-		messagesHandler = MultiAuthMiddleware(&cfg.Server.Auth)(messagesHandler)
-	} else if cfg.Server.APIKey != "" {
-		// Fallback to legacy API key auth for backward compatibility
-		messagesHandler = AuthMiddleware(cfg.Server.APIKey)(messagesHandler)
-	}
-
-	messagesHandler = LoggingMiddleware(debugOpts)(messagesHandler)
+	messagesHandler = LiveAuthMiddleware(cfgProvider)(messagesHandler)
+	messagesHandler = LoggingMiddlewareWithProvider(func() config.DebugOptions {
+		cfg := cfgProvider.Get()
+		if cfg == nil {
+			return config.DebugOptions{}
+		}
+		return cfg.Logging.DebugOptions
+	})(messagesHandler)
 	messagesHandler = RequestIDMiddleware()(messagesHandler)
 
 	// Register routes

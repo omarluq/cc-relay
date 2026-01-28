@@ -73,6 +73,28 @@ func TestNewHandler_InvalidURL(t *testing.T) {
 	}
 }
 
+func TestNewHandlerWithLiveProviders_NilProviderInfosFunc(t *testing.T) {
+	t.Parallel()
+
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+
+	// Should not panic with nil providerInfosFunc
+	handler, err := NewHandlerWithLiveProviders(
+		provider,
+		nil, // nil providerInfosFunc - should be guarded
+		nil,
+		"test-key",
+		nil, nil, nil, nil,
+		config.DebugOptions{}, false, nil, nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+
+	// Verify the handler works (single provider mode)
+	assert.NotNil(t, handler.defaultProvider)
+	assert.Len(t, handler.providerProxies, 1)
+}
+
 func TestHandler_ForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -974,6 +996,68 @@ func TestHandler_MultiProviderModeUsesRouter(t *testing.T) {
 	assert.Equal(t, "provider2", w.Header().Get("X-CC-Relay-Provider"))
 }
 
+func TestHandler_LazyProxyForNewProvider(t *testing.T) {
+	t.Parallel()
+
+	backendA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"provider":"a"}`))
+	}))
+	defer backendA.Close()
+
+	backendB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"provider":"b"}`))
+	}))
+	defer backendB.Close()
+
+	providerA := providers.NewAnthropicProvider("provider-a", backendA.URL)
+	providerB := providers.NewAnthropicProvider("provider-b", backendB.URL)
+
+	infos := []router.ProviderInfo{
+		{Provider: providerA, IsHealthy: func() bool { return true }},
+	}
+	providerInfosFunc := func() []router.ProviderInfo { return infos }
+
+	mockR := &mockRouter{
+		name:     "mock",
+		selected: router.ProviderInfo{Provider: providerB, IsHealthy: func() bool { return true }},
+	}
+
+	handler, err := NewHandlerWithLiveProviders(
+		providerA,
+		providerInfosFunc,
+		mockR,
+		"test-key",
+		nil,
+		nil,
+		nil,
+		nil,
+		config.DebugOptions{},
+		false,
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+
+	// Simulate reload: provider B becomes enabled
+	infos = []router.ProviderInfo{
+		{Provider: providerA, IsHealthy: func() bool { return true }},
+		{Provider: providerB, IsHealthy: func() bool { return true }},
+	}
+
+	reqBody := []byte(`{"model":"test","messages":[]}`)
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader(reqBody))
+	req.Header.Set("anthropic-version", "2023-06-01")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"provider":"b"`)
+}
+
 // TestHandler_DebugHeadersDisabledByDefault tests that debug headers are not added when disabled.
 func TestHandler_DebugHeadersDisabledByDefault(t *testing.T) {
 	t.Parallel()
@@ -1601,4 +1685,209 @@ func (r *countingMockRouter) Select(
 
 func (r *countingMockRouter) Name() string {
 	return r.name
+}
+
+// TestHandler_GetOrCreateProxy_KeyMatching tests the key-matching logic in getOrCreateProxy
+// without requiring network listeners. Validates behavior for nil key maps and single-provider mode.
+func TestHandler_GetOrCreateProxy_KeyMatching(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil_keys_map_preserves_existing_proxy", func(t *testing.T) {
+		t.Parallel()
+
+		// Create provider with valid URL (required for proxy creation)
+		prov := &mockProvider{baseURL: "http://localhost:9999"}
+
+		// Create handler with a key but nil maps (single-provider mode)
+		handler, err := NewHandler(
+			prov, nil, nil, "initial-key", nil, nil, nil, nil,
+			config.DebugOptions{}, false, nil, nil,
+		)
+		require.NoError(t, err)
+
+		// Get proxy - should have the initial key
+		pp1, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.Equal(t, "initial-key", pp1.APIKey)
+
+		// Get proxy again - with nil keys map, should return same proxy
+		pp2, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.Same(t, pp1, pp2, "should return same proxy instance")
+		assert.Equal(t, "initial-key", pp2.APIKey)
+	})
+
+	t.Run("nil_pools_map_preserves_existing_proxy", func(t *testing.T) {
+		t.Parallel()
+
+		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+			Strategy: "least_loaded",
+			Keys:     []keypool.KeyConfig{{APIKey: "pool-key-1"}},
+		})
+		require.NoError(t, err)
+
+		// Create handler with a pool but nil pools map (single-provider mode)
+		handler, err := NewHandler(
+			prov, nil, nil, "", pool, nil, nil, nil,
+			config.DebugOptions{}, false, nil, nil,
+		)
+		require.NoError(t, err)
+
+		pp1, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.Same(t, pool, pp1.KeyPool)
+
+		// Get proxy again - should return same proxy
+		pp2, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.Same(t, pp1, pp2)
+		assert.Same(t, pool, pp2.KeyPool)
+	})
+
+	t.Run("multi_provider_mode_detects_key_change", func(t *testing.T) {
+		t.Parallel()
+
+		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		provName := prov.Name()
+
+		// Create handler with keys map (multi-provider mode)
+		keysMap := map[string]string{provName: "key-v1"}
+		handler, err := NewHandler(
+			prov, nil, nil, "", nil, nil, keysMap, nil,
+			config.DebugOptions{}, false, nil, nil,
+		)
+		require.NoError(t, err)
+
+		pp1, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.Equal(t, "key-v1", pp1.APIKey)
+
+		// Simulate hot-reload: change key in map
+		keysMap[provName] = "key-v2"
+
+		// Get proxy again - should create new proxy with new key
+		pp2, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.NotSame(t, pp1, pp2, "should create new proxy after key change")
+		assert.Equal(t, "key-v2", pp2.APIKey)
+	})
+
+	t.Run("multi_provider_mode_detects_pool_change", func(t *testing.T) {
+		t.Parallel()
+
+		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		provName := prov.Name()
+
+		pool1, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+			Strategy: "least_loaded",
+			Keys:     []keypool.KeyConfig{{APIKey: "pool-key-1"}},
+		})
+		require.NoError(t, err)
+		pool2, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+			Strategy: "least_loaded",
+			Keys:     []keypool.KeyConfig{{APIKey: "pool-key-2"}},
+		})
+		require.NoError(t, err)
+
+		// Create handler with pools map (multi-provider mode)
+		poolsMap := map[string]*keypool.KeyPool{provName: pool1}
+		handler, err := NewHandler(
+			prov, nil, nil, "", nil, poolsMap, nil, nil,
+			config.DebugOptions{}, false, nil, nil,
+		)
+		require.NoError(t, err)
+
+		pp1, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.Same(t, pool1, pp1.KeyPool)
+
+		// Simulate hot-reload: change pool in map
+		poolsMap[provName] = pool2
+
+		// Get proxy again - should create new proxy with new pool
+		pp2, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.NotSame(t, pp1, pp2, "should create new proxy after pool change")
+		assert.Same(t, pool2, pp2.KeyPool)
+	})
+
+	t.Run("provider_baseurl_change_creates_new_proxy", func(t *testing.T) {
+		t.Parallel()
+
+		prov1 := &mockProvider{baseURL: "http://localhost:9999"}
+		prov2 := &mockProvider{baseURL: "http://localhost:8888"} // Different URL, same name
+
+		handler, err := NewHandler(
+			prov1, nil, nil, "test-key", nil, nil, nil, nil,
+			config.DebugOptions{}, false, nil, nil,
+		)
+		require.NoError(t, err)
+
+		pp1, err := handler.getOrCreateProxy(prov1)
+		require.NoError(t, err)
+		assert.Equal(t, "http://localhost:9999", pp1.Provider.BaseURL())
+
+		// Request proxy with different baseURL provider
+		pp2, err := handler.getOrCreateProxy(prov2)
+		require.NoError(t, err)
+		assert.NotSame(t, pp1, pp2, "should create new proxy for different baseURL")
+		assert.Equal(t, "http://localhost:8888", pp2.Provider.BaseURL())
+	})
+
+	t.Run("live_keys_func_used_over_static_map", func(t *testing.T) {
+		t.Parallel()
+
+		prov := &mockProvider{baseURL: "http://localhost:9999"}
+		provName := prov.Name()
+
+		// Static map has old key
+		staticKeys := map[string]string{provName: "static-key"}
+
+		// Live func returns new key (using a channel to allow updates)
+		liveKey := make(chan string, 1)
+		liveKey <- "live-key-v1"
+		liveKeysFunc := func() map[string]string {
+			select {
+			case k := <-liveKey:
+				liveKey <- k // Put it back for next read
+				return map[string]string{provName: k}
+			default:
+				return map[string]string{provName: "fallback"}
+			}
+		}
+
+		handler, err := NewHandlerWithLiveProviders(
+			prov,
+			nil,
+			nil,
+			"",
+			nil,
+			nil,
+			staticKeys,
+			nil,
+			config.DebugOptions{},
+			false,
+			nil,
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Set the live keys func
+		handler.getProviderKeys = liveKeysFunc
+
+		pp1, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.Equal(t, "live-key-v1", pp1.APIKey, "should use live func, not static map")
+
+		// Update live key
+		<-liveKey // Drain
+		liveKey <- "live-key-v2"
+
+		// Get proxy again - should detect change from live func
+		pp2, err := handler.getOrCreateProxy(prov)
+		require.NoError(t, err)
+		assert.NotSame(t, pp1, pp2)
+		assert.Equal(t, "live-key-v2", pp2.APIKey)
+	})
 }

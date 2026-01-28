@@ -1,6 +1,7 @@
 package config
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,16 +46,19 @@ func TestRuntime_ConcurrentAccess(t *testing.T) {
 		Routing: RoutingConfig{Strategy: "round_robin"},
 	})
 
-	// Concurrent reads and writes
-	done := make(chan struct{})
+	// Concurrent reads and writes with WaitGroup to ensure both goroutines complete
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 1000; i++ {
 			_ = runtime.Get()
 		}
-		close(done)
 	}()
 
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 100; i++ {
 			runtime.Store(&Config{
 				Routing: RoutingConfig{Strategy: "failover"},
@@ -62,7 +66,7 @@ func TestRuntime_ConcurrentAccess(t *testing.T) {
 		}
 	}()
 
-	<-done
+	wg.Wait()
 
 	// Final retrieval should work
 	cfg := runtime.Get()

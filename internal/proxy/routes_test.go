@@ -2,12 +2,17 @@
 package proxy
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/router"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetupRoutes_CreatesHandler(t *testing.T) {
@@ -208,6 +213,152 @@ func TestSetupRoutes_OnlyPOSTToMessages(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405 for GET, got %d", rec.Code)
 	}
+}
+
+func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: func() bool { return true }},
+	}
+
+	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
+	require.NoError(t, err)
+
+	cfgA := &config.Config{
+		Server:  config.ServerConfig{APIKey: ""},
+		Routing: config.RoutingConfig{Debug: true},
+	}
+	cfgB := &config.Config{
+		Server:  config.ServerConfig{APIKey: ""},
+		Routing: config.RoutingConfig{Debug: false},
+	}
+	runtimeCfg := config.NewRuntime(cfgA)
+
+	handler, err := SetupRoutesWithLiveKeyPools(
+		runtimeCfg,
+		provider,
+		func() []router.ProviderInfo { return providerInfos },
+		routerInstance,
+		"",
+		nil,
+		nil,
+		nil,
+		[]providers.Provider{provider},
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(`{"model":"test","messages":[]}`)))
+	req.Header.Set("anthropic-version", "2023-06-01")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.NotEmpty(t, rec.Header().Get("X-CC-Relay-Strategy"))
+
+	runtimeCfg.Store(cfgB)
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(`{"model":"test","messages":[]}`)))
+	req2.Header.Set("anthropic-version", "2023-06-01")
+	handler.ServeHTTP(rec2, req2)
+	assert.Equal(t, http.StatusOK, rec2.Code)
+	assert.Empty(t, rec2.Header().Get("X-CC-Relay-Strategy"))
+}
+
+func TestSetupRoutesWithLiveKeyPools_AuthToggle(t *testing.T) {
+	t.Parallel()
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend.Close()
+
+	provider := providers.NewAnthropicProvider("test", backend.URL)
+	providerInfos := []router.ProviderInfo{
+		{Provider: provider, IsHealthy: func() bool { return true }},
+	}
+
+	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
+	require.NoError(t, err)
+
+	cfgA := &config.Config{
+		Server: config.ServerConfig{
+			APIKey: "test-key",
+		},
+	}
+	cfgB := &config.Config{
+		Server: config.ServerConfig{APIKey: ""},
+	}
+
+	runtimeCfg := config.NewRuntime(cfgA)
+	handler, err := SetupRoutesWithLiveKeyPools(
+		runtimeCfg,
+		provider,
+		func() []router.ProviderInfo { return providerInfos },
+		routerInstance,
+		"",
+		nil,
+		nil,
+		nil,
+		[]providers.Provider{provider},
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+
+	unauthReq := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	unauthReq.Header.Set("anthropic-version", "2023-06-01")
+	unauthRec := httptest.NewRecorder()
+	handler.ServeHTTP(unauthRec, unauthReq)
+	assert.Equal(t, http.StatusUnauthorized, unauthRec.Code)
+
+	runtimeCfg.Store(cfgB)
+
+	okReq := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	okReq.Header.Set("anthropic-version", "2023-06-01")
+	okRec := httptest.NewRecorder()
+	handler.ServeHTTP(okRec, okReq)
+	assert.Equal(t, http.StatusOK, okRec.Code)
+}
+
+type nilRuntimeConfig struct{}
+
+func (nilRuntimeConfig) Get() *config.Config {
+	return nil
+}
+
+func TestSetupRoutesWithLiveKeyPools_NilConfigProvider(t *testing.T) {
+	t.Parallel()
+
+	provider := providers.NewAnthropicProvider("test", "http://example.com")
+	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
+	require.NoError(t, err)
+
+	handler, err := SetupRoutesWithLiveKeyPools(
+		nilRuntimeConfig{},
+		provider,
+		func() []router.ProviderInfo { return nil },
+		routerInstance,
+		"",
+		nil,
+		nil,
+		nil,
+		[]providers.Provider{provider},
+		nil,
+		nil,
+	)
+	require.Error(t, err)
+	assert.Nil(t, handler)
 }
 
 func TestSetupRoutes_OnlyGETToHealth(t *testing.T) {

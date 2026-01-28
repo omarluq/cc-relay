@@ -90,23 +90,348 @@ type CacheService struct {
 	Cache cache.Cache
 }
 
-// KeyPoolService wraps the optional key pool for the primary provider.
-type KeyPoolService struct {
-	Pool *keypool.KeyPool
+// keyPoolData holds the primary key pool for atomic swap.
+type keyPoolData struct {
+	Pool         *keypool.KeyPool
+	ProviderName string
 }
 
-// KeyPoolMapService wraps per-provider key pools for multi-provider routing.
-type KeyPoolMapService struct {
+// KeyPoolService wraps the optional key pool for the primary provider.
+// Supports hot-reload: primary key pool can be rebuilt on config reload.
+type KeyPoolService struct {
+	data   atomic.Pointer[keyPoolData]
+	cfgSvc *ConfigService
+
+	// For backward compatibility during transition
+	Pool         *keypool.KeyPool
+	ProviderName string
+}
+
+// Get returns the current primary key pool (live, hot-reload aware).
+func (s *KeyPoolService) Get() *keypool.KeyPool {
+	d := s.data.Load()
+	if d == nil {
+		return s.Pool
+	}
+	return d.Pool
+}
+
+// RebuildFrom rebuilds the primary key pool from the given config.
+// Uses the first enabled provider with pooling enabled.
+func (s *KeyPoolService) RebuildFrom(cfg *config.Config) error {
+	for idx := range cfg.Providers {
+		p := &cfg.Providers[idx]
+		if !p.Enabled {
+			continue
+		}
+
+		if !p.IsPoolingEnabled() {
+			s.data.Store(&keyPoolData{ProviderName: p.Name, Pool: nil})
+			s.Pool = nil
+			s.ProviderName = p.Name
+			return nil
+		}
+
+		poolCfg := keypool.PoolConfig{
+			Strategy: p.GetEffectiveStrategy(),
+			Keys:     make([]keypool.KeyConfig, len(p.Keys)),
+		}
+
+		for j, k := range p.Keys {
+			itpm, otpm := k.GetEffectiveTPM()
+			poolCfg.Keys[j] = keypool.KeyConfig{
+				APIKey:    k.Key,
+				RPMLimit:  k.RPMLimit,
+				ITPMLimit: itpm,
+				OTPMLimit: otpm,
+				Priority:  k.Priority,
+				Weight:    k.Weight,
+			}
+		}
+
+		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create key pool for provider %s: %w", p.Name, err)
+		}
+
+		s.data.Store(&keyPoolData{ProviderName: p.Name, Pool: pool})
+		s.Pool = pool
+		s.ProviderName = p.Name
+		return nil
+	}
+
+	// No enabled providers found
+	s.data.Store(&keyPoolData{ProviderName: "", Pool: nil})
+	s.Pool = nil
+	s.ProviderName = ""
+	return nil
+}
+
+// StartWatching begins watching config changes for primary key pool updates.
+func (s *KeyPoolService) StartWatching() {
+	if s.cfgSvc == nil || s.cfgSvc.watcher == nil {
+		return
+	}
+
+	s.cfgSvc.watcher.OnReload(func(newCfg *config.Config) error {
+		if err := s.RebuildFrom(newCfg); err != nil {
+			log.Error().Err(err).Msg("failed to rebuild primary key pool after config reload")
+			return err
+		}
+		log.Info().Msg("primary key pool rebuilt after config reload")
+		return nil
+	})
+}
+
+// keyPoolMapData holds the key pools and keys for atomic swap.
+type keyPoolMapData struct {
 	Pools map[string]*keypool.KeyPool // Provider name -> KeyPool
 	Keys  map[string]string           // Provider name -> API key (fallback)
 }
 
-// ProviderMapService wraps the map of providers.
-type ProviderMapService struct {
+// KeyPoolMapService wraps per-provider key pools for multi-provider routing.
+// Supports hot-reload: key pools for newly enabled providers are created on reload.
+type KeyPoolMapService struct {
+	data   atomic.Pointer[keyPoolMapData]
+	cfgSvc *ConfigService
+
+	// For backward compatibility during transition
+	Pools map[string]*keypool.KeyPool // Provider name -> KeyPool
+	Keys  map[string]string           // Provider name -> API key (fallback)
+}
+
+// GetPools returns the current key pools (live, hot-reload aware).
+func (s *KeyPoolMapService) GetPools() map[string]*keypool.KeyPool {
+	d := s.data.Load()
+	if d == nil {
+		return s.Pools // Fallback to legacy field
+	}
+	return d.Pools
+}
+
+// GetKeys returns the current fallback keys (live, hot-reload aware).
+func (s *KeyPoolMapService) GetKeys() map[string]string {
+	d := s.data.Load()
+	if d == nil {
+		return s.Keys // Fallback to legacy field
+	}
+	return d.Keys
+}
+
+// RebuildFrom rebuilds key pools from the given config.
+// Called from reload callbacks to create pools for newly enabled providers.
+func (s *KeyPoolMapService) RebuildFrom(cfg *config.Config) error {
+	pools := make(map[string]*keypool.KeyPool)
+	keys := make(map[string]string)
+	var rebuildErr error
+
+	for idx := range cfg.Providers {
+		p := &cfg.Providers[idx]
+		if !p.Enabled {
+			continue
+		}
+
+		// Store fallback key (first key in list)
+		if len(p.Keys) > 0 {
+			keys[p.Name] = p.Keys[0].Key
+		}
+
+		// Skip pool creation if pooling not enabled for this provider
+		if !p.IsPoolingEnabled() {
+			continue
+		}
+
+		// Build pool configuration for provider
+		poolCfg := keypool.PoolConfig{
+			Strategy: p.GetEffectiveStrategy(),
+			Keys:     make([]keypool.KeyConfig, len(p.Keys)),
+		}
+
+		for j, k := range p.Keys {
+			itpm, otpm := k.GetEffectiveTPM()
+			poolCfg.Keys[j] = keypool.KeyConfig{
+				APIKey:    k.Key,
+				RPMLimit:  k.RPMLimit,
+				ITPMLimit: itpm,
+				OTPMLimit: otpm,
+				Priority:  k.Priority,
+				Weight:    k.Weight,
+			}
+		}
+
+		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
+		if err != nil {
+			log.Error().Err(err).Str("provider", p.Name).Msg("failed to create key pool on reload")
+			rebuildErr = err
+			continue // Log and skip, don't fail the entire reload
+		}
+
+		pools[p.Name] = pool
+	}
+
+	s.data.Store(&keyPoolMapData{Pools: pools, Keys: keys})
+	// Also update legacy fields for backward compatibility
+	s.Pools = pools
+	s.Keys = keys
+
+	return rebuildErr
+}
+
+// StartWatching begins watching config changes for key pool updates.
+func (s *KeyPoolMapService) StartWatching() {
+	if s.cfgSvc == nil || s.cfgSvc.watcher == nil {
+		return
+	}
+
+	s.cfgSvc.watcher.OnReload(func(newCfg *config.Config) error {
+		if err := s.RebuildFrom(newCfg); err != nil {
+			log.Error().Err(err).Msg("failed to rebuild key pools after config reload")
+			// Don't return error to avoid blocking other callbacks
+		}
+		log.Info().Msg("key pools rebuilt after config reload")
+		return nil
+	})
+}
+
+// providerMapData holds the provider map data for atomic swap.
+type providerMapData struct {
 	PrimaryProvider providers.Provider
 	Providers       map[string]providers.Provider
 	PrimaryKey      string
 	AllProviders    []providers.Provider
+}
+
+// ProviderMapService wraps the map of providers with hot-reload support.
+// Providers are rebuilt on config reload to support enabling/disabling providers dynamically.
+type ProviderMapService struct {
+	data   atomic.Pointer[providerMapData]
+	cfgSvc *ConfigService
+
+	// For backward compatibility
+	PrimaryProvider providers.Provider
+	Providers       map[string]providers.Provider
+	PrimaryKey      string
+	AllProviders    []providers.Provider
+}
+
+// GetPrimaryProvider returns the current primary provider (live, hot-reload aware).
+func (s *ProviderMapService) GetPrimaryProvider() providers.Provider {
+	d := s.data.Load()
+	if d == nil {
+		return s.PrimaryProvider
+	}
+	return d.PrimaryProvider
+}
+
+// GetPrimaryKey returns the current primary provider key (live, hot-reload aware).
+func (s *ProviderMapService) GetPrimaryKey() string {
+	d := s.data.Load()
+	if d == nil {
+		return s.PrimaryKey
+	}
+	return d.PrimaryKey
+}
+
+// GetProviders returns the current provider map (live, hot-reload aware).
+func (s *ProviderMapService) GetProviders() map[string]providers.Provider {
+	d := s.data.Load()
+	if d == nil {
+		return s.Providers // Fallback to legacy field
+	}
+	return d.Providers
+}
+
+// GetAllProviders returns the current all providers slice (live, hot-reload aware).
+func (s *ProviderMapService) GetAllProviders() []providers.Provider {
+	d := s.data.Load()
+	if d == nil {
+		return s.AllProviders // Fallback to legacy field
+	}
+	return d.AllProviders
+}
+
+// GetProvider returns a provider by name (live, hot-reload aware).
+func (s *ProviderMapService) GetProvider(name string) (providers.Provider, bool) {
+	providersMap := s.GetProviders()
+	if providersMap == nil {
+		return nil, false
+	}
+	prov, ok := providersMap[name]
+	return prov, ok
+}
+
+// RebuildFrom rebuilds the provider map from the given config.
+// Called from reload callbacks to create providers for newly enabled ones.
+// Reuses existing providers when possible to preserve state.
+func (s *ProviderMapService) RebuildFrom(cfg *config.Config) error {
+	ctx := context.Background()
+
+	providerMap := make(map[string]providers.Provider)
+	var allProviders []providers.Provider
+	var primaryProvider providers.Provider
+	var primaryKey string
+
+	for idx := range cfg.Providers {
+		p := &cfg.Providers[idx]
+		if !p.Enabled {
+			continue
+		}
+
+		prov, err := createProvider(ctx, p)
+		if errors.Is(err, ErrUnknownProviderType) {
+			log.Warn().Str("provider", p.Name).Str("type", p.Type).Msg("skipping unknown provider type on reload")
+			continue // Skip unknown provider types
+		}
+		if err != nil {
+			log.Error().Err(err).Str("provider", p.Name).Msg("failed to create provider on reload")
+			continue // Log and skip, don't fail the entire reload
+		}
+
+		providerMap[p.Name] = prov
+		allProviders = append(allProviders, prov)
+
+		if primaryProvider == nil {
+			primaryProvider = prov
+			if len(p.Keys) > 0 {
+				primaryKey = p.Keys[0].Key
+			}
+		}
+	}
+
+	if primaryProvider == nil {
+		// Keep using current providers if no enabled providers in new config
+		log.Warn().Msg("no enabled providers in new config, keeping current providers")
+		return nil
+	}
+
+	s.data.Store(&providerMapData{
+		PrimaryProvider: primaryProvider,
+		Providers:       providerMap,
+		PrimaryKey:      primaryKey,
+		AllProviders:    allProviders,
+	})
+	// Also update legacy fields for backward compatibility
+	s.PrimaryProvider = primaryProvider
+	s.Providers = providerMap
+	s.PrimaryKey = primaryKey
+	s.AllProviders = allProviders
+
+	return nil
+}
+
+// StartWatching begins watching config changes for provider map updates.
+func (s *ProviderMapService) StartWatching() {
+	if s.cfgSvc == nil || s.cfgSvc.watcher == nil {
+		return
+	}
+
+	s.cfgSvc.watcher.OnReload(func(newCfg *config.Config) error {
+		if err := s.RebuildFrom(newCfg); err != nil {
+			log.Error().Err(err).Msg("failed to rebuild provider map after config reload")
+		}
+		log.Info().Msg("provider map rebuilt after config reload")
+		return nil
+	})
 }
 
 // ProviderInfoService holds live provider routing information with atomic swap support.
@@ -127,12 +452,14 @@ type ProviderInfoService struct {
 }
 
 // Get returns the current provider info slice (lock-free read).
+// Returns a shallow copy to prevent callers from mutating the internal slice.
 func (s *ProviderInfoService) Get() []router.ProviderInfo {
 	ptr := s.infos.Load()
 	if ptr == nil {
 		return nil
 	}
-	return *ptr
+	// Return shallow copy (append to nil) to prevent mutation of internal slice
+	return append([]router.ProviderInfo(nil), (*ptr)...)
 }
 
 // Rebuild rebuilds the provider info slice from current config.
@@ -145,8 +472,12 @@ func (s *ProviderInfoService) Rebuild() {
 // RebuildFrom rebuilds the provider info slice from the given config.
 // This is called from reload callbacks to ensure we use the fresh config
 // rather than racing with the atomic config swap.
+// Uses the live provider map to pick up newly enabled providers.
 func (s *ProviderInfoService) RebuildFrom(cfg *config.Config) {
 	var providerInfos []router.ProviderInfo
+
+	// Use live provider map to pick up newly enabled providers
+	providerMap := s.providerSvc.GetProviders()
 
 	for idx := range cfg.Providers {
 		pc := &cfg.Providers[idx]
@@ -154,7 +485,7 @@ func (s *ProviderInfoService) RebuildFrom(cfg *config.Config) {
 			continue
 		}
 
-		prov, ok := s.providerSvc.Providers[pc.Name]
+		prov, ok := providerMap[pc.Name]
 		if !ok {
 			continue
 		}
@@ -263,17 +594,14 @@ func (s *RouterService) GetRouter() router.ProviderRouter {
 // GetRouterFunc returns a function that fetches the current router.
 // This is used with LiveRouter for per-request router access.
 func (s *RouterService) GetRouterFunc() router.ProviderRouterFunc {
-	return func() router.ProviderRouter {
-		return s.GetRouter()
-	}
+	return s.GetRouter
 }
 
 // GetRouterAsFunc returns the router getter as a ProviderRouterFunc directly.
 // This is a convenience wrapper for passing to NewLiveRouter.
+// Delegates to GetRouterFunc for deduplication.
 func (s *RouterService) GetRouterAsFunc() router.ProviderRouterFunc {
-	return func() router.ProviderRouter {
-		return s.GetRouter()
-	}
+	return s.GetRouterFunc()
 }
 
 // LoggerService wraps the zerolog logger for DI.
@@ -543,13 +871,18 @@ func createProvider(ctx context.Context, p *config.ProviderConfig) (providers.Pr
 // supportedProviderTypes is the list of supported provider types for error messages.
 const supportedProviderTypes = "anthropic, zai, ollama, bedrock, vertex, azure"
 
-// NewProviderMap creates the map of enabled providers.
+// NewProviderMap creates the map of enabled providers with hot-reload support.
+// Supports hot-reload: call StartWatching() is invoked automatically.
 func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	cfg := cfgSvc.Config
 
-	providerMap := make(map[string]providers.Provider)
-	var allProviders []providers.Provider
+	svc := &ProviderMapService{
+		cfgSvc:       cfgSvc,
+		Providers:    make(map[string]providers.Provider),
+		AllProviders: nil,
+	}
+
 	var primaryProvider providers.Provider
 	var primaryKey string
 
@@ -569,8 +902,8 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 			return nil, err
 		}
 
-		providerMap[p.Name] = prov
-		allProviders = append(allProviders, prov)
+		svc.Providers[p.Name] = prov
+		svc.AllProviders = append(svc.AllProviders, prov)
 
 		// First enabled provider becomes the primary
 		if primaryProvider == nil {
@@ -585,12 +918,21 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 		return nil, fmt.Errorf("no enabled provider found (supported: %s)", supportedProviderTypes)
 	}
 
-	return &ProviderMapService{
-		Providers:       providerMap,
-		AllProviders:    allProviders,
+	svc.PrimaryProvider = primaryProvider
+	svc.PrimaryKey = primaryKey
+
+	// Store initial data in atomic pointer
+	svc.data.Store(&providerMapData{
 		PrimaryProvider: primaryProvider,
+		Providers:       svc.Providers,
 		PrimaryKey:      primaryKey,
-	}, nil
+		AllProviders:    svc.AllProviders,
+	})
+
+	// Start watching for config changes
+	svc.StartWatching()
+
+	return svc, nil
 }
 
 // NewKeyPool creates the key pool for the primary provider if pooling is enabled.
@@ -598,100 +940,33 @@ func NewKeyPool(i do.Injector) (*KeyPoolService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	cfg := cfgSvc.Config
 
-	// Find first enabled provider with pooling enabled
-	for idx := range cfg.Providers {
-		p := &cfg.Providers[idx]
-		if !p.Enabled {
-			continue
-		}
-
-		if !p.IsPoolingEnabled() {
-			// No pooling for this provider
-			return &KeyPoolService{Pool: nil}, nil
-		}
-
-		// Build pool configuration
-		poolCfg := keypool.PoolConfig{
-			Strategy: p.GetEffectiveStrategy(),
-			Keys:     make([]keypool.KeyConfig, len(p.Keys)),
-		}
-
-		for j, k := range p.Keys {
-			itpm, otpm := k.GetEffectiveTPM()
-			poolCfg.Keys[j] = keypool.KeyConfig{
-				APIKey:    k.Key,
-				RPMLimit:  k.RPMLimit,
-				ITPMLimit: itpm,
-				OTPMLimit: otpm,
-				Priority:  k.Priority,
-				Weight:    k.Weight,
-			}
-		}
-
-		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create key pool for provider %s: %w", p.Name, err)
-		}
-
-		return &KeyPoolService{Pool: pool}, nil
+	svc := &KeyPoolService{cfgSvc: cfgSvc}
+	if err := svc.RebuildFrom(cfg); err != nil {
+		return nil, err
 	}
 
-	// No enabled providers found
-	return &KeyPoolService{Pool: nil}, nil
+	// Start watching for config changes
+	svc.StartWatching()
+
+	return svc, nil
 }
 
 // NewKeyPoolMap creates key pools for all enabled providers.
 // This enables dynamic provider routing with per-provider rate limiting.
+// Supports hot-reload: call StartWatching() after container init.
 func NewKeyPoolMap(i do.Injector) (*KeyPoolMapService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	cfg := cfgSvc.Config
 
-	pools := make(map[string]*keypool.KeyPool)
-	keys := make(map[string]string)
-
-	for idx := range cfg.Providers {
-		p := &cfg.Providers[idx]
-		if !p.Enabled {
-			continue
-		}
-
-		// Store fallback key (first key in list)
-		if len(p.Keys) > 0 {
-			keys[p.Name] = p.Keys[0].Key
-		}
-
-		// Skip pool creation if pooling not enabled for this provider
-		if !p.IsPoolingEnabled() {
-			continue
-		}
-
-		// Build pool configuration
-		poolCfg := keypool.PoolConfig{
-			Strategy: p.GetEffectiveStrategy(),
-			Keys:     make([]keypool.KeyConfig, len(p.Keys)),
-		}
-
-		for j, k := range p.Keys {
-			itpm, otpm := k.GetEffectiveTPM()
-			poolCfg.Keys[j] = keypool.KeyConfig{
-				APIKey:    k.Key,
-				RPMLimit:  k.RPMLimit,
-				ITPMLimit: itpm,
-				OTPMLimit: otpm,
-				Priority:  k.Priority,
-				Weight:    k.Weight,
-			}
-		}
-
-		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create key pool for provider %s: %w", p.Name, err)
-		}
-
-		pools[p.Name] = pool
+	svc := &KeyPoolMapService{cfgSvc: cfgSvc}
+	if err := svc.RebuildFrom(cfg); err != nil {
+		return nil, err
 	}
 
-	return &KeyPoolMapService{Pools: pools, Keys: keys}, nil
+	// Start watching for config changes
+	svc.StartWatching()
+
+	return svc, nil
 }
 
 // NewRouter creates the provider router service with hot-reload support.
@@ -734,21 +1009,21 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
 	sigCacheSvc := do.MustInvoke[*SignatureCacheService](i)
 
-	cfg := cfgSvc.Config
-
-	// Use SetupRoutesWithRouterLive for hot-reloadable provider info and router
-	// Pass a LiveRouter that calls GetRouterFunc(), enabling strategy/timeout changes without restart
+	// Use SetupRoutesWithLiveKeyPools for full hot-reload support:
+	// - Live provider info (enabled/disabled, weights, priorities)
+	// - Live router (strategy/timeout changes without restart)
+	// - Live key pools (newly enabled providers get keys immediately)
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouterAsFunc())
-	handler, err := proxy.SetupRoutesWithRouterLive(
-		cfg,
-		providerSvc.PrimaryProvider,
+	handler, err := proxy.SetupRoutesWithLiveKeyPools(
+		cfgSvc,
+		providerSvc.GetPrimaryProvider(),
 		providerInfoSvc.Get, // Hot-reloadable provider info
 		liveRouter,          // Live router for strategy changes
-		providerSvc.PrimaryKey,
-		poolSvc.Pool,
-		poolMapSvc.Pools,
-		poolMapSvc.Keys,
-		providerSvc.AllProviders,
+		providerSvc.GetPrimaryKey(),
+		poolSvc.Get(),
+		poolMapSvc.GetPools, // Live key pools accessor
+		poolMapSvc.GetKeys,  // Live fallback keys accessor
+		providerSvc.GetAllProviders(),
 		trackerSvc.Tracker,
 		sigCacheSvc.Cache,
 	)

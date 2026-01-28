@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -36,17 +37,29 @@ const (
 // without recreating the handler.
 type ProviderInfoFunc func() []router.ProviderInfo
 
+// KeyPoolsFunc returns the current key pools map for hot-reload support.
+type KeyPoolsFunc func() map[string]*keypool.KeyPool
+
+// KeysFunc returns the current fallback keys map for hot-reload support.
+type KeysFunc func() map[string]string
+
 // Handler proxies requests to a backend provider.
 type Handler struct {
-	providerProxies map[string]*ProviderProxy // Per-provider proxies for correct URL routing
-	defaultProvider providers.Provider        // Fallback for single-provider mode
-	router          router.ProviderRouter
-	healthTracker   *health.Tracker
-	signatureCache  *SignatureCache       // Thinking signature cache (may be nil)
-	routingConfig   *config.RoutingConfig // For model-based routing configuration
-	providers       ProviderInfoFunc      // Function to get live provider routing info
-	debugOpts       config.DebugOptions
-	routingDebug    bool
+	router           router.ProviderRouter
+	runtimeCfg       config.RuntimeConfig
+	defaultProvider  providers.Provider
+	routingConfig    *config.RoutingConfig
+	healthTracker    *health.Tracker
+	signatureCache   *SignatureCache
+	providerProxies  map[string]*ProviderProxy
+	providers        ProviderInfoFunc
+	getProviderPools KeyPoolsFunc
+	getProviderKeys  KeysFunc
+	providerPools    map[string]*keypool.KeyPool
+	providerKeys     map[string]string
+	debugOpts        config.DebugOptions
+	proxyMu          sync.RWMutex
+	routingDebug     bool
 }
 
 // NewHandler creates a new proxy handler.
@@ -93,6 +106,7 @@ func NewHandler(
 // NewHandlerWithLiveProviders creates a new proxy handler with hot-reloadable provider info.
 // ProviderInfosFunc is called per-request to get current provider routing information,
 // allowing changes to enabled/disabled, weights, and priorities to take effect without restart.
+// If providerInfosFunc is nil, a default function returning nil is used (single-provider mode).
 func NewHandlerWithLiveProviders(
 	provider providers.Provider,
 	providerInfosFunc ProviderInfoFunc,
@@ -107,6 +121,13 @@ func NewHandlerWithLiveProviders(
 	healthTracker *health.Tracker,
 	signatureCache *SignatureCache,
 ) (*Handler, error) {
+	// Guard nil providerInfosFunc to prevent panic
+	if providerInfosFunc == nil {
+		providerInfosFunc = func() []router.ProviderInfo { return nil }
+	}
+
+	initialInfos := providerInfosFunc()
+
 	h := &Handler{
 		providerProxies: make(map[string]*ProviderProxy),
 		defaultProvider: provider,
@@ -117,38 +138,168 @@ func NewHandlerWithLiveProviders(
 		routingDebug:    routingDebug,
 		healthTracker:   healthTracker,
 		signatureCache:  signatureCache,
+		providerPools:   providerPools,
+		providerKeys:    providerKeys,
 	}
 
-	// Create ProviderProxy for each provider in providerInfos (multi-provider mode)
-	initialInfos := providerInfosFunc()
-	if len(initialInfos) > 0 {
-		for _, info := range initialInfos {
-			prov := info.Provider
-			key := ""
-			if providerKeys != nil {
-				key = providerKeys[prov.Name()]
-			}
-			var provPool *keypool.KeyPool
-			if providerPools != nil {
-				provPool = providerPools[prov.Name()]
-			}
-
-			pp, err := NewProviderProxy(prov, key, provPool, debugOpts, h.modifyResponse)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create proxy for %s: %w", prov.Name(), err)
-			}
-			h.providerProxies[prov.Name()] = pp
-		}
-	} else {
-		// Single provider mode - create one proxy for the default provider
-		pp, err := NewProviderProxy(provider, apiKey, pool, debugOpts, h.modifyResponse)
-		if err != nil {
-			return nil, err
-		}
-		h.providerProxies[provider.Name()] = pp
+	if err := initProviderProxies(
+		h,
+		provider,
+		apiKey,
+		pool,
+		providerPools,
+		providerKeys,
+		debugOpts,
+		initialInfos,
+	); err != nil {
+		return nil, err
 	}
 
 	return h, nil
+}
+
+// NewHandlerWithLiveKeyPools creates a new proxy handler with hot-reloadable key pools.
+// This extends NewHandlerWithLiveProviders with live key pool accessors for full hot-reload support.
+// When providers are enabled via config reload, their keys and pools are available immediately.
+func NewHandlerWithLiveKeyPools(
+	provider providers.Provider,
+	providerInfosFunc ProviderInfoFunc,
+	providerRouter router.ProviderRouter,
+	apiKey string,
+	pool *keypool.KeyPool,
+	getProviderPools KeyPoolsFunc,
+	getProviderKeys KeysFunc,
+	routingConfig *config.RoutingConfig,
+	debugOpts config.DebugOptions,
+	routingDebug bool,
+	healthTracker *health.Tracker,
+	signatureCache *SignatureCache,
+) (*Handler, error) {
+	// Guard nil providerInfosFunc to prevent panic
+	if providerInfosFunc == nil {
+		providerInfosFunc = func() []router.ProviderInfo { return nil }
+	}
+
+	providerPools, providerKeys := resolveInitialMaps(getProviderPools, getProviderKeys)
+	initialInfos := providerInfosFunc()
+
+	h := &Handler{
+		providerProxies:  make(map[string]*ProviderProxy),
+		defaultProvider:  provider,
+		providers:        providerInfosFunc,
+		router:           providerRouter,
+		routingConfig:    routingConfig,
+		debugOpts:        debugOpts,
+		routingDebug:     routingDebug,
+		healthTracker:    healthTracker,
+		signatureCache:   signatureCache,
+		getProviderPools: getProviderPools,
+		getProviderKeys:  getProviderKeys,
+		providerPools:    providerPools, // Keep static maps for initial setup
+		providerKeys:     providerKeys,
+	}
+
+	if err := initProviderProxies(
+		h,
+		provider,
+		apiKey,
+		pool,
+		providerPools,
+		providerKeys,
+		debugOpts,
+		initialInfos,
+	); err != nil {
+		return nil, err
+	}
+
+	return h, nil
+}
+
+func resolveInitialMaps(
+	getProviderPools KeyPoolsFunc,
+	getProviderKeys KeysFunc,
+) (providerPools map[string]*keypool.KeyPool, providerKeys map[string]string) {
+	if getProviderPools != nil {
+		providerPools = getProviderPools()
+	}
+	if getProviderKeys != nil {
+		providerKeys = getProviderKeys()
+	}
+	return providerPools, providerKeys
+}
+
+func initProviderProxies(
+	h *Handler,
+	provider providers.Provider,
+	apiKey string,
+	pool *keypool.KeyPool,
+	providerPools map[string]*keypool.KeyPool,
+	providerKeys map[string]string,
+	debugOpts config.DebugOptions,
+	initialInfos []router.ProviderInfo,
+) error {
+	if len(initialInfos) == 0 {
+		pp, err := NewProviderProxy(provider, apiKey, pool, debugOpts, h.modifyResponse)
+		if err != nil {
+			return err
+		}
+		h.providerProxies[provider.Name()] = pp
+		return nil
+	}
+
+	for _, info := range initialInfos {
+		prov := info.Provider
+		key := ""
+		if providerKeys != nil {
+			key = providerKeys[prov.Name()]
+		}
+		var provPool *keypool.KeyPool
+		if providerPools != nil {
+			provPool = providerPools[prov.Name()]
+		}
+
+		pp, err := NewProviderProxy(prov, key, provPool, debugOpts, h.modifyResponse)
+		if err != nil {
+			return fmt.Errorf("failed to create proxy for %s: %w", prov.Name(), err)
+		}
+		h.providerProxies[prov.Name()] = pp
+	}
+
+	return nil
+}
+
+// SetRuntimeConfig sets a live config provider for dynamic routing/debug settings.
+// When set, the handler prefers this over static routingConfig/debugOpts/routingDebug.
+func (h *Handler) SetRuntimeConfig(cfg config.RuntimeConfig) {
+	h.runtimeCfg = cfg
+}
+
+func (h *Handler) getRuntimeConfig() *config.Config {
+	if h.runtimeCfg == nil {
+		return nil
+	}
+	return h.runtimeCfg.Get()
+}
+
+func (h *Handler) getRoutingConfig() *config.RoutingConfig {
+	if cfg := h.getRuntimeConfig(); cfg != nil {
+		return &cfg.Routing
+	}
+	return h.routingConfig
+}
+
+func (h *Handler) getDebugOptions() config.DebugOptions {
+	if cfg := h.getRuntimeConfig(); cfg != nil {
+		return cfg.Logging.DebugOptions
+	}
+	return h.debugOpts
+}
+
+func (h *Handler) isRoutingDebugEnabled() bool {
+	if cfg := h.getRuntimeConfig(); cfg != nil {
+		return cfg.Routing.IsDebugEnabled()
+	}
+	return h.routingDebug
 }
 
 // modifyResponse handles key pool updates and circuit breaker reporting.
@@ -158,7 +309,11 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 	//nolint:errcheck // Type assertion failure returns empty string, which is safe
 	providerName, _ := resp.Request.Context().Value(providerNameContextKey).(string)
 	if providerName != "" {
-		if pp, ok := h.providerProxies[providerName]; ok && pp.KeyPool != nil {
+		// Thread-safe read of provider proxy
+		h.proxyMu.RLock()
+		pp, ok := h.providerProxies[providerName]
+		h.proxyMu.RUnlock()
+		if ok && pp.KeyPool != nil {
 			h.updateKeyPoolFromResponse(resp, pp.KeyPool)
 		}
 	}
@@ -213,6 +368,123 @@ func (h *Handler) reportOutcome(resp *http.Response) {
 	}
 }
 
+// getOrCreateProxy returns the proxy for the given provider, creating it lazily if needed.
+// This allows newly enabled providers (after config reload) to become routable without
+// handler recreation. Uses double-checked locking for efficiency.
+// Uses live accessor functions (getProviderPools, getProviderKeys) when available for
+// hot-reload support, falling back to static maps for backward compatibility.
+func (h *Handler) getOrCreateProxy(prov providers.Provider) (*ProviderProxy, error) {
+	provName := prov.Name()
+
+	key, pool, keys, pools := h.currentKeyPool(provName)
+
+	// Fast path: read lock to check if proxy exists and matches
+	h.proxyMu.RLock()
+	pp, exists := h.providerProxies[provName]
+	h.proxyMu.RUnlock()
+
+	if exists && h.proxyMatches(pp, prov, keys, pools, key, pool) {
+		return pp, nil
+	}
+
+	// Slow path: write lock to create proxy
+	h.proxyMu.Lock()
+	defer h.proxyMu.Unlock()
+
+	// Double-check after acquiring write lock
+	pp, exists = h.providerProxies[provName]
+	if exists && h.proxyMatches(pp, prov, keys, pools, key, pool) {
+		return pp, nil
+	}
+
+	// In single-provider mode (maps==nil), preserve existing proxy's values.
+	// This ensures we don't lose values set during handler construction.
+	key, pool = h.preserveProxyAuthInputs(pp, key, pool, keys, pools)
+
+	// (Re)create proxy if provider instance or auth inputs changed
+	pp, err := NewProviderProxy(prov, key, pool, h.getDebugOptions(), h.modifyResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create proxy for %s: %w", provName, err)
+	}
+
+	h.providerProxies[provName] = pp
+	return pp, nil
+}
+
+func (h *Handler) currentKeyPool(
+	provName string,
+) (
+	key string,
+	pool *keypool.KeyPool,
+	keys map[string]string,
+	pools map[string]*keypool.KeyPool,
+) {
+	keys = h.providerKeys
+	pools = h.providerPools
+	if h.getProviderKeys != nil {
+		keys = h.getProviderKeys()
+	}
+	if h.getProviderPools != nil {
+		pools = h.getProviderPools()
+	}
+
+	key = ""
+	if keys != nil {
+		key = keys[provName]
+	}
+	pool = nil
+	if pools != nil {
+		pool = pools[provName]
+	}
+
+	return key, pool, keys, pools
+}
+
+func (h *Handler) preserveProxyAuthInputs(
+	pp *ProviderProxy,
+	key string,
+	pool *keypool.KeyPool,
+	keys map[string]string,
+	pools map[string]*keypool.KeyPool,
+) (string, *keypool.KeyPool) {
+	if keys == nil && pp != nil && pp.APIKey != "" {
+		key = pp.APIKey
+	}
+	if pools == nil && pp != nil && pp.KeyPool != nil {
+		pool = pp.KeyPool
+	}
+	return key, pool
+}
+
+// proxyMatches checks if an existing proxy matches the given provider and auth inputs.
+// In single-provider mode (maps are nil), keys/pools always match since we preserve
+// values set during handler construction. In multi-provider mode, compares values
+// to detect hot-reload changes.
+func (h *Handler) proxyMatches(
+	pp *ProviderProxy,
+	prov providers.Provider,
+	keys map[string]string,
+	pools map[string]*keypool.KeyPool,
+	key string,
+	pool *keypool.KeyPool,
+) bool {
+	if pp == nil {
+		return false
+	}
+
+	// Provider must match name and base URL
+	if pp.Provider.Name() != prov.Name() || pp.Provider.BaseURL() != prov.BaseURL() {
+		return false
+	}
+
+	// In single-provider mode (nil maps), keys/pools always match.
+	// This preserves values set during handler construction via NewHandler.
+	keysMatch := keys == nil || pp.APIKey == key
+	poolsMatch := pools == nil || pp.KeyPool == pool
+
+	return keysMatch && poolsMatch
+}
+
 // selectProvider chooses a provider using the router or returns the static provider.
 // In single provider mode (router is nil or no providers), returns the static provider.
 // If model is provided and model-based routing is enabled, filters providers first.
@@ -241,11 +513,18 @@ func (h *Handler) selectProvider(
 
 	// Filter providers if model-based routing is enabled
 	if h.isModelBasedRouting() && model != "" {
+		routingConfig := h.getRoutingConfig()
+		if routingConfig == nil {
+			return router.ProviderInfo{
+				Provider:  h.defaultProvider,
+				IsHealthy: func() bool { return true },
+			}, nil
+		}
 		candidates = FilterProvidersByModel(
 			model,
 			candidates,
-			h.routingConfig.ModelMapping,
-			h.routingConfig.DefaultProvider,
+			routingConfig.ModelMapping,
+			routingConfig.DefaultProvider,
 		)
 	}
 
@@ -265,9 +544,10 @@ func (h *Handler) selectProvider(
 
 // isModelBasedRouting returns true if model-based routing is configured.
 func (h *Handler) isModelBasedRouting() bool {
-	return h.routingConfig != nil &&
-		h.routingConfig.Strategy == router.StrategyModelBased &&
-		len(h.routingConfig.ModelMapping) > 0
+	routingConfig := h.getRoutingConfig()
+	return routingConfig != nil &&
+		routingConfig.Strategy == router.StrategyModelBased &&
+		len(routingConfig.ModelMapping) > 0
 }
 
 // selectKeyFromPool handles key selection from the pool.
@@ -350,11 +630,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	selectedProvider := selectedProviderInfo.Provider
 
-	// Get provider's proxy (critical fix: use the correct proxy for the selected provider)
-	providerProxy, ok := h.providerProxies[selectedProvider.Name()]
-	if !ok {
+	// Get or lazily create provider's proxy (enables newly enabled providers after reload)
+	providerProxy, err := h.getOrCreateProxy(selectedProvider)
+	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "internal_error",
-			fmt.Sprintf("no proxy configured for provider %s", selectedProvider.Name()))
+			fmt.Sprintf("failed to get proxy for provider %s: %v", selectedProvider.Name(), err))
 		return
 	}
 
@@ -369,8 +649,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.logAndSetDebugHeaders(w, r, &logger, selectedProvider)
 
 	// Handle auth mode selection and key selection (using provider's pool)
-	r, ok = h.handleAuthAndKeySelection(w, r, &logger, providerProxy)
-	if !ok {
+	var authOK bool
+	r, authOK = h.handleAuthAndKeySelection(w, r, &logger, providerProxy)
+	if !authOK {
 		return
 	}
 
@@ -407,7 +688,7 @@ func (h *Handler) logAndSetDebugHeaders(
 		event.Msg("provider selected by router")
 	}
 
-	if !h.routingDebug {
+	if !h.isRoutingDebugEnabled() {
 		return
 	}
 
@@ -502,7 +783,8 @@ func (h *Handler) handleKeyPoolSelection(
 
 // attachTLSTraceIfEnabled attaches TLS trace if debug metrics are enabled.
 func (h *Handler) attachTLSTraceIfEnabled(r *http.Request) (req *http.Request, getMetrics func() TLSMetrics) {
-	if !h.debugOpts.LogTLSMetrics {
+	debugOpts := h.getDebugOptions()
+	if !debugOpts.LogTLSMetrics {
 		return r, nil
 	}
 	newCtx, metricsFunc := AttachTLSTrace(r.Context(), r)
@@ -514,17 +796,18 @@ func (h *Handler) logMetricsIfEnabled(
 	r *http.Request, logger *zerolog.Logger, start time.Time,
 	backendTime time.Duration, getTLSMetrics func() TLSMetrics,
 ) {
+	debugOpts := h.getDebugOptions()
 	if getTLSMetrics != nil {
 		tlsMetrics := getTLSMetrics()
-		LogTLSMetrics(r.Context(), tlsMetrics, h.debugOpts)
+		LogTLSMetrics(r.Context(), tlsMetrics, debugOpts)
 	}
 
-	if h.debugOpts.IsEnabled() || logger.GetLevel() <= zerolog.DebugLevel {
+	if debugOpts.IsEnabled() || logger.GetLevel() <= zerolog.DebugLevel {
 		proxyMetrics := Metrics{
 			BackendTime: backendTime,
 			TotalTime:   time.Since(start),
 		}
-		LogProxyMetrics(r.Context(), proxyMetrics, h.debugOpts)
+		LogProxyMetrics(r.Context(), proxyMetrics, debugOpts)
 	}
 }
 

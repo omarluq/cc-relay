@@ -16,6 +16,8 @@ import (
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/health"
+	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // createTestInjector creates an injector with a config path for testing.
@@ -667,11 +669,11 @@ func TestNewProviderMap(t *testing.T) {
 		provSvc, err := do.Invoke[*ProviderMapService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, provSvc)
-		assert.Len(t, provSvc.Providers, 1)
-		assert.Len(t, provSvc.AllProviders, 1)
-		assert.NotNil(t, provSvc.PrimaryProvider)
-		assert.Equal(t, "anthropic", provSvc.PrimaryProvider.Name())
-		assert.Equal(t, "test-key-1", provSvc.PrimaryKey)
+		assert.Len(t, provSvc.GetProviders(), 1)
+		assert.Len(t, provSvc.GetAllProviders(), 1)
+		assert.NotNil(t, provSvc.GetPrimaryProvider())
+		assert.Equal(t, "anthropic", provSvc.GetPrimaryProvider().Name())
+		assert.Equal(t, "test-key-1", provSvc.GetPrimaryKey())
 	})
 
 	t.Run("creates provider map with multiple providers", func(t *testing.T) {
@@ -680,10 +682,10 @@ func TestNewProviderMap(t *testing.T) {
 
 		provSvc, err := do.Invoke[*ProviderMapService](injector)
 		require.NoError(t, err)
-		assert.Len(t, provSvc.Providers, 2)
-		assert.Len(t, provSvc.AllProviders, 2)
+		assert.Len(t, provSvc.GetProviders(), 2)
+		assert.Len(t, provSvc.GetAllProviders(), 2)
 		// First provider is primary
-		assert.Equal(t, "anthropic", provSvc.PrimaryProvider.Name())
+		assert.Equal(t, "anthropic", provSvc.GetPrimaryProvider().Name())
 	})
 
 	t.Run("returns error when no providers configured", func(t *testing.T) {
@@ -696,6 +698,101 @@ func TestNewProviderMap(t *testing.T) {
 	})
 }
 
+func TestProviderInfoService_RebuildFromEnablesProvider(t *testing.T) {
+	t.Parallel()
+
+	cfgA := &config.Config{
+		Providers: []config.ProviderConfig{
+			{
+				Name:    "anthropic",
+				Type:    "anthropic",
+				BaseURL: "https://api.anthropic.com",
+				Enabled: true,
+				Keys: []config.KeyConfig{
+					{Key: "test-key-1"},
+				},
+			},
+			{
+				Name:    "zai",
+				Type:    "zai",
+				BaseURL: "https://api.zai.example.com",
+				Enabled: false,
+				Keys: []config.KeyConfig{
+					{Key: "zai-key-1"},
+				},
+			},
+		},
+	}
+
+	cfgB := &config.Config{
+		Providers: []config.ProviderConfig{
+			{
+				Name:    "anthropic",
+				Type:    "anthropic",
+				BaseURL: "https://api.anthropic.com",
+				Enabled: true,
+				Keys: []config.KeyConfig{
+					{Key: "test-key-1"},
+				},
+			},
+			{
+				Name:    "zai",
+				Type:    "zai",
+				BaseURL: "https://api.zai.example.com",
+				Enabled: true,
+				Keys: []config.KeyConfig{
+					{Key: "zai-key-1"},
+				},
+			},
+		},
+	}
+
+	cfgSvc := &ConfigService{Config: cfgA}
+	cfgSvc.config.Store(cfgA)
+
+	providerSvc := &ProviderMapService{cfgSvc: cfgSvc}
+	require.NoError(t, providerSvc.RebuildFrom(cfgA))
+
+	tracker := health.NewTracker(health.CircuitBreakerConfig{}, nil)
+	infoSvc := &ProviderInfoService{
+		cfgSvc:      cfgSvc,
+		providerSvc: providerSvc,
+		trackerSvc:  &HealthTrackerService{Tracker: tracker},
+	}
+
+	infoSvc.RebuildFrom(cfgA)
+	assert.Len(t, infoSvc.Get(), 1)
+
+	require.NoError(t, providerSvc.RebuildFrom(cfgB))
+	infoSvc.RebuildFrom(cfgB)
+
+	infos := infoSvc.Get()
+	assert.Len(t, infos, 2)
+	names := map[string]bool{}
+	for _, info := range infos {
+		names[info.Provider.Name()] = true
+	}
+	assert.True(t, names["anthropic"])
+	assert.True(t, names["zai"])
+}
+
+func TestProviderInfoService_GetReturnsCopy(t *testing.T) {
+	t.Parallel()
+
+	svc := &ProviderInfoService{}
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	infos := []router.ProviderInfo{
+		{Provider: provider, Weight: 1},
+	}
+	svc.infos.Store(&infos)
+
+	got := svc.Get()
+	got[0].Weight = 99
+
+	got2 := svc.Get()
+	assert.Equal(t, 1, got2[0].Weight)
+}
+
 func TestNewKeyPool(t *testing.T) {
 	t.Run("returns nil pool when pooling disabled", func(t *testing.T) {
 		injector := createTestInjector(t, singleKeyConfig)
@@ -705,7 +802,7 @@ func TestNewKeyPool(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, poolSvc)
 		// Single key = no pooling by default
-		assert.Nil(t, poolSvc.Pool)
+		assert.Nil(t, poolSvc.Get())
 	})
 
 	t.Run("creates pool when pooling enabled", func(t *testing.T) {
@@ -715,7 +812,7 @@ func TestNewKeyPool(t *testing.T) {
 		poolSvc, err := do.Invoke[*KeyPoolService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, poolSvc)
-		assert.NotNil(t, poolSvc.Pool)
+		assert.NotNil(t, poolSvc.Get())
 	})
 }
 
@@ -844,10 +941,10 @@ func TestProviderMapServiceWrapper(t *testing.T) {
 			PrimaryKey: "test-key",
 		}
 
-		assert.Equal(t, "test-key", svc.PrimaryKey)
-		assert.Nil(t, svc.Providers)
-		assert.Nil(t, svc.AllProviders)
-		assert.Nil(t, svc.PrimaryProvider)
+		assert.Equal(t, "test-key", svc.GetPrimaryKey())
+		assert.Nil(t, svc.GetProviders())
+		assert.Nil(t, svc.GetAllProviders())
+		assert.Nil(t, svc.GetPrimaryProvider())
 	})
 }
 

@@ -3,11 +3,14 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/auth"
@@ -108,6 +111,222 @@ func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.
 	}
 }
 
+// DebugOptionsProvider returns current debug options for live-config logging.
+type DebugOptionsProvider func() config.DebugOptions
+
+func logRequestStart(ctx context.Context, r *http.Request, shortID string) {
+	logEvent := zerolog.Ctx(ctx).Info().
+		Str("method", r.Method).
+		Str("path", r.URL.Path).
+		Str("req_id", shortID)
+
+	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
+		bodyPreview := getBodyPreview(r)
+		if bodyPreview != "" {
+			logEvent = logEvent.Str("body_preview", bodyPreview)
+		}
+	}
+
+	logEvent.Msgf("%s %s", r.Method, r.URL.Path)
+}
+
+func logRequestCompletion(
+	ctx context.Context,
+	r *http.Request,
+	wrapped *responseWriter,
+	duration time.Duration,
+	shortID string,
+) {
+	durationStr := formatDuration(duration)
+	statusMsg := statusSymbol(wrapped.statusCode)
+	completionMsg := formatCompletionMessage(wrapped.statusCode, statusMsg, durationStr)
+
+	logCtx := zerolog.Ctx(ctx).With().
+		Str("method", r.Method).
+		Str("path", r.URL.Path).
+		Int("status", wrapped.statusCode).
+		Str("duration", durationStr).
+		Str("req_id", shortID)
+
+	if wrapped.isStreaming && wrapped.sseEvents > 0 {
+		logCtx = logCtx.Int("sse_events", wrapped.sseEvents)
+	}
+
+	logger := logCtx.Logger()
+	if wrapped.statusCode >= 500 {
+		logger.Error().Msg(completionMsg)
+	} else if wrapped.statusCode >= 400 {
+		logger.Warn().Msg(completionMsg)
+	} else {
+		logger.Info().Msg(completionMsg)
+	}
+}
+
+func statusSymbol(statusCode int) string {
+	switch {
+	case statusCode >= 500:
+		return "✗"
+	case statusCode >= 400:
+		return "⚠"
+	default:
+		return "✓"
+	}
+}
+
+// LoggingMiddlewareWithProvider logs each request using live debug options.
+func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			debugOpts := config.DebugOptions{}
+			if provider != nil {
+				debugOpts = provider()
+			}
+
+			start := time.Now()
+
+			// Log request details in debug mode
+			LogRequestDetails(r.Context(), r, debugOpts)
+
+			// Wrap ResponseWriter to capture status code
+			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+			// Get request ID for logging
+			requestID := GetRequestID(r.Context())
+			shortID := requestID
+			if len(shortID) > 8 {
+				shortID = shortID[:8]
+			}
+
+			logRequestStart(r.Context(), r, shortID)
+
+			// Serve request
+			next.ServeHTTP(wrapped, r)
+
+			logRequestCompletion(r.Context(), r, wrapped, time.Since(start), shortID)
+		})
+	}
+}
+
+// LoggingMiddleware logs each request with method, path, and duration.
+// If debugOpts has debug logging enabled, logs additional request/response details.
+func LoggingMiddleware(debugOpts config.DebugOptions) func(http.Handler) http.Handler {
+	return LoggingMiddlewareWithProvider(func() config.DebugOptions { return debugOpts })
+}
+
+type authCache struct {
+	chain       auth.Authenticator // 16 bytes (interface)
+	fingerprint string             // 16 bytes (string header)
+}
+
+// authFingerprint computes a small fingerprint of auth-related config fields.
+// This avoids relying on config pointer equality for cache invalidation.
+// Uses length-prefixed format to avoid delimiter collision vulnerabilities.
+func authFingerprint(bearerEnabled bool, bearerSecret, apiKey string) string {
+	// Format: "b<0|1>|<len>:<bearerSecret>|<len>:<apiKey>"
+	// Length-prefix prevents collision when secrets contain delimiters.
+	b := "0"
+	if bearerEnabled {
+		b = "1"
+	}
+	return fmt.Sprintf("b%s|%d:%s|%d:%s", b, len(bearerSecret), bearerSecret, len(apiKey), apiKey)
+}
+
+// LiveAuthMiddleware creates middleware that enforces auth based on live config.
+// It rebuilds the authenticator chain when auth-related config values change.
+//
+//nolint:gocognit,gocyclo,funlen // complexity from double-check locking pattern and nested closure
+func LiveAuthMiddleware(cfgProvider config.RuntimeConfig) func(http.Handler) http.Handler {
+	var (
+		cache atomic.Value // stores *authCache
+		mu    sync.Mutex   // serialize rebuilds
+	)
+
+	// getOrBuildCache returns the cached authenticator, rebuilding if fingerprint changed.
+	getOrBuildCache := func(fp string, authConfig config.AuthConfig, effectiveKey string) *authCache {
+		// Fast path: check cache without lock
+		if v := cache.Load(); v != nil {
+			if c, ok := v.(*authCache); ok && c.fingerprint == fp {
+				return c
+			}
+		}
+
+		// Slow path: acquire lock and rebuild
+		mu.Lock()
+		defer mu.Unlock()
+
+		// Double-check after acquiring lock
+		if v := cache.Load(); v != nil {
+			if c, ok := v.(*authCache); ok && c.fingerprint == fp {
+				return c
+			}
+		}
+
+		// Build authenticator chain
+		var authenticators []auth.Authenticator
+		if authConfig.IsBearerEnabled() {
+			authenticators = append(authenticators, auth.NewBearerAuthenticator(authConfig.BearerSecret))
+		}
+		if effectiveKey != "" {
+			authenticators = append(authenticators, auth.NewAPIKeyAuthenticator(effectiveKey))
+		}
+
+		var chain auth.Authenticator
+		if len(authenticators) == 1 {
+			chain = authenticators[0]
+		} else if len(authenticators) > 1 {
+			chain = auth.NewChainAuthenticator(authenticators...)
+		}
+
+		c := &authCache{
+			fingerprint: fp,
+			chain:       chain,
+		}
+		cache.Store(c)
+		return c
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if cfgProvider == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			cfg := cfgProvider.Get()
+			if cfg == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			authConfig := cfg.Server.Auth
+			effectiveKey := cfg.Server.GetEffectiveAPIKey()
+			fp := authFingerprint(authConfig.IsBearerEnabled(), authConfig.BearerSecret, effectiveKey)
+
+			cached := getOrBuildCache(fp, authConfig, effectiveKey)
+
+			if cached.chain == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			result := cached.chain.Validate(r)
+			if !result.Valid {
+				zerolog.Ctx(r.Context()).Warn().
+					Str("auth_type", string(result.Type)).
+					Str("error", result.Error).
+					Msg("authentication failed")
+				WriteError(w, http.StatusUnauthorized, "authentication_error", result.Error)
+				return
+			}
+
+			zerolog.Ctx(r.Context()).Debug().
+				Str("auth_type", string(result.Type)).
+				Msg("authentication succeeded")
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequestIDMiddleware adds X-Request-ID header and logger with request ID to context.
 func RequestIDMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -127,88 +346,6 @@ func RequestIDMiddleware() func(http.Handler) http.Handler {
 			r = r.WithContext(ctx)
 
 			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// LoggingMiddleware logs each request with method, path, and duration.
-// If debugOpts has debug logging enabled, logs additional request/response details.
-//
-//nolint:gocognit // logging middleware has necessary branching for different log levels
-func LoggingMiddleware(debugOpts config.DebugOptions) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
-
-			// Log request details in debug mode
-			LogRequestDetails(r.Context(), r, debugOpts)
-
-			// Wrap ResponseWriter to capture status code
-			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
-			// Get request ID for logging
-			requestID := GetRequestID(r.Context())
-			shortID := requestID
-			if len(shortID) > 8 {
-				shortID = shortID[:8]
-			}
-
-			// Log request start with arrow and request ID
-			logEvent := zerolog.Ctx(r.Context()).Info().
-				Str("method", r.Method).
-				Str("path", r.URL.Path).
-				Str("req_id", shortID)
-
-			// Add request body preview in debug mode
-			if zerolog.GlobalLevel() <= zerolog.DebugLevel {
-				bodyPreview := getBodyPreview(r)
-				if bodyPreview != "" {
-					logEvent = logEvent.Str("body_preview", bodyPreview)
-				}
-			}
-
-			logEvent.Msgf("%s %s", r.Method, r.URL.Path)
-
-			// Serve request
-			next.ServeHTTP(wrapped, r)
-
-			// Log request completion with detailed info
-			duration := time.Since(start)
-			durationStr := formatDuration(duration)
-
-			// Format completion message based on status
-			var statusMsg string
-			if wrapped.statusCode >= 500 {
-				statusMsg = "✗"
-			} else if wrapped.statusCode >= 400 {
-				statusMsg = "⚠"
-			} else {
-				statusMsg = "✓"
-			}
-
-			completionMsg := formatCompletionMessage(wrapped.statusCode, statusMsg, durationStr)
-
-			logCtx := zerolog.Ctx(r.Context()).With().
-				Str("method", r.Method).
-				Str("path", r.URL.Path).
-				Int("status", wrapped.statusCode).
-				Str("duration", durationStr).
-				Str("req_id", shortID)
-
-			// Add SSE event count if streaming
-			if wrapped.isStreaming && wrapped.sseEvents > 0 {
-				logCtx = logCtx.Int("sse_events", wrapped.sseEvents)
-			}
-
-			logger := logCtx.Logger()
-
-			if wrapped.statusCode >= 500 {
-				logger.Error().Msg(completionMsg)
-			} else if wrapped.statusCode >= 400 {
-				logger.Warn().Msg(completionMsg)
-			} else {
-				logger.Info().Msg(completionMsg)
-			}
 		})
 	}
 }
