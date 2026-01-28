@@ -49,6 +49,41 @@ func buildPoolConfig(p *config.ProviderConfig) keypool.PoolConfig {
 	return poolCfg
 }
 
+func watchConfig(
+	cfgSvc *ConfigService,
+	rebuild func(*config.Config) error,
+	errMsg string,
+	successMsg string,
+	swallowErr bool,
+) {
+	if cfgSvc == nil || cfgSvc.watcher == nil {
+		return
+	}
+
+	cfgSvc.watcher.OnReload(func(newCfg *config.Config) error {
+		if err := rebuild(newCfg); err != nil {
+			log.Error().Err(err).Msg(errMsg)
+			if !swallowErr {
+				return err
+			}
+		}
+		log.Info().Msg(successMsg)
+		return nil
+	})
+}
+
+func initKeyPoolService(
+	cfgSvc *ConfigService,
+	rebuild func(*config.Config) error,
+	startWatching func(),
+) error {
+	if err := rebuild(cfgSvc.Config); err != nil {
+		return err
+	}
+	startWatching()
+	return nil
+}
+
 // Get returns the current primary key pool (live, hot-reload aware).
 func (s *KeyPoolService) Get() *keypool.KeyPool {
 	d := s.data.Load()
@@ -96,18 +131,13 @@ func (s *KeyPoolService) RebuildFrom(cfg *config.Config) error {
 
 // StartWatching begins watching config changes for primary key pool updates.
 func (s *KeyPoolService) StartWatching() {
-	if s.cfgSvc == nil || s.cfgSvc.watcher == nil {
-		return
-	}
-
-	s.cfgSvc.watcher.OnReload(func(newCfg *config.Config) error {
-		if err := s.RebuildFrom(newCfg); err != nil {
-			log.Error().Err(err).Msg("failed to rebuild primary key pool after config reload")
-			return err
-		}
-		log.Info().Msg("primary key pool rebuilt after config reload")
-		return nil
-	})
+	watchConfig(
+		s.cfgSvc,
+		s.RebuildFrom,
+		"failed to rebuild primary key pool after config reload",
+		"primary key pool rebuilt after config reload",
+		false,
+	)
 }
 
 // keyPoolMapData holds the key pools and keys for atomic swap.
@@ -190,32 +220,22 @@ func (s *KeyPoolMapService) RebuildFrom(cfg *config.Config) error {
 
 // StartWatching begins watching config changes for key pool updates.
 func (s *KeyPoolMapService) StartWatching() {
-	if s.cfgSvc == nil || s.cfgSvc.watcher == nil {
-		return
-	}
-
-	s.cfgSvc.watcher.OnReload(func(newCfg *config.Config) error {
-		if err := s.RebuildFrom(newCfg); err != nil {
-			log.Error().Err(err).Msg("failed to rebuild key pools after config reload")
-			// Don't return error to avoid blocking other callbacks
-		}
-		log.Info().Msg("key pools rebuilt after config reload")
-		return nil
-	})
+	watchConfig(
+		s.cfgSvc,
+		s.RebuildFrom,
+		"failed to rebuild key pools after config reload",
+		"key pools rebuilt after config reload",
+		true,
+	)
 }
 
 // NewKeyPool creates the key pool for the primary provider if pooling is enabled.
 func NewKeyPool(i do.Injector) (*KeyPoolService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
-	cfg := cfgSvc.Config
-
 	svc := &KeyPoolService{cfgSvc: cfgSvc}
-	if err := svc.RebuildFrom(cfg); err != nil {
+	if err := initKeyPoolService(cfgSvc, svc.RebuildFrom, svc.StartWatching); err != nil {
 		return nil, err
 	}
-
-	// Start watching for config changes
-	svc.StartWatching()
 
 	return svc, nil
 }
@@ -225,15 +245,10 @@ func NewKeyPool(i do.Injector) (*KeyPoolService, error) {
 // Supports hot-reload: call StartWatching() after container init.
 func NewKeyPoolMap(i do.Injector) (*KeyPoolMapService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
-	cfg := cfgSvc.Config
-
 	svc := &KeyPoolMapService{cfgSvc: cfgSvc}
-	if err := svc.RebuildFrom(cfg); err != nil {
+	if err := initKeyPoolService(cfgSvc, svc.RebuildFrom, svc.StartWatching); err != nil {
 		return nil, err
 	}
-
-	// Start watching for config changes
-	svc.StartWatching()
 
 	return svc, nil
 }

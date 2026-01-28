@@ -39,9 +39,7 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 			providedKey := r.Header.Get("x-api-key")
 
 			if providedKey == "" {
-				zerolog.Ctx(r.Context()).Warn().Msg("authentication failed: missing x-api-key header")
-				WriteError(w, http.StatusUnauthorized, "authentication_error", "missing x-api-key header")
-
+				failAuth(w, r, "missing x-api-key header")
 				return
 			}
 
@@ -51,9 +49,7 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 
 			// CRITICAL: Constant-time comparison prevents timing attacks
 			if subtle.ConstantTimeCompare(providedHash[:], expectedHash[:]) != 1 {
-				zerolog.Ctx(r.Context()).Warn().Msg("authentication failed: invalid x-api-key")
-				WriteError(w, http.StatusUnauthorized, "authentication_error", "invalid x-api-key")
-
+				failAuth(w, r, "invalid x-api-key")
 				return
 			}
 
@@ -61,6 +57,11 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func failAuth(w http.ResponseWriter, r *http.Request, reason string) {
+	zerolog.Ctx(r.Context()).Warn().Msg("authentication failed: " + reason)
+	WriteError(w, http.StatusUnauthorized, "authentication_error", reason)
 }
 
 // MultiAuthMiddleware creates middleware supporting multiple authentication methods.

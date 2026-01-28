@@ -14,14 +14,11 @@ import (
 func TestAuthMiddleware_ValidKey(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	middleware := AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("x-api-key", "secret-key")
 
 	rec := httptest.NewRecorder()
@@ -35,14 +32,11 @@ func TestAuthMiddleware_ValidKey(t *testing.T) {
 func TestAuthMiddleware_InvalidKey(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	middleware := AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("x-api-key", "wrong-key")
 
 	rec := httptest.NewRecorder()
@@ -56,14 +50,11 @@ func TestAuthMiddleware_InvalidKey(t *testing.T) {
 func TestAuthMiddleware_MissingKey(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	middleware := AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	// No x-api-key header
 
 	rec := httptest.NewRecorder()
@@ -82,15 +73,12 @@ func TestAuthMiddleware_MissingKey(t *testing.T) {
 func TestMultiAuthMiddleware_NoAuthConfigured(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	authConfig := &config.AuthConfig{}
 	middleware := MultiAuthMiddleware(authConfig)
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	// No auth headers
 
 	rec := httptest.NewRecorder()
@@ -105,10 +93,7 @@ func TestMultiAuthMiddleware_NoAuthConfigured(t *testing.T) {
 func TestMultiAuthMiddleware_BearerOnly(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	authConfig := &config.AuthConfig{
 		AllowBearer:  true,
 		BearerSecret: "test-bearer-secret",
@@ -117,7 +102,7 @@ func TestMultiAuthMiddleware_BearerOnly(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Valid bearer token
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer test-bearer-secret")
 
 	rec := httptest.NewRecorder()
@@ -131,10 +116,7 @@ func TestMultiAuthMiddleware_BearerOnly(t *testing.T) {
 func TestMultiAuthMiddleware_APIKeyOnly(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	authConfig := &config.AuthConfig{
 		APIKey: "test-api-key",
 	}
@@ -142,7 +124,7 @@ func TestMultiAuthMiddleware_APIKeyOnly(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Valid API key
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("x-api-key", "test-api-key")
 
 	rec := httptest.NewRecorder()
@@ -156,10 +138,7 @@ func TestMultiAuthMiddleware_APIKeyOnly(t *testing.T) {
 func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	authConfig := &config.AuthConfig{
 		APIKey:       "test-api-key",
 		AllowBearer:  true,
@@ -171,7 +150,7 @@ func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 	// Test with bearer - should work
 	t.Run("bearer works", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("Authorization", "Bearer test-bearer-secret")
 
 		rec := httptest.NewRecorder()
@@ -185,7 +164,7 @@ func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 	// Test with API key - should work
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key")
 
 		rec := httptest.NewRecorder()
@@ -200,10 +179,7 @@ func TestMultiAuthMiddleware_BothMethods(t *testing.T) {
 func TestMultiAuthMiddleware_SubscriptionAlias(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
+	handler := okHandler()
 	authConfig := &config.AuthConfig{
 		AllowSubscription: true, // Alias for AllowBearer
 	}
@@ -211,7 +187,7 @@ func TestMultiAuthMiddleware_SubscriptionAlias(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Any bearer token should work (passthrough mode)
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer any-subscription-token")
 
 	rec := httptest.NewRecorder()
@@ -229,13 +205,11 @@ func TestLiveAuthMiddleware_ToggleAPIKey(t *testing.T) {
 		Server: config.ServerConfig{APIKey: "test-key"},
 	})
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	wrapped := LiveAuthMiddleware(runtimeCfg)(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrapped.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
@@ -246,7 +220,7 @@ func TestLiveAuthMiddleware_ToggleAPIKey(t *testing.T) {
 		Server: config.ServerConfig{APIKey: ""},
 	})
 
-	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req2 := newMessagesRequest(http.NoBody)
 	rec2 := httptest.NewRecorder()
 	wrapped.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
@@ -316,9 +290,7 @@ func TestRequestIDMiddleware_UsesProvidedID(t *testing.T) {
 func TestLoggingMiddleware_LogsRequest(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	debugOpts := config.DebugOptions{}
 	middleware := LoggingMiddleware(debugOpts)
@@ -542,6 +514,19 @@ func TestAuthFingerprint(t *testing.T) {
 	})
 }
 
+func okHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+func handlerWithCalled(called *bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		*called = true
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
 func newTestResponseWriter() *responseWriter {
 	rec := httptest.NewRecorder()
 	return &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
@@ -551,15 +536,12 @@ func TestLiveAuthMiddleware_NilProvider(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := handlerWithCalled(&called)
 
 	middleware := LiveAuthMiddleware(nil)
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -575,16 +557,13 @@ func TestLiveAuthMiddleware_NilConfig(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := handlerWithCalled(&called)
 
 	runtime := config.NewRuntime(nil)
 	middleware := LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -600,10 +579,7 @@ func TestLiveAuthMiddleware_NoAuthConfigured(t *testing.T) {
 	t.Parallel()
 
 	called := false
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := handlerWithCalled(&called)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -614,7 +590,7 @@ func TestLiveAuthMiddleware_NoAuthConfigured(t *testing.T) {
 	middleware := LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -630,9 +606,7 @@ func TestLiveAuthMiddleware_NoAuthConfigured(t *testing.T) {
 func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -646,7 +620,7 @@ func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	t.Run("valid key", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key")
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
@@ -657,7 +631,7 @@ func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
 	})
 
 	t.Run("invalid key", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("x-api-key", "wrong-key")
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
@@ -668,7 +642,7 @@ func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
 	})
 
 	t.Run("missing key", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -681,9 +655,7 @@ func TestLiveAuthMiddleware_APIKeyAuth(t *testing.T) {
 func TestLiveAuthMiddleware_ConfigSwitching(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	// Start with API key auth
 	cfg1 := &config.Config{
@@ -698,7 +670,7 @@ func TestLiveAuthMiddleware_ConfigSwitching(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Request with key-v1 should succeed
-	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req1 := newMessagesRequest(http.NoBody)
 	req1.Header.Set("x-api-key", "key-v1")
 	rec1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec1, req1)
@@ -717,7 +689,7 @@ func TestLiveAuthMiddleware_ConfigSwitching(t *testing.T) {
 	runtime.Store(cfg2)
 
 	// Old key should now fail
-	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req2 := newMessagesRequest(http.NoBody)
 	req2.Header.Set("x-api-key", "key-v1")
 	rec2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec2, req2)
@@ -726,7 +698,7 @@ func TestLiveAuthMiddleware_ConfigSwitching(t *testing.T) {
 	}
 
 	// New key should work
-	req3 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req3 := newMessagesRequest(http.NoBody)
 	req3.Header.Set("x-api-key", "key-v2")
 	rec3 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec3, req3)
@@ -738,9 +710,7 @@ func TestLiveAuthMiddleware_ConfigSwitching(t *testing.T) {
 func TestLiveAuthMiddleware_SwitchAuthMethods(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	// Start with API key auth
 	cfg1 := &config.Config{
@@ -755,7 +725,7 @@ func TestLiveAuthMiddleware_SwitchAuthMethods(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// Bearer should fail, API key should work
-	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req1 := newMessagesRequest(http.NoBody)
 	req1.Header.Set("Authorization", "Bearer my-bearer-token")
 	rec1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec1, req1)
@@ -775,7 +745,7 @@ func TestLiveAuthMiddleware_SwitchAuthMethods(t *testing.T) {
 	runtime.Store(cfg2)
 
 	// Now bearer should work
-	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req2 := newMessagesRequest(http.NoBody)
 	req2.Header.Set("Authorization", "Bearer my-bearer-token")
 	rec2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec2, req2)
@@ -784,7 +754,7 @@ func TestLiveAuthMiddleware_SwitchAuthMethods(t *testing.T) {
 	}
 
 	// API key should now fail
-	req3 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req3 := newMessagesRequest(http.NoBody)
 	req3.Header.Set("x-api-key", "my-api-key")
 	rec3 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec3, req3)
@@ -796,9 +766,7 @@ func TestLiveAuthMiddleware_SwitchAuthMethods(t *testing.T) {
 func TestLiveAuthMiddleware_SwitchToNoAuth(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	// Start with API key auth
 	cfg1 := &config.Config{
@@ -813,7 +781,7 @@ func TestLiveAuthMiddleware_SwitchToNoAuth(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	// No key should fail
-	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req1 := newMessagesRequest(http.NoBody)
 	rec1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec1, req1)
 	if rec1.Code != http.StatusUnauthorized {
@@ -829,7 +797,7 @@ func TestLiveAuthMiddleware_SwitchToNoAuth(t *testing.T) {
 	runtime.Store(cfg2)
 
 	// Now no key should pass through
-	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req2 := newMessagesRequest(http.NoBody)
 	rec2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
@@ -840,9 +808,7 @@ func TestLiveAuthMiddleware_SwitchToNoAuth(t *testing.T) {
 func TestLiveAuthMiddleware_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -866,7 +832,7 @@ func TestLiveAuthMiddleware_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			for j := range requestsPerGoroutine {
 				// Mix of valid and invalid requests
-				req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+				req := newMessagesRequest(http.NoBody)
 				if j%2 == 0 {
 					req.Header.Set("x-api-key", "concurrent-key")
 				} else {
@@ -892,9 +858,7 @@ func TestLiveAuthMiddleware_ConcurrentAccess(t *testing.T) {
 func TestLiveAuthMiddleware_ConcurrentConfigSwitch(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	handler := okHandler()
 
 	cfg1 := &config.Config{
 		Server: config.ServerConfig{
@@ -941,7 +905,7 @@ func TestLiveAuthMiddleware_ConcurrentConfigSwitch(t *testing.T) {
 			for range iterations {
 				// Try both keys - one should work depending on current config
 				for _, key := range []string{"key-alpha", "key-beta"} {
-					req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+					req := newMessagesRequest(http.NoBody)
 					req.Header.Set("x-api-key", key)
 					rec := httptest.NewRecorder()
 					wrappedHandler.ServeHTTP(rec, req)

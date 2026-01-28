@@ -3,6 +3,7 @@ package proxy
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,10 +27,7 @@ func TestSetupRoutes_CreatesHandler(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	if handler == nil {
 		t.Fatal("handler is nil")
@@ -46,13 +44,10 @@ func TestSetupRoutes_AuthMiddlewareApplied(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request without API key should return 401
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -65,12 +60,7 @@ func TestSetupRoutes_AuthMiddlewareWithValidKey(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-
-		w.Write([]byte(`{"status":"ok"}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -79,15 +69,11 @@ func TestSetupRoutes_AuthMiddlewareWithValidKey(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request with valid API key should pass auth and reach backend
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("x-api-key", "test-key")
-	req.Header.Set("anthropic-version", "2023-06-01")
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -101,12 +87,7 @@ func TestSetupRoutes_NoAuthWhenAPIKeyEmpty(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-
-		w.Write([]byte(`{"status":"ok"}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -115,14 +96,10 @@ func TestSetupRoutes_NoAuthWhenAPIKeyEmpty(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request without API key should NOT return 401 when auth is disabled
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req := newMessagesRequest(http.NoBody)
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -142,10 +119,7 @@ func TestSetupRoutes_HealthEndpoint(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Health endpoint should work without auth
 	req := httptest.NewRequest("GET", "/health", http.NoBody)
@@ -172,10 +146,7 @@ func TestSetupRoutes_HealthEndpointWithAuth(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Health endpoint should work even when server has auth enabled
 	// (health check should never require auth)
@@ -199,10 +170,7 @@ func TestSetupRoutes_OnlyPOSTToMessages(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// GET to /v1/messages should not be handled
 	req := httptest.NewRequest("GET", "/v1/messages", http.NoBody)
@@ -218,11 +186,7 @@ func TestSetupRoutes_OnlyPOSTToMessages(t *testing.T) {
 func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"ok":true}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"ok":true}`)
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 	providerInfos := []router.ProviderInfo{
@@ -240,8 +204,7 @@ func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
 	runtimeCfg := config.NewRuntime(cfgA)
 	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
 
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(`{"model":"test","messages":[]}`)))
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req := newMessagesRequest(bytes.NewReader([]byte(`{"model":"test","messages":[]}`)))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -250,8 +213,7 @@ func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
 	runtimeCfg.Store(cfgB)
 
 	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(`{"model":"test","messages":[]}`)))
-	req2.Header.Set("anthropic-version", "2023-06-01")
+	req2 := newMessagesRequest(bytes.NewReader([]byte(`{"model":"test","messages":[]}`)))
 	handler.ServeHTTP(rec2, req2)
 	assert.Equal(t, http.StatusOK, rec2.Code)
 	assert.Empty(t, rec2.Header().Get("X-CC-Relay-Strategy"))
@@ -260,11 +222,7 @@ func TestSetupRoutesWithLiveKeyPools_RoutingDebugToggles(t *testing.T) {
 func TestSetupRoutesWithLiveKeyPools_AuthToggle(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"ok":true}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"ok":true}`)
 
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 	providerInfos := []router.ProviderInfo{
@@ -283,16 +241,14 @@ func TestSetupRoutesWithLiveKeyPools_AuthToggle(t *testing.T) {
 	runtimeCfg := config.NewRuntime(cfgA)
 	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
 
-	unauthReq := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
-	unauthReq.Header.Set("anthropic-version", "2023-06-01")
+	unauthReq := newMessagesRequest(http.NoBody)
 	unauthRec := httptest.NewRecorder()
 	handler.ServeHTTP(unauthRec, unauthReq)
 	assert.Equal(t, http.StatusUnauthorized, unauthRec.Code)
 
 	runtimeCfg.Store(cfgB)
 
-	okReq := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
-	okReq.Header.Set("anthropic-version", "2023-06-01")
+	okReq := newMessagesRequest(http.NoBody)
 	okRec := httptest.NewRecorder()
 	handler.ServeHTTP(okRec, okReq)
 	assert.Equal(t, http.StatusOK, okRec.Code)
@@ -338,10 +294,7 @@ func TestSetupRoutes_OnlyGETToHealth(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// POST to /health should not be handled
 	req := httptest.NewRequest("POST", "/health", http.NoBody)
@@ -352,6 +305,34 @@ func TestSetupRoutes_OnlyGETToHealth(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405 for POST to /health, got %d", rec.Code)
 	}
+}
+
+func newBackendServer(t *testing.T, body string) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if body != "" {
+			_, _ = w.Write([]byte(body))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func newMessagesRequest(body io.Reader) *http.Request {
+	req := httptest.NewRequest("POST", "/v1/messages", body)
+	req.Header.Set("anthropic-version", "2023-06-01")
+	return req
+}
+
+func setupRoutesHandler(t *testing.T, cfg *config.Config, provider providers.Provider) http.Handler {
+	t.Helper()
+
+	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
+	require.NoError(t, err)
+	return handler
 }
 
 func newLiveKeyPoolsHandler(
@@ -415,10 +396,7 @@ func TestSetupRoutes_404ForUnknownPath(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Unknown path should return 404
 	req := httptest.NewRequest("GET", "/unknown", http.NoBody)
@@ -440,10 +418,7 @@ func TestSetupRoutes_MessagesPathMustBeExact(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// /v1/messages/extra should not match the route
 	req := httptest.NewRequest("POST", "/v1/messages/extra", http.NoBody)
@@ -460,12 +435,7 @@ func TestSetupRoutes_MessagesPathMustBeExact(t *testing.T) {
 func TestSetupRoutes_MultiAuthWithBearerToken(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -477,15 +447,11 @@ func TestSetupRoutes_MultiAuthWithBearerToken(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request with valid Bearer token should pass
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer test-bearer-token")
-	req.Header.Set("anthropic-version", "2023-06-01")
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -508,13 +474,10 @@ func TestSetupRoutes_MultiAuthWithInvalidBearerToken(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request with invalid Bearer token should fail
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer wrong-token")
 
 	rec := httptest.NewRecorder()
@@ -528,12 +491,7 @@ func TestSetupRoutes_MultiAuthWithInvalidBearerToken(t *testing.T) {
 func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	}))
-	t.Cleanup(backend.Close)
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -546,17 +504,13 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Test 1: Bearer token should work
 	t.Run("bearer token works", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("Authorization", "Bearer test-bearer-token")
-		req.Header.Set("anthropic-version", "2023-06-01")
 
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -569,9 +523,8 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 	// Test 2: API key should work
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key")
-		req.Header.Set("anthropic-version", "2023-06-01")
 
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -584,8 +537,7 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 	// Test 3: No credentials should fail
 	t.Run("no credentials fails", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
-		req.Header.Set("anthropic-version", "2023-06-01")
+		req := newMessagesRequest(http.NoBody)
 
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -599,12 +551,7 @@ func TestSetupRoutes_MultiAuthBothMethods(t *testing.T) {
 func TestSetupRoutes_MultiAuthBearerWithoutSecret(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
@@ -616,15 +563,11 @@ func TestSetupRoutes_MultiAuthBearerWithoutSecret(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Any Bearer token should work when no secret is configured
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer any-random-token")
-	req.Header.Set("anthropic-version", "2023-06-01")
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -637,12 +580,7 @@ func TestSetupRoutes_MultiAuthBearerWithoutSecret(t *testing.T) {
 func TestSetupRoutes_LegacyAPIKeyFallback(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	// Use legacy Server.APIKey without Auth config
 	cfg := &config.Config{
@@ -653,15 +591,11 @@ func TestSetupRoutes_LegacyAPIKeyFallback(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Legacy API key should still work
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("x-api-key", "legacy-key")
-	req.Header.Set("anthropic-version", "2023-06-01")
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -780,12 +714,7 @@ func TestSetupRoutes_ModelsEndpointEmptyProviders(t *testing.T) {
 func TestSetupRoutes_SubscriptionTokenAuth(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	}))
-	defer backend.Close()
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	// Test that allow_subscription works as an alias for allow_bearer
 	cfg := &config.Config{
@@ -798,15 +727,11 @@ func TestSetupRoutes_SubscriptionTokenAuth(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Subscription token (sent as Bearer) should work
-	req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	req := newMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer claude-subscription-token-abc123")
-	req.Header.Set("anthropic-version", "2023-06-01")
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -819,12 +744,7 @@ func TestSetupRoutes_SubscriptionTokenAuth(t *testing.T) {
 func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	}))
-	t.Cleanup(backend.Close)
+	backend := newBackendServer(t, `{"status":"ok"}`)
 
 	// Test that both subscription and API key auth work together
 	cfg := &config.Config{
@@ -837,17 +757,13 @@ func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProvider("test", backend.URL)
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
-	if err != nil {
-		t.Fatalf("SetupRoutes failed: %v", err)
-	}
+	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Test 1: Subscription token should work
 	t.Run("subscription token works", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("Authorization", "Bearer subscription-token")
-		req.Header.Set("anthropic-version", "2023-06-01")
 
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -860,9 +776,8 @@ func TestSetupRoutes_SubscriptionAndAPIKeyBothWork(t *testing.T) {
 	// Test 2: API key should work
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
-		req := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+		req := newMessagesRequest(http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key")
-		req.Header.Set("anthropic-version", "2023-06-01")
 
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
