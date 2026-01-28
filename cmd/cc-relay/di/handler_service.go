@@ -1,0 +1,52 @@
+package di
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/samber/do/v2"
+
+	"github.com/omarluq/cc-relay/internal/proxy"
+	"github.com/omarluq/cc-relay/internal/router"
+)
+
+// HandlerService wraps the HTTP handler.
+type HandlerService struct {
+	Handler http.Handler
+}
+
+// NewProxyHandler creates the HTTP handler with all middleware.
+func NewProxyHandler(i do.Injector) (*HandlerService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](i)
+	providerSvc := do.MustInvoke[*ProviderMapService](i)
+	poolSvc := do.MustInvoke[*KeyPoolService](i)
+	poolMapSvc := do.MustInvoke[*KeyPoolMapService](i)
+	routerSvc := do.MustInvoke[*RouterService](i)
+	providerInfoSvc := do.MustInvoke[*ProviderInfoService](i)
+	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
+	sigCacheSvc := do.MustInvoke[*SignatureCacheService](i)
+
+	// Use SetupRoutesWithLiveKeyPools for full hot-reload support:
+	// - Live provider info (enabled/disabled, weights, priorities)
+	// - Live router (strategy/timeout changes without restart)
+	// - Live key pools (newly enabled providers get keys immediately)
+	liveRouter := router.NewLiveRouter(routerSvc.GetRouterAsFunc())
+	handler, err := proxy.SetupRoutesWithLiveKeyPools(
+		cfgSvc,
+		providerSvc.GetPrimaryProvider(),
+		providerInfoSvc.Get, // Hot-reloadable provider info
+		liveRouter,          // Live router for strategy changes
+		providerSvc.GetPrimaryKey(),
+		poolSvc.Get(),
+		poolMapSvc.GetPools, // Live key pools accessor
+		poolMapSvc.GetKeys,  // Live fallback keys accessor
+		providerSvc.GetAllProviders(),
+		trackerSvc.Tracker,
+		sigCacheSvc.Cache,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup proxy handler: %w", err)
+	}
+
+	return &HandlerService{Handler: handler}, nil
+}
