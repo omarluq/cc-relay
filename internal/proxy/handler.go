@@ -30,6 +30,7 @@ const (
 	providerNameContextKey    contextKey = "providerName"
 	modelNameContextKey       contextKey = "modelName"
 	thinkingContextContextKey contextKey = "thinkingContext"
+	handlerOptionsRequiredMsg            = "handler options are required"
 )
 
 // ProviderInfoFunc is a function that returns current provider routing information.
@@ -92,26 +93,20 @@ type Handler struct {
 //
 // For hot-reloadable provider inputs, set ProviderInfosFunc. Otherwise, ProviderInfos is used.
 func NewHandler(opts *HandlerOptions) (*Handler, error) {
-	if opts == nil {
-		return nil, errors.New("handler options are required")
-	}
-	return newHandlerWithOptions(opts)
+	return NewHandlerWithLiveProviders(opts)
 }
 
 // NewHandlerWithLiveProviders creates a new proxy handler with hot-reloadable provider info.
 // ProviderInfosFunc is called per-request to get current provider routing information.
 func NewHandlerWithLiveProviders(opts *HandlerOptions) (*Handler, error) {
-	if opts == nil {
-		return nil, errors.New("handler options are required")
-	}
-	return newHandlerWithOptions(opts)
+	return NewHandlerWithLiveKeyPools(opts)
 }
 
 // NewHandlerWithLiveKeyPools creates a new proxy handler with hot-reloadable key pools.
 // When providers are enabled via config reload, their keys and pools are available immediately.
 func NewHandlerWithLiveKeyPools(opts *HandlerOptions) (*Handler, error) {
 	if opts == nil {
-		return nil, errors.New("handler options are required")
+		return nil, errors.New(handlerOptionsRequiredMsg)
 	}
 	return newHandlerWithOptions(opts)
 }
@@ -147,16 +142,15 @@ func newHandlerWithOptions(opts *HandlerOptions) (*Handler, error) {
 		providerKeys:     providerKeys,
 	}
 
-	if err := initProviderProxies(
-		h,
-		opts.Provider,
-		opts.APIKey,
-		opts.Pool,
-		providerPools,
-		providerKeys,
-		opts.DebugOptions,
-		initialInfos,
-	); err != nil {
+	if err := initProviderProxies(h, &providerProxyInit{
+		provider:      opts.Provider,
+		apiKey:        opts.APIKey,
+		pool:          opts.Pool,
+		providerPools: providerPools,
+		providerKeys:  providerKeys,
+		debugOpts:     opts.DebugOptions,
+		initialInfos:  initialInfos,
+	}); err != nil {
 		return nil, err
 	}
 
@@ -176,37 +170,38 @@ func resolveInitialMaps(
 	return providerPools, providerKeys
 }
 
-func initProviderProxies(
-	h *Handler,
-	provider providers.Provider,
-	apiKey string,
-	pool *keypool.KeyPool,
-	providerPools map[string]*keypool.KeyPool,
-	providerKeys map[string]string,
-	debugOpts config.DebugOptions,
-	initialInfos []router.ProviderInfo,
-) error {
-	if len(initialInfos) == 0 {
-		pp, err := NewProviderProxy(provider, apiKey, pool, debugOpts, h.modifyResponse)
+type providerProxyInit struct {
+	provider      providers.Provider
+	pool          *keypool.KeyPool
+	providerPools map[string]*keypool.KeyPool
+	providerKeys  map[string]string
+	apiKey        string
+	initialInfos  []router.ProviderInfo
+	debugOpts     config.DebugOptions
+}
+
+func initProviderProxies(h *Handler, init *providerProxyInit) error {
+	if len(init.initialInfos) == 0 {
+		pp, err := NewProviderProxy(init.provider, init.apiKey, init.pool, init.debugOpts, h.modifyResponse)
 		if err != nil {
 			return err
 		}
-		h.providerProxies[provider.Name()] = pp
+		h.providerProxies[init.provider.Name()] = pp
 		return nil
 	}
 
-	for _, info := range initialInfos {
+	for _, info := range init.initialInfos {
 		prov := info.Provider
 		key := ""
-		if providerKeys != nil {
-			key = providerKeys[prov.Name()]
+		if init.providerKeys != nil {
+			key = init.providerKeys[prov.Name()]
 		}
 		var provPool *keypool.KeyPool
-		if providerPools != nil {
-			provPool = providerPools[prov.Name()]
+		if init.providerPools != nil {
+			provPool = init.providerPools[prov.Name()]
 		}
 
-		pp, err := NewProviderProxy(prov, key, provPool, debugOpts, h.modifyResponse)
+		pp, err := NewProviderProxy(prov, key, provPool, init.debugOpts, h.modifyResponse)
 		if err != nil {
 			return fmt.Errorf("failed to create proxy for %s: %w", prov.Name(), err)
 		}

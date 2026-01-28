@@ -9,13 +9,22 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 )
 
+const (
+	defaultListenAddr = "localhost:8787"
+	localListenAddr   = "127.0.0.1:8787"
+	defaultAPIKey     = "test-key"
+	configFileName    = "config.yaml"
+	unexpectedErrFmt  = "Unexpected error: %v"
+	restoreWdErrFmt   = "failed to restore working directory: %v"
+)
+
 func TestValidateConfigValid(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Listen: "localhost:8787",
-			APIKey: "test-key",
+			Listen: defaultListenAddr,
+			APIKey: defaultAPIKey,
 		},
 		Providers: []config.ProviderConfig{
 			{
@@ -39,7 +48,7 @@ func TestValidateConfigNoListen(t *testing.T) {
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			APIKey: "test-key",
+			APIKey: defaultAPIKey,
 		},
 	}
 
@@ -49,7 +58,7 @@ func TestValidateConfigNoListen(t *testing.T) {
 	}
 
 	if err != nil && err.Error() != "server.listen is required" {
-		t.Errorf("Unexpected error: %v", err)
+		t.Errorf(unexpectedErrFmt, err)
 	}
 }
 
@@ -58,7 +67,7 @@ func TestValidateConfigNoAPIKey(t *testing.T) {
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Listen: "localhost:8787",
+			Listen: defaultListenAddr,
 		},
 	}
 
@@ -68,7 +77,7 @@ func TestValidateConfigNoAPIKey(t *testing.T) {
 	}
 
 	if err != nil && err.Error() != "server.api_key is required" {
-		t.Errorf("Unexpected error: %v", err)
+		t.Errorf(unexpectedErrFmt, err)
 	}
 }
 
@@ -77,8 +86,8 @@ func TestValidateConfigNoEnabledProvider(t *testing.T) {
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Listen: "localhost:8787",
-			APIKey: "test-key",
+			Listen: defaultListenAddr,
+			APIKey: defaultAPIKey,
 		},
 		Providers: []config.ProviderConfig{
 			{
@@ -94,7 +103,7 @@ func TestValidateConfigNoEnabledProvider(t *testing.T) {
 	}
 
 	if err != nil && err.Error() != "no enabled providers configured" {
-		t.Errorf("Unexpected error: %v", err)
+		t.Errorf(unexpectedErrFmt, err)
 	}
 }
 
@@ -103,8 +112,8 @@ func TestValidateConfigProviderNoKeys(t *testing.T) {
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Listen: "localhost:8787",
-			APIKey: "test-key",
+			Listen: defaultListenAddr,
+			APIKey: defaultAPIKey,
 		},
 		Providers: []config.ProviderConfig{
 			{
@@ -126,8 +135,8 @@ func TestValidateConfigMultipleProviders(t *testing.T) {
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Listen: "localhost:8787",
-			APIKey: "test-key",
+			Listen: defaultListenAddr,
+			APIKey: defaultAPIKey,
 		},
 		Providers: []config.ProviderConfig{
 			{
@@ -155,8 +164,8 @@ func TestValidateConfigEmptyProviders(t *testing.T) {
 
 	cfg := &config.Config{
 		Server: config.ServerConfig{
-			Listen: "localhost:8787",
-			APIKey: "test-key",
+			Listen: defaultListenAddr,
+			APIKey: defaultAPIKey,
 		},
 		Providers: []config.ProviderConfig{},
 	}
@@ -178,14 +187,14 @@ func TestFindConfigFileForValidate(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(restoreWdErrFmt, err)
 		}
 	}()
 
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
+	configPath := filepath.Join(tmpDir, configFileName)
+	if err := os.WriteFile(configPath, []byte("server:\n  listen: "+defaultListenAddr+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -196,8 +205,8 @@ func TestFindConfigFileForValidate(t *testing.T) {
 
 	// Test finding config in current directory
 	found := findConfigFileForValidate()
-	if found != "config.yaml" {
-		t.Errorf("Expected 'config.yaml', got %q", found)
+	if found != configFileName {
+		t.Errorf("Expected %q, got %q", configFileName, found)
 	}
 }
 
@@ -213,7 +222,7 @@ func TestFindConfigFileForValidateNotFound(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(restoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
 	}()
@@ -229,8 +238,8 @@ func TestFindConfigFileForValidateNotFound(t *testing.T) {
 
 	// Should return default even if not found
 	found := findConfigFileForValidate()
-	if found != "config.yaml" {
-		t.Errorf("Expected 'config.yaml' default, got %q", found)
+	if found != configFileName {
+		t.Errorf("Expected %q default, got %q", configFileName, found)
 	}
 }
 
@@ -239,11 +248,11 @@ func TestRunConfigValidateValidConfig(t *testing.T) {
 
 	// Create a valid config file
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, configFileName)
 	configContent := `
 server:
-  listen: "127.0.0.1:8787"
-  api_key: "test-key"
+  listen: "` + localListenAddr + `"
+  api_key: "` + defaultAPIKey + `"
 providers:
   - name: "anthropic"
     type: "anthropic"
@@ -274,7 +283,7 @@ func TestRunConfigValidateInvalidYAML(t *testing.T) {
 
 	// Create a config file with invalid YAML
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, configFileName)
 	if err := os.WriteFile(configPath, []byte("invalid: yaml: : content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +306,7 @@ func TestRunConfigValidateMissingServer(t *testing.T) {
 
 	// Create a config file missing server section
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, configFileName)
 	configContent := `
 providers:
   - name: "anthropic"
@@ -322,7 +331,7 @@ providers:
 		t.Error("Expected error for missing server section")
 	}
 	if err != nil && !strings.Contains(err.Error(), "server.listen is required") {
-		t.Errorf("Unexpected error: %v", err)
+		t.Errorf(unexpectedErrFmt, err)
 	}
 }
 
@@ -333,7 +342,7 @@ func TestRunConfigValidateNonexistentFile(t *testing.T) {
 	origCfgFile := cfgFile
 	defer func() { cfgFile = origCfgFile }()
 
-	cfgFile = "/nonexistent/path/config.yaml"
+	cfgFile = "/nonexistent/path/" + configFileName
 
 	// runConfigValidate should fail
 	err := runConfigValidate(nil, nil)

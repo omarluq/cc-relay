@@ -11,7 +11,10 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 )
 
-const wrongKey = "wrong-key"
+const (
+	wrongKey            = "wrong-key"
+	expectedStatusOKMsg = "expected status 200"
+)
 
 func assertStatus(t *testing.T, rec *httptest.ResponseRecorder, expected int, msg string) {
 	t.Helper()
@@ -40,7 +43,7 @@ func TestAuthMiddlewareValidKey(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	assertStatus(t, rec, http.StatusOK, "expected status 200")
+	assertStatus(t, rec, http.StatusOK, expectedStatusOKMsg)
 }
 
 func TestAuthMiddlewareInvalidKey(t *testing.T) {
@@ -300,7 +303,7 @@ func TestLoggingMiddlewareLogsRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
-	assertStatus(t, rec, http.StatusOK, "expected status 200")
+	assertStatus(t, rec, http.StatusOK, expectedStatusOKMsg)
 }
 
 func TestFormatDuration(t *testing.T) {
@@ -542,7 +545,7 @@ func TestLiveAuthMiddlewareNilProvider(t *testing.T) {
 	if !called {
 		t.Error("handler should be called when provider is nil")
 	}
-	assertStatus(t, rec, http.StatusOK, "expected status 200")
+	assertStatus(t, rec, http.StatusOK, expectedStatusOKMsg)
 }
 
 func TestLiveAuthMiddlewareNilConfig(t *testing.T) {
@@ -562,7 +565,7 @@ func TestLiveAuthMiddlewareNilConfig(t *testing.T) {
 	if !called {
 		t.Error("handler should be called when config is nil")
 	}
-	assertStatus(t, rec, http.StatusOK, "expected status 200")
+	assertStatus(t, rec, http.StatusOK, expectedStatusOKMsg)
 }
 
 func TestLiveAuthMiddlewareNoAuthConfigured(t *testing.T) {
@@ -587,7 +590,7 @@ func TestLiveAuthMiddlewareNoAuthConfigured(t *testing.T) {
 	if !called {
 		t.Error("handler should be called when no auth configured")
 	}
-	assertStatus(t, rec, http.StatusOK, "expected status 200")
+	assertStatus(t, rec, http.StatusOK, expectedStatusOKMsg)
 }
 
 //nolint:tparallel // subtests share wrappedHandler to test cache behavior
@@ -613,7 +616,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
-		assertStatus(t, rec, http.StatusOK, "expected status 200")
+		assertStatus(t, rec, http.StatusOK, expectedStatusOKMsg)
 	})
 
 	t.Run("invalid key", func(t *testing.T) {

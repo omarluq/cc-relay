@@ -24,7 +24,7 @@ func TestSetupRoutesCreatesHandler(t *testing.T) {
 			APIKey: "test-key",
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -41,7 +41,7 @@ func TestSetupRoutesAuthMiddlewareApplied(t *testing.T) {
 			APIKey: "test-key",
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -116,7 +116,7 @@ func TestSetupRoutesHealthEndpoint(t *testing.T) {
 			APIKey: "test-key", // Auth enabled
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -143,7 +143,7 @@ func TestSetupRoutesHealthEndpointWithAuth(t *testing.T) {
 			APIKey: "test-key",
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -167,7 +167,7 @@ func TestSetupRoutesOnlyPOSTToMessages(t *testing.T) {
 			APIKey: "", // No auth for simpler test
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -291,7 +291,7 @@ func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 			APIKey: "",
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -373,7 +373,7 @@ func TestSetupRoutes404ForUnknownPath(t *testing.T) {
 			APIKey: "",
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -395,7 +395,7 @@ func TestSetupRoutesMessagesPathMustBeExact(t *testing.T) {
 			APIKey: "",
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -451,7 +451,7 @@ func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 			},
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -598,7 +598,7 @@ func TestSetupRoutesModelsEndpoint(t *testing.T) {
 	// Create providers with models
 	anthropicProvider := providers.NewAnthropicProviderWithModels(
 		"anthropic-primary",
-		"https://api.anthropic.com",
+		anthropicBaseURL,
 		[]string{"claude-sonnet-4-5-20250514"},
 	)
 	zaiProvider := providers.NewZAIProviderWithModels(
@@ -645,7 +645,7 @@ func TestSetupRoutesModelsEndpointOnlyGET(t *testing.T) {
 	}
 	provider := providers.NewAnthropicProviderWithModels(
 		"test",
-		"https://api.anthropic.com",
+		anthropicBaseURL,
 		[]string{"claude-sonnet-4-5-20250514"},
 	)
 
@@ -673,7 +673,7 @@ func TestSetupRoutesModelsEndpointEmptyProviders(t *testing.T) {
 			APIKey: "",
 		},
 	}
-	provider := newTestProvider("https://api.anthropic.com")
+	provider := newTestProvider(anthropicBaseURL)
 
 	// Call with empty allProviders
 	handler, err := SetupRoutesWithProviders(cfg, provider, "backend-key", nil, nil)

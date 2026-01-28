@@ -8,6 +8,11 @@ import (
 	"testing"
 )
 
+const (
+	statusConfigFileName  = "config.yaml"
+	statusRestoreWdErrFmt = "failed to restore working directory: %v"
+)
+
 func TestFindConfigFileForStatus(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
@@ -20,14 +25,14 @@ func TestFindConfigFileForStatus(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(statusRestoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
 	}()
 
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, statusConfigFileName)
 	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -42,8 +47,8 @@ func TestFindConfigFileForStatus(t *testing.T) {
 
 	// Test finding config in current directory
 	found := findConfigFileForStatus()
-	if found != "config.yaml" {
-		t.Errorf("Expected 'config.yaml', got %q", found)
+	if found != statusConfigFileName {
+		t.Errorf("Expected %q, got %q", statusConfigFileName, found)
 	}
 }
 
@@ -59,7 +64,7 @@ func TestFindConfigFileForStatusNotFound(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(statusRestoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
 	}()
@@ -75,8 +80,8 @@ func TestFindConfigFileForStatusNotFound(t *testing.T) {
 
 	// Should return default even if not found
 	found := findConfigFileForStatus()
-	if found != "config.yaml" {
-		t.Errorf("Expected 'config.yaml' default, got %q", found)
+	if found != statusConfigFileName {
+		t.Errorf("Expected %q default, got %q", statusConfigFileName, found)
 	}
 }
 
@@ -92,7 +97,7 @@ func TestFindConfigFileForStatusInHomeDir(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(statusRestoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
 	}()
@@ -106,7 +111,7 @@ func TestFindConfigFileForStatusInHomeDir(t *testing.T) {
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	configPath := filepath.Join(configDir, "config.yaml")
+	configPath := filepath.Join(configDir, statusConfigFileName)
 	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +147,7 @@ func TestRunStatusServerRunning(t *testing.T) {
 
 	// Create temp config file pointing to our mock server
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, statusConfigFileName)
 	configContent := "server:\n  listen: " + serverAddr + "\n  api_key: test\n"
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatal(err)
@@ -166,7 +171,7 @@ func TestRunStatusServerNotRunning(t *testing.T) {
 
 	// Create temp config file pointing to a non-existent server
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, statusConfigFileName)
 	configContent := "server:\n  listen: 127.0.0.1:19999\n  api_key: test\n"
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatal(err)
@@ -203,7 +208,7 @@ func TestRunStatusServerUnhealthy(t *testing.T) {
 
 	// Create temp config file
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, statusConfigFileName)
 	configContent := "server:\n  listen: " + serverAddr + "\n  api_key: test\n"
 	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatal(err)

@@ -15,7 +15,10 @@ import (
 	"github.com/omarluq/cc-relay/internal/providers"
 )
 
-const anthropicVersion = "2023-06-01"
+const (
+	anthropicVersion = "2023-06-01"
+	anthropicBaseURL = "https://api.anthropic.com"
+)
 
 type recordingBackend struct {
 	body []byte

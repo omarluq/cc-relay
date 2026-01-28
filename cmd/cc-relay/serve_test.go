@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	serveConfigFileName  = "config.yaml"
+	serveRestoreWdErrFmt = "failed to restore working directory: %v"
+)
+
 func TestFindConfigFile(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
@@ -26,7 +31,7 @@ func TestFindConfigFile(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(serveRestoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
 	}()
@@ -34,7 +39,7 @@ func TestFindConfigFile(t *testing.T) {
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
 
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, serveConfigFileName)
 	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -49,8 +54,8 @@ func TestFindConfigFile(t *testing.T) {
 
 	// Test finding config in current directory
 	found := findConfigFile()
-	if found != "config.yaml" {
-		t.Errorf("Expected 'config.yaml', got %q", found)
+	if found != serveConfigFileName {
+		t.Errorf("Expected %q, got %q", serveConfigFileName, found)
 	}
 }
 
@@ -66,7 +71,7 @@ func TestFindConfigFileNotFound(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(serveRestoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
 	}()
@@ -82,8 +87,8 @@ func TestFindConfigFileNotFound(t *testing.T) {
 
 	// Should return default even if not found
 	found := findConfigFile()
-	if found != "config.yaml" {
-		t.Errorf("Expected 'config.yaml' default, got %q", found)
+	if found != serveConfigFileName {
+		t.Errorf("Expected %q default, got %q", serveConfigFileName, found)
 	}
 }
 
@@ -99,7 +104,7 @@ func TestFindConfigFileInHomeDir(t *testing.T) {
 
 	defer func() {
 		if err := os.Chdir(origWd); err != nil {
-			t.Logf("failed to restore working directory: %v", err)
+			t.Logf(serveRestoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
 	}()
@@ -113,7 +118,7 @@ func TestFindConfigFileInHomeDir(t *testing.T) {
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	configPath := filepath.Join(configDir, "config.yaml")
+	configPath := filepath.Join(configDir, serveConfigFileName)
 	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +144,7 @@ func TestRunServeInvalidConfigPath(t *testing.T) {
 	defer func() { cfgFile = origCfgFile }()
 
 	// Set cfgFile to a non-existent path
-	cfgFile = "/nonexistent/path/config.yaml"
+	cfgFile = "/nonexistent/path/" + serveConfigFileName
 
 	// runServe should return error for invalid config path
 	err := runServe(nil, nil)
@@ -176,7 +181,7 @@ func TestRunServeNoEnabledProvider(t *testing.T) {
 
 	// Create temp config file with no enabled providers
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, serveConfigFileName)
 	configContent := `
 server:
   listen: "127.0.0.1:18787"
@@ -211,7 +216,7 @@ func TestRunServeUnsupportedProviderType(t *testing.T) {
 
 	// Create temp config file with unsupported provider type
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, serveConfigFileName)
 	configContent := `
 server:
   listen: "127.0.0.1:18787"
@@ -246,7 +251,7 @@ func TestRunServeEmptyProviders(t *testing.T) {
 
 	// Create temp config file with empty providers
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
+	configPath := filepath.Join(tmpDir, serveConfigFileName)
 	configContent := `
 server:
   listen: "127.0.0.1:18787"
@@ -292,7 +297,7 @@ providers:
 func createServeTestConfig(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.yaml")
+	path := filepath.Join(dir, serveConfigFileName)
 	err := os.WriteFile(path, []byte(validServeConfig), 0o600)
 	require.NoError(t, err)
 	return path

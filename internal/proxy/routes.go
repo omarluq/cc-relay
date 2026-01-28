@@ -2,6 +2,7 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -29,6 +30,8 @@ type RoutesOptions struct {
 	ProviderInfos     []router.ProviderInfo
 	AllProviders      []providers.Provider
 }
+
+const routesOptionsRequiredMsg = "routes options are required"
 
 // SetupRoutes creates the HTTP handler with all routes configured.
 // Routes:
@@ -134,7 +137,7 @@ func SetupRoutesWithProviders(
 //   - GET /health - Health check endpoint (no auth required)
 func SetupRoutesWithRouter(cfg *config.Config, opts *RoutesOptions) (http.Handler, error) {
 	if opts == nil {
-		return nil, fmt.Errorf("routes options are required")
+		return nil, errors.New(routesOptionsRequiredMsg)
 	}
 	opts.ConfigProvider = config.NewRuntime(cfg)
 	opts.ProviderInfosFunc = func() []router.ProviderInfo { return opts.ProviderInfos }
@@ -155,7 +158,7 @@ func SetupRoutesWithRouter(cfg *config.Config, opts *RoutesOptions) (http.Handle
 //   - GET /health - Health check endpoint (no auth required)
 func SetupRoutesWithRouterLive(opts *RoutesOptions) (http.Handler, error) {
 	if opts == nil {
-		return nil, fmt.Errorf("routes options are required")
+		return nil, errors.New(routesOptionsRequiredMsg)
 	}
 	return SetupRoutesWithLiveKeyPools(opts)
 }
@@ -172,7 +175,7 @@ func SetupRoutesWithRouterLive(opts *RoutesOptions) (http.Handler, error) {
 //   - GET /health - Health check endpoint (no auth required)
 func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
 	if opts == nil {
-		return nil, fmt.Errorf("routes options are required")
+		return nil, errors.New(routesOptionsRequiredMsg)
 	}
 	mux := http.NewServeMux()
 

@@ -18,6 +18,12 @@ import (
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
+const (
+	contentTypeHeader = "Content-Type"
+	jsonContentType   = "application/json"
+	signatureJSONPath = "messages.0.content.0.signature"
+)
+
 func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +52,7 @@ func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -54,7 +60,7 @@ func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// Verify cached signature was used in request to backend
-	sig := gjson.GetBytes(recorder.Body(), "messages.0.content.0.signature").String()
+	sig := gjson.GetBytes(recorder.Body(), signatureJSONPath).String()
 	assert.Equal(t, validSig, sig, "should use cached signature")
 }
 
@@ -81,7 +87,7 @@ func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -89,7 +95,7 @@ func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// Verify client signature was preserved
-	sig := gjson.GetBytes(recorder.Body(), "messages.0.content.0.signature").String()
+	sig := gjson.GetBytes(recorder.Body(), signatureJSONPath).String()
 	assert.Equal(t, clientSig, sig, "should preserve valid client signature")
 }
 
@@ -116,7 +122,7 @@ func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -153,7 +159,7 @@ func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -190,7 +196,7 @@ func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -232,7 +238,7 @@ func TestHandlerThinkingSignatureModelGroupSharing(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -240,7 +246,7 @@ func TestHandlerThinkingSignatureModelGroupSharing(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// Verify shared signature was used
-	sig := gjson.GetBytes(recorder.Body(), "messages.0.content.0.signature").String()
+	sig := gjson.GetBytes(recorder.Body(), signatureJSONPath).String()
 	assert.Equal(t, validSig, sig, "should use signature from same model group")
 }
 
@@ -267,14 +273,14 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 				},
 			},
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		json.NewEncoder(w).Encode(resp)
 	}))
 	defer backend1.Close()
 
 	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		provider2Calls++
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.Write([]byte(`{"content": []}`))
 	}))
 	defer backend2.Close()
@@ -306,7 +312,7 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 	// First request - should go to first provider
 	body := `{"model": "claude-sonnet-4", "messages": [{"role": "user", "content": "Hello"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -363,7 +369,7 @@ func TestHandlerNoSignatureCachePassesThrough(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -371,6 +377,6 @@ func TestHandlerNoSignatureCachePassesThrough(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// Body should be passed through unchanged (no processing)
-	receivedSig := gjson.GetBytes(recorder.Body(), "messages.0.content.0.signature").String()
+	receivedSig := gjson.GetBytes(recorder.Body(), signatureJSONPath).String()
 	assert.Equal(t, sig, receivedSig, "signature should pass through unchanged")
 }
