@@ -956,6 +956,25 @@ func (m *mockRouter) Name() string {
 	return m.name
 }
 
+type captureRouter struct {
+	name       string
+	lastSeen   []router.ProviderInfo
+	lastCalled int
+}
+
+func (c *captureRouter) Select(_ context.Context, infos []router.ProviderInfo) (router.ProviderInfo, error) {
+	c.lastCalled++
+	c.lastSeen = append([]router.ProviderInfo(nil), infos...)
+	if len(infos) == 0 {
+		return router.ProviderInfo{}, router.ErrNoProviders
+	}
+	return infos[0], nil
+}
+
+func (c *captureRouter) Name() string {
+	return c.name
+}
+
 // TestHandler_SingleProviderMode tests that handler works without router (backwards compat).
 func TestHandlerSingleProviderMode(t *testing.T) {
 	t.Parallel()
@@ -1022,6 +1041,59 @@ func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	// Debug headers should be present
 	assert.Equal(t, "test_strategy", w.Header().Get("X-CC-Relay-Strategy"))
 	assert.Equal(t, "provider2", w.Header().Get("X-CC-Relay-Provider"))
+}
+
+func TestHandlerModelBasedRoutingHotReload(t *testing.T) {
+	t.Parallel()
+
+	backend := newJSONBackend(t, `{"id":"test"}`)
+
+	providerA := newNamedProvider("provider-a", backend.URL)
+	providerB := newNamedProvider("provider-b", backend.URL)
+
+	providerInfos := []router.ProviderInfo{
+		{Provider: providerA, IsHealthy: func() bool { return true }},
+		{Provider: providerB, IsHealthy: func() bool { return true }},
+	}
+
+	runtimeCfg := config.NewRuntime(&config.Config{
+		Server: config.ServerConfig{APIKey: ""},
+		Routing: config.RoutingConfig{
+			Strategy: router.StrategyRoundRobin,
+		},
+	})
+
+	capture := &captureRouter{name: "capture"}
+
+	handler, err := NewHandlerWithLiveProviders(&HandlerOptions{
+		Provider:          providerA,
+		ProviderInfosFunc: func() []router.ProviderInfo { return providerInfos },
+		ProviderRouter:    capture,
+		APIKey:            testKey,
+		DebugOptions:      config.DebugOptions{},
+	})
+	require.NoError(t, err)
+	handler.SetRuntimeConfigGetter(runtimeCfg)
+
+	req := newJSONMessagesRequest(`{"model":"glm-4","messages":[]}`)
+	resp := serveRequest(t, handler, req)
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.Len(t, capture.lastSeen, 2)
+
+	runtimeCfg.Store(&config.Config{
+		Server: config.ServerConfig{APIKey: ""},
+		Routing: config.RoutingConfig{
+			Strategy:        router.StrategyModelBased,
+			ModelMapping:    map[string]string{"glm": "provider-b"},
+			DefaultProvider: "provider-a",
+		},
+	})
+
+	req = newJSONMessagesRequest(`{"model":"glm-4","messages":[]}`)
+	resp = serveRequest(t, handler, req)
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.Len(t, capture.lastSeen, 1)
+	assert.Equal(t, "provider-b", capture.lastSeen[0].Provider.Name())
 }
 
 func TestHandlerLazyProxyForNewProvider(t *testing.T) {
