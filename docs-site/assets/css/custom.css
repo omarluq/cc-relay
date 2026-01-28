@@ -1754,7 +1754,10 @@ div[class*="mt-6"] > a,
 .network-svg {
   width: 100%;
   height: auto;
+  min-height: 640px;
   display: block;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .network-path {
@@ -1872,7 +1875,7 @@ div[class*="mt-6"] > a,
   }
 
   .network-svg {
-    min-height: 250px;
+    min-height: 380px;
   }
 
   .features-compact {
