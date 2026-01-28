@@ -54,7 +54,7 @@ func TestFindConfigFile(t *testing.T) {
 	}
 }
 
-func TestFindConfigFile_NotFound(t *testing.T) {
+func TestFindConfigFileNotFound(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -87,7 +87,7 @@ func TestFindConfigFile_NotFound(t *testing.T) {
 	}
 }
 
-func TestFindConfigFile_InHomeDir(t *testing.T) {
+func TestFindConfigFileInHomeDir(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -131,7 +131,7 @@ func TestFindConfigFile_InHomeDir(t *testing.T) {
 	}
 }
 
-func TestRunServe_InvalidConfigPath(t *testing.T) {
+func TestRunServeInvalidConfigPath(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original cfgFile
@@ -148,7 +148,7 @@ func TestRunServe_InvalidConfigPath(t *testing.T) {
 	}
 }
 
-func TestRunServe_InvalidConfig(t *testing.T) {
+func TestRunServeInvalidConfig(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create temp config file with invalid content
@@ -171,7 +171,7 @@ func TestRunServe_InvalidConfig(t *testing.T) {
 	}
 }
 
-func TestRunServe_NoEnabledProvider(t *testing.T) {
+func TestRunServeNoEnabledProvider(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create temp config file with no enabled providers
@@ -206,7 +206,7 @@ providers:
 	}
 }
 
-func TestRunServe_UnsupportedProviderType(t *testing.T) {
+func TestRunServeUnsupportedProviderType(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create temp config file with unsupported provider type
@@ -241,7 +241,7 @@ providers:
 	}
 }
 
-func TestRunServe_EmptyProviders(t *testing.T) {
+func TestRunServeEmptyProviders(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create temp config file with empty providers

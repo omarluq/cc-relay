@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestCircuitBreakerConfig_GetFailureThreshold(t *testing.T) {
+func TestCircuitBreakerConfigGetFailureThreshold(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -46,7 +46,7 @@ func TestCircuitBreakerConfig_GetFailureThreshold(t *testing.T) {
 	}
 }
 
-func TestCircuitBreakerConfig_GetOpenDuration(t *testing.T) {
+func TestCircuitBreakerConfigGetOpenDuration(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -87,7 +87,7 @@ func TestCircuitBreakerConfig_GetOpenDuration(t *testing.T) {
 	}
 }
 
-func TestCircuitBreakerConfig_GetHalfOpenProbes(t *testing.T) {
+func TestCircuitBreakerConfigGetHalfOpenProbes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -128,7 +128,7 @@ func TestCircuitBreakerConfig_GetHalfOpenProbes(t *testing.T) {
 	}
 }
 
-func TestCheckConfig_GetInterval(t *testing.T) {
+func TestCheckConfigGetInterval(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -169,7 +169,7 @@ func TestCheckConfig_GetInterval(t *testing.T) {
 	}
 }
 
-func TestCheckConfig_IsEnabled(t *testing.T) {
+func TestCheckConfigIsEnabled(t *testing.T) {
 	t.Parallel()
 
 	boolPtr := func(b bool) *bool { return &b }
@@ -207,7 +207,7 @@ func TestCheckConfig_IsEnabled(t *testing.T) {
 	}
 }
 
-func TestConfig_StructComposition(t *testing.T) {
+func TestConfigStructComposition(t *testing.T) {
 	t.Parallel()
 
 	// Test that Config properly composes CircuitBreakerConfig and CheckConfig

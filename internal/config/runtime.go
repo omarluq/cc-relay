@@ -54,5 +54,5 @@ func (r *Runtime) Store(cfg *Config) {
 	r.ptr.Store(cfg)
 }
 
-// RuntimeConfig interface implementation.
-var _ RuntimeConfig = (*Runtime)(nil)
+// RuntimeConfigGetter interface implementation.
+var _ RuntimeConfigGetter = (*Runtime)(nil)

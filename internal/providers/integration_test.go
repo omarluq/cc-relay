@@ -108,7 +108,7 @@ data: {"type":"message_stop"}
 }
 
 // TestZAIProvider_EndToEnd verifies Z.AI provider routing works end-to-end.
-func TestZAIProvider_EndToEnd(t *testing.T) {
+func TestZAIProviderEndToEnd(t *testing.T) {
 	t.Parallel()
 
 	// Create mock server that mimics Z.AI's Anthropic-compatible endpoint
@@ -226,7 +226,7 @@ func TestZAIProvider_EndToEnd(t *testing.T) {
 }
 
 // TestOllamaProvider_EndToEnd verifies Ollama provider routing works end-to-end.
-func TestOllamaProvider_EndToEnd(t *testing.T) {
+func TestOllamaProviderEndToEnd(t *testing.T) {
 	t.Parallel()
 
 	// Create mock server that mimics Ollama's Anthropic-compatible endpoint
@@ -327,7 +327,7 @@ func TestOllamaProvider_EndToEnd(t *testing.T) {
 }
 
 // TestOllamaProvider_StreamingResponse verifies Ollama handles SSE streaming correctly.
-func TestOllamaProvider_StreamingResponse(t *testing.T) {
+func TestOllamaProviderStreamingResponse(t *testing.T) {
 	t.Parallel()
 
 	// Create mock server that returns SSE streaming response
@@ -420,7 +420,7 @@ func TestOllamaProvider_StreamingResponse(t *testing.T) {
 }
 
 // TestProvider_ModelMapping verifies provider.ListModels() returns configured models.
-func TestProvider_ModelMapping(t *testing.T) {
+func TestProviderModelMapping(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ZAI returns default models when none configured", func(t *testing.T) {
@@ -506,7 +506,7 @@ func TestProvider_ModelMapping(t *testing.T) {
 }
 
 // TestProvider_HealthCheck_Integration verifies health check can reach endpoint.
-func TestProvider_HealthCheck_Integration(t *testing.T) {
+func TestProviderHealthCheckIntegration(t *testing.T) {
 	t.Parallel()
 
 	t.Run("healthy server returns 200", func(t *testing.T) {
@@ -599,7 +599,7 @@ func TestProvider_HealthCheck_Integration(t *testing.T) {
 }
 
 // TestProvider_SupportsTransparentAuth verifies transparent auth support.
-func TestProvider_SupportsTransparentAuth(t *testing.T) {
+func TestProviderSupportsTransparentAuth(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ZAI does not support transparent auth", func(t *testing.T) {
@@ -622,7 +622,7 @@ func TestProvider_SupportsTransparentAuth(t *testing.T) {
 }
 
 // TestProvider_BaseURL verifies base URL handling.
-func TestProvider_BaseURL(t *testing.T) {
+func TestProviderBaseURL(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ZAI uses default URL when empty", func(t *testing.T) {
@@ -665,7 +665,7 @@ func TestProvider_BaseURL(t *testing.T) {
 }
 
 // TestAzureProvider_Integration tests Azure provider URL construction and body handling.
-func TestAzureProvider_Integration(t *testing.T) {
+func TestAzureProviderIntegration(t *testing.T) {
 	t.Parallel()
 
 	t.Run("TransformRequest constructs correct URL with api-version", func(t *testing.T) {
@@ -752,7 +752,7 @@ func TestAzureProvider_Integration(t *testing.T) {
 }
 
 // TestVertexProvider_Integration tests Vertex AI provider URL construction.
-func TestVertexProvider_Integration(t *testing.T) {
+func TestVertexProviderIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Mock token source for testing (no real GCP access needed)
@@ -829,7 +829,7 @@ func TestVertexProvider_Integration(t *testing.T) {
 }
 
 // TestBedrockProvider_Integration tests Bedrock provider URL and body transformation.
-func TestBedrockProvider_Integration(t *testing.T) {
+func TestBedrockProviderIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Mock credentials for testing (no real AWS access needed)
@@ -901,7 +901,7 @@ func TestBedrockProvider_Integration(t *testing.T) {
 }
 
 // TestCloudProviders_ModelMapping tests model mapping for all cloud providers.
-func TestCloudProviders_ModelMapping(t *testing.T) {
+func TestCloudProvidersModelMapping(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Azure maps models correctly", func(t *testing.T) {

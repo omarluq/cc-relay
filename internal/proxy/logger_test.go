@@ -10,7 +10,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 )
 
-func TestNewLogger_JSONFormat(t *testing.T) {
+func TestNewLoggerJSONFormat(t *testing.T) {
 	cfg := config.LoggingConfig{
 		Level:  "info",
 		Format: "json",
@@ -44,7 +44,7 @@ func TestNewLogger_JSONFormat(t *testing.T) {
 	}
 }
 
-func TestNewLogger_ConsoleFormat(t *testing.T) {
+func TestNewLoggerConsoleFormat(t *testing.T) {
 	cfg := config.LoggingConfig{
 		Level:  "debug",
 		Format: "console",
@@ -69,7 +69,7 @@ func TestNewLogger_ConsoleFormat(t *testing.T) {
 	}
 }
 
-func TestNewLogger_LevelFiltering(t *testing.T) {
+func TestNewLoggerLevelFiltering(t *testing.T) {
 	cfg := config.LoggingConfig{
 		Level:  "warn",
 		Format: "json",
@@ -99,7 +99,7 @@ func TestNewLogger_LevelFiltering(t *testing.T) {
 	}
 }
 
-func TestAddRequestID_GeneratesUUID(t *testing.T) {
+func TestAddRequestIDGeneratesUUID(t *testing.T) {
 	ctx := context.Background()
 	ctx = AddRequestID(ctx, "")
 
@@ -114,7 +114,7 @@ func TestAddRequestID_GeneratesUUID(t *testing.T) {
 	}
 }
 
-func TestAddRequestID_UsesProvidedID(t *testing.T) {
+func TestAddRequestIDUsesProvidedID(t *testing.T) {
 	ctx := context.Background()
 	expectedID := "custom-request-id-123"
 	ctx = AddRequestID(ctx, expectedID)

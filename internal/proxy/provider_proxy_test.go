@@ -15,7 +15,7 @@ import (
 )
 
 // TestNewProviderProxy_ValidProvider tests creating a ProviderProxy with valid provider.
-func TestNewProviderProxy_ValidProvider(t *testing.T) {
+func TestNewProviderProxyValidProvider(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
@@ -31,7 +31,7 @@ func TestNewProviderProxy_ValidProvider(t *testing.T) {
 }
 
 // TestNewProviderProxy_InvalidURL tests that invalid URL returns error.
-func TestNewProviderProxy_InvalidURL(t *testing.T) {
+func TestNewProviderProxyInvalidURL(t *testing.T) {
 	t.Parallel()
 
 	provider := &mockProvider{baseURL: "://invalid-url"}
@@ -42,7 +42,7 @@ func TestNewProviderProxy_InvalidURL(t *testing.T) {
 }
 
 // TestProviderProxy_SetsCorrectTargetURL tests that proxy routes to correct URL.
-func TestProviderProxy_SetsCorrectTargetURL(t *testing.T) {
+func TestProviderProxySetsCorrectTargetURL(t *testing.T) {
 	t.Parallel()
 
 	var receivedHost string
@@ -71,7 +71,7 @@ func TestProviderProxy_SetsCorrectTargetURL(t *testing.T) {
 }
 
 // TestProviderProxy_UsesCorrectAuth tests that provider's Authenticate is called.
-func TestProviderProxy_UsesCorrectAuth(t *testing.T) {
+func TestProviderProxyUsesCorrectAuth(t *testing.T) {
 	t.Parallel()
 
 	var receivedAPIKey string
@@ -98,7 +98,7 @@ func TestProviderProxy_UsesCorrectAuth(t *testing.T) {
 }
 
 // TestProviderProxy_TransparentModeForwardsClientAuth tests transparent auth mode.
-func TestProviderProxy_TransparentModeForwardsClientAuth(t *testing.T) {
+func TestProviderProxyTransparentModeForwardsClientAuth(t *testing.T) {
 	t.Parallel()
 
 	var receivedAuth string
@@ -127,7 +127,7 @@ func TestProviderProxy_TransparentModeForwardsClientAuth(t *testing.T) {
 
 // TestProviderProxy_NonTransparentProviderUsesConfiguredKey tests that non-transparent
 // providers use configured keys even when client sends auth.
-func TestProviderProxy_NonTransparentProviderUsesConfiguredKey(t *testing.T) {
+func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 	t.Parallel()
 
 	var receivedAPIKey string
@@ -161,7 +161,7 @@ func TestProviderProxy_NonTransparentProviderUsesConfiguredKey(t *testing.T) {
 }
 
 // TestProviderProxy_ForwardsAnthropicHeaders tests anthropic-* header forwarding.
-func TestProviderProxy_ForwardsAnthropicHeaders(t *testing.T) {
+func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
 	var receivedVersion string
@@ -191,7 +191,7 @@ func TestProviderProxy_ForwardsAnthropicHeaders(t *testing.T) {
 }
 
 // TestProviderProxy_SSEHeadersSet tests that SSE headers are set for streaming responses.
-func TestProviderProxy_SSEHeadersSet(t *testing.T) {
+func TestProviderProxySSEHeadersSet(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -217,7 +217,7 @@ func TestProviderProxy_SSEHeadersSet(t *testing.T) {
 }
 
 // TestProviderProxy_ModifyResponseHookCalled tests that the hook is called.
-func TestProviderProxy_ModifyResponseHookCalled(t *testing.T) {
+func TestProviderProxyModifyResponseHookCalled(t *testing.T) {
 	t.Parallel()
 
 	hookCalled := false
@@ -246,7 +246,7 @@ func TestProviderProxy_ModifyResponseHookCalled(t *testing.T) {
 }
 
 // TestProviderProxy_ErrorHandlerReturnsAnthropicFormat tests error response format.
-func TestProviderProxy_ErrorHandlerReturnsAnthropicFormat(t *testing.T) {
+func TestProviderProxyErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 	t.Parallel()
 
 	// Create a provider with unreachable backend
@@ -268,7 +268,7 @@ func TestProviderProxy_ErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 }
 
 // TestProviderProxy_FlushIntervalSetForSSE tests that FlushInterval is -1.
-func TestProviderProxy_FlushIntervalSetForSSE(t *testing.T) {
+func TestProviderProxyFlushIntervalSetForSSE(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
@@ -316,7 +316,7 @@ func (m *mockCloudProvider) RequiresBodyTransform() bool {
 
 // TestProviderProxy_TransformRequest_CalledForCloudProviders tests that TransformRequest
 // is called for providers that require body transformation.
-func TestProviderProxy_TransformRequest_CalledForCloudProviders(t *testing.T) {
+func TestProviderProxyTransformRequestCalledForCloudProviders(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody string
@@ -355,7 +355,7 @@ func TestProviderProxy_TransformRequest_CalledForCloudProviders(t *testing.T) {
 
 // TestProviderProxy_TransformRequest_NotCalledForStandardProviders tests that
 // TransformRequest is NOT called for standard providers.
-func TestProviderProxy_TransformRequest_NotCalledForStandardProviders(t *testing.T) {
+func TestProviderProxyTransformRequestNotCalledForStandardProviders(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody string
@@ -386,7 +386,7 @@ func TestProviderProxy_TransformRequest_NotCalledForStandardProviders(t *testing
 }
 
 // TestProviderProxy_EventStreamConversion tests Bedrock Event Stream handling.
-func TestProviderProxy_EventStreamConversion(t *testing.T) {
+func TestProviderProxyEventStreamConversion(t *testing.T) {
 	t.Parallel()
 
 	// Mock Bedrock provider that returns Event Stream

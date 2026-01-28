@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func TestHTTPHealthCheck_Success(t *testing.T) {
+func TestHTTPHealthCheckSuccess(t *testing.T) {
 	// Create a test server that returns 200 OK
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -28,7 +28,7 @@ func TestHTTPHealthCheck_Success(t *testing.T) {
 	}
 }
 
-func TestHTTPHealthCheck_Failure(t *testing.T) {
+func TestHTTPHealthCheckFailure(t *testing.T) {
 	// Create a test server that returns 500
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -43,7 +43,7 @@ func TestHTTPHealthCheck_Failure(t *testing.T) {
 	}
 }
 
-func TestHTTPHealthCheck_Timeout(t *testing.T) {
+func TestHTTPHealthCheckTimeout(t *testing.T) {
 	// Create a test server that delays response
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(2 * time.Second)
@@ -64,14 +64,14 @@ func TestHTTPHealthCheck_Timeout(t *testing.T) {
 	}
 }
 
-func TestHTTPHealthCheck_ProviderName(t *testing.T) {
+func TestHTTPHealthCheckProviderName(t *testing.T) {
 	check := NewHTTPHealthCheck("my-provider", "http://example.com", nil)
 	if check.ProviderName() != "my-provider" {
 		t.Errorf("expected provider name 'my-provider', got %q", check.ProviderName())
 	}
 }
 
-func TestHTTPHealthCheck_DefaultClient(t *testing.T) {
+func TestHTTPHealthCheckDefaultClient(t *testing.T) {
 	// When nil client is passed, should create default
 	check := NewHTTPHealthCheck("test", "http://localhost", nil)
 	if check.client == nil {
@@ -79,7 +79,7 @@ func TestHTTPHealthCheck_DefaultClient(t *testing.T) {
 	}
 }
 
-func TestNoOpHealthCheck_AlwaysHealthy(t *testing.T) {
+func TestNoOpHealthCheckAlwaysHealthy(t *testing.T) {
 	check := NewNoOpHealthCheck("test-provider")
 
 	// Should always return nil
@@ -91,14 +91,14 @@ func TestNoOpHealthCheck_AlwaysHealthy(t *testing.T) {
 	}
 }
 
-func TestNoOpHealthCheck_ProviderName(t *testing.T) {
+func TestNoOpHealthCheckProviderName(t *testing.T) {
 	check := NewNoOpHealthCheck("noop-provider")
 	if check.ProviderName() != "noop-provider" {
 		t.Errorf("expected provider name 'noop-provider', got %q", check.ProviderName())
 	}
 }
 
-func TestNewProviderHealthCheck_WithURL(t *testing.T) {
+func TestNewProviderHealthCheckWithURL(t *testing.T) {
 	check := NewProviderHealthCheck("provider", "http://localhost:8080", nil)
 
 	// Should return HTTPHealthCheck
@@ -108,7 +108,7 @@ func TestNewProviderHealthCheck_WithURL(t *testing.T) {
 	}
 }
 
-func TestNewProviderHealthCheck_EmptyURL(t *testing.T) {
+func TestNewProviderHealthCheckEmptyURL(t *testing.T) {
 	check := NewProviderHealthCheck("provider", "", nil)
 
 	// Should return NoOpHealthCheck
@@ -118,7 +118,7 @@ func TestNewProviderHealthCheck_EmptyURL(t *testing.T) {
 	}
 }
 
-func TestChecker_RegisterProvider(t *testing.T) {
+func TestCheckerRegisterProvider(t *testing.T) {
 	logger := zerolog.Nop()
 	tracker := NewTracker(CircuitBreakerConfig{}, &logger)
 	checker := NewChecker(tracker, CheckConfig{}, &logger)
@@ -160,7 +160,7 @@ func (m *mockHealthCheck) ProviderName() string {
 	return m.name
 }
 
-func TestChecker_ChecksOnlyOpenCircuits(t *testing.T) {
+func TestCheckerChecksOnlyOpenCircuits(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -206,7 +206,7 @@ func TestChecker_ChecksOnlyOpenCircuits(t *testing.T) {
 	}
 }
 
-func TestChecker_RecordsSuccessOnHealthyCheck(t *testing.T) {
+func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -270,7 +270,7 @@ func TestChecker_RecordsSuccessOnHealthyCheck(t *testing.T) {
 	// This should help transition state eventually
 }
 
-func TestChecker_DoesNotRecordSuccessOnFailedCheck(t *testing.T) {
+func TestCheckerDoesNotRecordSuccessOnFailedCheck(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -306,7 +306,7 @@ func TestChecker_DoesNotRecordSuccessOnFailedCheck(t *testing.T) {
 	}
 }
 
-func TestChecker_StartStop(t *testing.T) {
+func TestCheckerStartStop(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -356,7 +356,7 @@ func TestChecker_StartStop(t *testing.T) {
 	}
 }
 
-func TestChecker_DisabledDoesNotStart(t *testing.T) {
+func TestCheckerDisabledDoesNotStart(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{}
 	tracker := NewTracker(cfg, &logger)
@@ -384,7 +384,7 @@ func TestChecker_DisabledDoesNotStart(t *testing.T) {
 	checker.Stop()
 }
 
-func TestChecker_ConcurrentRegister(t *testing.T) {
+func TestCheckerConcurrentRegister(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{}
 	tracker := NewTracker(cfg, &logger)
@@ -428,14 +428,14 @@ func TestCryptoRandDuration(t *testing.T) {
 	}
 }
 
-func TestCryptoRandDuration_ZeroMax(t *testing.T) {
+func TestCryptoRandDurationZeroMax(t *testing.T) {
 	d := cryptoRandDuration(0)
 	if d != 0 {
 		t.Errorf("expected 0 duration for 0 max, got %v", d)
 	}
 }
 
-func TestCryptoRandDuration_NegativeMax(t *testing.T) {
+func TestCryptoRandDurationNegativeMax(t *testing.T) {
 	d := cryptoRandDuration(-time.Second)
 	if d != 0 {
 		t.Errorf("expected 0 duration for negative max, got %v", d)

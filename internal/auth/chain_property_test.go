@@ -21,7 +21,7 @@ var (
 
 // Property-based tests for ChainAuthenticator
 
-func TestChainAuthenticator_Properties(t *testing.T) {
+func TestChainAuthenticatorProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -137,7 +137,7 @@ func TestChainAuthenticator_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestAPIKeyAuthenticator_Properties(t *testing.T) {
+func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -213,7 +213,7 @@ func TestAPIKeyAuthenticator_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestBearerAuthenticator_Properties(t *testing.T) {
+func TestBearerAuthenticatorProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -322,7 +322,7 @@ func TestBearerAuthenticator_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestValidationError_Properties(t *testing.T) {
+func TestValidationErrorProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)

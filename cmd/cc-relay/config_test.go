@@ -9,7 +9,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 )
 
-func TestValidateConfig_Valid(t *testing.T) {
+func TestValidateConfigValid(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
@@ -34,7 +34,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_NoListen(t *testing.T) {
+func TestValidateConfigNoListen(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
@@ -53,7 +53,7 @@ func TestValidateConfig_NoListen(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_NoAPIKey(t *testing.T) {
+func TestValidateConfigNoAPIKey(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
@@ -72,7 +72,7 @@ func TestValidateConfig_NoAPIKey(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_NoEnabledProvider(t *testing.T) {
+func TestValidateConfigNoEnabledProvider(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
@@ -98,7 +98,7 @@ func TestValidateConfig_NoEnabledProvider(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_ProviderNoKeys(t *testing.T) {
+func TestValidateConfigProviderNoKeys(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
@@ -121,7 +121,7 @@ func TestValidateConfig_ProviderNoKeys(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_MultipleProviders(t *testing.T) {
+func TestValidateConfigMultipleProviders(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
@@ -150,7 +150,7 @@ func TestValidateConfig_MultipleProviders(t *testing.T) {
 	}
 }
 
-func TestValidateConfig_EmptyProviders(t *testing.T) {
+func TestValidateConfigEmptyProviders(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	cfg := &config.Config{
@@ -201,7 +201,7 @@ func TestFindConfigFileForValidate(t *testing.T) {
 	}
 }
 
-func TestFindConfigFileForValidate_NotFound(t *testing.T) {
+func TestFindConfigFileForValidateNotFound(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
@@ -234,7 +234,7 @@ func TestFindConfigFileForValidate_NotFound(t *testing.T) {
 	}
 }
 
-func TestRunConfigValidate_ValidConfig(t *testing.T) {
+func TestRunConfigValidateValidConfig(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create a valid config file
@@ -269,7 +269,7 @@ providers:
 	}
 }
 
-func TestRunConfigValidate_InvalidYAML(t *testing.T) {
+func TestRunConfigValidateInvalidYAML(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create a config file with invalid YAML
@@ -292,7 +292,7 @@ func TestRunConfigValidate_InvalidYAML(t *testing.T) {
 	}
 }
 
-func TestRunConfigValidate_MissingServer(t *testing.T) {
+func TestRunConfigValidateMissingServer(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Create a config file missing server section
@@ -326,7 +326,7 @@ providers:
 	}
 }
 
-func TestRunConfigValidate_NonexistentFile(t *testing.T) {
+func TestRunConfigValidateNonexistentFile(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original cfgFile

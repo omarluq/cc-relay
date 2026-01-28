@@ -17,7 +17,7 @@ import (
 )
 
 // TestKeyPoolIntegration_DistributesRequests verifies that requests distribute across keys
-func TestKeyPoolIntegration_DistributesRequests(t *testing.T) {
+func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 	t.Parallel()
 
 	// Track which keys were used
@@ -110,7 +110,7 @@ func TestKeyPoolIntegration_DistributesRequests(t *testing.T) {
 }
 
 // TestKeyPoolIntegration_FallbackWhenExhausted verifies fallback to second key when first is exhausted
-func TestKeyPoolIntegration_FallbackWhenExhausted(t *testing.T) {
+func TestKeyPoolIntegrationFallbackWhenExhausted(t *testing.T) {
 	t.Parallel()
 
 	// Track which keys were used
@@ -198,7 +198,7 @@ func TestKeyPoolIntegration_FallbackWhenExhausted(t *testing.T) {
 }
 
 // TestKeyPoolIntegration_429WhenAllExhausted verifies 429 when all keys are exhausted
-func TestKeyPoolIntegration_429WhenAllExhausted(t *testing.T) {
+func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend
@@ -278,7 +278,7 @@ func TestKeyPoolIntegration_429WhenAllExhausted(t *testing.T) {
 }
 
 // TestKeyPoolIntegration_UpdateFromHeaders verifies pool stats reflect updated limits
-func TestKeyPoolIntegration_UpdateFromHeaders(t *testing.T) {
+func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns rate limit headers

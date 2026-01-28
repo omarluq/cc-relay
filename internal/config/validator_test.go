@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestValidate_ValidMinimalConfig(t *testing.T) {
+func TestValidateValidMinimalConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -22,7 +22,7 @@ func TestValidate_ValidMinimalConfig(t *testing.T) {
 	}
 }
 
-func TestValidate_ValidFullConfig(t *testing.T) {
+func TestValidateValidFullConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -57,7 +57,7 @@ func TestValidate_ValidFullConfig(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingServerListen(t *testing.T) {
+func TestValidateMissingServerListen(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -76,7 +76,7 @@ func TestValidate_MissingServerListen(t *testing.T) {
 	}
 }
 
-func TestValidate_InvalidListenFormat(t *testing.T) {
+func TestValidateInvalidListenFormat(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -109,7 +109,7 @@ func TestValidate_InvalidListenFormat(t *testing.T) {
 	}
 }
 
-func TestValidate_ValidListenFormats(t *testing.T) {
+func TestValidateValidListenFormats(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -140,7 +140,7 @@ func TestValidate_ValidListenFormats(t *testing.T) {
 	}
 }
 
-func TestValidate_InvalidProviderType(t *testing.T) {
+func TestValidateInvalidProviderType(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -165,7 +165,7 @@ func TestValidate_InvalidProviderType(t *testing.T) {
 	}
 }
 
-func TestValidate_ValidProviderTypes(t *testing.T) {
+func TestValidateValidProviderTypes(t *testing.T) {
 	t.Parallel()
 
 	validTypes := []string{"anthropic", "zai", "ollama", "bedrock", "vertex", "azure"}
@@ -205,7 +205,7 @@ func TestValidate_ValidProviderTypes(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingProviderName(t *testing.T) {
+func TestValidateMissingProviderName(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -229,7 +229,7 @@ func TestValidate_MissingProviderName(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingProviderType(t *testing.T) {
+func TestValidateMissingProviderType(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -253,7 +253,7 @@ func TestValidate_MissingProviderType(t *testing.T) {
 	}
 }
 
-func TestValidate_DuplicateProviderNames(t *testing.T) {
+func TestValidateDuplicateProviderNames(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -276,7 +276,7 @@ func TestValidate_DuplicateProviderNames(t *testing.T) {
 	}
 }
 
-func TestValidate_InvalidRoutingStrategy(t *testing.T) {
+func TestValidateInvalidRoutingStrategy(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -298,7 +298,7 @@ func TestValidate_InvalidRoutingStrategy(t *testing.T) {
 	}
 }
 
-func TestValidate_ValidRoutingStrategies(t *testing.T) {
+func TestValidateValidRoutingStrategies(t *testing.T) {
 	t.Parallel()
 
 	validStrategies := []string{
@@ -331,7 +331,7 @@ func TestValidate_ValidRoutingStrategies(t *testing.T) {
 	}
 }
 
-func TestValidate_ModelBasedRequiresMapping(t *testing.T) {
+func TestValidateModelBasedRequiresMapping(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -353,7 +353,7 @@ func TestValidate_ModelBasedRequiresMapping(t *testing.T) {
 	}
 }
 
-func TestValidate_InvalidLoggingLevel(t *testing.T) {
+func TestValidateInvalidLoggingLevel(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -375,7 +375,7 @@ func TestValidate_InvalidLoggingLevel(t *testing.T) {
 	}
 }
 
-func TestValidate_InvalidLoggingFormat(t *testing.T) {
+func TestValidateInvalidLoggingFormat(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -397,7 +397,7 @@ func TestValidate_InvalidLoggingFormat(t *testing.T) {
 	}
 }
 
-func TestValidate_CloudProviderMissingFields(t *testing.T) {
+func TestValidateCloudProviderMissingFields(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -449,7 +449,7 @@ func TestValidate_CloudProviderMissingFields(t *testing.T) {
 	}
 }
 
-func TestValidate_MultipleErrors(t *testing.T) {
+func TestValidateMultipleErrors(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -488,7 +488,7 @@ func TestValidate_MultipleErrors(t *testing.T) {
 	}
 }
 
-func TestValidate_InvalidKeyPriority(t *testing.T) {
+func TestValidateInvalidKeyPriority(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -516,7 +516,7 @@ func TestValidate_InvalidKeyPriority(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingKeyValue(t *testing.T) {
+func TestValidateMissingKeyValue(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -544,7 +544,7 @@ func TestValidate_MissingKeyValue(t *testing.T) {
 	}
 }
 
-func TestValidationError_SingleError(t *testing.T) {
+func TestValidationErrorSingleError(t *testing.T) {
 	t.Parallel()
 
 	verr := &ValidationError{}
@@ -556,7 +556,7 @@ func TestValidationError_SingleError(t *testing.T) {
 	}
 }
 
-func TestValidationError_MultipleErrors(t *testing.T) {
+func TestValidationErrorMultipleErrors(t *testing.T) {
 	t.Parallel()
 
 	verr := &ValidationError{}
@@ -576,7 +576,7 @@ func TestValidationError_MultipleErrors(t *testing.T) {
 	}
 }
 
-func TestValidationError_Empty(t *testing.T) {
+func TestValidationErrorEmpty(t *testing.T) {
 	t.Parallel()
 
 	verr := &ValidationError{}

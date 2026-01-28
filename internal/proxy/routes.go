@@ -12,6 +12,24 @@ import (
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
+// RoutesOptions configures route setup with optional hot-reload support.
+type RoutesOptions struct {
+	ProviderRouter    router.ProviderRouter
+	Provider          providers.Provider
+	ConfigProvider    config.RuntimeConfigGetter
+	Pool              *keypool.KeyPool
+	ProviderInfosFunc ProviderInfoFunc
+	ProviderPools     map[string]*keypool.KeyPool
+	ProviderKeys      map[string]string
+	GetProviderPools  KeyPoolsFunc
+	GetProviderKeys   KeysFunc
+	HealthTracker     *health.Tracker
+	SignatureCache    *SignatureCache
+	ProviderKey       string
+	ProviderInfos     []router.ProviderInfo
+	AllProviders      []providers.Provider
+}
+
 // SetupRoutes creates the HTTP handler with all routes configured.
 // Routes:
 //   - POST /v1/messages - Proxy to backend provider (with auth if configured)
@@ -53,7 +71,12 @@ func SetupRoutesWithProviders(
 	// Note: SetupRoutesWithProviders doesn't use router - for DI integration use NewProxyHandler
 	// Pass nil for healthTracker - this legacy function doesn't support health tracking
 	// Single-provider mode: nil maps for providerPools, providerKeys, and routingConfig
-	handler, err := NewHandler(provider, nil, nil, providerKey, pool, nil, nil, nil, debugOpts, false, nil, nil)
+	handler, err := NewHandler(&HandlerOptions{
+		Provider:     provider,
+		APIKey:       providerKey,
+		Pool:         pool,
+		DebugOptions: debugOpts,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
@@ -109,33 +132,16 @@ func SetupRoutesWithProviders(
 //   - GET /v1/models - List available models from all providers (no auth required)
 //   - GET /v1/providers - List active providers with metadata (no auth required)
 //   - GET /health - Health check endpoint (no auth required)
-func SetupRoutesWithRouter(
-	cfg *config.Config,
-	provider providers.Provider,
-	providerInfos []router.ProviderInfo,
-	providerRouter router.ProviderRouter,
-	providerKey string,
-	pool *keypool.KeyPool,
-	providerPools map[string]*keypool.KeyPool,
-	providerKeys map[string]string,
-	allProviders []providers.Provider,
-	healthTracker *health.Tracker,
-	signatureCache *SignatureCache,
-) (http.Handler, error) {
-	runtimeCfg := config.NewRuntime(cfg)
-	return SetupRoutesWithRouterLive(
-		runtimeCfg,
-		provider,
-		func() []router.ProviderInfo { return providerInfos },
-		providerRouter,
-		providerKey,
-		pool,
-		func() map[string]*keypool.KeyPool { return providerPools },
-		func() map[string]string { return providerKeys },
-		allProviders,
-		healthTracker,
-		signatureCache,
-	)
+func SetupRoutesWithRouter(cfg *config.Config, opts *RoutesOptions) (http.Handler, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("routes options are required")
+	}
+	opts.ConfigProvider = config.NewRuntime(cfg)
+	opts.ProviderInfosFunc = func() []router.ProviderInfo { return opts.ProviderInfos }
+	opts.GetProviderPools = func() map[string]*keypool.KeyPool { return opts.ProviderPools }
+	opts.GetProviderKeys = func() map[string]string { return opts.ProviderKeys }
+
+	return SetupRoutesWithRouterLive(opts)
 }
 
 // SetupRoutesWithRouterLive creates the HTTP handler with hot-reloadable provider info and router.
@@ -147,32 +153,11 @@ func SetupRoutesWithRouter(
 //   - GET /v1/models - List available models from all providers (no auth required)
 //   - GET /v1/providers - List active providers with metadata (no auth required)
 //   - GET /health - Health check endpoint (no auth required)
-func SetupRoutesWithRouterLive(
-	cfgProvider config.RuntimeConfig,
-	provider providers.Provider,
-	providerInfosFunc ProviderInfoFunc,
-	providerRouter router.ProviderRouter,
-	providerKey string,
-	pool *keypool.KeyPool,
-	getProviderPools KeyPoolsFunc,
-	getProviderKeys KeysFunc,
-	allProviders []providers.Provider,
-	healthTracker *health.Tracker,
-	signatureCache *SignatureCache,
-) (http.Handler, error) {
-	return SetupRoutesWithLiveKeyPools(
-		cfgProvider,
-		provider,
-		providerInfosFunc,
-		providerRouter,
-		providerKey,
-		pool,
-		getProviderPools,
-		getProviderKeys,
-		allProviders,
-		healthTracker,
-		signatureCache,
-	)
+func SetupRoutesWithRouterLive(opts *RoutesOptions) (http.Handler, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("routes options are required")
+	}
+	return SetupRoutesWithLiveKeyPools(opts)
 }
 
 // SetupRoutesWithLiveKeyPools creates the HTTP handler with full hot-reload support.
@@ -185,38 +170,39 @@ func SetupRoutesWithRouterLive(
 //   - GET /v1/models - List available models from all providers (no auth required)
 //   - GET /v1/providers - List active providers with metadata (no auth required)
 //   - GET /health - Health check endpoint (no auth required)
-func SetupRoutesWithLiveKeyPools(
-	cfgProvider config.RuntimeConfig,
-	provider providers.Provider,
-	providerInfosFunc ProviderInfoFunc,
-	providerRouter router.ProviderRouter,
-	providerKey string,
-	pool *keypool.KeyPool,
-	getProviderPools KeyPoolsFunc,
-	getProviderKeys KeysFunc,
-	allProviders []providers.Provider,
-	healthTracker *health.Tracker,
-	signatureCache *SignatureCache,
-) (http.Handler, error) {
+func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("routes options are required")
+	}
 	mux := http.NewServeMux()
 
 	// Create proxy handler with full hot-reload support
-	cfg := cfgProvider.Get()
+	cfg := opts.ConfigProvider.Get()
 	if cfg == nil {
 		return nil, fmt.Errorf("config provider returned nil config")
 	}
 	debugOpts := cfg.Logging.DebugOptions
 	routingDebug := cfg.Routing.IsDebugEnabled()
 
-	handler, err := NewHandlerWithLiveKeyPools(
-		provider, providerInfosFunc, providerRouter,
-		providerKey, pool, getProviderPools, getProviderKeys,
-		&cfg.Routing, debugOpts, routingDebug, healthTracker, signatureCache,
+	handler, err := NewHandlerWithLiveKeyPools(&HandlerOptions{
+		Provider:          opts.Provider,
+		ProviderInfosFunc: opts.ProviderInfosFunc,
+		ProviderRouter:    opts.ProviderRouter,
+		APIKey:            opts.ProviderKey,
+		Pool:              opts.Pool,
+		GetProviderPools:  opts.GetProviderPools,
+		GetProviderKeys:   opts.GetProviderKeys,
+		RoutingConfig:     &cfg.Routing,
+		DebugOptions:      debugOpts,
+		RoutingDebug:      routingDebug,
+		HealthTracker:     opts.HealthTracker,
+		SignatureCache:    opts.SignatureCache,
+	},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
 	}
-	handler.SetRuntimeConfig(cfgProvider)
+	handler.SetRuntimeConfigGetter(opts.ConfigProvider)
 
 	// Apply middleware in order:
 	// 1. RequestIDMiddleware (first - generates ID)
@@ -225,9 +211,9 @@ func SetupRoutesWithLiveKeyPools(
 	// 4. Handler
 	var messagesHandler http.Handler = handler
 
-	messagesHandler = LiveAuthMiddleware(cfgProvider)(messagesHandler)
+	messagesHandler = LiveAuthMiddleware(opts.ConfigProvider)(messagesHandler)
 	messagesHandler = LoggingMiddlewareWithProvider(func() config.DebugOptions {
-		cfg := cfgProvider.Get()
+		cfg := opts.ConfigProvider.Get()
 		if cfg == nil {
 			return config.DebugOptions{}
 		}
@@ -240,9 +226,9 @@ func SetupRoutesWithLiveKeyPools(
 
 	// Models endpoint (no auth required for discovery)
 	// Use allProviders if provided, otherwise fall back to just the primary provider
-	modelsProviders := allProviders
+	modelsProviders := opts.AllProviders
 	if modelsProviders == nil {
-		modelsProviders = []providers.Provider{provider}
+		modelsProviders = []providers.Provider{opts.Provider}
 	}
 	modelsHandler := NewModelsHandler(modelsProviders)
 	mux.Handle("GET /v1/models", modelsHandler)

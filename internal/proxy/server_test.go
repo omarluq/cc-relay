@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestNewServer_CreatesValidServer(t *testing.T) {
+func TestNewServerCreatesValidServer(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -29,7 +29,7 @@ func TestNewServer_CreatesValidServer(t *testing.T) {
 	}
 }
 
-func TestNewServer_HasCorrectTimeouts(t *testing.T) {
+func TestNewServerHasCorrectTimeouts(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -52,7 +52,7 @@ func TestNewServer_HasCorrectTimeouts(t *testing.T) {
 	}
 }
 
-func TestNewServer_HasCorrectHandler(t *testing.T) {
+func TestNewServerHasCorrectHandler(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -66,7 +66,7 @@ func TestNewServer_HasCorrectHandler(t *testing.T) {
 	}
 }
 
-func TestServer_ListenAndServe_InvalidAddress(t *testing.T) {
+func TestServerListenAndServeInvalidAddress(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -82,7 +82,7 @@ func TestServer_ListenAndServe_InvalidAddress(t *testing.T) {
 	}
 }
 
-func TestServer_Shutdown(t *testing.T) {
+func TestServerShutdown(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -119,7 +119,7 @@ func TestServer_Shutdown(t *testing.T) {
 	}
 }
 
-func TestNewServer_HTTP2Enabled(t *testing.T) {
+func TestNewServerHTTP2Enabled(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -142,7 +142,7 @@ func TestNewServer_HTTP2Enabled(t *testing.T) {
 	}
 }
 
-func TestNewServer_HTTP2Disabled(t *testing.T) {
+func TestNewServerHTTP2Disabled(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func TestModelRewriter_RewriteRequest(t *testing.T) {
+func TestModelRewriterRewriteRequest(t *testing.T) {
 	tests := []struct {
 		name          string
 		mapping       map[string]string
@@ -145,7 +145,7 @@ func TestModelRewriter_RewriteRequest(t *testing.T) {
 	}
 }
 
-func TestModelRewriter_RewriteModel(t *testing.T) {
+func TestModelRewriterRewriteModel(t *testing.T) {
 	tests := []struct {
 		name     string
 		mapping  map[string]string
@@ -187,7 +187,7 @@ func TestModelRewriter_RewriteModel(t *testing.T) {
 	}
 }
 
-func TestModelRewriter_HasMapping(t *testing.T) {
+func TestModelRewriterHasMapping(t *testing.T) {
 	tests := []struct {
 		mapping  map[string]string
 		name     string
@@ -220,7 +220,7 @@ func TestModelRewriter_HasMapping(t *testing.T) {
 	}
 }
 
-func TestModelRewriter_NilBody(t *testing.T) {
+func TestModelRewriterNilBody(t *testing.T) {
 	rewriter := NewModelRewriter(map[string]string{"a": "b"})
 
 	// Create request with nil body
@@ -234,7 +234,7 @@ func TestModelRewriter_NilBody(t *testing.T) {
 	}
 }
 
-func TestModelRewriter_PreservesOtherFields(t *testing.T) {
+func TestModelRewriterPreservesOtherFields(t *testing.T) {
 	mapping := map[string]string{
 		"claude-opus-4-5-20251101": "qwen3:8b",
 	}

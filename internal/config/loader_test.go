@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestLoad_ValidYAML(t *testing.T) {
+func TestLoadValidYAML(t *testing.T) {
 	t.Parallel()
 
 	yamlContent := `
@@ -99,7 +99,7 @@ logging:
 	}
 }
 
-func TestLoad_EnvironmentExpansion(t *testing.T) {
+func TestLoadEnvironmentExpansion(t *testing.T) {
 	t.Parallel()
 
 	// Set a test environment variable
@@ -150,7 +150,7 @@ logging:
 	}
 }
 
-func TestLoad_InvalidYAML(t *testing.T) {
+func TestLoadInvalidYAML(t *testing.T) {
 	t.Parallel()
 
 	yamlContent := `
@@ -170,7 +170,7 @@ server:
 	}
 }
 
-func TestLoad_MissingFile(t *testing.T) {
+func TestLoadMissingFile(t *testing.T) {
 	t.Parallel()
 
 	_, err := Load("/nonexistent/path/to/config.yaml")
@@ -183,7 +183,7 @@ func TestLoad_MissingFile(t *testing.T) {
 	}
 }
 
-func TestLoad_ServerAPIKey(t *testing.T) {
+func TestLoadServerAPIKey(t *testing.T) {
 	t.Parallel()
 
 	yamlContent := `
@@ -208,7 +208,7 @@ logging:
 	}
 }
 
-func TestLoad_ProviderModels(t *testing.T) {
+func TestLoadProviderModels(t *testing.T) {
 	t.Parallel()
 
 	yamlContent := `
@@ -257,7 +257,7 @@ logging:
 	}
 }
 
-func TestLoad_ProviderModelsEmpty(t *testing.T) {
+func TestLoadProviderModelsEmpty(t *testing.T) {
 	t.Parallel()
 
 	yamlContent := `
@@ -290,7 +290,7 @@ logging:
 	}
 }
 
-func TestLoad_MultipleProvidersWithModels(t *testing.T) {
+func TestLoadMultipleProvidersWithModels(t *testing.T) {
 	t.Parallel()
 
 	yamlContent := `
@@ -347,7 +347,7 @@ logging:
 	}
 }
 
-func TestLoad_TOMLFormat(t *testing.T) {
+func TestLoadTOMLFormat(t *testing.T) {
 	t.Parallel()
 
 	tomlContent := `
@@ -440,7 +440,7 @@ format = "json"
 	}
 }
 
-func TestLoad_TOMLEnvironmentExpansion(t *testing.T) {
+func TestLoadTOMLEnvironmentExpansion(t *testing.T) {
 	t.Parallel()
 
 	// Set a test environment variable
@@ -492,7 +492,7 @@ format = "text"
 	}
 }
 
-func TestLoad_TOMLFile(t *testing.T) {
+func TestLoadTOMLFile(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary TOML file
@@ -537,7 +537,7 @@ level = "info"
 	}
 }
 
-func TestLoad_UnsupportedFormat(t *testing.T) {
+func TestLoadUnsupportedFormat(t *testing.T) {
 	t.Parallel()
 
 	_, err := Load("/path/to/config.json")
@@ -564,7 +564,7 @@ func TestLoad_UnsupportedFormat(t *testing.T) {
 	}
 }
 
-func TestLoad_UnsupportedFormatNoExtension(t *testing.T) {
+func TestLoadUnsupportedFormatNoExtension(t *testing.T) {
 	t.Parallel()
 
 	_, err := Load("/path/to/config")
@@ -624,7 +624,7 @@ func TestDetectFormat(t *testing.T) {
 	}
 }
 
-func TestLoad_InvalidTOML(t *testing.T) {
+func TestLoadInvalidTOML(t *testing.T) {
 	t.Parallel()
 
 	tomlContent := `

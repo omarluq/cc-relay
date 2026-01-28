@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func TestLogRequestDetails_DisabledByDefault(t *testing.T) {
+func TestLogRequestDetailsDisabledByDefault(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
@@ -29,7 +29,7 @@ func TestLogRequestDetails_DisabledByDefault(t *testing.T) {
 	}
 }
 
-func TestLogRequestDetails_RedactsSensitiveData(t *testing.T) {
+func TestLogRequestDetailsRedactsSensitiveData(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
@@ -52,7 +52,7 @@ func TestLogRequestDetails_RedactsSensitiveData(t *testing.T) {
 	}
 }
 
-func TestLogRequestDetails_ExtractsModel(t *testing.T) {
+func TestLogRequestDetailsExtractsModel(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
@@ -72,7 +72,7 @@ func TestLogRequestDetails_ExtractsModel(t *testing.T) {
 	}
 }
 
-func TestLogRequestDetails_TruncatesLargeBody(t *testing.T) {
+func TestLogRequestDetailsTruncatesLargeBody(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
@@ -90,7 +90,7 @@ func TestLogRequestDetails_TruncatesLargeBody(t *testing.T) {
 	}
 }
 
-func TestLogResponseDetails_LogsEventCount(t *testing.T) {
+func TestLogResponseDetailsLogsEventCount(t *testing.T) {
 	var buf bytes.Buffer
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
@@ -168,7 +168,7 @@ func TestLogProxyMetrics(t *testing.T) {
 	}
 }
 
-func TestDebugOptions_GetMaxBodyLogSize(t *testing.T) {
+func TestDebugOptionsGetMaxBodyLogSize(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     config.DebugOptions
@@ -217,7 +217,7 @@ func TestTLSVersionString(t *testing.T) {
 	}
 }
 
-func TestAttachTLSTrace_ReturnsMetricsFunction(t *testing.T) {
+func TestAttachTLSTraceReturnsMetricsFunction(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest("GET", "/test", http.NoBody)
@@ -239,7 +239,7 @@ func TestAttachTLSTrace_ReturnsMetricsFunction(t *testing.T) {
 	}
 }
 
-func TestLogTLSMetrics_SkipsWhenDisabled(t *testing.T) {
+func TestLogTLSMetricsSkipsWhenDisabled(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -260,7 +260,7 @@ func TestLogTLSMetrics_SkipsWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestLogTLSMetrics_SkipsWhenNoMetrics(t *testing.T) {
+func TestLogTLSMetricsSkipsWhenNoMetrics(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -279,7 +279,7 @@ func TestLogTLSMetrics_SkipsWhenNoMetrics(t *testing.T) {
 	}
 }
 
-func TestLogResponseDetails_SkipsWhenDisabled(t *testing.T) {
+func TestLogResponseDetailsSkipsWhenDisabled(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -297,7 +297,7 @@ func TestLogResponseDetails_SkipsWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestLogProxyMetrics_SkipsAtHigherLogLevel(t *testing.T) {
+func TestLogProxyMetricsSkipsAtHigherLogLevel(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -317,7 +317,7 @@ func TestLogProxyMetrics_SkipsAtHigherLogLevel(t *testing.T) {
 	}
 }
 
-func TestLogRequestDetails_SkipsAtHigherLogLevel(t *testing.T) {
+func TestLogRequestDetailsSkipsAtHigherLogLevel(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -335,7 +335,7 @@ func TestLogRequestDetails_SkipsAtHigherLogLevel(t *testing.T) {
 	}
 }
 
-func TestLogRequestDetails_HandlesNilBody(t *testing.T) {
+func TestLogRequestDetailsHandlesNilBody(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer

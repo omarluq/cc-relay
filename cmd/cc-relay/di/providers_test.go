@@ -2,6 +2,7 @@ package di
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,11 +21,21 @@ import (
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
+const (
+	configFileName      = "config.yaml"
+	anthropicBaseURL    = "https://api.anthropic.com"
+	testKey1            = "test-key-1"
+	testKey2            = "test-key-2"
+	testKey             = "test-key"
+	testProviderName    = "test-provider"
+	shutdownerTestLabel = "implements Shutdowner"
+)
+
 // createTestInjector creates an injector with a config path for testing.
 func createTestInjector(t *testing.T, configContent string) *do.RootScope {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.yaml")
+	path := filepath.Join(dir, configFileName)
 	err := os.WriteFile(path, []byte(configContent), 0o600)
 	require.NoError(t, err)
 
@@ -56,7 +67,7 @@ func waitFor(t *testing.T, timeout time.Duration, fn func() bool, msg string) {
 }
 
 // Test configurations.
-const singleKeyConfig = `
+var singleKeyConfig = fmt.Sprintf(`
 server:
   listen: ":8787"
 logging:
@@ -67,13 +78,13 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 
-const multiKeyPoolingConfig = `
+var multiKeyPoolingConfig = fmt.Sprintf(`
 server:
   listen: ":8787"
 logging:
@@ -84,19 +95,19 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     pooling:
       enabled: true
       strategy: least_loaded
     keys:
-      - key: test-key-1
+      - key: %s
         rpm_limit: 100
         priority: 1
-      - key: test-key-2
+      - key: %s
         rpm_limit: 200
         priority: 2
-`
+`, anthropicBaseURL, testKey1, testKey2)
 
 const noProviderConfig = `
 server:
@@ -108,7 +119,7 @@ cache:
 providers: []
 `
 
-const multiProviderConfig = `
+var multiProviderConfig = fmt.Sprintf(`
 server:
   listen: ":8787"
 logging:
@@ -118,17 +129,17 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
+      - key: %s
   - name: zai
     type: zai
     base_url: https://api.zai.example.com
     enabled: true
     keys:
       - key: zai-key-1
-`
+`, anthropicBaseURL, testKey1)
 
 func TestNewConfig(t *testing.T) {
 	t.Run("loads valid config", func(t *testing.T) {
@@ -145,7 +156,7 @@ func TestNewConfig(t *testing.T) {
 
 	t.Run("returns error for non-existent config", func(t *testing.T) {
 		nonExistentInjector := do.New()
-		do.ProvideNamedValue(nonExistentInjector, ConfigPathKey, "/nonexistent/config.yaml")
+		do.ProvideNamedValue(nonExistentInjector, ConfigPathKey, "/nonexistent/"+configFileName)
 		RegisterSingletons(nonExistentInjector)
 		defer shutdownInjector(nonExistentInjector)
 
@@ -192,11 +203,11 @@ func TestNewConfig(t *testing.T) {
 	})
 }
 
-func TestConfigService_HotReload(t *testing.T) {
+func TestConfigServiceHotReload(t *testing.T) {
 	t.Run("hot-reload updates config atomically", func(t *testing.T) {
 		// Create config file
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.yaml")
+		path := filepath.Join(dir, configFileName)
 		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
 		require.NoError(t, err)
 
@@ -222,7 +233,7 @@ func TestConfigService_HotReload(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 
 		// Update config file with new listen port
-		newConfig := `
+		newConfig := fmt.Sprintf(`
 server:
   listen: ":9999"
 logging:
@@ -233,11 +244,11 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 		err = os.WriteFile(path, []byte(newConfig), 0o600)
 		require.NoError(t, err)
 
@@ -253,7 +264,7 @@ providers:
 	})
 
 	t.Run("live readers observe routing changes without reinit", func(t *testing.T) {
-		initialConfig := `
+		initialConfig := fmt.Sprintf(`
 server:
   listen: ":8787"
 routing:
@@ -266,13 +277,13 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 
-		updatedConfig := `
+		updatedConfig := fmt.Sprintf(`
 server:
   listen: ":8787"
 routing:
@@ -285,15 +296,15 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 
 		// Create config file
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.yaml")
+		path := filepath.Join(dir, configFileName)
 		err := os.WriteFile(path, []byte(initialConfig), 0o600)
 		require.NoError(t, err)
 
@@ -343,7 +354,7 @@ providers:
 	})
 
 	t.Run("live reader updates while snapshot stays stale", func(t *testing.T) {
-		initialConfig := `
+		initialConfig := fmt.Sprintf(`
 server:
   listen: ":8787"
 routing:
@@ -356,13 +367,13 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 
-		updatedConfig := `
+		updatedConfig := fmt.Sprintf(`
 server:
   listen: ":8787"
 routing:
@@ -375,14 +386,14 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.yaml")
+		path := filepath.Join(dir, configFileName)
 		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
 		injector := do.New()
@@ -428,7 +439,7 @@ providers:
 	})
 
 	t.Run("invalid reload does not replace the last good config", func(t *testing.T) {
-		initialConfig := `
+		initialConfig := fmt.Sprintf(`
 server:
   listen: ":8787"
 routing:
@@ -441,12 +452,12 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
-		updatedConfig := `
+      - key: %s
+`, anthropicBaseURL, testKey1)
+		updatedConfig := fmt.Sprintf(`
 server:
   listen: ":8787"
 routing:
@@ -459,15 +470,15 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 		invalidConfig := "server: ["
 
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.yaml")
+		path := filepath.Join(dir, configFileName)
 		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
 		injector := do.New()
@@ -498,7 +509,7 @@ providers:
 	t.Run("concurrent reads during reload are safe", func(t *testing.T) {
 		// Create config file
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.yaml")
+		path := filepath.Join(dir, configFileName)
 		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
 		require.NoError(t, err)
 
@@ -545,9 +556,9 @@ providers:
 
 		// Modify file multiple times while reads happen
 		for i := range 5 {
-			newConfig := `
+			newConfig := fmt.Sprintf(`
 server:
-  listen: ":` + string(rune('0'+i)) + `787"
+  listen: ":`+string(rune('0'+i))+`787"
 logging:
   level: info
   format: json
@@ -556,11 +567,11 @@ cache:
 providers:
   - name: anthropic
     type: anthropic
-    base_url: https://api.anthropic.com
+    base_url: %s
     enabled: true
     keys:
-      - key: test-key-1
-`
+      - key: %s
+`, anthropicBaseURL, testKey1)
 			err := os.WriteFile(path, []byte(newConfig), 0o600)
 			require.NoError(t, err)
 			time.Sleep(50 * time.Millisecond)
@@ -590,7 +601,7 @@ providers:
 
 	t.Run("Shutdown closes watcher", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.yaml")
+		path := filepath.Join(dir, configFileName)
 		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
 		require.NoError(t, err)
 
@@ -642,7 +653,7 @@ func TestNewCache(t *testing.T) {
 		assert.NotNil(t, cacheSvc.Cache)
 	})
 
-	t.Run("implements Shutdowner", func(t *testing.T) {
+	t.Run(shutdownerTestLabel, func(t *testing.T) {
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
@@ -673,7 +684,7 @@ func TestNewProviderMap(t *testing.T) {
 		assert.Len(t, provSvc.GetAllProviders(), 1)
 		assert.NotNil(t, provSvc.GetPrimaryProvider())
 		assert.Equal(t, "anthropic", provSvc.GetPrimaryProvider().Name())
-		assert.Equal(t, "test-key-1", provSvc.GetPrimaryKey())
+		assert.Equal(t, testKey1, provSvc.GetPrimaryKey())
 	})
 
 	t.Run("creates provider map with multiple providers", func(t *testing.T) {
@@ -698,7 +709,7 @@ func TestNewProviderMap(t *testing.T) {
 	})
 }
 
-func TestProviderInfoService_RebuildFromEnablesProvider(t *testing.T) {
+func TestProviderInfoServiceRebuildFromEnablesProvider(t *testing.T) {
 	t.Parallel()
 
 	cfgA := &config.Config{
@@ -706,10 +717,10 @@ func TestProviderInfoService_RebuildFromEnablesProvider(t *testing.T) {
 			{
 				Name:    "anthropic",
 				Type:    "anthropic",
-				BaseURL: "https://api.anthropic.com",
+				BaseURL: anthropicBaseURL,
 				Enabled: true,
 				Keys: []config.KeyConfig{
-					{Key: "test-key-1"},
+					{Key: testKey1},
 				},
 			},
 			{
@@ -729,10 +740,10 @@ func TestProviderInfoService_RebuildFromEnablesProvider(t *testing.T) {
 			{
 				Name:    "anthropic",
 				Type:    "anthropic",
-				BaseURL: "https://api.anthropic.com",
+				BaseURL: anthropicBaseURL,
 				Enabled: true,
 				Keys: []config.KeyConfig{
-					{Key: "test-key-1"},
+					{Key: testKey1},
 				},
 			},
 			{
@@ -776,11 +787,11 @@ func TestProviderInfoService_RebuildFromEnablesProvider(t *testing.T) {
 	assert.True(t, names["zai"])
 }
 
-func TestProviderInfoService_GetReturnsCopy(t *testing.T) {
+func TestProviderInfoServiceGetReturnsCopy(t *testing.T) {
 	t.Parallel()
 
 	svc := &ProviderInfoService{}
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := providers.NewAnthropicProvider("test", anthropicBaseURL)
 	infos := []router.ProviderInfo{
 		{Provider: provider, Weight: 1},
 	}
@@ -839,7 +850,7 @@ func TestNewHTTPServer(t *testing.T) {
 		assert.NotNil(t, serverSvc.Server)
 	})
 
-	t.Run("implements Shutdowner", func(t *testing.T) {
+	t.Run(shutdownerTestLabel, func(t *testing.T) {
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
@@ -894,7 +905,7 @@ func TestDependencyOrder(t *testing.T) {
 func TestRegisterSingletons(t *testing.T) {
 	t.Run("registers all expected services", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "config.yaml")
+		path := filepath.Join(dir, configFileName)
 		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
 		require.NoError(t, err)
 
@@ -938,10 +949,10 @@ func TestConfigServiceWrapper(t *testing.T) {
 func TestProviderMapServiceWrapper(t *testing.T) {
 	t.Run("stores primary key reference", func(t *testing.T) {
 		svc := &ProviderMapService{
-			PrimaryKey: "test-key",
+			PrimaryKey: testKey,
 		}
 
-		assert.Equal(t, "test-key", svc.GetPrimaryKey())
+		assert.Equal(t, testKey, svc.GetPrimaryKey())
 		assert.Nil(t, svc.GetProviders())
 		assert.Nil(t, svc.GetAllProviders())
 		assert.Nil(t, svc.GetPrimaryProvider())
@@ -991,7 +1002,7 @@ func TestHealthTrackerService(t *testing.T) {
 		trackerSvc, err := do.Invoke[*HealthTrackerService](injector)
 		require.NoError(t, err)
 
-		isHealthy := trackerSvc.Tracker.IsHealthyFunc("test-provider")
+		isHealthy := trackerSvc.Tracker.IsHealthyFunc(testProviderName)
 		assert.True(t, isHealthy(), "new provider should be healthy by default")
 	})
 
@@ -1003,16 +1014,16 @@ func TestHealthTrackerService(t *testing.T) {
 		require.NoError(t, err)
 
 		// Initially healthy
-		isHealthy := trackerSvc.Tracker.IsHealthyFunc("test-provider")
+		isHealthy := trackerSvc.Tracker.IsHealthyFunc(testProviderName)
 		assert.True(t, isHealthy(), "provider should be healthy initially")
 
 		// Record success - should remain healthy
-		trackerSvc.Tracker.RecordSuccess("test-provider")
+		trackerSvc.Tracker.RecordSuccess(testProviderName)
 		assert.True(t, isHealthy(), "provider should remain healthy after success")
 
 		// Record failure - may or may not trip circuit depending on config
 		// This just verifies the method doesn't panic
-		trackerSvc.Tracker.RecordFailure("test-provider", nil)
+		trackerSvc.Tracker.RecordFailure(testProviderName, nil)
 	})
 }
 
@@ -1027,7 +1038,7 @@ func TestCheckerService(t *testing.T) {
 		assert.NotNil(t, checkerSvc.Checker)
 	})
 
-	t.Run("implements Shutdowner", func(t *testing.T) {
+	t.Run(shutdownerTestLabel, func(t *testing.T) {
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
@@ -1046,7 +1057,7 @@ func TestCheckerService(t *testing.T) {
 	})
 }
 
-func TestNewProxyHandler_WithHealthTracker(t *testing.T) {
+func TestNewProxyHandlerWithHealthTracker(t *testing.T) {
 	t.Run("handler wired with tracker", func(t *testing.T) {
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
@@ -1064,17 +1075,17 @@ func ptrBool(b bool) *bool {
 	return &b
 }
 
-func TestChecker_StartsAndStopsWithContainer(t *testing.T) {
+func TestCheckerStartsAndStopsWithContainer(t *testing.T) {
 	// Create minimal config with health check enabled
 	cfg := &config.Config{
 		Providers: []config.ProviderConfig{
 			{
-				Name:    "test-provider",
+				Name:    testProviderName,
 				Type:    "anthropic",
 				Enabled: true,
 				BaseURL: "http://localhost:9999", // Fake URL - we just test lifecycle
 				Keys: []config.KeyConfig{
-					{Key: "test-key"},
+					{Key: testKey},
 				},
 			},
 		},

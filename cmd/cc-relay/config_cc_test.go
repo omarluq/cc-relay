@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestRunConfigCCInit_NewSettings(t *testing.T) {
+func TestRunConfigCCInitNewSettings(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME
@@ -62,7 +62,7 @@ func TestRunConfigCCInit_NewSettings(t *testing.T) {
 	}
 }
 
-func TestRunConfigCCInit_ExistingSettings(t *testing.T) {
+func TestRunConfigCCInitExistingSettings(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME
@@ -138,7 +138,7 @@ func TestRunConfigCCInit_ExistingSettings(t *testing.T) {
 	}
 }
 
-func TestRunConfigCCInit_CustomProxyURL(t *testing.T) {
+func TestRunConfigCCInitCustomProxyURL(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME
@@ -177,7 +177,7 @@ func TestRunConfigCCInit_CustomProxyURL(t *testing.T) {
 	}
 }
 
-func TestRunConfigCCRemove_ExistingSettings(t *testing.T) {
+func TestRunConfigCCRemoveExistingSettings(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME
@@ -253,7 +253,7 @@ func TestRunConfigCCRemove_ExistingSettings(t *testing.T) {
 	}
 }
 
-func TestRunConfigCCRemove_NoSettings(t *testing.T) {
+func TestRunConfigCCRemoveNoSettings(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME
@@ -272,7 +272,7 @@ func TestRunConfigCCRemove_NoSettings(t *testing.T) {
 	}
 }
 
-func TestRunConfigCCRemove_NoEnvSection(t *testing.T) {
+func TestRunConfigCCRemoveNoEnvSection(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME
@@ -309,7 +309,7 @@ func TestRunConfigCCRemove_NoEnvSection(t *testing.T) {
 	}
 }
 
-func TestRunConfigCCRemove_NoCCRelayConfig(t *testing.T) {
+func TestRunConfigCCRemoveNoCCRelayConfig(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME
@@ -364,7 +364,7 @@ func TestRunConfigCCRemove_NoCCRelayConfig(t *testing.T) {
 	}
 }
 
-func TestRunConfigCCRemove_RemovesEmptyEnv(t *testing.T) {
+func TestRunConfigCCRemoveRemovesEmptyEnv(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
 
 	// Create a temp directory to use as HOME

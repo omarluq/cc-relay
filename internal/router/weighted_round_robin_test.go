@@ -35,7 +35,7 @@ func (m *mockProvider) StreamingContentType() string {
 	return providers.ContentTypeSSE
 }
 
-func TestWeightedRoundRobinRouter_Select_NoProviders(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectNoProviders(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -46,7 +46,7 @@ func TestWeightedRoundRobinRouter_Select_NoProviders(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_AllUnhealthy(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectAllUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -62,7 +62,7 @@ func TestWeightedRoundRobinRouter_Select_AllUnhealthy(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_EqualWeights(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectEqualWeights(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -93,7 +93,7 @@ func TestWeightedRoundRobinRouter_Select_EqualWeights(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_ProportionalWeights(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectProportionalWeights(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -135,7 +135,7 @@ func TestWeightedRoundRobinRouter_Select_ProportionalWeights(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_DefaultWeight(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectDefaultWeight(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -168,7 +168,7 @@ func TestWeightedRoundRobinRouter_Select_DefaultWeight(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_NegativeWeight(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectNegativeWeight(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -201,7 +201,7 @@ func TestWeightedRoundRobinRouter_Select_NegativeWeight(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_SkipsUnhealthy(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectSkipsUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -241,7 +241,7 @@ func TestWeightedRoundRobinRouter_Select_SkipsUnhealthy(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_ReinitializesOnProviderChange(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectReinitializesOnProviderChange(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -288,7 +288,7 @@ func TestWeightedRoundRobinRouter_Select_ReinitializesOnProviderChange(t *testin
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_ConcurrentSafety(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -339,7 +339,7 @@ func TestWeightedRoundRobinRouter_Select_ConcurrentSafety(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_SmoothDistribution(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectSmoothDistribution(t *testing.T) {
 	t.Parallel()
 
 	// Test that the Nginx smooth algorithm produces even distribution
@@ -382,7 +382,7 @@ func TestWeightedRoundRobinRouter_Select_SmoothDistribution(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Select_SingleProvider(t *testing.T) {
+func TestWeightedRoundRobinRouterSelectSingleProvider(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()
@@ -401,7 +401,7 @@ func TestWeightedRoundRobinRouter_Select_SingleProvider(t *testing.T) {
 	}
 }
 
-func TestWeightedRoundRobinRouter_Name(t *testing.T) {
+func TestWeightedRoundRobinRouterName(t *testing.T) {
 	t.Parallel()
 
 	r := NewWeightedRoundRobinRouter()

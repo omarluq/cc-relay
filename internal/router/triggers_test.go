@@ -21,7 +21,7 @@ func (e *mockNetError) Temporary() bool { return e.temporary }
 // Ensure mockNetError implements net.Error.
 var _ net.Error = (*mockNetError)(nil)
 
-func TestStatusCodeTrigger_ShouldFailover(t *testing.T) {
+func TestStatusCodeTriggerShouldFailover(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewStatusCodeTrigger(429, 500, 502, 503, 504)
@@ -59,7 +59,7 @@ func TestStatusCodeTrigger_ShouldFailover(t *testing.T) {
 	}
 }
 
-func TestStatusCodeTrigger_Name(t *testing.T) {
+func TestStatusCodeTriggerName(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewStatusCodeTrigger(429)
@@ -68,7 +68,7 @@ func TestStatusCodeTrigger_Name(t *testing.T) {
 	}
 }
 
-func TestStatusCodeTrigger_Empty(t *testing.T) {
+func TestStatusCodeTriggerEmpty(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewStatusCodeTrigger() // No codes configured
@@ -77,7 +77,7 @@ func TestStatusCodeTrigger_Empty(t *testing.T) {
 	}
 }
 
-func TestTimeoutTrigger_ShouldFailover(t *testing.T) {
+func TestTimeoutTriggerShouldFailover(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewTimeoutTrigger()
@@ -108,7 +108,7 @@ func TestTimeoutTrigger_ShouldFailover(t *testing.T) {
 	}
 }
 
-func TestTimeoutTrigger_Name(t *testing.T) {
+func TestTimeoutTriggerName(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewTimeoutTrigger()
@@ -117,7 +117,7 @@ func TestTimeoutTrigger_Name(t *testing.T) {
 	}
 }
 
-func TestTimeoutTrigger_IgnoresStatusCode(t *testing.T) {
+func TestTimeoutTriggerIgnoresStatusCode(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewTimeoutTrigger()
@@ -130,7 +130,7 @@ func TestTimeoutTrigger_IgnoresStatusCode(t *testing.T) {
 	}
 }
 
-func TestConnectionTrigger_ShouldFailover(t *testing.T) {
+func TestConnectionTriggerShouldFailover(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewConnectionTrigger()
@@ -162,7 +162,7 @@ func TestConnectionTrigger_ShouldFailover(t *testing.T) {
 	}
 }
 
-func TestConnectionTrigger_Name(t *testing.T) {
+func TestConnectionTriggerName(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewConnectionTrigger()
@@ -171,7 +171,7 @@ func TestConnectionTrigger_Name(t *testing.T) {
 	}
 }
 
-func TestConnectionTrigger_WrappedNetError(t *testing.T) {
+func TestConnectionTriggerWrappedNetError(t *testing.T) {
 	t.Parallel()
 
 	trigger := NewConnectionTrigger()
@@ -205,7 +205,7 @@ func TestDefaultTriggers(t *testing.T) {
 	}
 }
 
-func TestDefaultTriggers_StatusCodes(t *testing.T) {
+func TestDefaultTriggersStatusCodes(t *testing.T) {
 	t.Parallel()
 
 	triggers := DefaultTriggers()
@@ -232,7 +232,7 @@ func TestDefaultTriggers_StatusCodes(t *testing.T) {
 	}
 }
 
-func TestShouldFailover_StatusCode(t *testing.T) {
+func TestShouldFailoverStatusCode(t *testing.T) {
 	t.Parallel()
 
 	triggers := DefaultTriggers()
@@ -262,7 +262,7 @@ func TestShouldFailover_StatusCode(t *testing.T) {
 	}
 }
 
-func TestShouldFailover_Timeout(t *testing.T) {
+func TestShouldFailoverTimeout(t *testing.T) {
 	t.Parallel()
 
 	triggers := DefaultTriggers()
@@ -276,7 +276,7 @@ func TestShouldFailover_Timeout(t *testing.T) {
 	}
 }
 
-func TestShouldFailover_Connection(t *testing.T) {
+func TestShouldFailoverConnection(t *testing.T) {
 	t.Parallel()
 
 	triggers := DefaultTriggers()
@@ -292,7 +292,7 @@ func TestShouldFailover_Connection(t *testing.T) {
 	}
 }
 
-func TestShouldFailover_EmptyTriggers(t *testing.T) {
+func TestShouldFailoverEmptyTriggers(t *testing.T) {
 	t.Parallel()
 
 	if ShouldFailover(nil, context.DeadlineExceeded, 500) {
@@ -304,7 +304,7 @@ func TestShouldFailover_EmptyTriggers(t *testing.T) {
 	}
 }
 
-func TestShouldFailover_ShortCircuit(t *testing.T) {
+func TestShouldFailoverShortCircuit(t *testing.T) {
 	t.Parallel()
 
 	// Create triggers where first one fires
@@ -376,7 +376,7 @@ func TestFindMatchingTrigger(t *testing.T) {
 	}
 }
 
-func TestFindMatchingTrigger_Empty(t *testing.T) {
+func TestFindMatchingTriggerEmpty(t *testing.T) {
 	t.Parallel()
 
 	if got := FindMatchingTrigger(nil, context.DeadlineExceeded, 500); got != nil {

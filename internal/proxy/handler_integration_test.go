@@ -77,7 +77,7 @@ func setupTestProxy(t *testing.T, customBackendURL string) *httptest.Server {
 	return server
 }
 
-func TestIntegration_NonStreamingRequest(t *testing.T) {
+func TestIntegrationNonStreamingRequest(t *testing.T) {
 	server := setupTestProxy(t, "")
 
 	// Create request body
@@ -139,7 +139,7 @@ func TestIntegration_NonStreamingRequest(t *testing.T) {
 	}
 }
 
-func TestIntegration_StreamingRequest(t *testing.T) {
+func TestIntegrationStreamingRequest(t *testing.T) {
 	server := setupTestProxy(t, "")
 
 	// Create streaming request
@@ -266,7 +266,7 @@ func verifyStreamingBehavior(resp *http.Response) error {
 	return nil
 }
 
-func TestIntegration_ToolUseIdPreservation(t *testing.T) {
+func TestIntegrationToolUseIdPreservation(t *testing.T) {
 	server := setupTestProxy(t, "")
 
 	// First request: Ask Claude to use a tool
@@ -396,7 +396,7 @@ func TestIntegration_ToolUseIdPreservation(t *testing.T) {
 	t.Logf("Successfully preserved tool_use_id: %s", toolUseID)
 }
 
-func TestIntegration_AuthenticationRejection(t *testing.T) {
+func TestIntegrationAuthenticationRejection(t *testing.T) {
 	server := setupTestProxy(t, "")
 
 	// Create request without API key
@@ -455,7 +455,7 @@ func TestIntegration_AuthenticationRejection(t *testing.T) {
 	}
 }
 
-func TestIntegration_HeaderForwarding(t *testing.T) {
+func TestIntegrationHeaderForwarding(t *testing.T) {
 	server := setupTestProxy(t, "")
 
 	// Create request with anthropic headers
@@ -503,7 +503,7 @@ func TestIntegration_HeaderForwarding(t *testing.T) {
 }
 
 //nolint:gocognit // Integration test - table-driven test requires setup complexity
-func TestIntegration_ErrorFormatCompliance(t *testing.T) {
+func TestIntegrationErrorFormatCompliance(t *testing.T) {
 	tests := []struct {
 		setupFunc     func(t *testing.T) *httptest.Server
 		requestFunc   func(serverURL string) (*http.Request, error)
@@ -665,7 +665,7 @@ func TestIntegration_ErrorFormatCompliance(t *testing.T) {
 	}
 }
 
-func TestIntegration_HealthEndpoint(t *testing.T) {
+func TestIntegrationHealthEndpoint(t *testing.T) {
 	server := setupTestProxy(t, "")
 
 	// Create health check request
@@ -702,7 +702,7 @@ func TestIntegration_HealthEndpoint(t *testing.T) {
 	// (already verified by not setting x-api-key)
 }
 
-func TestIntegration_ConcurrentRequests(t *testing.T) {
+func TestIntegrationConcurrentRequests(t *testing.T) {
 	server := setupTestProxy(t, "")
 
 	// Test that proxy can handle concurrent requests

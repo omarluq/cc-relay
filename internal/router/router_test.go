@@ -47,7 +47,7 @@ func TestStrategyConstants(t *testing.T) {
 	}
 }
 
-func TestNewRouter_UnknownStrategy(t *testing.T) {
+func TestNewRouterUnknownStrategy(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewRouter("unknown_strategy", 5*time.Second)
@@ -61,7 +61,7 @@ func TestNewRouter_UnknownStrategy(t *testing.T) {
 	}
 }
 
-func TestNewRouter_Failover(t *testing.T) {
+func TestNewRouterFailover(t *testing.T) {
 	t.Parallel()
 
 	router, err := NewRouter(StrategyFailover, 10*time.Second)
@@ -89,7 +89,7 @@ func TestNewRouter_Failover(t *testing.T) {
 	}
 }
 
-func TestNewRouter_EmptyDefaultsToFailover(t *testing.T) {
+func TestNewRouterEmptyDefaultsToFailover(t *testing.T) {
 	t.Parallel()
 
 	router, err := NewRouter("", 0)
@@ -117,7 +117,7 @@ func TestNewRouter_EmptyDefaultsToFailover(t *testing.T) {
 	}
 }
 
-func TestNewRouter_RoundRobin(t *testing.T) {
+func TestNewRouterRoundRobin(t *testing.T) {
 	t.Parallel()
 
 	router, err := NewRouter(StrategyRoundRobin, 5*time.Second)
@@ -139,7 +139,7 @@ func TestNewRouter_RoundRobin(t *testing.T) {
 	}
 }
 
-func TestNewRouter_Shuffle(t *testing.T) {
+func TestNewRouterShuffle(t *testing.T) {
 	t.Parallel()
 
 	router, err := NewRouter(StrategyShuffle, 5*time.Second)
@@ -161,7 +161,7 @@ func TestNewRouter_Shuffle(t *testing.T) {
 	}
 }
 
-func TestNewRouter_WeightedRoundRobin(t *testing.T) {
+func TestNewRouterWeightedRoundRobin(t *testing.T) {
 	t.Parallel()
 
 	router, err := NewRouter(StrategyWeightedRoundRobin, 5*time.Second)
@@ -247,7 +247,7 @@ func TestFilterHealthy(t *testing.T) {
 	}
 }
 
-func TestFilterHealthy_NilIsHealthyTreatedAsHealthy(t *testing.T) {
+func TestFilterHealthyNilIsHealthyTreatedAsHealthy(t *testing.T) {
 	t.Parallel()
 
 	providers := []ProviderInfo{
@@ -263,7 +263,7 @@ func TestFilterHealthy_NilIsHealthyTreatedAsHealthy(t *testing.T) {
 	}
 }
 
-func TestProviderInfo_Healthy(t *testing.T) {
+func TestProviderInfoHealthy(t *testing.T) {
 	t.Parallel()
 
 	t.Run("nil IsHealthy returns true", func(t *testing.T) {

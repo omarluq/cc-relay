@@ -12,7 +12,7 @@ import (
 
 // Property-based tests for KeyPool
 
-func TestKeyPool_Properties(t *testing.T) {
+func TestKeyPoolProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -144,7 +144,7 @@ func TestKeyPool_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestKeyPool_ConcurrentAccess_Properties(t *testing.T) {
+func TestKeyPoolConcurrentAccessProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)

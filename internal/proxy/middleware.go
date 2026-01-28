@@ -20,6 +20,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const authSucceededMsg = "authentication succeeded"
+
 // AuthMiddleware creates middleware that validates x-api-key header.
 // Uses constant-time comparison to prevent timing attacks.
 //
@@ -53,7 +55,7 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 				return
 			}
 
-			zerolog.Ctx(r.Context()).Debug().Msg("authentication succeeded")
+			zerolog.Ctx(r.Context()).Debug().Msg(authSucceededMsg)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -107,7 +109,7 @@ func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.
 
 			zerolog.Ctx(r.Context()).Debug().
 				Str("auth_type", string(result.Type)).
-				Msg("authentication succeeded")
+				Msg(authSucceededMsg)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -231,6 +233,69 @@ type authCache struct {
 	fingerprint string             // 16 bytes (string header)
 }
 
+type authCacheStore struct {
+	cache atomic.Value
+	mu    sync.Mutex
+}
+
+func (s *authCacheStore) cached(fp string) *authCache {
+	if v := s.cache.Load(); v != nil {
+		if c, ok := v.(*authCache); ok && c.fingerprint == fp {
+			return c
+		}
+	}
+	return nil
+}
+
+func buildAuthCache(fp string, authConfig config.AuthConfig, effectiveKey string) *authCache {
+	var authenticators []auth.Authenticator
+	if authConfig.IsBearerEnabled() {
+		authenticators = append(authenticators, auth.NewBearerAuthenticator(authConfig.BearerSecret))
+	}
+	if effectiveKey != "" {
+		authenticators = append(authenticators, auth.NewAPIKeyAuthenticator(effectiveKey))
+	}
+
+	var chain auth.Authenticator
+	switch len(authenticators) {
+	case 1:
+		chain = authenticators[0]
+	case 0:
+		chain = nil
+	default:
+		chain = auth.NewChainAuthenticator(authenticators...)
+	}
+
+	return &authCache{
+		fingerprint: fp,
+		chain:       chain,
+	}
+}
+
+func (s *authCacheStore) getOrBuild(
+	fp string,
+	authConfig config.AuthConfig,
+	effectiveKey string,
+) *authCache {
+	// Fast path: check cache without lock.
+	if c := s.cached(fp); c != nil {
+		return c
+	}
+
+	// Slow path: acquire lock and rebuild.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Double-check after acquiring lock.
+	if c := s.cached(fp); c != nil {
+		return c
+	}
+
+	cache := buildAuthCache(fp, authConfig, effectiveKey)
+	s.cache.Store(cache)
+	return cache
+}
+
 // authFingerprint computes a small fingerprint of auth-related config fields.
 // This avoids relying on config pointer equality for cache invalidation.
 // Uses length-prefixed format to avoid delimiter collision vulnerabilities.
@@ -254,68 +319,27 @@ func authFingerprint(bearerEnabled bool, bearerSecret, apiKey string) string {
 	return string(buf)
 }
 
+func getRuntimeConfig(cfgProvider config.RuntimeConfigGetter) *config.Config {
+	if cfgProvider == nil {
+		return nil
+	}
+	return cfgProvider.Get()
+}
+
+func recordAuthTiming(ctx context.Context, start time.Time) {
+	if timings := getRequestTimings(ctx); timings != nil {
+		timings.Auth = time.Since(start)
+	}
+}
+
 // LiveAuthMiddleware creates middleware that enforces auth based on live config.
 // It rebuilds the authenticator chain when auth-related config values change.
-//
-//nolint:gocognit,gocyclo,funlen // complexity from double-check locking pattern and nested closure
-func LiveAuthMiddleware(cfgProvider config.RuntimeConfig) func(http.Handler) http.Handler {
-	var (
-		cache atomic.Value // stores *authCache
-		mu    sync.Mutex   // serialize rebuilds
-	)
-
-	// getOrBuildCache returns the cached authenticator, rebuilding if fingerprint changed.
-	getOrBuildCache := func(fp string, authConfig config.AuthConfig, effectiveKey string) *authCache {
-		// Fast path: check cache without lock
-		if v := cache.Load(); v != nil {
-			if c, ok := v.(*authCache); ok && c.fingerprint == fp {
-				return c
-			}
-		}
-
-		// Slow path: acquire lock and rebuild
-		mu.Lock()
-		defer mu.Unlock()
-
-		// Double-check after acquiring lock
-		if v := cache.Load(); v != nil {
-			if c, ok := v.(*authCache); ok && c.fingerprint == fp {
-				return c
-			}
-		}
-
-		// Build authenticator chain
-		var authenticators []auth.Authenticator
-		if authConfig.IsBearerEnabled() {
-			authenticators = append(authenticators, auth.NewBearerAuthenticator(authConfig.BearerSecret))
-		}
-		if effectiveKey != "" {
-			authenticators = append(authenticators, auth.NewAPIKeyAuthenticator(effectiveKey))
-		}
-
-		var chain auth.Authenticator
-		if len(authenticators) == 1 {
-			chain = authenticators[0]
-		} else if len(authenticators) > 1 {
-			chain = auth.NewChainAuthenticator(authenticators...)
-		}
-
-		c := &authCache{
-			fingerprint: fp,
-			chain:       chain,
-		}
-		cache.Store(c)
-		return c
-	}
+func LiveAuthMiddleware(cfgProvider config.RuntimeConfigGetter) func(http.Handler) http.Handler {
+	store := &authCacheStore{}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if cfgProvider == nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			cfg := cfgProvider.Get()
+			cfg := getRuntimeConfig(cfgProvider)
 			if cfg == nil {
 				next.ServeHTTP(w, r)
 				return
@@ -326,10 +350,8 @@ func LiveAuthMiddleware(cfgProvider config.RuntimeConfig) func(http.Handler) htt
 			fp := authFingerprint(authConfig.IsBearerEnabled(), authConfig.BearerSecret, effectiveKey)
 
 			start := time.Now()
-			cached := getOrBuildCache(fp, authConfig, effectiveKey)
-			if timings := getRequestTimings(r.Context()); timings != nil {
-				timings.Auth = time.Since(start)
-			}
+			cached := store.getOrBuild(fp, authConfig, effectiveKey)
+			recordAuthTiming(r.Context(), start)
 
 			if cached.chain == nil {
 				next.ServeHTTP(w, r)
@@ -348,7 +370,7 @@ func LiveAuthMiddleware(cfgProvider config.RuntimeConfig) func(http.Handler) htt
 
 			zerolog.Ctx(r.Context()).Debug().
 				Str("auth_type", string(result.Type)).
-				Msg("authentication succeeded")
+				Msg(authSucceededMsg)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -377,17 +399,23 @@ func RequestIDMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-// formatDuration formats duration in human-readable format.
-// Shows milliseconds for fast requests (<1s), seconds for slow requests.
+// formatDuration formats duration in a human-readable form with microsecond precision.
+// Uses dynamic units so very fast requests show in µs while longer ones show in ms/s.
 func formatDuration(d time.Duration) string {
-	if d < time.Second {
-		// Fast request: show milliseconds (e.g., "456ms")
-		ms := d.Round(time.Millisecond).Milliseconds()
-		return fmt.Sprintf("%dms", ms)
+	if d <= 0 {
+		return "0s"
 	}
-	// Slow request: show seconds with 2 decimal places (e.g., "1.23s")
-	seconds := float64(d) / float64(time.Second)
-	return fmt.Sprintf("%.2fs", seconds)
+	d = d.Round(time.Microsecond)
+	switch {
+	case d < time.Millisecond:
+		return fmt.Sprintf("%dµs", d.Microseconds())
+	case d < time.Second:
+		return fmt.Sprintf("%.2fms", float64(d)/float64(time.Millisecond))
+	case d < time.Minute:
+		return fmt.Sprintf("%.2fs", d.Seconds())
+	default:
+		return d.Truncate(time.Second).String()
+	}
 }
 
 // formatCompletionMessage formats the completion message with status.

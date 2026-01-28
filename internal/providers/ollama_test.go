@@ -123,7 +123,7 @@ func TestOllamaSupportsStreaming(t *testing.T) {
 	}
 }
 
-func TestOllamaForwardHeaders_EdgeCases(t *testing.T) {
+func TestOllamaForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	provider := NewOllamaProvider("test-ollama", "")
@@ -201,7 +201,7 @@ func TestOllamaOwner(t *testing.T) {
 	}
 }
 
-func TestOllamaListModels_WithConfiguredModels(t *testing.T) {
+func TestOllamaListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
 	models := []string{"llama3.2:3b", "qwen2.5:7b"}
@@ -236,7 +236,7 @@ func TestOllamaListModels_WithConfiguredModels(t *testing.T) {
 	}
 }
 
-func TestOllamaListModels_Empty(t *testing.T) {
+func TestOllamaListModelsEmpty(t *testing.T) {
 	t.Parallel()
 
 	// Unlike Z.AI, Ollama has no default models (models are user-installed)
@@ -250,7 +250,7 @@ func TestOllamaListModels_Empty(t *testing.T) {
 	}
 }
 
-func TestOllamaListModels_NilModels(t *testing.T) {
+func TestOllamaListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
 	provider := NewOllamaProviderWithModels("test-ollama", "", nil)

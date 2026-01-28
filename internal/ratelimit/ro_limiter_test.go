@@ -52,7 +52,7 @@ func TestLimitGlobal(t *testing.T) {
 	assert.Equal(t, items, results)
 }
 
-func TestLimit_WithKeyGetter(t *testing.T) {
+func TestLimitWithKeyGetter(t *testing.T) {
 	t.Parallel()
 
 	type Request struct {
@@ -117,7 +117,7 @@ func TestNewGlobalLimitOperator(t *testing.T) {
 	assert.Equal(t, []int{1, 2, 3}, results)
 }
 
-func TestLimit_ConcurrentAccess(t *testing.T) {
+func TestLimitConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
 	ch := make(chan int)
@@ -156,7 +156,7 @@ func TestLimit_ConcurrentAccess(t *testing.T) {
 	assert.Equal(t, int32(10), received.Load())
 }
 
-func TestLimit_EmptyStream(t *testing.T) {
+func TestLimitEmptyStream(t *testing.T) {
 	t.Parallel()
 
 	source := ro.Empty[int]()
@@ -167,7 +167,7 @@ func TestLimit_EmptyStream(t *testing.T) {
 	assert.Empty(t, results)
 }
 
-func TestLimit_SingleItem(t *testing.T) {
+func TestLimitSingleItem(t *testing.T) {
 	t.Parallel()
 
 	source := ro.Just(42)
@@ -178,7 +178,7 @@ func TestLimit_SingleItem(t *testing.T) {
 	assert.Equal(t, []int{42}, results)
 }
 
-func TestLimit_RateLimitEnforcement(t *testing.T) {
+func TestLimitRateLimitEnforcement(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping rate limit timing test in short mode")
 	}
@@ -202,7 +202,7 @@ func TestLimit_RateLimitEnforcement(t *testing.T) {
 	assert.NotEmpty(t, results, "expected at least some items to pass through")
 }
 
-func TestLimit_PreservesOrder(t *testing.T) {
+func TestLimitPreservesOrder(t *testing.T) {
 	t.Parallel()
 
 	items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
@@ -215,7 +215,7 @@ func TestLimit_PreservesOrder(t *testing.T) {
 	assert.Equal(t, items, results, "rate limiter should preserve item order")
 }
 
-func TestLimit_MultipleKeyBuckets(t *testing.T) {
+func TestLimitMultipleKeyBuckets(t *testing.T) {
 	t.Parallel()
 
 	type Event struct {
@@ -248,7 +248,7 @@ func TestLimit_MultipleKeyBuckets(t *testing.T) {
 	assert.Equal(t, 1, keyCounts["c"])
 }
 
-func TestLimit_ZeroIntervalDefaultsToMinute(t *testing.T) {
+func TestLimitZeroIntervalDefaultsToMinute(t *testing.T) {
 	t.Parallel()
 
 	source := ro.FromSlice([]int{1, 2, 3})
@@ -261,7 +261,7 @@ func TestLimit_ZeroIntervalDefaultsToMinute(t *testing.T) {
 	assert.Equal(t, []int{1, 2, 3}, results)
 }
 
-func BenchmarkLimit_Global(b *testing.B) {
+func BenchmarkLimitGlobal(b *testing.B) {
 	items := make([]int, b.N)
 	for i := range items {
 		items[i] = i
@@ -277,7 +277,7 @@ func BenchmarkLimit_Global(b *testing.B) {
 	}
 }
 
-func BenchmarkLimit_WithKey(b *testing.B) {
+func BenchmarkLimitWithKey(b *testing.B) {
 	type Item struct {
 		Key   string
 		Value int

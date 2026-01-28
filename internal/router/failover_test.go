@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestFailoverRouter_Name(t *testing.T) {
+func TestFailoverRouterName(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -18,7 +18,7 @@ func TestFailoverRouter_Name(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_DefaultTimeout(t *testing.T) {
+func TestFailoverRouterDefaultTimeout(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -27,7 +27,7 @@ func TestFailoverRouter_DefaultTimeout(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_CustomTimeout(t *testing.T) {
+func TestFailoverRouterCustomTimeout(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(10 * time.Second)
@@ -36,7 +36,7 @@ func TestFailoverRouter_CustomTimeout(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_DefaultTriggers(t *testing.T) {
+func TestFailoverRouterDefaultTriggers(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -46,7 +46,7 @@ func TestFailoverRouter_DefaultTriggers(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_CustomTriggers(t *testing.T) {
+func TestFailoverRouterCustomTriggers(t *testing.T) {
 	t.Parallel()
 
 	customTrigger := NewStatusCodeTrigger(500)
@@ -60,7 +60,7 @@ func TestFailoverRouter_CustomTriggers(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_Select_EmptyProviders(t *testing.T) {
+func TestFailoverRouterSelectEmptyProviders(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -70,7 +70,7 @@ func TestFailoverRouter_Select_EmptyProviders(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_Select_AllUnhealthy(t *testing.T) {
+func TestFailoverRouterSelectAllUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -84,7 +84,7 @@ func TestFailoverRouter_Select_AllUnhealthy(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_Select_ReturnsHighestPriority(t *testing.T) {
+func TestFailoverRouterSelectReturnsHighestPriority(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -105,7 +105,7 @@ func TestFailoverRouter_Select_ReturnsHighestPriority(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_Select_SkipsUnhealthyHighPriority(t *testing.T) {
+func TestFailoverRouterSelectSkipsUnhealthyHighPriority(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -123,7 +123,7 @@ func TestFailoverRouter_Select_SkipsUnhealthyHighPriority(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_EmptyProviders(t *testing.T) {
+func TestFailoverRouterSelectWithRetryEmptyProviders(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -136,7 +136,7 @@ func TestFailoverRouter_SelectWithRetry_EmptyProviders(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_AllUnhealthy(t *testing.T) {
+func TestFailoverRouterSelectWithRetryAllUnhealthy(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -152,7 +152,7 @@ func TestFailoverRouter_SelectWithRetry_AllUnhealthy(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_PrimarySucceeds(t *testing.T) {
+func TestFailoverRouterSelectWithRetryPrimarySucceeds(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -180,7 +180,7 @@ func TestFailoverRouter_SelectWithRetry_PrimarySucceeds(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_SingleProvider(t *testing.T) {
+func TestFailoverRouterSelectWithRetrySingleProvider(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(0)
@@ -203,7 +203,7 @@ func TestFailoverRouter_SelectWithRetry_SingleProvider(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_FailoverOnTrigger(t *testing.T) {
+func TestFailoverRouterSelectWithRetryFailoverOnTrigger(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(100*time.Millisecond, NewStatusCodeTrigger(429))
@@ -244,7 +244,7 @@ func TestFailoverRouter_SelectWithRetry_FailoverOnTrigger(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_NoFailoverOnNonTrigger(t *testing.T) {
+func TestFailoverRouterSelectWithRetryNoFailoverOnNonTrigger(t *testing.T) {
 	t.Parallel()
 
 	// Only 429 triggers failover
@@ -271,7 +271,7 @@ func TestFailoverRouter_SelectWithRetry_NoFailoverOnNonTrigger(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_FirstSuccessWins(t *testing.T) {
+func TestFailoverRouterSelectWithRetryFirstSuccessWins(t *testing.T) {
 	t.Parallel()
 
 	var mu sync.Mutex
@@ -331,7 +331,7 @@ func TestFailoverRouter_SelectWithRetry_FirstSuccessWins(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_TimeoutRespected(t *testing.T) {
+func TestFailoverRouterSelectWithRetryTimeoutRespected(t *testing.T) {
 	t.Parallel()
 
 	shortTimeout := 50 * time.Millisecond
@@ -377,7 +377,7 @@ func TestFailoverRouter_SelectWithRetry_TimeoutRespected(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SelectWithRetry_ConcurrentSafety(t *testing.T) {
+func TestFailoverRouterSelectWithRetryConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(100 * time.Millisecond)
@@ -425,7 +425,7 @@ func TestFailoverRouter_SelectWithRetry_ConcurrentSafety(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SortByPriority(t *testing.T) {
+func TestFailoverRouterSortByPriority(t *testing.T) {
 	t.Parallel()
 
 	providers := []ProviderInfo{
@@ -452,7 +452,7 @@ func TestFailoverRouter_SortByPriority(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_SortByPriority_StableSort(t *testing.T) {
+func TestFailoverRouterSortByPriorityStableSort(t *testing.T) {
 	t.Parallel()
 
 	// Same priority, different weights - should preserve order
@@ -493,13 +493,13 @@ func TestRoutingResult(t *testing.T) {
 }
 
 // Test that FailoverRouter implements ProviderRouter interface.
-func TestFailoverRouter_ImplementsProviderRouter(t *testing.T) {
+func TestFailoverRouterImplementsProviderRouter(t *testing.T) {
 	t.Parallel()
 
 	var _ ProviderRouter = (*FailoverRouter)(nil)
 }
 
-func TestFailoverRouter_ParallelRace_AllFail(t *testing.T) {
+func TestFailoverRouterParallelRaceAllFail(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(100*time.Millisecond, NewStatusCodeTrigger(500))
@@ -527,7 +527,7 @@ func TestFailoverRouter_ParallelRace_AllFail(t *testing.T) {
 	}
 }
 
-func TestFailoverRouter_ContextCancellation(t *testing.T) {
+func TestFailoverRouterContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	router := NewFailoverRouter(5*time.Second, NewStatusCodeTrigger(500))

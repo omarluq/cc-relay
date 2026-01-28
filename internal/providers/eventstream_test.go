@@ -531,7 +531,7 @@ func (n *nonFlushingWriter) WriteHeader(statusCode int) {
 	n.statusCode = statusCode
 }
 
-func TestEventStreamToSSE_Integration(t *testing.T) {
+func TestEventStreamToSSEIntegration(t *testing.T) {
 	t.Run("full streaming scenario", func(t *testing.T) {
 		// Simulate a complete Bedrock streaming response
 		messages := []struct {

@@ -31,19 +31,19 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	// - Live router (strategy/timeout changes without restart)
 	// - Live key pools (newly enabled providers get keys immediately)
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouterAsFunc())
-	handler, err := proxy.SetupRoutesWithLiveKeyPools(
-		cfgSvc,
-		providerSvc.GetPrimaryProvider(),
-		providerInfoSvc.Get, // Hot-reloadable provider info
-		liveRouter,          // Live router for strategy changes
-		providerSvc.GetPrimaryKey(),
-		poolSvc.Get(),
-		poolMapSvc.GetPools, // Live key pools accessor
-		poolMapSvc.GetKeys,  // Live fallback keys accessor
-		providerSvc.GetAllProviders(),
-		trackerSvc.Tracker,
-		sigCacheSvc.Cache,
-	)
+	handler, err := proxy.SetupRoutesWithLiveKeyPools(&proxy.RoutesOptions{
+		ConfigProvider:    cfgSvc,
+		Provider:          providerSvc.GetPrimaryProvider(),
+		ProviderInfosFunc: providerInfoSvc.Get, // Hot-reloadable provider info
+		ProviderRouter:    liveRouter,          // Live router for strategy changes
+		ProviderKey:       providerSvc.GetPrimaryKey(),
+		Pool:              poolSvc.Get(),
+		GetProviderPools:  poolMapSvc.GetPools, // Live key pools accessor
+		GetProviderKeys:   poolMapSvc.GetKeys,  // Live fallback keys accessor
+		AllProviders:      providerSvc.GetAllProviders(),
+		HealthTracker:     trackerSvc.Tracker,
+		SignatureCache:    sigCacheSvc.Cache,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup proxy handler: %w", err)
 	}

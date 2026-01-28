@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestNewWatcher_PathResolution(t *testing.T) {
+func TestNewWatcherPathResolution(t *testing.T) {
 	t.Parallel()
 
 	// Create temp directory with a config file
@@ -34,7 +34,7 @@ func TestNewWatcher_PathResolution(t *testing.T) {
 	}
 }
 
-func TestNewWatcher_InvalidPath(t *testing.T) {
+func TestNewWatcherInvalidPath(t *testing.T) {
 	t.Parallel()
 
 	// Path with non-existent directory should fail
@@ -45,7 +45,7 @@ func TestNewWatcher_InvalidPath(t *testing.T) {
 	}
 }
 
-func TestWatcher_OnReload(t *testing.T) {
+func TestWatcherOnReload(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -97,7 +97,7 @@ func TestWatcher_OnReload(t *testing.T) {
 	}
 }
 
-func TestWatcher_Debounce(t *testing.T) {
+func TestWatcherDebounce(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -148,7 +148,7 @@ func TestWatcher_Debounce(t *testing.T) {
 	}
 }
 
-func TestWatcher_ContextCancellation(t *testing.T) {
+func TestWatcherContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -184,7 +184,7 @@ func TestWatcher_ContextCancellation(t *testing.T) {
 	}
 }
 
-func TestWatcher_IgnoresOtherFiles(t *testing.T) {
+func TestWatcherIgnoresOtherFiles(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -227,7 +227,7 @@ func TestWatcher_IgnoresOtherFiles(t *testing.T) {
 	}
 }
 
-func TestWatcher_InvalidConfigDoesNotCallback(t *testing.T) {
+func TestWatcherInvalidConfigDoesNotCallback(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -273,7 +273,7 @@ func TestWatcher_InvalidConfigDoesNotCallback(t *testing.T) {
 	}
 }
 
-func TestWatcher_MultipleCallbacks(t *testing.T) {
+func TestWatcherMultipleCallbacks(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -352,7 +352,7 @@ func TestWatcher_MultipleCallbacks(t *testing.T) {
 	}
 }
 
-func TestWatcher_Close(t *testing.T) {
+func TestWatcherClose(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -370,7 +370,7 @@ func TestWatcher_Close(t *testing.T) {
 	}
 }
 
-func TestWatcher_ConcurrentCallbackRegistration(t *testing.T) {
+func TestWatcherConcurrentCallbackRegistration(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()

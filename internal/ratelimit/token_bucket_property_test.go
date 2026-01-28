@@ -11,7 +11,7 @@ import (
 
 // Property-based tests specific to TokenBucketLimiter implementation
 
-func TestTokenBucketLimiter_Properties(t *testing.T) {
+func TestTokenBucketLimiterProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -136,7 +136,7 @@ func TestTokenBucketLimiter_Properties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestTokenBucketLimiter_Reserve_Properties(t *testing.T) {
+func TestTokenBucketLimiterReserveProperties(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)

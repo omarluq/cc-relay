@@ -38,7 +38,7 @@ func TestGetModelGroup(t *testing.T) {
 	}
 }
 
-func TestSignatureCache_CacheKey(t *testing.T) {
+func TestSignatureCacheCacheKey(t *testing.T) {
 	cfg := cache.Config{
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
@@ -73,7 +73,7 @@ func TestSignatureCache_CacheKey(t *testing.T) {
 	assert.Len(t, key1, len("sig:claude:")+SignatureHashLen)
 }
 
-func TestSignatureCache_GetSet(t *testing.T) {
+func TestSignatureCacheGetSet(t *testing.T) {
 	cfg := cache.Config{
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
@@ -119,7 +119,7 @@ func TestSignatureCache_GetSet(t *testing.T) {
 	assert.Empty(t, got, "should miss for different model group")
 }
 
-func TestSignatureCache_SkipsShortSignatures(t *testing.T) {
+func TestSignatureCacheSkipsShortSignatures(t *testing.T) {
 	cfg := cache.Config{
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
@@ -147,7 +147,7 @@ func TestSignatureCache_SkipsShortSignatures(t *testing.T) {
 	assert.Empty(t, got, "short signature should not be cached")
 }
 
-func TestSignatureCache_NilCache(t *testing.T) {
+func TestSignatureCacheNilCache(t *testing.T) {
 	// NewSignatureCache with nil should return nil
 	sc := NewSignatureCache(nil)
 	assert.Nil(t, sc)
@@ -190,7 +190,7 @@ func TestIsValidSignature(t *testing.T) {
 	}
 }
 
-func TestSignatureCache_GeminiSentinel(t *testing.T) {
+func TestSignatureCacheGeminiSentinel(t *testing.T) {
 	cfg := cache.Config{
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{

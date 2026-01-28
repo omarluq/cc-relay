@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func TestNewCircuitBreaker_DefaultSettings(t *testing.T) {
+func TestNewCircuitBreakerDefaultSettings(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{}
 
@@ -26,7 +26,7 @@ func TestNewCircuitBreaker_DefaultSettings(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_AllowWhenClosed(t *testing.T) {
+func TestCircuitBreakerAllowWhenClosed(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 5,
@@ -51,7 +51,7 @@ func TestCircuitBreaker_AllowWhenClosed(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_OpensAfterThresholdFailures(t *testing.T) {
+func TestCircuitBreakerOpensAfterThresholdFailures(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 3,
@@ -83,7 +83,7 @@ func TestCircuitBreaker_OpensAfterThresholdFailures(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_TransitionsToHalfOpenAfterTimeout(t *testing.T) {
+func TestCircuitBreakerTransitionsToHalfOpenAfterTimeout(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -117,7 +117,7 @@ func TestCircuitBreaker_TransitionsToHalfOpenAfterTimeout(t *testing.T) {
 	done(nil)
 }
 
-func TestCircuitBreaker_ClosesAfterSuccessfulProbes(t *testing.T) {
+func TestCircuitBreakerClosesAfterSuccessfulProbes(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -148,7 +148,7 @@ func TestCircuitBreaker_ClosesAfterSuccessfulProbes(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_ContextCanceledNotFailure(t *testing.T) {
+func TestCircuitBreakerContextCanceledNotFailure(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -171,7 +171,7 @@ func TestCircuitBreaker_ContextCanceledNotFailure(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_ReportSuccess(t *testing.T) {
+func TestCircuitBreakerReportSuccess(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 5,
@@ -192,7 +192,7 @@ func TestCircuitBreaker_ReportSuccess(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_ReportFailure(t *testing.T) {
+func TestCircuitBreakerReportFailure(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -218,7 +218,7 @@ func TestCircuitBreaker_ReportFailure(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_ReportSuccessWhenOpen(t *testing.T) {
+func TestCircuitBreakerReportSuccessWhenOpen(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -251,7 +251,7 @@ func TestCircuitBreaker_ReportSuccessWhenOpen(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_ReportFailureWhenOpen(t *testing.T) {
+func TestCircuitBreakerReportFailureWhenOpen(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -284,7 +284,7 @@ func TestCircuitBreaker_ReportFailureWhenOpen(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_ReportSuccessWhenHalfOpen(t *testing.T) {
+func TestCircuitBreakerReportSuccessWhenHalfOpen(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -319,7 +319,7 @@ func TestCircuitBreaker_ReportSuccessWhenHalfOpen(t *testing.T) {
 	}
 }
 
-func TestCircuitBreaker_ReportFailureWhenHalfOpen(t *testing.T) {
+func TestCircuitBreakerReportFailureWhenHalfOpen(t *testing.T) {
 	logger := zerolog.Nop()
 	cfg := CircuitBreakerConfig{
 		FailureThreshold: 2,
@@ -389,7 +389,7 @@ func TestShouldCountAsFailure(t *testing.T) {
 	}
 }
 
-func TestShouldCountAsFailure_WrappedContextCanceled(t *testing.T) {
+func TestShouldCountAsFailureWrappedContextCanceled(t *testing.T) {
 	wrappedErr := errors.Join(errors.New("request failed"), context.Canceled)
 
 	if ShouldCountAsFailure(0, wrappedErr) {

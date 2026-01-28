@@ -104,7 +104,7 @@ func TestNewBedrockProviderWithCredentials(t *testing.T) {
 	})
 }
 
-func TestBedrockProvider_Authenticate(t *testing.T) {
+func TestBedrockProviderAuthenticate(t *testing.T) {
 	t.Run("adds SigV4 authorization header", func(t *testing.T) {
 		cfg := &BedrockConfig{
 			Name:   "test-bedrock",
@@ -228,7 +228,7 @@ func TestBedrockProvider_Authenticate(t *testing.T) {
 	})
 }
 
-func TestBedrockProvider_ForwardHeaders(t *testing.T) {
+func TestBedrockProviderForwardHeaders(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -261,7 +261,7 @@ func TestBedrockProvider_ForwardHeaders(t *testing.T) {
 	})
 }
 
-func TestBedrockProvider_TransformRequest(t *testing.T) {
+func TestBedrockProviderTransformRequest(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -356,7 +356,7 @@ func TestBedrockProvider_TransformRequest(t *testing.T) {
 	})
 }
 
-func TestBedrockProvider_TransformResponse(t *testing.T) {
+func TestBedrockProviderTransformResponse(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -412,7 +412,7 @@ func TestBedrockProvider_TransformResponse(t *testing.T) {
 	})
 }
 
-func TestBedrockProvider_RequiresBodyTransform(t *testing.T) {
+func TestBedrockProviderRequiresBodyTransform(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -423,7 +423,7 @@ func TestBedrockProvider_RequiresBodyTransform(t *testing.T) {
 	assert.True(t, p.RequiresBodyTransform())
 }
 
-func TestBedrockProvider_SupportsStreaming(t *testing.T) {
+func TestBedrockProviderSupportsStreaming(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -434,7 +434,7 @@ func TestBedrockProvider_SupportsStreaming(t *testing.T) {
 	assert.True(t, p.SupportsStreaming())
 }
 
-func TestBedrockProvider_StreamingContentType(t *testing.T) {
+func TestBedrockProviderStreamingContentType(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -446,7 +446,7 @@ func TestBedrockProvider_StreamingContentType(t *testing.T) {
 	assert.Equal(t, ContentTypeEventStream, p.StreamingContentType())
 }
 
-func TestBedrockProvider_ModelMapping(t *testing.T) {
+func TestBedrockProviderModelMapping(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -470,12 +470,12 @@ func TestBedrockProvider_ModelMapping(t *testing.T) {
 	})
 }
 
-func TestBedrockProvider_InterfaceCompliance(_ *testing.T) {
+func TestBedrockProviderInterfaceCompliance(_ *testing.T) {
 	// Compile-time check that BedrockProvider implements Provider
 	var _ Provider = (*BedrockProvider)(nil)
 }
 
-func TestBedrockProvider_Owner(t *testing.T) {
+func TestBedrockProviderOwner(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -486,7 +486,7 @@ func TestBedrockProvider_Owner(t *testing.T) {
 	assert.Equal(t, "aws", p.Owner())
 }
 
-func TestBedrockProvider_SupportsTransparentAuth(t *testing.T) {
+func TestBedrockProviderSupportsTransparentAuth(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "us-east-1",
@@ -498,7 +498,7 @@ func TestBedrockProvider_SupportsTransparentAuth(t *testing.T) {
 	assert.False(t, p.SupportsTransparentAuth())
 }
 
-func TestBedrockProvider_SigningDetails(t *testing.T) {
+func TestBedrockProviderSigningDetails(t *testing.T) {
 	t.Run("signature covers request body", func(t *testing.T) {
 		cfg := &BedrockConfig{
 			Name:   "test-bedrock",
@@ -547,7 +547,7 @@ func TestBedrockProvider_SigningDetails(t *testing.T) {
 	})
 }
 
-func TestBedrockProvider_GetRegion(t *testing.T) {
+func TestBedrockProviderGetRegion(t *testing.T) {
 	cfg := &BedrockConfig{
 		Name:   "test-bedrock",
 		Region: "eu-central-1",

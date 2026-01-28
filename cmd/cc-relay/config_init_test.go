@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestRunConfigInit_DefaultPath(t *testing.T) {
+func TestRunConfigInitDefaultPath(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
 
 	// Create a temp directory to use as HOME
@@ -53,7 +53,7 @@ func TestRunConfigInit_DefaultPath(t *testing.T) {
 	}
 }
 
-func TestRunConfigInit_CustomPath(t *testing.T) {
+func TestRunConfigInitCustomPath(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
 
 	// Create a temp directory
@@ -78,7 +78,7 @@ func TestRunConfigInit_CustomPath(t *testing.T) {
 	}
 }
 
-func TestRunConfigInit_ExistingFileWithoutForce(t *testing.T) {
+func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
 
 	// Create a temp directory with an existing config file
@@ -104,7 +104,7 @@ func TestRunConfigInit_ExistingFileWithoutForce(t *testing.T) {
 	}
 }
 
-func TestRunConfigInit_ExistingFileWithForce(t *testing.T) {
+func TestRunConfigInitExistingFileWithForce(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
 
 	// Create a temp directory with an existing config file
@@ -142,7 +142,7 @@ func TestRunConfigInit_ExistingFileWithForce(t *testing.T) {
 	}
 }
 
-func TestRunConfigInit_CreatesDirectory(t *testing.T) {
+func TestRunConfigInitCreatesDirectory(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
 
 	// Create a temp directory

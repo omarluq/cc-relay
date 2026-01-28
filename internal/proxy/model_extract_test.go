@@ -83,7 +83,7 @@ func TestExtractModelFromRequest(t *testing.T) {
 	}
 }
 
-func TestExtractModelFromRequest_NilBody(t *testing.T) {
+func TestExtractModelFromRequestNilBody(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest("GET", "/v1/messages", http.NoBody)
@@ -108,7 +108,7 @@ func TestCacheModelInContext(t *testing.T) {
 	assert.Equal(t, model, retrieved)
 }
 
-func TestGetModelFromContext_NotCached(t *testing.T) {
+func TestGetModelFromContextNotCached(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -118,7 +118,7 @@ func TestGetModelFromContext_NotCached(t *testing.T) {
 	assert.Equal(t, "", retrieved)
 }
 
-func TestGetModelFromContext_EmptyModel(t *testing.T) {
+func TestGetModelFromContextEmptyModel(t *testing.T) {
 	t.Parallel()
 
 	ctx := CacheModelInContext(context.Background(), "")

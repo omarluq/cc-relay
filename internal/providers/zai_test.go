@@ -123,7 +123,7 @@ func TestZAISupportsStreaming(t *testing.T) {
 	}
 }
 
-func TestZAIForwardHeaders_EdgeCases(t *testing.T) {
+func TestZAIForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
 	provider := NewZAIProvider("test-zai", "")
@@ -201,7 +201,7 @@ func TestZAIOwner(t *testing.T) {
 	}
 }
 
-func TestZAIListModels_WithConfiguredModels(t *testing.T) {
+func TestZAIListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
 	models := []string{"GLM-4.7", "GLM-4.5-Air"}
@@ -236,7 +236,7 @@ func TestZAIListModels_WithConfiguredModels(t *testing.T) {
 	}
 }
 
-func TestZAIListModels_Defaults(t *testing.T) {
+func TestZAIListModelsDefaults(t *testing.T) {
 	t.Parallel()
 
 	provider := NewZAIProvider("test-zai", "")
@@ -249,7 +249,7 @@ func TestZAIListModels_Defaults(t *testing.T) {
 	}
 }
 
-func TestZAIListModels_NilModels(t *testing.T) {
+func TestZAIListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
 	provider := NewZAIProviderWithModels("test-zai", "", nil)

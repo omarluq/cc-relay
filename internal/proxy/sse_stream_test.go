@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSSEEvent_String(t *testing.T) {
+func TestSSEEventString(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -197,7 +197,7 @@ func TestStreamSSE(t *testing.T) {
 	}
 }
 
-func TestStreamSSE_PendingEventAtEOF(t *testing.T) {
+func TestStreamSSEPendingEventAtEOF(t *testing.T) {
 	t.Parallel()
 
 	// Event without trailing empty line
@@ -209,7 +209,7 @@ func TestStreamSSE_PendingEventAtEOF(t *testing.T) {
 	assert.Equal(t, []SSEEvent{{Data: []byte("hello")}}, events)
 }
 
-func TestStreamSSE_ReadError(t *testing.T) {
+func TestStreamSSEReadError(t *testing.T) {
 	t.Parallel()
 
 	readErr := errors.New("read error")
@@ -253,7 +253,7 @@ func TestForwardSSE(t *testing.T) {
 	assert.Equal(t, expected, rec.Body.String())
 }
 
-func TestForwardSSE_NotFlushable(t *testing.T) {
+func TestForwardSSENotFlushable(t *testing.T) {
 	t.Parallel()
 
 	events := ro.FromSlice([]SSEEvent{{Data: []byte("hello")}})
@@ -278,7 +278,7 @@ func (w *nonFlushableWriter) Write(_ []byte) (int, error) {
 
 func (w *nonFlushableWriter) WriteHeader(_ int) {}
 
-func TestForwardSSE_WriteError(t *testing.T) {
+func TestForwardSSEWriteError(t *testing.T) {
 	t.Parallel()
 
 	events := ro.FromSlice([]SSEEvent{{Data: []byte("hello")}})
@@ -323,7 +323,7 @@ func TestWriteSSEEvent(t *testing.T) {
 	assert.Equal(t, expected, rec.Body.String())
 }
 
-func TestWriteSSEEvent_NotFlushable(t *testing.T) {
+func TestWriteSSEEventNotFlushable(t *testing.T) {
 	t.Parallel()
 
 	writer := &nonFlushableWriter{}
@@ -423,7 +423,7 @@ func TestCountEvents(t *testing.T) {
 	assert.Equal(t, []int64{3}, results)
 }
 
-func TestStreamSSE_RoundTrip(t *testing.T) {
+func TestStreamSSERoundTrip(t *testing.T) {
 	t.Parallel()
 
 	// Create original events
@@ -483,7 +483,7 @@ func BenchmarkForwardSSE(b *testing.B) {
 	}
 }
 
-func BenchmarkSSEEvent_String(b *testing.B) {
+func BenchmarkSSEEventString(b *testing.B) {
 	event := SSEEvent{
 		Event: "content_block_delta",
 		Data:  []byte(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello, world!"}}`),
@@ -496,7 +496,7 @@ func BenchmarkSSEEvent_String(b *testing.B) {
 	}
 }
 
-func TestParseSSEField_InvalidRetry(t *testing.T) {
+func TestParseSSEFieldInvalidRetry(t *testing.T) {
 	t.Parallel()
 
 	input := "retry: invalid\ndata: hello\n\n"
@@ -511,7 +511,7 @@ func TestParseSSEField_InvalidRetry(t *testing.T) {
 	assert.Equal(t, []byte("hello"), events[0].Data)
 }
 
-func TestStreamSSE_LargeEvent(t *testing.T) {
+func TestStreamSSELargeEvent(t *testing.T) {
 	t.Parallel()
 
 	// Create a large data payload
@@ -527,7 +527,7 @@ func TestStreamSSE_LargeEvent(t *testing.T) {
 	assert.Equal(t, largeData, events[0].Data)
 }
 
-func TestStreamSSE_SubscribeCancel(t *testing.T) {
+func TestStreamSSESubscribeCancel(t *testing.T) {
 	t.Parallel()
 
 	// Create a stream that would produce multiple events
@@ -554,7 +554,7 @@ func TestStreamSSE_SubscribeCancel(t *testing.T) {
 }
 
 // Ensure SSE stream works with io.Pipe (simulating real streaming).
-func TestStreamSSE_WithPipe(t *testing.T) {
+func TestStreamSSEWithPipe(t *testing.T) {
 	t.Parallel()
 
 	pr, pw := io.Pipe()
