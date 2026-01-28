@@ -3,7 +3,6 @@ package proxy
 
 import (
 	"bytes"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -305,26 +304,6 @@ func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405 for POST to /health, got %d", rec.Code)
 	}
-}
-
-func newBackendServer(t *testing.T, body string) *httptest.Server {
-	t.Helper()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if body != "" {
-			_, _ = w.Write([]byte(body))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return server
-}
-
-func newMessagesRequest(body io.Reader) *http.Request {
-	req := httptest.NewRequest("POST", "/v1/messages", body)
-	req.Header.Set("anthropic-version", "2023-06-01")
-	return req
 }
 
 func setupRoutesHandler(t *testing.T, cfg *config.Config, provider providers.Provider) http.Handler {

@@ -22,10 +22,9 @@ import (
 )
 
 const (
-	anthropicVersion = "2023-06-01"
-	poolKey1         = "pool-key-1"
-	localBaseURL     = "http://localhost:9999"
-	initialKey       = "initial-key"
+	poolKey1     = "pool-key-1"
+	localBaseURL = "http://localhost:9999"
+	initialKey   = "initial-key"
 )
 
 // newTestHandler is a helper that creates a handler with common test defaults.
