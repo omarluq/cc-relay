@@ -13,6 +13,16 @@ const (
 	statusRestoreWdErrFmt = "failed to restore working directory: %v"
 )
 
+func writeStatusConfig(t *testing.T, dir, listenAddr string) string {
+	t.Helper()
+	configPath := filepath.Join(dir, statusConfigFileName)
+	configContent := "server:\n  listen: " + listenAddr + "\n  api_key: test\n"
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return configPath
+}
+
 func saveWdHome(t *testing.T) func() {
 	t.Helper()
 	origWd, err := os.Getwd()
@@ -130,11 +140,7 @@ func TestRunStatusServerRunning(t *testing.T) {
 
 	// Create temp config file pointing to our mock server
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, statusConfigFileName)
-	configContent := "server:\n  listen: " + serverAddr + "\n  api_key: test\n"
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	configPath := writeStatusConfig(t, tmpDir, serverAddr)
 
 	// Save original cfgFile
 	origCfgFile := cfgFile
@@ -154,11 +160,7 @@ func TestRunStatusServerNotRunning(t *testing.T) {
 
 	// Create temp config file pointing to a non-existent server
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, statusConfigFileName)
-	configContent := "server:\n  listen: 127.0.0.1:19999\n  api_key: test\n"
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	configPath := writeStatusConfig(t, tmpDir, "127.0.0.1:19999")
 
 	// Save original cfgFile
 	origCfgFile := cfgFile
@@ -191,11 +193,7 @@ func TestRunStatusServerUnhealthy(t *testing.T) {
 
 	// Create temp config file
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, statusConfigFileName)
-	configContent := "server:\n  listen: " + serverAddr + "\n  api_key: test\n"
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	configPath := writeStatusConfig(t, tmpDir, serverAddr)
 
 	// Save original cfgFile
 	origCfgFile := cfgFile

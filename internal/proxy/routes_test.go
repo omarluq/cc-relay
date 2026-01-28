@@ -73,7 +73,7 @@ func TestSetupRoutesAuthMiddlewareWithValidKey(t *testing.T) {
 
 	// Request with valid API key should pass auth and reach backend
 	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: "x-api-key", value: testAPIKey},
+		headerPair{key: apiKeyHeader, value: testAPIKey},
 	)
 
 	rec := serveRequest(t, handler, req)
@@ -451,7 +451,7 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
 		req := newMessagesRequestWithHeaders("{}",
-			headerPair{key: "x-api-key", value: "test-api-key"},
+			headerPair{key: apiKeyHeader, value: "test-api-key"},
 		)
 		rec := serveRequest(t, handler, req)
 
@@ -513,7 +513,7 @@ func TestSetupRoutesLegacyAPIKeyFallback(t *testing.T) {
 
 	// Legacy API key should still work
 	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: "x-api-key", value: "legacy-key"},
+		headerPair{key: apiKeyHeader, value: "legacy-key"},
 	)
 	rec := serveRequest(t, handler, req)
 
@@ -681,7 +681,7 @@ func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
 		req := newMessagesRequestWithHeaders("{}",
-			headerPair{key: "x-api-key", value: "test-api-key"},
+			headerPair{key: apiKeyHeader, value: "test-api-key"},
 		)
 		rec := serveRequest(t, handler, req)
 

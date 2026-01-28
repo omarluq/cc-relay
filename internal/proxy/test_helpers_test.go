@@ -21,6 +21,8 @@ const (
 	anthropicBaseURL              = "https://api.anthropic.com"
 	anthropicVersion2024          = "2024-01-01"
 	anthropicBetaExtendedThinking = "extended-thinking-2024-01-01"
+	messagesPath                  = "/v1/messages"
+	apiKeyHeader                  = "x-api-key"
 )
 
 type recordingBackend struct {
@@ -83,7 +85,7 @@ func newJSONBackend(t *testing.T, body string) *httptest.Server {
 }
 
 func newMessagesRequest(body io.Reader) *http.Request {
-	req := httptest.NewRequest("POST", "/v1/messages", body)
+	req := httptest.NewRequest("POST", messagesPath, body)
 	req.Header.Set("anthropic-version", anthropicVersion)
 	return req
 }

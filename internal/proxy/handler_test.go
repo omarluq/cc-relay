@@ -649,7 +649,7 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 	defer backend.Close()
 
 	// Create key pool with test keys
-	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
 		Strategy: "least_loaded",
 		Keys: []keypool.KeyConfig{
 			{APIKey: poolKey1, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
@@ -689,7 +689,7 @@ func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
 		Strategy: "least_loaded",
 		Keys: []keypool.KeyConfig{
 			{APIKey: poolKey1, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
@@ -1071,7 +1071,7 @@ func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	provider := newNamedProvider("test-provider", backend.URL)
+	provider := newNamedProvider(testProviderName, backend.URL)
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider, IsHealthy: func() bool { return true }},
 	}
@@ -1092,7 +1092,7 @@ func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	// Debug headers present
 	assert.Equal(t, "round_robin", w.Header().Get("X-CC-Relay-Strategy"))
-	assert.Equal(t, "test-provider", w.Header().Get("X-CC-Relay-Provider"))
+	assert.Equal(t, testProviderName, w.Header().Get("X-CC-Relay-Provider"))
 }
 
 // TestHandler_RouterSelectionError tests error handling when router fails.
@@ -1212,7 +1212,7 @@ func TestHandlerHealthHeaderWhenEnabled(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
@@ -1262,7 +1262,7 @@ func TestHandlerReportOutcomeSuccess(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
@@ -1314,7 +1314,7 @@ func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 
 	// Make multiple requests to trip the circuit
 	for i := 0; i < 3; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -1366,7 +1366,7 @@ func TestHandlerReportOutcomeFailure429(t *testing.T) {
 
 	// Make multiple requests to trip the circuit
 	for i := 0; i < 3; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -1417,7 +1417,7 @@ func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 
 	// Make multiple 400 requests
 	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(`{}`))
+		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -1509,7 +1509,7 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 
 	// Make multiple requests with thinking - should always get first healthy provider
 	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(thinkingBody))
+		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(thinkingBody))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
@@ -1523,7 +1523,7 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	}
 
 	// Check thinking affinity header is set
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(thinkingBody))
+	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(thinkingBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -1578,7 +1578,7 @@ func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(thinkingBody))
+	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(thinkingBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -1647,7 +1647,7 @@ func TestHandlerNoThinkingUsesNormalRouting(t *testing.T) {
 	}`
 
 	// Make request without thinking
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(noThinkingBody))
+	req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(noThinkingBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -1719,7 +1719,7 @@ func TestHandlerGetOrCreateProxyKeyMatching(t *testing.T) {
 		t.Parallel()
 
 		prov := &mockProvider{baseURL: localBaseURL}
-		pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+		pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
 			Strategy: "least_loaded",
 			Keys:     []keypool.KeyConfig{{APIKey: poolKey1}},
 		})
@@ -1779,12 +1779,12 @@ func TestHandlerGetOrCreateProxyKeyMatching(t *testing.T) {
 		prov := &mockProvider{baseURL: localBaseURL}
 		provName := prov.Name()
 
-		pool1, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+		pool1, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
 			Strategy: "least_loaded",
 			Keys:     []keypool.KeyConfig{{APIKey: poolKey1}},
 		})
 		require.NoError(t, err)
-		pool2, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
+		pool2, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
 			Strategy: "least_loaded",
 			Keys:     []keypool.KeyConfig{{APIKey: "pool-key-2"}},
 		})

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -18,7 +20,6 @@ const (
 	keyV2               = "key-v2"
 	keyAlpha            = "key-alpha"
 	keyBeta             = "key-beta"
-	apiKeyHeader        = "x-api-key"
 	concurrentKey       = "concurrent-key"
 )
 
@@ -54,8 +55,7 @@ func assertKeyWithHandler(t *testing.T, handler http.Handler, key string, expect
 func runConcurrentRequests(
 	t *testing.T,
 	handler http.Handler,
-	workers int,
-	iterations int,
+	workers, iterations int,
 	keyFn func(workerID, iter int) (string, int),
 ) {
 	t.Helper()
@@ -530,15 +530,11 @@ func TestAuthFingerprint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			fp := authFingerprint(tt.bearerEnabled, tt.bearerSecret, tt.apiKey)
-			if fp == "" {
-				t.Error("fingerprint should not be empty")
-			}
+			require.NotEmpty(t, fp, "fingerprint should not be empty")
 
 			// Same inputs produce same fingerprint
 			fp2 := authFingerprint(tt.bearerEnabled, tt.bearerSecret, tt.apiKey)
-			if fp != fp2 {
-				t.Errorf("fingerprint not deterministic: %q != %q", fp, fp2)
-			}
+			assert.Equalf(t, fp, fp2, "fingerprint not deterministic: %q != %q", fp, fp2)
 		})
 	}
 
@@ -550,15 +546,9 @@ func TestAuthFingerprint(t *testing.T) {
 		fp3 := authFingerprint(false, "secret1", "key1")
 		fp4 := authFingerprint(true, "secret1", "key2")
 
-		if fp1 == fp2 {
-			t.Error("different bearer secrets should produce different fingerprints")
-		}
-		if fp1 == fp3 {
-			t.Error("different bearer enabled should produce different fingerprints")
-		}
-		if fp1 == fp4 {
-			t.Error("different api keys should produce different fingerprints")
-		}
+		assert.NotEqual(t, fp1, fp2, "different bearer secrets should produce different fingerprints")
+		assert.NotEqual(t, fp1, fp3, "different bearer enabled should produce different fingerprints")
+		assert.NotEqual(t, fp1, fp4, "different api keys should produce different fingerprints")
 	})
 
 	// Delimiter collision resistance - secrets containing delimiters must not collide
@@ -681,7 +671,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 
 	t.Run("valid key", func(t *testing.T) {
 		req := newMessagesRequest(http.NoBody)
-	req.Header.Set(apiKeyHeader, "test-api-key")
+		req.Header.Set(apiKeyHeader, "test-api-key")
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -690,7 +680,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 
 	t.Run("invalid key", func(t *testing.T) {
 		req := newMessagesRequest(http.NoBody)
-	req.Header.Set(apiKeyHeader, wrongKey)
+		req.Header.Set(apiKeyHeader, wrongKey)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
