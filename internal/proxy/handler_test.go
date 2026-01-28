@@ -26,6 +26,8 @@ const (
 	localBaseURL           = "http://localhost:9999"
 	initialKey             = "initial-key"
 	testKey                = "test-key"
+	testSingleKey          = "test-single-key"
+	testProviderName       = "test-provider"
 	anthropicVersionHeader = "Anthropic-Version"
 	fallbackKey            = "fallback-key"
 	test500ProviderName    = "test-500"
@@ -64,6 +66,34 @@ func newTestHandler(
 func newHandlerWithAPIKey(t *testing.T, provider providers.Provider) *Handler {
 	t.Helper()
 	return newTestHandler(t, provider, nil, nil, testKey, nil, false, nil)
+}
+
+func newKeyPool(t *testing.T, keys []keypool.KeyConfig) *keypool.KeyPool {
+	t.Helper()
+	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
+		Strategy: "least_loaded",
+		Keys:     keys,
+	})
+	require.NoError(t, err)
+	return pool
+}
+
+func newHandlerWithPool(t *testing.T, provider providers.Provider, pool *keypool.KeyPool) *Handler {
+	t.Helper()
+	handler, err := NewHandler(&HandlerOptions{
+		Provider: provider,
+		Pool:     pool,
+	})
+	require.NoError(t, err)
+	return handler
+}
+
+func serveMessages(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
+	t.Helper()
+	req := newMessagesRequest(bytes.NewReader([]byte("{}")))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
 }
 
 func TestNewHandlerValidProvider(t *testing.T) {
@@ -133,13 +163,11 @@ func TestHandlerForwardsAnthropicHeaders(t *testing.T) {
 	handler := newHandlerWithAPIKey(t, provider)
 
 	// Create request with anthropic headers
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set(anthropicVersionHeader, anthropicVersion)
-	req.Header.Set("Anthropic-Beta", "test-feature")
-
-	// Serve request
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: anthropicVersionHeader, value: anthropicVersion},
+		headerPair{key: "Anthropic-Beta", value: "test-feature"},
+	)
+	w := serveRequest(t, handler, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
@@ -231,12 +259,10 @@ func TestHandlerPreservesToolUseId(t *testing.T) {
 		`"tool_choice":{"type":"tool","name":"test","tool_use_id":"toolu_123"}}`
 
 	// Create request
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(requestBody)))
-	req.Header.Set("Content-Type", "application/json")
-
-	// Serve request
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders(requestBody,
+		headerPair{key: "Content-Type", value: "application/json"},
+	)
+	w := serveRequest(t, handler, req)
 
 	// Verify response contains tool_use_id
 	responseBody := w.Body.String()
@@ -325,27 +351,15 @@ func TestHandlerWithKeyPool(t *testing.T) {
 	backend := newJSONBackend(t, `{"id":"test","type":"message"}`)
 
 	// Create key pool with test keys
-	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
-		Strategy: "least_loaded",
-		Keys: []keypool.KeyConfig{
-			{APIKey: "test-key-1", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
-			{APIKey: "test-key-2", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
-		},
+	pool := newKeyPool(t, []keypool.KeyConfig{
+		{APIKey: "test-key-1", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
+		{APIKey: "test-key-2", RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
 	})
-	require.NoError(t, err)
 
 	// Create handler with key pool
 	provider := newTestProvider(backend.URL)
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		Pool:     pool,
-	})
-	require.NoError(t, err)
-
-	// Make request
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	handler := newHandlerWithPool(t, provider, pool)
+	w := serveMessages(t, handler)
 
 	// Verify response
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -361,30 +375,18 @@ func TestHandlerAllKeysExhausted(t *testing.T) {
 	t.Parallel()
 
 	// Create key pool with single key and very low limit
-	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
-		Strategy: "least_loaded",
-		Keys: []keypool.KeyConfig{
-			{APIKey: testKey, RPMLimit: 1, ITPMLimit: 1, OTPMLimit: 1},
-		},
+	pool := newKeyPool(t, []keypool.KeyConfig{
+		{APIKey: testKey, RPMLimit: 1, ITPMLimit: 1, OTPMLimit: 1},
 	})
-	require.NoError(t, err)
 
 	// Exhaust the key by making a request
-	_, _, err = pool.GetKey(context.Background())
+	_, _, err := pool.GetKey(context.Background())
 	require.NoError(t, err)
 
 	// Create handler
 	provider := newTestProvider(anthropicBaseURL)
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		Pool:     pool,
-	})
-	require.NoError(t, err)
-
-	// Make request (should return 429)
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	handler := newHandlerWithPool(t, provider, pool)
+	w := serveMessages(t, handler)
 
 	// Verify 429 response
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
@@ -420,26 +422,14 @@ func TestHandlerKeyPoolUpdate(t *testing.T) {
 	defer backend.Close()
 
 	// Create key pool
-	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
-		Strategy: "least_loaded",
-		Keys: []keypool.KeyConfig{
-			{APIKey: testKey, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
-		},
+	pool := newKeyPool(t, []keypool.KeyConfig{
+		{APIKey: testKey, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
 	})
-	require.NoError(t, err)
 
 	// Create handler
 	provider := newTestProvider(backend.URL)
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		Pool:     pool,
-	})
-	require.NoError(t, err)
-
-	// Make request
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	handler := newHandlerWithPool(t, provider, pool)
+	w := serveMessages(t, handler)
 
 	// Verify response OK
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -464,26 +454,14 @@ func TestHandlerBackend429(t *testing.T) {
 	defer backend.Close()
 
 	// Create key pool
-	pool, err := keypool.NewKeyPool("test-provider", keypool.PoolConfig{
-		Strategy: "least_loaded",
-		Keys: []keypool.KeyConfig{
-			{APIKey: testKey, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
-		},
+	pool := newKeyPool(t, []keypool.KeyConfig{
+		{APIKey: testKey, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000},
 	})
-	require.NoError(t, err)
 
 	// Create handler
 	provider := newTestProvider(backend.URL)
-	handler, err := NewHandler(&HandlerOptions{
-		Provider: provider,
-		Pool:     pool,
-	})
-	require.NoError(t, err)
-
-	// Make request
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	handler := newHandlerWithPool(t, provider, pool)
+	w := serveMessages(t, handler)
 
 	// Verify 429 is passed through
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
@@ -503,7 +481,7 @@ func TestHandlerSingleKeyMode(t *testing.T) {
 	// Create mock backend
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify auth header uses single key
-		assert.Equal(t, "test-single-key", r.Header.Get("X-Api-Key"))
+		assert.Equal(t, testSingleKey, r.Header.Get("X-Api-Key"))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
@@ -514,14 +492,13 @@ func TestHandlerSingleKeyMode(t *testing.T) {
 	provider := newTestProvider(backend.URL)
 	handler, err := NewHandler(&HandlerOptions{
 		Provider: provider,
-		APIKey:   "test-single-key",
+		APIKey:   testSingleKey,
 	})
 	require.NoError(t, err)
 
 	// Make request
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}")
+	w := serveRequest(t, handler, req)
 
 	// Verify response OK
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -558,12 +535,12 @@ func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create request WITHOUT any auth headers
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: anthropicVersionHeader, value: anthropicVersion2024},
+	)
 	// NO Authorization, NO x-api-key
 
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -602,12 +579,11 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create request WITH client Authorization header
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("Authorization", "Bearer sub_12345")
-	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: "Authorization", value: "Bearer sub_12345"},
+		headerPair{key: anthropicVersionHeader, value: anthropicVersion2024},
+	)
+	w := serveRequest(t, handler, req)
 
 	// Verify response OK
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -645,12 +621,11 @@ func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create request WITH client x-api-key header
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("x-api-key", "sk-ant-client-key")
-	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: "x-api-key", value: "sk-ant-client-key"},
+		headerPair{key: anthropicVersionHeader, value: anthropicVersion2024},
+	)
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -690,11 +665,10 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create request WITH client auth
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("Authorization", "Bearer client-token")
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: "Authorization", value: "Bearer client-token"},
+	)
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -731,11 +705,9 @@ func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create request WITHOUT client auth
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
+	req := newMessagesRequestWithHeaders("{}")
 	// NO Authorization, NO x-api-key
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -769,13 +741,12 @@ func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("Authorization", "Bearer client-token")
-	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
-	req.Header.Set("Anthropic-Beta", anthropicBetaExtendedThinking)
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: "Authorization", value: "Bearer client-token"},
+		headerPair{key: anthropicVersionHeader, value: anthropicVersion2024},
+		headerPair{key: "Anthropic-Beta", value: anthropicBetaExtendedThinking},
+	)
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, anthropicVersion2024, receivedVersion)
@@ -806,12 +777,11 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 	handler := newTestHandler(t, provider, nil, nil, "zai-configured-key", nil, false, nil)
 
 	// Client sends Authorization header (like Claude Code does)
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("Authorization", "Bearer client-anthropic-token")
-	req.Header.Set(anthropicVersionHeader, anthropicVersion2024)
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: "Authorization", value: "Bearer client-anthropic-token"},
+		headerPair{key: anthropicVersionHeader, value: anthropicVersion2024},
+	)
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -855,11 +825,10 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Client sends Authorization header
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	req.Header.Set("Authorization", "Bearer client-anthropic-token")
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}",
+		headerPair{key: "Authorization", value: "Bearer client-anthropic-token"},
+	)
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -954,9 +923,8 @@ func TestHandlerSingleProviderMode(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}")
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	// No routing debug headers in single provider mode
@@ -995,9 +963,8 @@ func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	// routingDebug=true to get debug headers
 	handler := newTestHandler(t, provider1, providerInfos, mockR, testKey, nil, true, nil)
 
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}")
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	// Debug headers should be present
@@ -1051,12 +1018,8 @@ func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 		{Provider: providerB, IsHealthy: func() bool { return true }},
 	}
 
-	reqBody := []byte(`{"model":"test","messages":[]}`)
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader(reqBody))
-	req.Header.Set("anthropic-version", anthropicVersion)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
+	req := newMessagesRequestWithHeaders(`{"model":"test","messages":[]}`)
+	rec := serveRequest(t, handler, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), `"provider":"b"`)
 }
@@ -1088,9 +1051,8 @@ func TestHandlerDebugHeadersDisabledByDefault(t *testing.T) {
 	// routingDebug=false (default)
 	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, nil, false, nil)
 
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}")
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	// No debug headers
@@ -1124,9 +1086,8 @@ func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 
 	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, nil, true, nil)
 
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}")
+	w := serveRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	// Debug headers present
@@ -1151,9 +1112,8 @@ func TestHandlerRouterSelectionError(t *testing.T) {
 
 	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, nil, false, nil)
 
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte("{}")))
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
+	req := newMessagesRequestWithHeaders("{}")
+	w := serveRequest(t, handler, req)
 
 	// Should return 503 Service Unavailable
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)

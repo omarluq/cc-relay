@@ -25,36 +25,29 @@ const (
 	otherVarPreservedErrFmt = "Expected OTHER_VAR to be preserved, got %v"
 )
 
-func TestRunConfigCCInitNewSettings(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
+func withTempHome(t *testing.T) string {
+	t.Helper()
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	return tmpDir
+}
 
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
+func settingsPathForHome(home string) string {
+	return filepath.Join(home, claudeDirName, settingsFileName)
+}
 
-	os.Setenv("HOME", tmpDir)
-
-	// Create a mock command with the proxy-url flag
+func newConfigCCCommand(proxyURL string, setFlag bool) *cobra.Command {
 	cmd := &cobra.Command{}
-	cmd.Flags().String(ccRelayProxyURLFlag, ccRelayProxyURL, ccRelayProxyURLDesc)
-
-	// runConfigCCInit should create settings file
-	err := runConfigCCInit(cmd, nil)
-	if err != nil {
-		t.Fatalf(runConfigCCInitErrFmt, err)
+	cmd.Flags().String(ccRelayProxyURLFlag, proxyURL, ccRelayProxyURLDesc)
+	if setFlag {
+		_ = cmd.Flags().Set(ccRelayProxyURLFlag, proxyURL)
 	}
+	return cmd
+}
 
-	// Verify settings file was created
-	settingsPath := filepath.Join(tmpDir, claudeDirName, settingsFileName)
-	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-		t.Error("Expected settings.json to be created")
-	}
-
-	// Verify content
-	data, err := os.ReadFile(settingsPath)
+func readSettings(t *testing.T, home string) map[string]interface{} {
+	t.Helper()
+	data, err := os.ReadFile(settingsPathForHome(home))
 	if err != nil {
 		t.Fatalf(readSettingsErrFmt, err)
 	}
@@ -63,6 +56,46 @@ func TestRunConfigCCInitNewSettings(t *testing.T) {
 	if err := json.Unmarshal(data, &settings); err != nil {
 		t.Fatalf(parseSettingsErrFmt, err)
 	}
+
+	return settings
+}
+
+func writeSettings(t *testing.T, home string, settings map[string]interface{}) {
+	t.Helper()
+	claudeDir := filepath.Join(home, claudeDirName)
+	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	existingData, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settingsPathForHome(home), existingData, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunConfigCCInitNewSettings(t *testing.T) {
+	// Note: Cannot use t.Parallel() because we modify HOME env var
+	tmpDir := withTempHome(t)
+
+	// Create a mock command with the proxy-url flag
+	cmd := newConfigCCCommand(ccRelayProxyURL, false)
+
+	// runConfigCCInit should create settings file
+	err := runConfigCCInit(cmd, nil)
+	if err != nil {
+		t.Fatalf(runConfigCCInitErrFmt, err)
+	}
+
+	// Verify settings file was created
+	if _, err := os.Stat(settingsPathForHome(tmpDir)); os.IsNotExist(err) {
+		t.Error("Expected settings.json to be created")
+	}
+
+	// Verify content
+	settings := readSettings(t, tmpDir)
 
 	env, ok := settings["env"].(map[string]interface{})
 	if !ok {
@@ -80,21 +113,7 @@ func TestRunConfigCCInitNewSettings(t *testing.T) {
 
 func TestRunConfigCCInitExistingSettings(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
-	tmpDir := t.TempDir()
-
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
-
-	os.Setenv("HOME", tmpDir)
-
-	// Create existing settings file with other settings
-	claudeDir := filepath.Join(tmpDir, claudeDirName)
-	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := withTempHome(t)
 
 	existingSettings := map[string]interface{}{
 		"theme": "dark",
@@ -102,36 +121,19 @@ func TestRunConfigCCInitExistingSettings(t *testing.T) {
 			"OTHER_VAR": otherEnvValue,
 		},
 	}
-	existingData, err := json.MarshalIndent(existingSettings, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	settingsPath := filepath.Join(claudeDir, settingsFileName)
-	if err := os.WriteFile(settingsPath, existingData, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeSettings(t, tmpDir, existingSettings)
 
 	// Create a mock command with the proxy-url flag and set it
-	cmd := &cobra.Command{}
-	cmd.Flags().String(ccRelayProxyURLFlag, ccRelayProxyURL, ccRelayProxyURLDesc)
-	_ = cmd.Flags().Set(ccRelayProxyURLFlag, ccRelayProxyURL)
+	cmd := newConfigCCCommand(ccRelayProxyURL, true)
 
 	// runConfigCCInit should update settings file
-	err = runConfigCCInit(cmd, nil)
+	err := runConfigCCInit(cmd, nil)
 	if err != nil {
 		t.Fatalf(runConfigCCInitErrFmt, err)
 	}
 
 	// Verify content preserves existing settings
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		t.Fatalf(readSettingsErrFmt, err)
-	}
-
-	var settings map[string]interface{}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		t.Fatalf(parseSettingsErrFmt, err)
-	}
+	settings := readSettings(t, tmpDir)
 
 	// Check theme is preserved
 	if settings["theme"] != "dark" {
@@ -156,19 +158,10 @@ func TestRunConfigCCInitExistingSettings(t *testing.T) {
 
 func TestRunConfigCCInitCustomProxyURL(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
-	tmpDir := t.TempDir()
-
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
-
-	os.Setenv("HOME", tmpDir)
+	tmpDir := withTempHome(t)
 
 	// Create a mock command with a custom proxy-url
-	cmd := &cobra.Command{}
-	cmd.Flags().String(ccRelayProxyURLFlag, "http://custom.host:9999", ccRelayProxyURLDesc)
+	cmd := newConfigCCCommand("http://custom.host:9999", false)
 
 	err := runConfigCCInit(cmd, nil)
 	if err != nil {
@@ -176,16 +169,7 @@ func TestRunConfigCCInitCustomProxyURL(t *testing.T) {
 	}
 
 	// Verify custom URL was used
-	settingsPath := filepath.Join(tmpDir, claudeDirName, settingsFileName)
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		t.Fatalf(readSettingsErrFmt, err)
-	}
-
-	var settings map[string]interface{}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		t.Fatalf(parseSettingsErrFmt, err)
-	}
+	settings := readSettings(t, tmpDir)
 
 	env := settings["env"].(map[string]interface{})
 	if env["ANTHROPIC_BASE_URL"] != "http://custom.host:9999" {
@@ -195,21 +179,7 @@ func TestRunConfigCCInitCustomProxyURL(t *testing.T) {
 
 func TestRunConfigCCRemoveExistingSettings(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
-	tmpDir := t.TempDir()
-
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
-
-	os.Setenv("HOME", tmpDir)
-
-	// Create existing settings file with cc-relay config
-	claudeDir := filepath.Join(tmpDir, claudeDirName)
-	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := withTempHome(t)
 
 	existingSettings := map[string]interface{}{
 		"theme": "dark",
@@ -219,31 +189,16 @@ func TestRunConfigCCRemoveExistingSettings(t *testing.T) {
 			"OTHER_VAR":            otherEnvValue,
 		},
 	}
-	existingData, err := json.MarshalIndent(existingSettings, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	settingsPath := filepath.Join(claudeDir, settingsFileName)
-	if err := os.WriteFile(settingsPath, existingData, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeSettings(t, tmpDir, existingSettings)
 
 	// runConfigCCRemove should remove cc-relay env vars
-	err = runConfigCCRemove(nil, nil)
+	err := runConfigCCRemove(nil, nil)
 	if err != nil {
 		t.Fatalf("runConfigCCRemove failed: %v", err)
 	}
 
 	// Verify content
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		t.Fatalf(readSettingsErrFmt, err)
-	}
-
-	var settings map[string]interface{}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		t.Fatalf(parseSettingsErrFmt, err)
-	}
+	settings := readSettings(t, tmpDir)
 
 	// Check theme is preserved
 	if settings["theme"] != "dark" {
@@ -271,15 +226,7 @@ func TestRunConfigCCRemoveExistingSettings(t *testing.T) {
 
 func TestRunConfigCCRemoveNoSettings(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
-	tmpDir := t.TempDir()
-
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
-
-	os.Setenv("HOME", tmpDir)
+	_ = withTempHome(t)
 
 	// runConfigCCRemove should succeed (nothing to remove)
 	err := runConfigCCRemove(nil, nil)
@@ -290,36 +237,15 @@ func TestRunConfigCCRemoveNoSettings(t *testing.T) {
 
 func TestRunConfigCCRemoveNoEnvSection(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
-	tmpDir := t.TempDir()
-
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
-
-	os.Setenv("HOME", tmpDir)
-
-	// Create settings file without env section
-	claudeDir := filepath.Join(tmpDir, claudeDirName)
-	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := withTempHome(t)
 
 	existingSettings := map[string]interface{}{
 		"theme": "dark",
 	}
-	existingData, err := json.MarshalIndent(existingSettings, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	settingsPath := filepath.Join(claudeDir, settingsFileName)
-	if err := os.WriteFile(settingsPath, existingData, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeSettings(t, tmpDir, existingSettings)
 
 	// runConfigCCRemove should succeed (nothing to remove)
-	err = runConfigCCRemove(nil, nil)
+	err := runConfigCCRemove(nil, nil)
 	if err != nil {
 		t.Errorf("Expected success when no env section exists, got error: %v", err)
 	}
@@ -327,52 +253,23 @@ func TestRunConfigCCRemoveNoEnvSection(t *testing.T) {
 
 func TestRunConfigCCRemoveNoCCRelayConfig(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
-	tmpDir := t.TempDir()
-
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
-
-	os.Setenv("HOME", tmpDir)
-
-	// Create settings file with env but no cc-relay vars
-	claudeDir := filepath.Join(tmpDir, claudeDirName)
-	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := withTempHome(t)
 
 	existingSettings := map[string]interface{}{
 		"env": map[string]interface{}{
 			"OTHER_VAR": otherEnvValue,
 		},
 	}
-	existingData, err := json.MarshalIndent(existingSettings, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	settingsPath := filepath.Join(claudeDir, settingsFileName)
-	if err := os.WriteFile(settingsPath, existingData, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeSettings(t, tmpDir, existingSettings)
 
 	// runConfigCCRemove should succeed (nothing cc-relay specific to remove)
-	err = runConfigCCRemove(nil, nil)
+	err := runConfigCCRemove(nil, nil)
 	if err != nil {
 		t.Errorf("Expected success when no cc-relay config exists, got error: %v", err)
 	}
 
 	// Verify other env vars are preserved
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		t.Fatalf(readSettingsErrFmt, err)
-	}
-
-	var settings map[string]interface{}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		t.Fatalf(parseSettingsErrFmt, err)
-	}
+	settings := readSettings(t, tmpDir)
 
 	env := settings["env"].(map[string]interface{})
 	if env["OTHER_VAR"] != otherEnvValue {
@@ -382,21 +279,7 @@ func TestRunConfigCCRemoveNoCCRelayConfig(t *testing.T) {
 
 func TestRunConfigCCRemoveRemovesEmptyEnv(t *testing.T) {
 	// Note: Cannot use t.Parallel() because we modify HOME env var
-
-	// Create a temp directory to use as HOME
-	tmpDir := t.TempDir()
-
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
-
-	os.Setenv("HOME", tmpDir)
-
-	// Create settings file with only cc-relay env vars
-	claudeDir := filepath.Join(tmpDir, claudeDirName)
-	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
+	tmpDir := withTempHome(t)
 
 	existingSettings := map[string]interface{}{
 		"theme": "dark",
@@ -405,31 +288,16 @@ func TestRunConfigCCRemoveRemovesEmptyEnv(t *testing.T) {
 			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayToken,
 		},
 	}
-	existingData, err := json.MarshalIndent(existingSettings, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	settingsPath := filepath.Join(claudeDir, settingsFileName)
-	if err := os.WriteFile(settingsPath, existingData, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeSettings(t, tmpDir, existingSettings)
 
 	// runConfigCCRemove should remove cc-relay vars and empty env section
-	err = runConfigCCRemove(nil, nil)
+	err := runConfigCCRemove(nil, nil)
 	if err != nil {
 		t.Fatalf("runConfigCCRemove failed: %v", err)
 	}
 
 	// Verify env section is removed when empty
-	data, err := os.ReadFile(settingsPath)
-	if err != nil {
-		t.Fatalf(readSettingsErrFmt, err)
-	}
-
-	var settings map[string]interface{}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		t.Fatalf(parseSettingsErrFmt, err)
-	}
+	settings := readSettings(t, tmpDir)
 
 	// After removal, the env section should not exist (was empty)
 	// or if it does, it should be empty

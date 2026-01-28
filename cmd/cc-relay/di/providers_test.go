@@ -40,10 +40,13 @@ func createTestInjector(t *testing.T, configContent string) *do.RootScope {
 	err := os.WriteFile(path, []byte(configContent), 0o600)
 	require.NoError(t, err)
 
+	return newInjectorWithConfigPath(path)
+}
+
+func newInjectorWithConfigPath(path string) *do.RootScope {
 	injector := do.New()
 	do.ProvideNamedValue(injector, ConfigPathKey, path)
 	RegisterSingletons(injector)
-
 	return injector
 }
 
@@ -152,9 +155,7 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent config", func(t *testing.T) {
-		nonExistentInjector := do.New()
-		do.ProvideNamedValue(nonExistentInjector, ConfigPathKey, "/nonexistent/"+configFileName)
-		RegisterSingletons(nonExistentInjector)
+		nonExistentInjector := newInjectorWithConfigPath("/nonexistent/" + configFileName)
 		defer shutdownInjector(nonExistentInjector)
 
 		_, err := do.Invoke[*ConfigService](nonExistentInjector)
@@ -209,9 +210,7 @@ func TestConfigServiceHotReload(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create injector and get config service
-		injector := do.New()
-		do.ProvideNamedValue(injector, ConfigPathKey, path)
-		RegisterSingletons(injector)
+		injector := newInjectorWithConfigPath(path)
 		defer shutdownInjector(injector)
 
 		cfgSvc, err := do.Invoke[*ConfigService](injector)
@@ -306,9 +305,7 @@ providers:
 		require.NoError(t, err)
 
 		// Create injector and get config service
-		injector := do.New()
-		do.ProvideNamedValue(injector, ConfigPathKey, path)
-		RegisterSingletons(injector)
+		injector := newInjectorWithConfigPath(path)
 		defer shutdownInjector(injector)
 
 		cfgSvc, err := do.Invoke[*ConfigService](injector)
@@ -393,9 +390,7 @@ providers:
 		path := filepath.Join(dir, configFileName)
 		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
-		injector := do.New()
-		do.ProvideNamedValue(injector, ConfigPathKey, path)
-		RegisterSingletons(injector)
+		injector := newInjectorWithConfigPath(path)
 		defer shutdownInjector(injector)
 
 		cfgSvc, err := do.Invoke[*ConfigService](injector)
@@ -478,9 +473,7 @@ providers:
 		path := filepath.Join(dir, configFileName)
 		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
-		injector := do.New()
-		do.ProvideNamedValue(injector, ConfigPathKey, path)
-		RegisterSingletons(injector)
+		injector := newInjectorWithConfigPath(path)
 		defer shutdownInjector(injector)
 
 		cfgSvc, err := do.Invoke[*ConfigService](injector)
@@ -511,9 +504,7 @@ providers:
 		require.NoError(t, err)
 
 		// Create injector and get config service
-		injector := do.New()
-		do.ProvideNamedValue(injector, ConfigPathKey, path)
-		RegisterSingletons(injector)
+		injector := newInjectorWithConfigPath(path)
 		defer shutdownInjector(injector)
 
 		cfgSvc, err := do.Invoke[*ConfigService](injector)
@@ -602,9 +593,7 @@ providers:
 		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
 		require.NoError(t, err)
 
-		injector := do.New()
-		do.ProvideNamedValue(injector, ConfigPathKey, path)
-		RegisterSingletons(injector)
+		injector := newInjectorWithConfigPath(path)
 
 		cfgSvc, err := do.Invoke[*ConfigService](injector)
 		require.NoError(t, err)
@@ -906,9 +895,7 @@ func TestRegisterSingletons(t *testing.T) {
 		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
 		require.NoError(t, err)
 
-		registerInjector := do.New()
-		do.ProvideNamedValue(registerInjector, ConfigPathKey, path)
-		RegisterSingletons(registerInjector)
+		registerInjector := newInjectorWithConfigPath(path)
 		defer shutdownInjector(registerInjector)
 
 		// Verify each service type is registered

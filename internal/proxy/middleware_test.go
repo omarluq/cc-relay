@@ -18,6 +18,8 @@ const (
 	keyV2               = "key-v2"
 	keyAlpha            = "key-alpha"
 	keyBeta             = "key-beta"
+	apiKeyHeader        = "x-api-key"
+	concurrentKey       = "concurrent-key"
 )
 
 func assertStatus(t *testing.T, rec *httptest.ResponseRecorder, expected int, msg string) {
@@ -37,7 +39,7 @@ func assertStatusCode(t *testing.T, got, expected int, msg string) {
 func doAPIKeyRequest(t *testing.T, handler http.Handler, key string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := newMessagesRequest(http.NoBody)
-	req.Header.Set("x-api-key", key)
+	req.Header.Set(apiKeyHeader, key)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
@@ -105,7 +107,7 @@ func TestAuthMiddlewareValidKey(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	req := newMessagesRequest(http.NoBody)
-	req.Header.Set("x-api-key", "secret-key")
+	req.Header.Set(apiKeyHeader, "secret-key")
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
@@ -121,7 +123,7 @@ func TestAuthMiddlewareInvalidKey(t *testing.T) {
 	wrappedHandler := middleware(handler)
 
 	req := newMessagesRequest(http.NoBody)
-	req.Header.Set("x-api-key", wrongKey)
+	req.Header.Set(apiKeyHeader, wrongKey)
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
@@ -201,7 +203,7 @@ func TestMultiAuthMiddlewareAPIKeyOnly(t *testing.T) {
 
 	// Valid API key
 	req := newMessagesRequest(http.NoBody)
-	req.Header.Set("x-api-key", "test-api-key")
+	req.Header.Set(apiKeyHeader, "test-api-key")
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
@@ -237,7 +239,7 @@ func TestMultiAuthMiddlewareBothMethods(t *testing.T) {
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
 		req := newMessagesRequest(http.NoBody)
-		req.Header.Set("x-api-key", "test-api-key")
+		req.Header.Set(apiKeyHeader, "test-api-key")
 
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
@@ -679,7 +681,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 
 	t.Run("valid key", func(t *testing.T) {
 		req := newMessagesRequest(http.NoBody)
-		req.Header.Set("x-api-key", "test-api-key")
+	req.Header.Set(apiKeyHeader, "test-api-key")
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -688,7 +690,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 
 	t.Run("invalid key", func(t *testing.T) {
 		req := newMessagesRequest(http.NoBody)
-		req.Header.Set("x-api-key", wrongKey)
+	req.Header.Set(apiKeyHeader, wrongKey)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -793,7 +795,7 @@ func TestLiveAuthMiddlewareSwitchAuthMethods(t *testing.T) {
 
 	// API key should now fail
 	req3 := newMessagesRequest(http.NoBody)
-	req3.Header.Set("x-api-key", "my-api-key")
+	req3.Header.Set(apiKeyHeader, "my-api-key")
 	rec3 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec3, req3)
 	if rec3.Code != http.StatusUnauthorized {
@@ -851,7 +853,7 @@ func TestLiveAuthMiddlewareConcurrentAccess(t *testing.T) {
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Auth: config.AuthConfig{
-				APIKey: "concurrent-key",
+				APIKey: concurrentKey,
 			},
 		},
 	}
@@ -864,7 +866,7 @@ func TestLiveAuthMiddlewareConcurrentAccess(t *testing.T) {
 
 	runConcurrentRequests(t, wrappedHandler, goroutines, requestsPerGoroutine, func(_ int, j int) (string, int) {
 		if j%2 == 0 {
-			return "concurrent-key", http.StatusOK
+			return concurrentKey, http.StatusOK
 		}
 		return wrongKey, http.StatusUnauthorized
 	})

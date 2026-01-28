@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -85,6 +86,26 @@ func newMessagesRequest(body io.Reader) *http.Request {
 	req := httptest.NewRequest("POST", "/v1/messages", body)
 	req.Header.Set("anthropic-version", anthropicVersion)
 	return req
+}
+
+type headerPair struct {
+	key   string
+	value string
+}
+
+func newMessagesRequestWithHeaders(body string, headers ...headerPair) *http.Request {
+	req := newMessagesRequest(bytes.NewReader([]byte(body)))
+	for _, header := range headers {
+		req.Header.Set(header.key, header.value)
+	}
+	return req
+}
+
+func serveRequest(t *testing.T, handler http.Handler, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
 }
 
 func newTestProvider(url string) providers.Provider {

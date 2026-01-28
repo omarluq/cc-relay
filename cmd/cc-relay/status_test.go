@@ -13,22 +13,27 @@ const (
 	statusRestoreWdErrFmt = "failed to restore working directory: %v"
 )
 
-func TestFindConfigFileForStatus(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Save original working directory and HOME
+func saveWdHome(t *testing.T) func() {
+	t.Helper()
 	origWd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
 	origHome := os.Getenv("HOME")
 
-	defer func() {
+	return func() {
 		if err := os.Chdir(origWd); err != nil {
 			t.Logf(statusRestoreWdErrFmt, err)
 		}
 		os.Setenv("HOME", origHome)
-	}()
+	}
+}
+
+func TestFindConfigFileForStatus(t *testing.T) {
+	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+
+	// Save original working directory and HOME
+	defer saveWdHome(t)()
 
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
@@ -56,18 +61,7 @@ func TestFindConfigFileForStatusNotFound(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	origHome := os.Getenv("HOME")
-
-	defer func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(statusRestoreWdErrFmt, err)
-		}
-		os.Setenv("HOME", origHome)
-	}()
+	defer saveWdHome(t)()
 
 	// Change to temp directory without config.yaml
 	tmpDir := t.TempDir()
@@ -89,18 +83,7 @@ func TestFindConfigFileForStatusInHomeDir(t *testing.T) {
 	// Note: Cannot use t.Parallel() (modifies global cfgFile)
 
 	// Save original working directory and HOME
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	origHome := os.Getenv("HOME")
-
-	defer func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(statusRestoreWdErrFmt, err)
-		}
-		os.Setenv("HOME", origHome)
-	}()
+	defer saveWdHome(t)()
 
 	// Create temp directories
 	tmpDir := t.TempDir()
