@@ -18,11 +18,7 @@ import (
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
-const (
-	contentTypeHeader = "Content-Type"
-	jsonContentType   = "application/json"
-	signatureJSONPath = "messages.0.content.0.signature"
-)
+const signatureJSONPath = "messages.0.content.0.signature"
 
 func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
 	t.Parallel()

@@ -75,7 +75,7 @@ func serveJSONMessages(t *testing.T, handler http.Handler) *httptest.ResponseRec
 
 func newJSONMessagesRequest(body string) *http.Request {
 	return newMessagesRequestWithHeaders(body,
-		headerPair{key: "Content-Type", value: "application/json"},
+		headerPair{key: contentTypeHeader, value: jsonContentType},
 	)
 }
 
@@ -288,7 +288,7 @@ func TestHandlerPreservesToolUseId(t *testing.T) {
 		}
 
 		// Echo the body back
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 	}))
@@ -312,7 +312,7 @@ func TestHandlerPreservesToolUseId(t *testing.T) {
 
 	// Create request
 	req := newMessagesRequestWithHeaders(requestBody,
-		headerPair{key: "Content-Type", value: "application/json"},
+		headerPair{key: contentTypeHeader, value: jsonContentType},
 	)
 	w := serveRequest(t, handler, req)
 
@@ -350,7 +350,7 @@ func (m *mockProvider) ForwardHeaders(originalHeaders http.Header) http.Header {
 		}
 	}
 
-	headers.Set("Content-Type", "application/json")
+	headers.Set(contentTypeHeader, jsonContentType)
 
 	return headers
 }
@@ -467,7 +467,7 @@ func TestHandlerKeyPoolUpdate(t *testing.T) {
 		w.Header().Set("anthropic-ratelimit-input-tokens-remaining", "49000")
 		w.Header().Set("anthropic-ratelimit-output-tokens-limit", "20000")
 		w.Header().Set("anthropic-ratelimit-output-tokens-remaining", "19000")
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -499,7 +499,7 @@ func TestHandlerBackend429(t *testing.T) {
 	// Create mock backend that returns 429
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "60")
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"rate_limit_error","message":"rate limit"}}`))
 	}))
@@ -534,7 +534,7 @@ func TestHandlerSingleKeyMode(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify auth header uses single key
 		assert.Equal(t, testSingleKey, r.Header.Get("X-Api-Key"))
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -573,7 +573,7 @@ func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 		receivedAuthHeader = r.Header.Get("Authorization")
 		receivedAPIKeyHeader = r.Header.Get("x-api-key")
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -616,7 +616,7 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 		receivedAuthHeader = r.Header.Get("Authorization")
 		receivedAPIKeyHeader = r.Header.Get("x-api-key")
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -659,7 +659,7 @@ func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 		receivedAuthHeader = r.Header.Get("Authorization")
 		receivedAPIKeyHeader = r.Header.Get("x-api-key")
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -694,7 +694,7 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -735,7 +735,7 @@ func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -780,7 +780,7 @@ func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 		receivedVersion = r.Header.Get(anthropicVersionHeader)
 		receivedBeta = r.Header.Get("Anthropic-Beta")
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -818,7 +818,7 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 		receivedAPIKey = r.Header.Get("x-api-key")
 		receivedAuthHeader = r.Header.Get("Authorization")
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -853,7 +853,7 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedAPIKey = r.Header.Get("x-api-key")
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -961,7 +961,7 @@ func TestHandlerSingleProviderMode(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -989,7 +989,7 @@ func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -1028,14 +1028,14 @@ func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 	t.Parallel()
 
 	backendA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"provider":"a"}`))
 	}))
 	defer backendA.Close()
 
 	backendB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"provider":"b"}`))
 	}))
@@ -1081,7 +1081,7 @@ func TestHandlerDebugHeadersDisabledByDefault(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -1117,7 +1117,7 @@ func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 	t.Parallel()
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"test"}`))
 	}))
@@ -1328,7 +1328,7 @@ func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 	// Make multiple 400 requests
 	for i := 0; i < 5; i++ {
 		req := httptest.NewRequest(http.MethodPost, messagesPath, bytes.NewBufferString(`{}`))
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(contentTypeHeader, jsonContentType)
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
