@@ -39,6 +39,10 @@ func NewSelector(strategy string) (KeySelector, error) {
 		return NewLeastLoadedSelector(), nil
 	case StrategyRoundRobin:
 		return NewRoundRobinSelector(), nil
+	case StrategyRandom:
+		return NewRandomSelector(), nil
+	case StrategyWeighted:
+		return NewWeightedSelector(), nil
 	default:
 		return nil, fmt.Errorf("keypool: unknown strategy %q", strategy)
 	}
