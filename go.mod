@@ -12,7 +12,7 @@ require (
 	github.com/hashicorp/memberlist v0.5.4
 	github.com/leanovate/gopter v0.2.11
 	github.com/mattn/go-isatty v0.0.20
-	github.com/olric-data/olric v0.7.2
+	github.com/olric-data/olric v0.7.3
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/do/v2 v2.0.0

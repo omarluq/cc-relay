@@ -367,6 +367,8 @@ github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86/go.mod h1:kHJE
 github.com/neelance/sourcemap v0.0.0-20200213170602-2833bce08e4c/go.mod h1:Qr6/a/Q4r9LP1IltGz7tA7iOK1WonHEYhu1HRBA7ZiM=
 github.com/olric-data/olric v0.7.2 h1:xL0TPqvjXhwwvbGSHwPHVePE257ItK88oFKIbtsH0ME=
 github.com/olric-data/olric v0.7.2/go.mod h1:+ZnPpgc8JkNkza8rETCKGn0P/QPF6HhZY0EbCKAOslo=
+github.com/olric-data/olric v0.7.3 h1:TLAQcgkpgeDhseyCscvU5tcs3dzHXKQF6fjUH0VO7hA=
+github.com/olric-data/olric v0.7.3/go.mod h1:+ZnPpgc8JkNkza8rETCKGn0P/QPF6HhZY0EbCKAOslo=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pascaldekloe/goe v0.1.0 h1:cBOtyMzM9HTpWjXfbbunk26uA6nG3a8n06Wieeh0MwY=
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
