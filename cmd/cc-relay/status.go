@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -44,9 +45,13 @@ func runStatus(_ *cobra.Command, _ []string) error {
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 	}
-
-	//nolint:noctx // Simple health check doesn't need context propagation
-	resp, err := client.Get(healthURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, http.NoBody)
+	if err != nil {
+		return fmt.Errorf("failed to create health request: %w", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("✗ cc-relay is not running (%s)\n", cfg.Server.Listen)
 		return fmt.Errorf("server not reachable: %w", err)
