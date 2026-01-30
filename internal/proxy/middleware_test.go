@@ -920,7 +920,7 @@ func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
 
 // --- ConcurrencyLimiter Tests ---
 
-func TestConcurrencyLimiter_TryAcquire_WithinLimit(t *testing.T) {
+func TestConcurrencyLimiterTryAcquireWithinLimit(t *testing.T) {
 	t.Parallel()
 	limiter := NewConcurrencyLimiter(3)
 
@@ -935,7 +935,7 @@ func TestConcurrencyLimiter_TryAcquire_WithinLimit(t *testing.T) {
 	require.Equal(t, int64(3), limiter.CurrentInFlight())
 }
 
-func TestConcurrencyLimiter_TryAcquire_Release(t *testing.T) {
+func TestConcurrencyLimiterTryAcquireRelease(t *testing.T) {
 	t.Parallel()
 	limiter := NewConcurrencyLimiter(2)
 
@@ -953,7 +953,7 @@ func TestConcurrencyLimiter_TryAcquire_Release(t *testing.T) {
 	require.Equal(t, int64(2), limiter.CurrentInFlight())
 }
 
-func TestConcurrencyLimiter_Unlimited(t *testing.T) {
+func TestConcurrencyLimiterUnlimited(t *testing.T) {
 	t.Parallel()
 	limiter := NewConcurrencyLimiter(0)
 
@@ -964,7 +964,7 @@ func TestConcurrencyLimiter_Unlimited(t *testing.T) {
 	require.Equal(t, int64(100), limiter.CurrentInFlight())
 }
 
-func TestConcurrencyLimiter_SetLimit(t *testing.T) {
+func TestConcurrencyLimiterSetLimit(t *testing.T) {
 	t.Parallel()
 	limiter := NewConcurrencyLimiter(5)
 	require.Equal(t, int64(5), limiter.GetLimit())
@@ -976,7 +976,7 @@ func TestConcurrencyLimiter_SetLimit(t *testing.T) {
 	require.Equal(t, int64(0), limiter.GetLimit())
 }
 
-func TestConcurrencyLimiter_HotReload(t *testing.T) {
+func TestConcurrencyLimiterHotReload(t *testing.T) {
 	t.Parallel()
 	limiter := NewConcurrencyLimiter(2)
 
@@ -1005,7 +1005,7 @@ func TestConcurrencyLimiter_HotReload(t *testing.T) {
 	require.False(t, limiter.TryAcquire())
 }
 
-func TestConcurrencyLimiter_ConcurrentAccess(t *testing.T) {
+func TestConcurrencyLimiterConcurrentAccess(t *testing.T) {
 	t.Parallel()
 	const limit = 10
 	limiter := NewConcurrencyLimiter(limit)
@@ -1040,7 +1040,7 @@ func TestConcurrencyLimiter_ConcurrentAccess(t *testing.T) {
 	require.LessOrEqual(t, limiter.CurrentInFlight(), int64(limit))
 }
 
-func TestConcurrencyMiddleware_EnforcesLimit(t *testing.T) {
+func TestConcurrencyMiddlewareEnforcesLimit(t *testing.T) {
 	t.Parallel()
 	limiter := NewConcurrencyLimiter(1)
 
@@ -1082,7 +1082,7 @@ func TestConcurrencyMiddleware_EnforcesLimit(t *testing.T) {
 	require.Contains(t, resp2.Body.String(), "server_busy")
 }
 
-func TestConcurrencyMiddleware_ReleasesOnCompletion(t *testing.T) {
+func TestConcurrencyMiddlewareReleasesOnCompletion(t *testing.T) {
 	t.Parallel()
 	limiter := NewConcurrencyLimiter(1)
 
@@ -1110,7 +1110,7 @@ func TestConcurrencyMiddleware_ReleasesOnCompletion(t *testing.T) {
 
 // --- MaxBodyBytesMiddleware Tests ---
 
-func TestMaxBodyBytesMiddleware_AllowsWithinLimit(t *testing.T) {
+func TestMaxBodyBytesMiddlewareAllowsWithinLimit(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody []byte
@@ -1129,7 +1129,7 @@ func TestMaxBodyBytesMiddleware_AllowsWithinLimit(t *testing.T) {
 	require.Equal(t, `{"model": "claude-3"}`, string(receivedBody))
 }
 
-func TestMaxBodyBytesMiddleware_ErrorOnOversized(t *testing.T) {
+func TestMaxBodyBytesMiddlewareErrorOnOversized(t *testing.T) {
 	t.Parallel()
 
 	var readErr error
@@ -1156,7 +1156,7 @@ func TestMaxBodyBytesMiddleware_ErrorOnOversized(t *testing.T) {
 	require.Equal(t, http.StatusRequestEntityTooLarge, resp.Code)
 }
 
-func TestMaxBodyBytesMiddleware_UnlimitedWhenZero(t *testing.T) {
+func TestMaxBodyBytesMiddlewareUnlimitedWhenZero(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody []byte
@@ -1176,7 +1176,7 @@ func TestMaxBodyBytesMiddleware_UnlimitedWhenZero(t *testing.T) {
 	require.Equal(t, largeBody, receivedBody)
 }
 
-func TestMaxBodyBytesMiddleware_HotReload(t *testing.T) {
+func TestMaxBodyBytesMiddlewareHotReload(t *testing.T) {
 	t.Parallel()
 
 	limit := int64(100)
@@ -1207,7 +1207,7 @@ func TestMaxBodyBytesMiddleware_HotReload(t *testing.T) {
 	require.Equal(t, http.StatusRequestEntityTooLarge, resp2.Code)
 }
 
-func TestMaxBodyBytesMiddleware_NilBody(t *testing.T) {
+func TestMaxBodyBytesMiddlewareNilBody(t *testing.T) {
 	t.Parallel()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
