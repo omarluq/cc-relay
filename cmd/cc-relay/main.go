@@ -50,10 +50,11 @@ func main() {
 	// Create signal-aware context for graceful shutdown on SIGINT/SIGTERM
 	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
+	rootCmd.SetVersionTemplate("{{.Name}} {{.Version}}\n")
+
 	// Configure Fang with version info and styling
 	fangOpts := []fang.Option{
 		fang.WithVersion(version.String()),
-		fang.WithCommit(version.Commit),
 	}
 
 	if err := fang.Execute(ctx, rootCmd, fangOpts...); err != nil {
