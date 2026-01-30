@@ -1138,6 +1138,12 @@ Konfigurationsoptionen, die hot-reloadbar sind:
 - Maximale gleichzeitige Requests und maximale Body-Groesse
 - Health-Check-Intervalle und Circuit-Breaker-Schwellenwerte
 
+### Hot-Reload-Garantien
+
+- Neue Requests nutzen die aktualisierte Konfiguration nach Abschluss des Reloads.
+- Laufende Requests verwenden weiter die vorherige Konfiguration.
+- Reload wird atomar auf Routing/Provider/Keypool angewendet.
+- Ungueltige Konfigurationen werden abgelehnt und die vorherige bleibt aktiv.
 ## Naechste Schritte
 
 - [Routing-Strategien](/de/docs/routing/) - Provider-Auswahl und Failover

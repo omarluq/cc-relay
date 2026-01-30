@@ -1223,6 +1223,12 @@ Configuration options that can be hot-reloaded:
 - Max concurrent requests and max body size
 - Health check intervals and circuit breaker thresholds
 
+### Hot-reload guarantees
+
+- New requests use the latest configuration after reload completes.
+- In-flight requests continue with the previous configuration.
+- Reload applies atomically to routing/provider/keypool state.
+- Invalid configs are rejected and the previous config remains active.
 ## Next Steps
 
 - [Routing strategies](/docs/routing/) - Provider selection and failover

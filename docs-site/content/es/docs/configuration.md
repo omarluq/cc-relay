@@ -1140,6 +1140,12 @@ Opciones de configuracion que pueden recargarse en caliente:
 - Maximo de solicitudes concurrentes y tamano maximo del body
 - Intervalos de salud y umbrales del circuit breaker
 
+### Garantias de hot-reload
+
+- Las nuevas solicitudes usan la configuracion mas reciente tras la recarga.
+- Las solicitudes en curso continúan con la configuracion anterior.
+- La recarga se aplica de forma atomica a routing/providers/keypool.
+- Las configuraciones invalidas se rechazan y la anterior permanece activa.
 ## Siguientes Pasos
 
 - [Estrategias de routing](/es/docs/routing/) - Seleccion de proveedor y failover

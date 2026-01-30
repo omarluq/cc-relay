@@ -1126,6 +1126,12 @@ ERR failed to reload config path=/path/to/config.yaml error="validation error"
 - 最大并发请求数与最大请求体大小
 - 健康检查间隔与断路器阈值
 
+### 热重载保证
+
+- 重载完成后，新请求使用最新配置。
+- 进行中的请求继续使用旧配置。
+- 重载会原子地应用到路由/提供者/密钥池。
+- 无效配置会被拒绝，旧配置继续生效。
 ## 下一步
 
 - [路由策略](/zh-cn/docs/routing/) - 供应商选择和故障转移
