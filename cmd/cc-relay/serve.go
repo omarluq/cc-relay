@@ -94,7 +94,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 
 	// Start health checker (after all DI services initialized)
 	checkerSvc := di.MustInvoke[*di.CheckerService](container)
-	checkerSvc.Checker.Start()
+	checkerSvc.Start()
 
 	// Start config file watcher for hot-reload support
 	// The watcher context is tied to container shutdown
