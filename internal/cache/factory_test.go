@@ -145,10 +145,10 @@ func TestNewInvalidModeReturnsError(t *testing.T) {
 }
 
 func TestNewInvalidConfigReturnsError(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct field alignment is not critical
-		cfg     Config
+	tests := []struct {
 		name    string
 		wantErr string
+		cfg     Config
 	}{
 		{
 			name: "empty mode",
