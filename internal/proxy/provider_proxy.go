@@ -292,6 +292,10 @@ func (e *eventStreamToSSEBody) readAndBuffer() error {
 		e.esBuffer = append(e.esBuffer, chunk[:n]...)
 	}
 
+	if n == 0 && readErr == nil {
+		return ErrStreamClosed
+	}
+
 	e.parseEventStreamBuffer()
 
 	if readErr == io.EOF {

@@ -420,6 +420,18 @@ func TestProviderProxyEventStreamConversion(t *testing.T) {
 	assert.Equal(t, "no-cache, no-transform", w.Header().Get("Cache-Control"))
 }
 
+func TestEventStreamToSSEBodyNoProgress(t *testing.T) {
+	t.Parallel()
+
+	body := newEventStreamToSSEBody(&stallingReadCloser{})
+	buf := make([]byte, 8)
+
+	n, err := body.Read(buf)
+
+	assert.Equal(t, 0, n)
+	assert.ErrorIs(t, err, ErrStreamClosed)
+}
+
 // mockEventStreamProvider simulates a Bedrock-like provider.
 type mockEventStreamProvider struct {
 	baseURL string
@@ -450,4 +462,14 @@ func (m *mockEventStreamProvider) TransformResponse(_ *http.Response, _ http.Res
 // StreamingContentType returns Event Stream (like Bedrock).
 func (m *mockEventStreamProvider) StreamingContentType() string {
 	return providers.ContentTypeEventStream
+}
+
+type stallingReadCloser struct{}
+
+func (s *stallingReadCloser) Read(_ []byte) (int, error) {
+	return 0, nil
+}
+
+func (s *stallingReadCloser) Close() error {
+	return nil
 }
