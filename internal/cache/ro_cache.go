@@ -188,7 +188,7 @@ func getCachedTyped[T any](ctx context.Context, c *ROCache, key string) (result 
 		return result, false, err
 	}
 
-	if err := json.Unmarshal(data, &result); err != nil {
+	if json.Unmarshal(data, &result) != nil {
 		return result, false, ErrCacheCorrupt
 	}
 	return result, true, nil
