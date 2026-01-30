@@ -29,6 +29,14 @@ import (
 
 // ErrCacheFetchFailed is returned when a fetch operation fails.
 var ErrCacheFetchFailed = errors.New("cache: fetch operation failed")
+// ErrCacheCorrupt indicates cached data could not be decoded and should be refetched.
+var ErrCacheCorrupt = errors.New("cache: corrupt cached data")
+
+func ignoreCacheErr(err error) {
+	if err != nil {
+		_ = err
+	}
+}
 
 // ROCache provides reactive cache operations wrapping an existing Cache.
 // It enables observable-based caching patterns for stream processing.
@@ -113,9 +121,9 @@ func (c *ROCache) GetOrFetch(
 			return nil
 		}
 
-		// Cache the result (ignore errors - fetched data is still valid)
-		//nolint:errcheck // Non-critical: caching failure doesn't affect returned data
-		c.cache.SetWithTTL(ctx, key, result, c.ttl)
+		if err := c.cache.SetWithTTL(ctx, key, result, c.ttl); err != nil {
+			ignoreCacheErr(err)
+		}
 
 		observer.Next(result)
 		observer.Complete()
@@ -143,61 +151,76 @@ func GetOrFetchTyped[T any](
 	fetch func() ro.Observable[T],
 ) ro.Observable[T] {
 	return ro.NewObservable(func(observer ro.Observer[T]) ro.Teardown {
-		// Try cache first
-		data, err := c.cache.Get(ctx, key)
-		if err == nil {
-			var result T
-			if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr == nil {
-				observer.Next(result)
-				observer.Complete()
-				return nil
-			}
-			// Unmarshal failed - treat as cache miss and refetch
-		}
-
-		// Cache miss or unmarshal error - fetch and cache
-		if err != nil && !errors.Is(err, ErrNotFound) {
-			// Unexpected cache error
+		result, ok, err := getCachedTyped[T](ctx, c, key)
+		if err != nil && !errors.Is(err, ErrCacheCorrupt) {
 			observer.Error(err)
 			return nil
 		}
+		if ok {
+			observer.Next(result)
+			observer.Complete()
+			return nil
+		}
 
-		// Subscribe to fetch observable
-		var fetchErr error
-		var result T
-		var hasResult bool
-
-		fetch().Subscribe(ro.NewObserver(
-			func(val T) {
-				result = val
-				hasResult = true
-			},
-			func(err error) {
-				fetchErr = err
-			},
-			func() {},
-		))
-
+		fetched, hasResult, fetchErr := fetchTyped[T](fetch)
 		if fetchErr != nil {
 			observer.Error(fetchErr)
 			return nil
 		}
-
 		if !hasResult {
 			observer.Error(ErrCacheFetchFailed)
 			return nil
 		}
 
-		// Cache the result
-		if data, marshalErr := json.Marshal(result); marshalErr == nil {
-			//nolint:errcheck // Non-critical: caching failure doesn't affect returned data
-			c.cache.SetWithTTL(ctx, key, data, c.ttl)
-		}
-
-		observer.Next(result)
+		cacheTyped(ctx, c, key, fetched)
+		observer.Next(fetched)
 		observer.Complete()
 		return nil
 	})
+}
+
+func getCachedTyped[T any](ctx context.Context, c *ROCache, key string) (result T, found bool, err error) {
+	data, err := c.cache.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return result, false, nil
+		}
+		return result, false, err
+	}
+
+	if unmarshalErr := json.Unmarshal(data, &result); unmarshalErr != nil {
+		return result, false, ErrCacheCorrupt
+	}
+	return result, true, nil
+}
+
+func fetchTyped[T any](fetch func() ro.Observable[T]) (result T, hasResult bool, err error) {
+	var fetchErr error
+	fetch().Subscribe(ro.NewObserver(
+		func(val T) {
+			result = val
+			hasResult = true
+		},
+		func(err error) {
+			fetchErr = err
+		},
+		func() {},
+	))
+
+	if fetchErr != nil {
+		return result, false, fetchErr
+	}
+	return result, hasResult, nil
+}
+
+func cacheTyped[T any](ctx context.Context, c *ROCache, key string, value T) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return
+	}
+	if err := c.cache.SetWithTTL(ctx, key, data, c.ttl); err != nil {
+		ignoreCacheErr(err)
+	}
 }
 
 // Invalidate removes a key from the cache.
@@ -348,8 +371,9 @@ func Stream[T any](
 		ro.DoOnNext(func(item T) {
 			data, err := json.Marshal(item)
 			if err == nil {
-				//nolint:errcheck // Non-critical: caching failure doesn't affect stream
-				c.cache.SetWithTTL(ctx, keyFunc(item), data, c.ttl)
+				if err := c.cache.SetWithTTL(ctx, keyFunc(item), data, c.ttl); err != nil {
+					ignoreCacheErr(err)
+				}
 			}
 		}),
 	)
