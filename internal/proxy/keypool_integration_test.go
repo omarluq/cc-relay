@@ -34,8 +34,9 @@ func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 		// Return successful response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Test response write error is non-critical
-		w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`))
+		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer backend.Close()
 
@@ -126,8 +127,9 @@ func TestKeyPoolIntegrationFallbackWhenExhausted(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Test response write error is non-critical
-		w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`))
+		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer backend.Close()
 
@@ -207,8 +209,9 @@ func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 		requestCount++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Test response write error is non-critical
-		w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`))
+		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer backend.Close()
 
@@ -296,8 +299,9 @@ func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Test response write error is non-critical
-		w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`))
+		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer backend.Close()
 

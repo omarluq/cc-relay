@@ -31,10 +31,7 @@ const (
 )
 
 // setupTestProxy creates a test HTTP server with the proxy configured.
-// If customBackendURL is empty, uses default Anthropic API.
-//
-//nolint:unparam // customBackendURL parameter intentional for future test flexibility
-func setupTestProxy(t *testing.T, customBackendURL string) *httptest.Server {
+func setupTestProxy(t *testing.T) *httptest.Server {
 	t.Helper()
 
 	// Get provider API key from environment
@@ -57,12 +54,7 @@ func setupTestProxy(t *testing.T, customBackendURL string) *httptest.Server {
 	}
 
 	// Create provider
-	backendURL := "https://api.anthropic.com"
-	if customBackendURL != "" {
-		backendURL = customBackendURL
-	}
-
-	provider := providers.NewAnthropicProvider("test", backendURL)
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
 	// Setup routes
 	handler, err := proxy.SetupRoutes(cfg, provider, providerKey, nil)
@@ -78,7 +70,7 @@ func setupTestProxy(t *testing.T, customBackendURL string) *httptest.Server {
 }
 
 func TestIntegrationNonStreamingRequest(t *testing.T) {
-	server := setupTestProxy(t, "")
+	server := setupTestProxy(t)
 
 	// Create request body
 	reqBody := map[string]interface{}{
@@ -140,7 +132,7 @@ func TestIntegrationNonStreamingRequest(t *testing.T) {
 }
 
 func TestIntegrationStreamingRequest(t *testing.T) {
-	server := setupTestProxy(t, "")
+	server := setupTestProxy(t)
 
 	// Create streaming request
 	reqBody := map[string]interface{}{
@@ -188,86 +180,98 @@ func TestIntegrationStreamingRequest(t *testing.T) {
 }
 
 // verifyStreamingBehavior checks that SSE events arrive incrementally (not buffered).
-//
-//nolint:gocognit // Integration test - complexity unavoidable
 func verifyStreamingBehavior(resp *http.Response) error {
 	scanner := bufio.NewScanner(resp.Body)
-
-	var eventCount int
-
-	var lastEventTime time.Time
-
-	var sawMessageStart, sawContentBlockStart, sawDelta, sawMessageStop bool
+	var (
+		eventCount int
+		lastEvent  time.Time
+		flags      streamEventFlags
+	)
 
 	for scanner.Scan() {
 		line := scanner.Text()
-
-		// Skip empty lines and ping events
-		if line == "" || strings.HasPrefix(line, ": ping") {
+		if shouldSkipSSELine(line) {
 			continue
 		}
-
-		// Parse SSE event
-		if strings.HasPrefix(line, "event: ") {
-			eventType := strings.TrimPrefix(line, "event: ")
-
-			// Track event sequence
-			switch eventType {
-			case "message_start":
-				sawMessageStart = true
-			case "content_block_start":
-				sawContentBlockStart = true
-			case "content_block_delta":
-				sawDelta = true
-			case "message_stop":
-				sawMessageStop = true
-			}
-
-			now := time.Now()
-			if !lastEventTime.IsZero() {
-				// Events should arrive quickly (within 10s of each other)
-				// This is a conservative check - buffering would cause longer delays
-				if now.Sub(lastEventTime) > 10*time.Second {
-					return fmt.Errorf("large gap between events: %v (possible buffering)", now.Sub(lastEventTime))
-				}
-			}
-
-			lastEventTime = now
-			eventCount++
+		eventType, ok := parseSSEEventType(line)
+		if !ok {
+			continue
 		}
+		flags.update(eventType)
+
+		now := time.Now()
+		if err := checkEventGap(lastEvent, now); err != nil {
+			return err
+		}
+		lastEvent = now
+		eventCount++
 	}
 
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("scanner error: %w", err)
 	}
 
-	// Verify we got events
 	if eventCount == 0 {
 		return fmt.Errorf("no SSE events received")
 	}
-
-	// Verify event sequence
-	if !sawMessageStart {
-		return fmt.Errorf("missing message_start event")
+	if err := flags.validate(); err != nil {
+		return err
 	}
+	return nil
+}
 
-	if !sawContentBlockStart {
-		return fmt.Errorf("missing content_block_start event")
+type streamEventFlags struct {
+	messageStart      bool
+	contentBlockStart bool
+	contentBlockDelta bool
+	messageStop       bool
+}
+
+func (f *streamEventFlags) update(eventType string) {
+	switch eventType {
+	case "message_start":
+		f.messageStart = true
+	case "content_block_start":
+		f.contentBlockStart = true
+	case "content_block_delta":
+		f.contentBlockDelta = true
+	case "message_stop":
+		f.messageStop = true
 	}
+}
 
-	if !sawDelta {
-		return fmt.Errorf("missing content_block_delta event")
+func (f *streamEventFlags) validate() error {
+	if f.messageStart && f.contentBlockStart && f.contentBlockDelta && f.messageStop {
+		return nil
 	}
+	return fmt.Errorf("missing expected events: start=%v block_start=%v delta=%v stop=%v",
+		f.messageStart, f.contentBlockStart, f.contentBlockDelta, f.messageStop)
+}
 
-	if !sawMessageStop {
-		return fmt.Errorf("missing message_stop event")
+func shouldSkipSSELine(line string) bool {
+	return line == "" || strings.HasPrefix(line, ": ping")
+}
+
+func parseSSEEventType(line string) (string, bool) {
+	if !strings.HasPrefix(line, "event: ") {
+		return "", false
 	}
+	return strings.TrimPrefix(line, "event: "), true
+}
 
+func checkEventGap(last, now time.Time) error {
+	if last.IsZero() {
+		return nil
+	}
+	gap := now.Sub(last)
+	if gap > 10*time.Second {
+		return fmt.Errorf("large gap between events: %v (possible buffering)", gap)
+	}
 	return nil
 }
 
 func TestIntegrationToolUseIdPreservation(t *testing.T) {
-	server := setupTestProxy(t, "")
+	server := setupTestProxy(t)
 
 	// First request: Ask Claude to use a tool
 	reqBody1 := map[string]interface{}{
@@ -397,7 +401,7 @@ func TestIntegrationToolUseIdPreservation(t *testing.T) {
 }
 
 func TestIntegrationAuthenticationRejection(t *testing.T) {
-	server := setupTestProxy(t, "")
+	server := setupTestProxy(t)
 
 	// Create request without API key
 	reqBody := map[string]interface{}{
@@ -456,7 +460,7 @@ func TestIntegrationAuthenticationRejection(t *testing.T) {
 }
 
 func TestIntegrationHeaderForwarding(t *testing.T) {
-	server := setupTestProxy(t, "")
+	server := setupTestProxy(t)
 
 	// Create request with anthropic headers
 	reqBody := map[string]interface{}{
@@ -502,19 +506,30 @@ func TestIntegrationHeaderForwarding(t *testing.T) {
 	}
 }
 
-//nolint:gocognit // Integration test - table-driven test requires setup complexity
 func TestIntegrationErrorFormatCompliance(t *testing.T) {
-	tests := []struct {
-		setupFunc     func(t *testing.T) *httptest.Server
-		requestFunc   func(serverURL string) (*http.Request, error)
-		name          string
-		wantErrorType string
-		wantStatus    int
-	}{
+	for _, tt := range errorFormatCases() {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			runErrorFormatCase(t, tt)
+		})
+	}
+}
+
+type errorFormatCase struct {
+	name          string
+	setupFunc     func(t *testing.T) *httptest.Server
+	requestFunc   func(serverURL string) (*http.Request, error)
+	wantStatus    int
+	wantErrorType string
+	timeout       time.Duration
+}
+
+func errorFormatCases() []errorFormatCase {
+	return []errorFormatCase{
 		{
 			name: "401_missing_api_key",
 			setupFunc: func(t *testing.T) *httptest.Server {
-				return setupTestProxy(t, "")
+				return setupTestProxy(t)
 			},
 			requestFunc: func(serverURL string) (*http.Request, error) {
 				reqBody := map[string]interface{}{
@@ -528,16 +543,16 @@ func TestIntegrationErrorFormatCompliance(t *testing.T) {
 					return nil, err
 				}
 				req.Header.Set("Content-Type", "application/json")
-				// No x-api-key header
 				return req, nil
 			},
 			wantStatus:    http.StatusUnauthorized,
 			wantErrorType: "authentication_error",
+			timeout:       30 * time.Second,
 		},
 		{
 			name: "400_invalid_json",
 			setupFunc: func(t *testing.T) *httptest.Server {
-				return setupTestProxy(t, "")
+				return setupTestProxy(t)
 			},
 			requestFunc: func(serverURL string) (*http.Request, error) {
 				req, err := http.NewRequest("POST", serverURL+"/v1/messages", strings.NewReader("not valid json"))
@@ -551,11 +566,11 @@ func TestIntegrationErrorFormatCompliance(t *testing.T) {
 			},
 			wantStatus:    http.StatusBadRequest,
 			wantErrorType: "invalid_request_error",
+			timeout:       30 * time.Second,
 		},
 		{
 			name: "502_upstream_failure",
 			setupFunc: func(t *testing.T) *httptest.Server {
-				// Use invalid backend URL to trigger 502
 				providerKey := os.Getenv("ANTHROPIC_API_KEY")
 				if providerKey == "" {
 					t.Skip("ANTHROPIC_API_KEY not set")
@@ -565,11 +580,10 @@ func TestIntegrationErrorFormatCompliance(t *testing.T) {
 					Server: config.ServerConfig{
 						Listen:    "127.0.0.1:0",
 						APIKey:    testProxyAPIKey,
-						TimeoutMS: 5000, // Short timeout
+						TimeoutMS: 5000,
 					},
 				}
 
-				// Create provider with unreachable backend
 				provider := providers.NewAnthropicProvider("test", "http://localhost:1")
 
 				handler, err := proxy.SetupRoutes(cfg, provider, providerKey, nil)
@@ -599,74 +613,77 @@ func TestIntegrationErrorFormatCompliance(t *testing.T) {
 			},
 			wantStatus:    http.StatusBadGateway,
 			wantErrorType: "api_error",
+			timeout:       10 * time.Second,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := tt.setupFunc(t)
-
-			req, err := tt.requestFunc(server.URL)
-			if err != nil {
-				t.Fatalf("Failed to create request: %v", err)
-			}
-
-			// Set short timeout for upstream failure test
-			timeout := 30 * time.Second
-			if tt.name == "502_upstream_failure" {
-				timeout = 10 * time.Second
-			}
-
-			client := &http.Client{Timeout: timeout}
-
-			resp, err := client.Do(req)
-			if err != nil {
-				t.Fatalf("Request failed: %v", err)
-			}
-
-			defer resp.Body.Close()
-
-			// Verify status code
-			if resp.StatusCode != tt.wantStatus {
-				body, _ := io.ReadAll(resp.Body)
-				t.Fatalf("status = %d, want %d. Body: %s", resp.StatusCode, tt.wantStatus, string(body))
-			}
-
-			// Verify error format
-			var errResp struct {
-				Type  string `json:"type"`
-				Error struct {
-					Type    string `json:"type"`
-					Message string `json:"message"`
-				} `json:"error"`
-			}
-
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("Failed to read response body: %v", err)
-			}
-
-			if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
-				t.Fatalf("Failed to parse error response: %v. Body: %s", err, string(bodyBytes))
-			}
-
-			if errResp.Type != "error" {
-				t.Errorf("type = %q, want \"error\"", errResp.Type)
-			}
-
-			if errResp.Error.Type != tt.wantErrorType {
-				t.Errorf("error.type = %q, want %q", errResp.Error.Type, tt.wantErrorType)
-			}
-
-			if errResp.Error.Message == "" {
-				t.Error("error.message is empty")
-			}
-		})
 	}
 }
 
+func runErrorFormatCase(t *testing.T, tt errorFormatCase) {
+	server := tt.setupFunc(t)
+
+	req, err := tt.requestFunc(server.URL)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	client := &http.Client{Timeout: tt.timeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Request failed: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("Failed to close response body: %v", closeErr)
+		}
+	}()
+
+	bodyBytes, err := readResponseBody(resp)
+	if err != nil {
+		t.Fatalf("Failed to read response body: %v", err)
+	}
+
+	if resp.StatusCode != tt.wantStatus {
+		t.Fatalf("status = %d, want %d. Body: %s", resp.StatusCode, tt.wantStatus, string(bodyBytes))
+	}
+
+	errResp, err := parseErrorResponse(bodyBytes)
+	if err != nil {
+		t.Fatalf("Failed to parse error response: %v. Body: %s", err, string(bodyBytes))
+	}
+
+	if errResp.Type != "error" {
+		t.Errorf("type = %q, want \"error\"", errResp.Type)
+	}
+	if errResp.Error.Type != tt.wantErrorType {
+		t.Errorf("error.type = %q, want %q", errResp.Error.Type, tt.wantErrorType)
+	}
+	if errResp.Error.Message == "" {
+		t.Error("error.message is empty")
+	}
+}
+
+type errorResponse struct {
+	Type  string `json:"type"`
+	Error struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+func parseErrorResponse(body []byte) (errorResponse, error) {
+	var errResp errorResponse
+	if err := json.Unmarshal(body, &errResp); err != nil {
+		return errorResponse{}, err
+	}
+	return errResp, nil
+}
+
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	return io.ReadAll(resp.Body)
+}
+
 func TestIntegrationHealthEndpoint(t *testing.T) {
-	server := setupTestProxy(t, "")
+	server := setupTestProxy(t)
 
 	// Create health check request
 	req, err := http.NewRequest("GET", server.URL+"/health", http.NoBody)
@@ -703,7 +720,7 @@ func TestIntegrationHealthEndpoint(t *testing.T) {
 }
 
 func TestIntegrationConcurrentRequests(t *testing.T) {
-	server := setupTestProxy(t, "")
+	server := setupTestProxy(t)
 
 	// Test that proxy can handle concurrent requests
 	const numRequests = 5

@@ -193,17 +193,17 @@ func TestDebugOptionsGetMaxBodyLogSize(t *testing.T) {
 func TestTLSVersionString(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // test table struct alignment
+	tests := []struct {
 		name     string
-		version  uint16
 		expected string
+		version  uint16
 	}{
-		{"TLS 1.0", 0x0301, "TLS 1.0"},
-		{"TLS 1.1", 0x0302, "TLS 1.1"},
-		{"TLS 1.2", 0x0303, "TLS 1.2"},
-		{"TLS 1.3", 0x0304, "TLS 1.3"},
-		{"unknown", 0x0000, "unknown"},
-		{"unknown high", 0xFFFF, "unknown"},
+		{"TLS 1.0", "TLS 1.0", 0x0301},
+		{"TLS 1.1", "TLS 1.1", 0x0302},
+		{"TLS 1.2", "TLS 1.2", 0x0303},
+		{"TLS 1.3", "TLS 1.3", 0x0304},
+		{"unknown", "unknown", 0x0000},
+		{"unknown high", "unknown", 0xFFFF},
 	}
 
 	for _, tt := range tests {

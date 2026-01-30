@@ -254,9 +254,7 @@ func LogProxyMetrics(ctx context.Context, metrics Metrics, _ config.DebugOptions
 
 // AttachTLSTrace attaches httptrace to request for TLS metric collection.
 // Returns updated context with trace and a function to retrieve metrics.
-//
-//nolint:gocritic // unnamedResult: return values are clear from function signature
-func AttachTLSTrace(ctx context.Context, _ *http.Request) (context.Context, func() TLSMetrics) {
+func AttachTLSTrace(ctx context.Context, _ *http.Request) (newCtx context.Context, getMetrics func() TLSMetrics) {
 	metrics := &TLSMetrics{}
 	var dnsStart, connectStart, tlsStart time.Time
 
@@ -290,8 +288,9 @@ func AttachTLSTrace(ctx context.Context, _ *http.Request) (context.Context, func
 		},
 	}
 
-	newCtx := httptrace.WithClientTrace(ctx, trace)
-	return newCtx, func() TLSMetrics { return *metrics }
+	newCtx = httptrace.WithClientTrace(ctx, trace)
+	getMetrics = func() TLSMetrics { return *metrics }
+	return newCtx, getMetrics
 }
 
 // tlsVersionString converts TLS version constant to string.
