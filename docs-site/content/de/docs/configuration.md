@@ -1127,15 +1127,16 @@ Ungueltige Konfigurationen werden abgelehnt und der Proxy laeuft mit der vorheri
 
 ### Einschraenkungen
 
-- **Provider-Aenderungen**: Hinzufuegen oder Entfernen von Providern erfordert einen Neustart (Routing-Infrastruktur wird beim Start initialisiert)
 - **Listen-Adresse**: Aendern von `server.listen` erfordert einen Neustart
-- **gRPC-Adresse**: Aendern der gRPC-Management-API-Adresse erfordert einen Neustart
+- **gRPC-Adresse**: Aendern von `grpc.listen` erfordert einen Neustart
 
 Konfigurationsoptionen, die hot-reloadbar sind:
 - Logging-Level und Format
-- Rate-Limits fuer bestehende Schluessel
-- Health-Check-Intervalle
-- Routing-Strategie-Gewichtungen und Prioritaeten
+- Routing-Strategie, Failover-Timeout, Gewichtungen und Prioritaeten
+- Provider-Aktivierung, Base-URL und Model-Mapping
+- Keypool-Strategie, Key-Gewichte und Limits pro Key
+- Maximale gleichzeitige Requests und maximale Body-Groesse
+- Health-Check-Intervalle und Circuit-Breaker-Schwellenwerte
 
 ## Naechste Schritte
 

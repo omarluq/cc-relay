@@ -1212,15 +1212,16 @@ Invalid configurations are rejected and the proxy continues with the previous va
 
 ### Limitations
 
-- **Provider changes**: Adding or removing providers requires a restart (routing infrastructure is initialized at startup)
 - **Listen address**: Changing `server.listen` requires a restart
-- **gRPC address**: Changing gRPC management API address requires a restart
+- **gRPC address**: Changing `grpc.listen` requires a restart
 
 Configuration options that can be hot-reloaded:
 - Logging level and format
-- Rate limits on existing keys
-- Health check intervals
-- Routing strategy weights and priorities
+- Routing strategy, failover timeout, weights, and priorities
+- Provider enable/disable, base URL, and model mapping
+- Keypool strategy, key weights, and per-key limits
+- Max concurrent requests and max body size
+- Health check intervals and circuit breaker thresholds
 
 ## Next Steps
 
