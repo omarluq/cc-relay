@@ -16,6 +16,8 @@ import (
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
+const writeResponseErrFmt = "failed to write response: %v"
+
 // TestKeyPoolIntegration_DistributesRequests verifies that requests distribute across keys
 func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 	t.Parallel()
@@ -35,7 +37,7 @@ func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf("failed to write response: %v", err)
+			t.Errorf(writeResponseErrFmt, err)
 		}
 	}))
 	defer backend.Close()
@@ -128,7 +130,7 @@ func TestKeyPoolIntegrationFallbackWhenExhausted(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf("failed to write response: %v", err)
+			t.Errorf(writeResponseErrFmt, err)
 		}
 	}))
 	defer backend.Close()
@@ -210,7 +212,7 @@ func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf("failed to write response: %v", err)
+			t.Errorf(writeResponseErrFmt, err)
 		}
 	}))
 	defer backend.Close()
@@ -300,7 +302,7 @@ func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf("failed to write response: %v", err)
+			t.Errorf(writeResponseErrFmt, err)
 		}
 	}))
 	defer backend.Close()

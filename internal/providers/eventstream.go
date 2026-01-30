@@ -28,6 +28,8 @@ const (
 
 	// headerTypeString is the type byte for string headers.
 	headerTypeString = 7
+
+	headerValueTruncatedFmt = "header value truncated for %q"
 )
 
 // ErrMessageSkipped indicates a message was skipped due to a parse error.
@@ -209,11 +211,11 @@ func parseStringHeaderValue(
 	offset = next
 
 	if offset+valueLen > len(data) {
-		return nil, 0, fmt.Errorf("header value truncated for %q", name)
+		return nil, 0, fmt.Errorf(headerValueTruncatedFmt, name)
 	}
 	valueBytes, end, err := readSlice(data, offset, valueLen)
 	if err != nil {
-		return nil, 0, fmt.Errorf("header value truncated for %q", name)
+		return nil, 0, fmt.Errorf(headerValueTruncatedFmt, name)
 	}
 	strVal := string(valueBytes)
 	return &strVal, end, nil
@@ -269,7 +271,7 @@ func readSlice(data []byte, offset, length int) (out []byte, next int, err error
 
 func advanceOffset(data []byte, offset, length int, name string) (val *string, next int, err error) {
 	if offset < 0 || offset+length > len(data) {
-		return nil, 0, fmt.Errorf("header value truncated for %q", name)
+		return nil, 0, fmt.Errorf(headerValueTruncatedFmt, name)
 	}
 	return nil, offset + length, nil
 }
