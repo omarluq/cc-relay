@@ -14,7 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/omarluq/cc-relay/cmd/cc-relay/di"
+	"github.com/omarluq/cc-relay/internal/di"
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 

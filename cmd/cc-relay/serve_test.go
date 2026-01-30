@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omarluq/cc-relay/cmd/cc-relay/di"
+	"github.com/omarluq/cc-relay/internal/di"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
