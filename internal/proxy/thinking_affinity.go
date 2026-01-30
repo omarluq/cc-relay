@@ -28,8 +28,7 @@ func HasThinkingSignature(r *http.Request) bool {
 	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
-	//nolint:errcheck // Best effort close
-	r.Body.Close()
+	closeBody(r.Body)
 
 	// Always restore body for downstream use, even on partial read error
 	// io.ReadAll may return partial bytes alongside an error

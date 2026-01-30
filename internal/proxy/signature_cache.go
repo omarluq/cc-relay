@@ -96,8 +96,9 @@ func (sc *SignatureCache) Set(ctx context.Context, modelName, text, signature st
 	modelGroup := GetModelGroup(modelName)
 	key := sc.cacheKey(modelGroup, text)
 
-	//nolint:errcheck // Best effort caching - errors don't affect correctness
-	sc.cache.SetWithTTL(ctx, key, []byte(signature), SignatureCacheTTL)
+	if err := sc.cache.SetWithTTL(ctx, key, []byte(signature), SignatureCacheTTL); err != nil {
+		_ = err
+	}
 }
 
 // IsValidSignature checks if a signature is valid (non-empty and long enough).
