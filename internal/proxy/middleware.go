@@ -32,8 +32,6 @@ const authSucceededMsg = "authentication succeeded"
 // - Constant-time comparison (subtle.ConstantTimeCompare) prevents timing attacks.
 func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 	// Pre-hash expected key at creation time (not per-request)
-	// codeql[go/weak-sensitive-data-hashing] SHA-256 is appropriate for high-entropy API keys (not passwords)
-	// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 	expectedHash := sha256.Sum256([]byte(expectedAPIKey))
 
 	return func(next http.Handler) http.Handler {
@@ -45,8 +43,6 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// codeql[go/weak-sensitive-data-hashing] SHA-256 is appropriate for high-entropy API keys (not passwords)
-			// #nosec G401 -- SHA-256 is appropriate for high-entropy API keys (not passwords)
 			providedHash := sha256.Sum256([]byte(providedKey))
 
 			// CRITICAL: Constant-time comparison prevents timing attacks
@@ -483,4 +479,101 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 		}
 	}
 	return rw.ResponseWriter.Write(b)
+}
+
+// ConcurrencyLimiter enforces a global maximum number of concurrent requests.
+// It uses an atomic counter with a configurable limit that supports hot-reload.
+// When the limit is reached, new requests receive 503 Service Unavailable.
+type ConcurrencyLimiter struct {
+	limit   atomic.Int64
+	current atomic.Int64
+}
+
+// NewConcurrencyLimiter creates a new concurrency limiter with the given max limit.
+// A limit of 0 or negative means unlimited.
+func NewConcurrencyLimiter(maxLimit int64) *ConcurrencyLimiter {
+	l := &ConcurrencyLimiter{}
+	l.limit.Store(maxLimit)
+	return l
+}
+
+// SetLimit updates the concurrency limit for hot-reload support.
+// A limit of 0 or negative means unlimited.
+func (l *ConcurrencyLimiter) SetLimit(maxLimit int64) {
+	l.limit.Store(maxLimit)
+}
+
+// GetLimit returns the current configured limit.
+func (l *ConcurrencyLimiter) GetLimit() int64 {
+	return l.limit.Load()
+}
+
+// CurrentInFlight returns the current number of in-flight requests.
+func (l *ConcurrencyLimiter) CurrentInFlight() int64 {
+	return l.current.Load()
+}
+
+// TryAcquire attempts to acquire a slot for a request.
+// Returns true if the request can proceed, false if the limit is reached.
+// If limit is 0 or negative, always returns true (unlimited).
+func (l *ConcurrencyLimiter) TryAcquire() bool {
+	limit := l.limit.Load()
+	if limit <= 0 {
+		// Unlimited - always succeed but still track count
+		l.current.Add(1)
+		return true
+	}
+
+	// Try to increment if below limit using compare-and-swap loop
+	for {
+		current := l.current.Load()
+		if current >= limit {
+			return false
+		}
+		if l.current.CompareAndSwap(current, current+1) {
+			return true
+		}
+		// CAS failed, retry
+	}
+}
+
+// Release releases a slot after request completion.
+// Must be called after a successful TryAcquire.
+func (l *ConcurrencyLimiter) Release() {
+	l.current.Add(-1)
+}
+
+// ConcurrencyMiddleware creates middleware that enforces a global concurrency limit.
+// Uses the provided ConcurrencyLimiter which supports hot-reload via SetLimit.
+func ConcurrencyMiddleware(limiter *ConcurrencyLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !limiter.TryAcquire() {
+				zerolog.Ctx(r.Context()).Warn().
+					Int64("limit", limiter.GetLimit()).
+					Int64("current", limiter.CurrentInFlight()).
+					Msg("request rejected: concurrency limit reached")
+				WriteError(w, http.StatusServiceUnavailable, "server_busy",
+					"server is at maximum capacity, please retry later")
+				return
+			}
+			defer limiter.Release()
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// MaxBodyBytesMiddleware creates middleware that limits request body size.
+// Uses http.MaxBytesReader to enforce the limit efficiently.
+// The limitProvider is called per-request to support hot-reload.
+func MaxBodyBytesMiddleware(limitProvider func() int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limit := limitProvider()
+			if limit > 0 && r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

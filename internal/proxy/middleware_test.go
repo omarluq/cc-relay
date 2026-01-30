@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -378,18 +380,18 @@ func TestLoggingMiddlewareLogsRequest(t *testing.T) {
 func TestFormatDuration(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // test table struct alignment
+	tests := []struct {
 		name     string
-		d        time.Duration
 		expected string
+		d        time.Duration
 	}{
-		{"micro request", 500 * time.Microsecond, "500µs"},
-		{"fast request", 100 * time.Millisecond, "100.00ms"},
-		{"medium request", 500 * time.Millisecond, "500.00ms"},
-		{"slow request", 1500 * time.Millisecond, "1.50s"},
-		{"very slow request", 5 * time.Second, "5.00s"},
-		{"minutes request", 2*time.Minute + 3*time.Second, "2m3s"},
-		{"zero", 0, "0s"},
+		{"micro request", "500µs", 500 * time.Microsecond},
+		{"fast request", "100.00ms", 100 * time.Millisecond},
+		{"medium request", "500.00ms", 500 * time.Millisecond},
+		{"slow request", "1.50s", 1500 * time.Millisecond},
+		{"very slow request", "5.00s", 5 * time.Second},
+		{"minutes request", "2m3s", 2*time.Minute + 3*time.Second},
+		{"zero", "0s", 0},
 	}
 
 	for _, tt := range tests {
@@ -406,15 +408,15 @@ func TestFormatDuration(t *testing.T) {
 func TestFormatCompletionMessage(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // test table struct alignment
-		status   int
+	tests := []struct {
 		symbol   string
 		duration string
 		expected string
+		status   int
 	}{
-		{200, "!", "100ms", "! OK (100ms)"},
-		{404, "?", "50ms", "? Not Found (50ms)"},
-		{500, "x", "1.5s", "x Internal Server Error (1.5s)"},
+		{"!", "100ms", "! OK (100ms)", 200},
+		{"?", "50ms", "? Not Found (50ms)", 404},
+		{"x", "1.5s", "x Internal Server Error (1.5s)", 500},
 	}
 
 	for _, tt := range tests {
@@ -652,24 +654,26 @@ func TestLiveAuthMiddlewareNoAuthConfigured(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK, expectedStatusOKMsg)
 }
 
-//nolint:tparallel // subtests share wrappedHandler to test cache behavior
 func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 	t.Parallel()
 
-	handler := okHandler()
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: "test-api-key",
+	newWrappedHandler := func() http.Handler {
+		handler := okHandler()
+		cfg := &config.Config{
+			Server: config.ServerConfig{
+				Auth: config.AuthConfig{
+					APIKey: "test-api-key",
+				},
 			},
-		},
+		}
+		runtime := config.NewRuntime(cfg)
+		middleware := LiveAuthMiddleware(runtime)
+		return middleware(handler)
 	}
-	runtime := config.NewRuntime(cfg)
-	middleware := LiveAuthMiddleware(runtime)
-	wrappedHandler := middleware(handler)
 
 	t.Run("valid key", func(t *testing.T) {
+		t.Parallel()
+		wrappedHandler := newWrappedHandler()
 		req := newMessagesRequest(http.NoBody)
 		req.Header.Set(apiKeyHeader, "test-api-key")
 		rec := httptest.NewRecorder()
@@ -679,6 +683,8 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 	})
 
 	t.Run("invalid key", func(t *testing.T) {
+		t.Parallel()
+		wrappedHandler := newWrappedHandler()
 		req := newMessagesRequest(http.NoBody)
 		req.Header.Set(apiKeyHeader, wrongKey)
 		rec := httptest.NewRecorder()
@@ -690,6 +696,8 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 	})
 
 	t.Run("missing key", func(t *testing.T) {
+		t.Parallel()
+		wrappedHandler := newWrappedHandler()
 		req := newMessagesRequest(http.NoBody)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
@@ -908,4 +916,310 @@ func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+// --- ConcurrencyLimiter Tests ---
+
+func TestConcurrencyLimiter_TryAcquire_WithinLimit(t *testing.T) {
+	t.Parallel()
+	limiter := NewConcurrencyLimiter(3)
+
+	// Should acquire 3 times successfully
+	require.True(t, limiter.TryAcquire())
+	require.True(t, limiter.TryAcquire())
+	require.True(t, limiter.TryAcquire())
+	require.Equal(t, int64(3), limiter.CurrentInFlight())
+
+	// 4th should fail
+	require.False(t, limiter.TryAcquire())
+	require.Equal(t, int64(3), limiter.CurrentInFlight())
+}
+
+func TestConcurrencyLimiter_TryAcquire_Release(t *testing.T) {
+	t.Parallel()
+	limiter := NewConcurrencyLimiter(2)
+
+	// Acquire 2
+	require.True(t, limiter.TryAcquire())
+	require.True(t, limiter.TryAcquire())
+	require.False(t, limiter.TryAcquire())
+
+	// Release 1
+	limiter.Release()
+	require.Equal(t, int64(1), limiter.CurrentInFlight())
+
+	// Should be able to acquire again
+	require.True(t, limiter.TryAcquire())
+	require.Equal(t, int64(2), limiter.CurrentInFlight())
+}
+
+func TestConcurrencyLimiter_Unlimited(t *testing.T) {
+	t.Parallel()
+	limiter := NewConcurrencyLimiter(0)
+
+	// Should always succeed with limit 0
+	for i := 0; i < 100; i++ {
+		require.True(t, limiter.TryAcquire())
+	}
+	require.Equal(t, int64(100), limiter.CurrentInFlight())
+}
+
+func TestConcurrencyLimiter_SetLimit(t *testing.T) {
+	t.Parallel()
+	limiter := NewConcurrencyLimiter(5)
+	require.Equal(t, int64(5), limiter.GetLimit())
+
+	limiter.SetLimit(10)
+	require.Equal(t, int64(10), limiter.GetLimit())
+
+	limiter.SetLimit(0)
+	require.Equal(t, int64(0), limiter.GetLimit())
+}
+
+func TestConcurrencyLimiter_HotReload(t *testing.T) {
+	t.Parallel()
+	limiter := NewConcurrencyLimiter(2)
+
+	// Fill up limit
+	require.True(t, limiter.TryAcquire())
+	require.True(t, limiter.TryAcquire())
+	require.False(t, limiter.TryAcquire())
+
+	// Hot-reload to increase limit
+	limiter.SetLimit(3)
+	require.True(t, limiter.TryAcquire())
+	require.Equal(t, int64(3), limiter.CurrentInFlight())
+
+	// Hot-reload to decrease (doesn't kick out existing, but prevents new)
+	limiter.SetLimit(1)
+	require.False(t, limiter.TryAcquire())
+
+	// Release all
+	limiter.Release()
+	limiter.Release()
+	limiter.Release()
+	require.Equal(t, int64(0), limiter.CurrentInFlight())
+
+	// Now only 1 allowed
+	require.True(t, limiter.TryAcquire())
+	require.False(t, limiter.TryAcquire())
+}
+
+func TestConcurrencyLimiter_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	const limit = 10
+	limiter := NewConcurrencyLimiter(limit)
+
+	var wg sync.WaitGroup
+	acquired := make(chan struct{}, 100)
+	rejected := make(chan struct{}, 100)
+
+	// Spawn many goroutines trying to acquire
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if limiter.TryAcquire() {
+				acquired <- struct{}{}
+				time.Sleep(10 * time.Millisecond)
+				limiter.Release()
+			} else {
+				rejected <- struct{}{}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(acquired)
+	close(rejected)
+
+	// Should have acquired at most 'limit' at any point
+	acquiredCount := len(acquired)
+	rejectedCount := len(rejected)
+	require.Equal(t, 50, acquiredCount+rejectedCount)
+	require.LessOrEqual(t, limiter.CurrentInFlight(), int64(limit))
+}
+
+func TestConcurrencyMiddleware_EnforcesLimit(t *testing.T) {
+	t.Parallel()
+	limiter := NewConcurrencyLimiter(1)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrappedHandler := ConcurrencyMiddleware(limiter)(handler)
+
+	// First request should succeed
+	req1 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	resp1 := httptest.NewRecorder()
+
+	// Second request should fail with 503
+	req2 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	resp2 := httptest.NewRecorder()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		wrappedHandler.ServeHTTP(resp1, req1)
+	}()
+
+	// Give first request time to acquire
+	time.Sleep(10 * time.Millisecond)
+
+	go func() {
+		defer wg.Done()
+		wrappedHandler.ServeHTTP(resp2, req2)
+	}()
+
+	wg.Wait()
+
+	require.Equal(t, http.StatusOK, resp1.Code)
+	require.Equal(t, http.StatusServiceUnavailable, resp2.Code)
+	require.Contains(t, resp2.Body.String(), "server_busy")
+}
+
+func TestConcurrencyMiddleware_ReleasesOnCompletion(t *testing.T) {
+	t.Parallel()
+	limiter := NewConcurrencyLimiter(1)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrappedHandler := ConcurrencyMiddleware(limiter)(handler)
+
+	// First request
+	req1 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	resp1 := httptest.NewRecorder()
+	wrappedHandler.ServeHTTP(resp1, req1)
+	require.Equal(t, http.StatusOK, resp1.Code)
+
+	// Limiter should have released
+	require.Equal(t, int64(0), limiter.CurrentInFlight())
+
+	// Second request should also succeed
+	req2 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	resp2 := httptest.NewRecorder()
+	wrappedHandler.ServeHTTP(resp2, req2)
+	require.Equal(t, http.StatusOK, resp2.Code)
+}
+
+// --- MaxBodyBytesMiddleware Tests ---
+
+func TestMaxBodyBytesMiddleware_AllowsWithinLimit(t *testing.T) {
+	t.Parallel()
+
+	var receivedBody []byte
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		receivedBody, _ = io.ReadAll(r.Body)
+	})
+
+	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 100 })(handler)
+
+	body := bytes.NewReader([]byte(`{"model": "claude-3"}`))
+	req := httptest.NewRequest(http.MethodPost, "/test", body)
+	resp := httptest.NewRecorder()
+
+	wrappedHandler.ServeHTTP(resp, req)
+
+	require.Equal(t, `{"model": "claude-3"}`, string(receivedBody))
+}
+
+func TestMaxBodyBytesMiddleware_ErrorOnOversized(t *testing.T) {
+	t.Parallel()
+
+	var readErr error
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, readErr = io.ReadAll(r.Body)
+		if readErr != nil {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
+
+	body := bytes.NewReader([]byte(`{"model": "claude-3-opus-20240229", "messages": []}`))
+	req := httptest.NewRequest(http.MethodPost, "/test", body)
+	resp := httptest.NewRecorder()
+
+	wrappedHandler.ServeHTTP(resp, req)
+
+	// Handler should have gotten an error
+	require.Error(t, readErr)
+	require.True(t, IsBodyTooLargeError(readErr))
+	require.Equal(t, http.StatusRequestEntityTooLarge, resp.Code)
+}
+
+func TestMaxBodyBytesMiddleware_UnlimitedWhenZero(t *testing.T) {
+	t.Parallel()
+
+	var receivedBody []byte
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		receivedBody, _ = io.ReadAll(r.Body)
+	})
+
+	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 0 })(handler)
+
+	// Large body should work when limit is 0
+	largeBody := bytes.Repeat([]byte("x"), 1000)
+	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(largeBody))
+	resp := httptest.NewRecorder()
+
+	wrappedHandler.ServeHTTP(resp, req)
+
+	require.Equal(t, largeBody, receivedBody)
+}
+
+func TestMaxBodyBytesMiddleware_HotReload(t *testing.T) {
+	t.Parallel()
+
+	limit := int64(100)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return limit })(handler)
+
+	// First request with small body should succeed
+	req1 := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte("small")))
+	resp1 := httptest.NewRecorder()
+	wrappedHandler.ServeHTTP(resp1, req1)
+	require.Equal(t, http.StatusOK, resp1.Code)
+
+	// Hot-reload to smaller limit
+	limit = 5
+
+	// Now larger body should fail
+	req2 := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte("this is too long")))
+	resp2 := httptest.NewRecorder()
+	wrappedHandler.ServeHTTP(resp2, req2)
+	require.Equal(t, http.StatusRequestEntityTooLarge, resp2.Code)
+}
+
+func TestMaxBodyBytesMiddleware_NilBody(t *testing.T) {
+	t.Parallel()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	resp := httptest.NewRecorder()
+
+	wrappedHandler.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusOK, resp.Code)
 }

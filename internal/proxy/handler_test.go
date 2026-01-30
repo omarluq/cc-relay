@@ -38,17 +38,13 @@ const (
 )
 
 // newTestHandler is a helper that creates a handler with common test defaults.
-//
-//nolint:unparam // pool and healthTracker are provided for interface consistency with NewHandler
 func newTestHandler(
 	t *testing.T,
 	provider providers.Provider,
 	providerInfos []router.ProviderInfo,
 	providerRouter router.ProviderRouter,
 	apiKey string,
-	pool *keypool.KeyPool,
 	routingDebug bool,
-	healthTracker *health.Tracker,
 ) *Handler {
 	t.Helper()
 	handler, err := NewHandler(&HandlerOptions{
@@ -56,10 +52,8 @@ func newTestHandler(
 		ProviderInfos:  providerInfos,
 		ProviderRouter: providerRouter,
 		APIKey:         apiKey,
-		Pool:           pool,
 		DebugOptions:   config.DebugOptions{},
 		RoutingDebug:   routingDebug,
-		HealthTracker:  healthTracker,
 	})
 	require.NoError(t, err)
 	return handler
@@ -67,7 +61,7 @@ func newTestHandler(
 
 func newHandlerWithAPIKey(t *testing.T, provider providers.Provider) *Handler {
 	t.Helper()
-	return newTestHandler(t, provider, nil, nil, testKey, nil, false, nil)
+	return newTestHandler(t, provider, nil, nil, testKey, false)
 }
 
 func serveJSONMessages(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
@@ -828,7 +822,7 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 
 	// Z.AI provider does NOT support transparent auth
 	provider := providers.NewZAIProvider("test-zai", backend.URL)
-	handler := newTestHandler(t, provider, nil, nil, "zai-configured-key", nil, false, nil)
+	handler := newTestHandler(t, provider, nil, nil, "zai-configured-key", false)
 
 	// Client sends Authorization header (like Claude Code does)
 	req := newMessagesRequestWithHeaders("{}",
@@ -1034,7 +1028,7 @@ func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	}
 
 	// routingDebug=true to get debug headers
-	handler := newTestHandler(t, provider1, providerInfos, mockR, testKey, nil, true, nil)
+	handler := newTestHandler(t, provider1, providerInfos, mockR, testKey, true)
 
 	req := newMessagesRequestWithHeaders("{}")
 	w := serveRequest(t, handler, req)
@@ -1175,7 +1169,7 @@ func TestHandlerDebugHeadersDisabledByDefault(t *testing.T) {
 	}
 
 	// routingDebug=false (default)
-	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, nil, false, nil)
+	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, false)
 
 	req := newMessagesRequestWithHeaders("{}")
 	w := serveRequest(t, handler, req)
@@ -1210,7 +1204,7 @@ func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 		},
 	}
 
-	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, nil, true, nil)
+	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, true)
 
 	req := newMessagesRequestWithHeaders("{}")
 	w := serveRequest(t, handler, req)
@@ -1236,7 +1230,7 @@ func TestHandlerRouterSelectionError(t *testing.T) {
 		err:  router.ErrAllProvidersUnhealthy,
 	}
 
-	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, nil, false, nil)
+	handler := newTestHandler(t, provider, providerInfos, mockR, testKey, false)
 
 	req := newMessagesRequestWithHeaders("{}")
 	w := serveRequest(t, handler, req)
@@ -1291,7 +1285,7 @@ func TestHandlerSelectProviderMultiMode(t *testing.T) {
 		},
 	}
 
-	handler := newTestHandler(t, provider1, providerInfos, mockR, testKey, nil, false, nil)
+	handler := newTestHandler(t, provider1, providerInfos, mockR, testKey, false)
 
 	info, err := handler.selectProvider(context.Background(), "", false)
 	require.NoError(t, err)

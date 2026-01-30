@@ -84,7 +84,7 @@ func ProcessRequestThinking(
 
 		// Process content blocks for this assistant message
 		modifiedBody, err = processAssistantContent(
-			ctx, modifiedBody, key.Int(), content, modelName, cache, thinkingCtx,
+			ctx, modifiedBody, key.Int(), &content, modelName, cache, thinkingCtx,
 		)
 		if err != nil {
 			return false // Stop iteration on error
@@ -107,13 +107,11 @@ type blockCollector struct {
 }
 
 // processAssistantContent processes content blocks in an assistant message.
-//
-//nolint:gocritic // hugeParam: gjson.Result is passed by value by design
 func processAssistantContent(
 	ctx context.Context,
 	body []byte,
 	msgIndex int64,
-	content gjson.Result,
+	content *gjson.Result,
 	modelName string,
 	cache *SignatureCache,
 	thinkingCtx *ThinkingContext,
@@ -138,11 +136,9 @@ func processAssistantContent(
 }
 
 // collectBlocks iterates content and collects blocks into the collector.
-//
-//nolint:gocritic // hugeParam: gjson.Result is passed by value by design
 func collectBlocks(
 	ctx context.Context,
-	content gjson.Result,
+	content *gjson.Result,
 	modelName string,
 	cache *SignatureCache,
 	thinkingCtx *ThinkingContext,
@@ -153,13 +149,13 @@ func collectBlocks(
 
 		switch blockType {
 		case blockTypeThinking:
-			processed, keep := processThinkingBlock(ctx, block, modelName, cache, thinkingCtx)
+			processed, keep := processThinkingBlock(ctx, &block, modelName, cache, thinkingCtx)
 			if keep {
 				collector.modifiedBlocks = append(collector.modifiedBlocks, processed)
 				collector.modifiedTypes = append(collector.modifiedTypes, blockTypeThinking)
 			}
 		case blockTypeToolUse:
-			processed := processToolUseBlock(block, thinkingCtx.CurrentSignature)
+			processed := processToolUseBlock(&block, thinkingCtx.CurrentSignature)
 			collector.modifiedBlocks = append(collector.modifiedBlocks, processed)
 			collector.modifiedTypes = append(collector.modifiedTypes, blockTypeToolUse)
 		default:
@@ -219,11 +215,9 @@ func reorderBlocks(blocks []interface{}, types []string) []interface{} {
 
 // processThinkingBlock processes a single thinking block.
 // Returns the processed block value and whether to keep it.
-//
-//nolint:gocritic // hugeParam: gjson.Result is passed by value by design
 func processThinkingBlock(
 	ctx context.Context,
-	block gjson.Result,
+	block *gjson.Result,
 	modelName string,
 	cache *SignatureCache,
 	thinkingCtx *ThinkingContext,
@@ -268,9 +262,7 @@ func processThinkingBlock(
 }
 
 // processToolUseBlock processes a tool_use block, ensuring no signature field is sent.
-//
-//nolint:gocritic // hugeParam: gjson.Result is passed by value by design
-func processToolUseBlock(block gjson.Result, _ string) interface{} {
+func processToolUseBlock(block *gjson.Result, _ string) interface{} {
 	result := make(map[string]interface{})
 
 	// Copy all fields from original block
