@@ -3,6 +3,7 @@ package proxy
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -10,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 
 	"github.com/omarluq/cc-relay/internal/config"
@@ -23,16 +25,14 @@ type ModifyResponseFunc func(resp *http.Response) error
 // ProviderProxy bundles a provider with its dedicated reverse proxy.
 // Each proxy has the provider's URL and auth baked in at creation time,
 // ensuring requests are routed to the correct backend with correct authentication.
-//
-//nolint:govet // fieldalignment: Prefer logical grouping over memory optimization
 type ProviderProxy struct {
 	Provider           providers.Provider
 	Proxy              *httputil.ReverseProxy
-	KeyPool            *keypool.KeyPool // May be nil for single-key mode
-	APIKey             string           // Fallback key when no pool
-	debugOpts          config.DebugOptions
+	KeyPool            *keypool.KeyPool
 	targetURL          *url.URL
-	modifyResponseHook ModifyResponseFunc // Optional hook for additional response processing
+	modifyResponseHook ModifyResponseFunc
+	APIKey             string
+	debugOpts          config.DebugOptions
 }
 
 // NewProviderProxy creates a provider-specific proxy with correct URL and auth.
@@ -136,8 +136,9 @@ func (pp *ProviderProxy) rewriteWithTransform(r *httputil.ProxyRequest) {
 	if r.In.Body != nil {
 		var err error
 		originalBody, err = io.ReadAll(r.In.Body)
-		//nolint:errcheck // Close error ignored; body already fully read
-		r.In.Body.Close()
+		if closeErr := r.In.Body.Close(); closeErr != nil {
+			log.Error().Err(closeErr).Msg("failed to close request body")
+		}
 		if err != nil {
 			// If we can't read body, fall back to static URL
 			r.SetURL(pp.targetURL)
@@ -219,8 +220,12 @@ func (pp *ProviderProxy) setAuth(r *httputil.ProxyRequest) {
 
 		// Only authenticate if we have a key to use
 		if selectedKey != "" {
-			//nolint:errcheck // Provider.Authenticate error handling deferred to ErrorHandler
-			pp.Provider.Authenticate(r.Out, selectedKey)
+			if err := pp.Provider.Authenticate(r.Out, selectedKey); err != nil {
+				log.Error().
+					Err(err).
+					Str("provider", pp.Provider.Name()).
+					Msg("failed to authenticate request")
+			}
 		}
 		// If no key available, let backend return 401 (transparent error)
 
@@ -259,55 +264,52 @@ func newEventStreamToSSEBody(original io.ReadCloser) *eventStreamToSSEBody {
 
 // Read implements io.Reader, converting Event Stream messages to SSE events.
 func (e *eventStreamToSSEBody) Read(p []byte) (int, error) {
-	// If we have buffered SSE data, return it first
-	if e.sseBuffer.Len() > 0 {
-		return e.sseBuffer.Read(p)
-	}
+	for {
+		if e.sseBuffer.Len() > 0 {
+			return e.sseBuffer.Read(p)
+		}
+		if e.done {
+			return 0, io.EOF
+		}
 
-	if e.done {
-		return 0, io.EOF
+		readErr := e.readAndBuffer()
+		if errors.Is(readErr, io.EOF) {
+			if e.sseBuffer.Len() == 0 {
+				return 0, io.EOF
+			}
+			continue
+		}
+		if readErr != nil {
+			return 0, readErr
+		}
 	}
+}
 
-	// Read more data from the original Event Stream
+func (e *eventStreamToSSEBody) readAndBuffer() error {
 	chunk := make([]byte, 16*1024) // 16KB chunks
 	n, readErr := e.original.Read(chunk)
 	if n > 0 {
 		e.esBuffer = append(e.esBuffer, chunk[:n]...)
 	}
 
-	// Parse complete Event Stream messages and convert to SSE
+	e.parseEventStreamBuffer()
+
+	if readErr == io.EOF {
+		e.done = true
+		return io.EOF
+	}
+	return readErr
+}
+
+func (e *eventStreamToSSEBody) parseEventStreamBuffer() {
 	for {
 		msg, consumed, err := providers.ParseEventStreamMessage(e.esBuffer)
 		if err != nil {
-			// Not enough data for a complete message, wait for more
-			break
+			return
 		}
-
-		// Remove consumed bytes from buffer
 		e.esBuffer = e.esBuffer[consumed:]
-
-		// Convert to SSE format
-		sseEvent := providers.FormatMessageAsSSE(msg)
-		e.sseBuffer.Write(sseEvent)
+		e.sseBuffer.Write(providers.FormatMessageAsSSE(msg))
 	}
-
-	// Handle EOF from original stream
-	if readErr == io.EOF {
-		e.done = true
-		if e.sseBuffer.Len() == 0 {
-			return 0, io.EOF
-		}
-	} else if readErr != nil {
-		return 0, readErr
-	}
-
-	// Return any converted SSE data
-	if e.sseBuffer.Len() > 0 {
-		return e.sseBuffer.Read(p)
-	}
-
-	// Need more data, return without error to continue reading
-	return 0, nil
 }
 
 // Close implements io.Closer.
