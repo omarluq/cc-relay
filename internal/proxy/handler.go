@@ -249,8 +249,10 @@ func (h *Handler) isRoutingDebugEnabled() bool {
 // SSE headers are handled by ProviderProxy.modifyResponse before this is called.
 func (h *Handler) modifyResponse(resp *http.Response) error {
 	// Get provider name from context to find the correct key pool
-	//nolint:errcheck // Type assertion failure returns empty string, which is safe
-	providerName, _ := resp.Request.Context().Value(providerNameContextKey).(string)
+	providerName := ""
+	if name, ok := resp.Request.Context().Value(providerNameContextKey).(string); ok {
+		providerName = name
+	}
 	if providerName != "" {
 		// Thread-safe read of provider proxy
 		h.proxyMu.RLock()
@@ -415,6 +417,11 @@ func (h *Handler) proxyMatches(
 		return false
 	}
 
+	// Provider instance must match; rebuild if provider was recreated on reload.
+	if pp.Provider != prov {
+		return false
+	}
+
 	// Provider must match name and base URL
 	if pp.Provider.Name() != prov.Name() || pp.Provider.BaseURL() != prov.BaseURL() {
 		return false
@@ -560,85 +567,129 @@ func (h *Handler) selectKeyFromPool(
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	// Extract model from request body for model-based routing
-	// Cache in context to avoid re-reading body in model rewriter
-	modelOpt := ExtractModelFromRequest(r)
-	model := modelOpt.OrEmpty()
-	if modelOpt.IsPresent() {
-		r = r.WithContext(CacheModelInContext(r.Context(), model))
+	prep, ok := h.prepareRequest(w, r)
+	if !ok {
+		return
 	}
+	r = prep.request
 
-	// Store model name in context for response processing (signature caching)
-	if model != "" {
-		r = r.WithContext(context.WithValue(r.Context(), modelNameContextKey, model))
-	}
-
-	// Process thinking signatures if cache is enabled and request has thinking blocks
-	r = h.processThinkingSignatures(r, model)
-
-	// Check for thinking signatures in request body for sticky provider routing.
-	// When extended thinking is enabled, the provider's signature must be validated
-	// by the same provider on subsequent turns.
-	// To avoid unnecessary body reads in single-provider mode, only perform this
-	// check when multi-provider routing is enabled.
-	hasThinking := false
-	if h.router != nil && h.providers != nil && len(h.providers()) > 1 {
-		hasThinking = HasThinkingSignature(r)
-		if hasThinking {
-			r = r.WithContext(CacheThinkingAffinityInContext(r.Context(), true))
-		}
-	}
-
-	// Select provider using router (or use static provider)
-	// Model is passed for model-based routing filtering
-	// hasThinking forces deterministic (sticky) selection
-	selectedProviderInfo, err := h.selectProvider(r.Context(), model, hasThinking)
+	selected, release, err := h.selectProviderWithTracking(r.Context(), prep.model, prep.hasThinking)
 	if err != nil {
 		WriteError(w, http.StatusServiceUnavailable, "api_error",
 			fmt.Sprintf("failed to select provider: %v", err))
 		return
 	}
-	selectedProvider := selectedProviderInfo.Provider
+	if release != nil {
+		defer release()
+	}
 
-	// Get or lazily create provider's proxy (enables newly enabled providers after reload)
+	proxyCtx, ok := h.prepareProxyRequest(w, r, selected.Provider)
+	if !ok {
+		return
+	}
+
+	backendStart := time.Now()
+	proxyCtx.proxy.Proxy.ServeHTTP(w, proxyCtx.request)
+	backendTime := time.Since(backendStart)
+
+	h.logMetricsIfEnabled(proxyCtx.request, &proxyCtx.logger, start, backendTime, proxyCtx.getTLSMetrics)
+}
+
+type requestPrep struct {
+	request     *http.Request
+	model       string
+	hasThinking bool
+}
+
+func (h *Handler) prepareRequest(w http.ResponseWriter, r *http.Request) (requestPrep, bool) {
+	modelOpt, bodyTooLarge := ExtractModelWithBodyCheck(r)
+	if bodyTooLarge {
+		WriteBodyTooLargeError(w)
+		return requestPrep{}, false
+	}
+
+	model := modelOpt.OrEmpty()
+	if modelOpt.IsPresent() {
+		r = r.WithContext(CacheModelInContext(r.Context(), model))
+	}
+	if model != "" {
+		r = r.WithContext(context.WithValue(r.Context(), modelNameContextKey, model))
+	}
+
+	r = h.processThinkingSignatures(r, model)
+
+	hasThinking := h.detectThinkingAffinity(&r)
+	return requestPrep{request: r, model: model, hasThinking: hasThinking}, true
+}
+
+func (h *Handler) detectThinkingAffinity(r **http.Request) bool {
+	if h.router == nil || h.providers == nil {
+		return false
+	}
+	if len(h.providers()) <= 1 {
+		return false
+	}
+	if !HasThinkingSignature(*r) {
+		return false
+	}
+	*r = (*r).WithContext(CacheThinkingAffinityInContext((*r).Context(), true))
+	return true
+}
+
+func (h *Handler) selectProviderWithTracking(
+	ctx context.Context, model string, hasThinking bool,
+) (router.ProviderInfo, func(), error) {
+	selected, err := h.selectProvider(ctx, model, hasThinking)
+	if err != nil {
+		return router.ProviderInfo{}, nil, err
+	}
+	if tracker, ok := h.router.(router.ProviderLoadTracker); ok {
+		tracker.Acquire(selected.Provider)
+		return selected, func() { tracker.Release(selected.Provider) }, nil
+	}
+	return selected, nil, nil
+}
+
+type proxyContext struct {
+	request       *http.Request
+	proxy         *ProviderProxy
+	logger        zerolog.Logger
+	getTLSMetrics func() TLSMetrics
+}
+
+func (h *Handler) prepareProxyRequest(
+	w http.ResponseWriter, r *http.Request, selectedProvider providers.Provider,
+) (proxyContext, bool) {
 	providerProxy, err := h.getOrCreateProxy(selectedProvider)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "internal_error",
 			fmt.Sprintf("failed to get proxy for provider %s: %v", selectedProvider.Name(), err))
-		return
+		return proxyContext{}, false
 	}
 
-	// Create logger with selected provider context
 	logger := h.createProviderLoggerWithProvider(r, selectedProvider)
 	r = r.WithContext(logger.WithContext(r.Context()))
-
-	// Store provider name in context for modifyResponse to report to circuit breaker
 	r = r.WithContext(context.WithValue(r.Context(), providerNameContextKey, selectedProvider.Name()))
 
-	// Log routing strategy and set debug headers
 	h.logAndSetDebugHeaders(w, r, &logger, selectedProvider)
 
-	// Handle auth mode selection and key selection (using provider's pool)
 	var authOK bool
 	r, authOK = h.handleAuthAndKeySelection(w, r, &logger, providerProxy)
 	if !authOK {
-		return
+		return proxyContext{}, false
 	}
 
-	// Rewrite model name if provider has model mapping configured
 	h.rewriteModelIfNeeded(r, &logger, selectedProvider)
 
-	// Attach TLS trace if debug metrics enabled
 	r, getTLSMetrics := h.attachTLSTraceIfEnabled(r)
-
-	// Proxy request using the provider-specific proxy
 	logger.Debug().Msg("proxying request to backend")
-	backendStart := time.Now()
-	providerProxy.Proxy.ServeHTTP(w, r)
-	backendTime := time.Since(backendStart)
 
-	// Log metrics
-	h.logMetricsIfEnabled(r, &logger, start, backendTime, getTLSMetrics)
+	return proxyContext{
+		request:       r,
+		proxy:         providerProxy,
+		logger:        logger,
+		getTLSMetrics: getTLSMetrics,
+	}, true
 }
 
 // logAndSetDebugHeaders logs routing strategy and sets debug headers if enabled.
@@ -819,8 +870,9 @@ func (h *Handler) processThinkingSignatures(r *http.Request, model string) *http
 		return r
 	}
 	body, err := io.ReadAll(r.Body)
-	//nolint:errcheck // Best effort close
-	r.Body.Close()
+	if closeErr := r.Body.Close(); closeErr != nil {
+		zerolog.Ctx(r.Context()).Error().Err(closeErr).Msg("failed to close request body")
+	}
 	// Always restore the body (and ContentLength) using the bytes read,
 	// even if io.ReadAll returned an error, so upstream handlers see
 	// the same body that was available to us.
@@ -873,14 +925,16 @@ func (h *Handler) processThinkingSignatures(r *http.Request, model string) *http
 
 // GetModelNameFromContext retrieves the model name from context.
 func GetModelNameFromContext(ctx context.Context) string {
-	//nolint:errcheck // Type assertion failure returns empty string, which is safe
-	model, _ := ctx.Value(modelNameContextKey).(string)
-	return model
+	if model, ok := ctx.Value(modelNameContextKey).(string); ok {
+		return model
+	}
+	return ""
 }
 
 // GetThinkingContextFromContext retrieves the thinking context from context.
 func GetThinkingContextFromContext(ctx context.Context) *ThinkingContext {
-	//nolint:errcheck // Type assertion failure returns nil, which is safe
-	thinkingCtx, _ := ctx.Value(thinkingContextContextKey).(*ThinkingContext)
-	return thinkingCtx
+	if thinkingCtx, ok := ctx.Value(thinkingContextContextKey).(*ThinkingContext); ok {
+		return thinkingCtx
+	}
+	return nil
 }
