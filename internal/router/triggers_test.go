@@ -83,10 +83,9 @@ func TestTimeoutTriggerShouldFailover(t *testing.T) {
 	trigger := NewTimeoutTrigger()
 
 	wrappedDeadline := errors.Join(errors.New("request failed"), context.DeadlineExceeded)
-	//nolint:govet // fieldalignment: struct ordered for clarity over memory optimization
 	tests := []struct {
-		name string
 		err  error
+		name string
 		want bool
 	}{
 		{name: "context.DeadlineExceeded", err: context.DeadlineExceeded, want: true},
@@ -135,10 +134,9 @@ func TestConnectionTriggerShouldFailover(t *testing.T) {
 
 	trigger := NewConnectionTrigger()
 
-	//nolint:govet // fieldalignment: struct ordered for clarity over memory optimization
 	tests := []struct {
-		name string
 		err  error
+		name string
 		want bool
 	}{
 		{name: "net.Error timeout", err: &mockNetError{timeout: true}, want: true},
@@ -237,10 +235,9 @@ func TestShouldFailoverStatusCode(t *testing.T) {
 
 	triggers := DefaultTriggers()
 
-	//nolint:govet // fieldalignment: struct ordered for clarity over memory optimization
 	tests := []struct {
-		name       string
 		err        error
+		name       string
 		statusCode int
 		want       bool
 	}{
@@ -324,12 +321,11 @@ func TestFindMatchingTrigger(t *testing.T) {
 
 	triggers := DefaultTriggers()
 
-	//nolint:govet // fieldalignment: struct ordered for clarity over memory optimization
 	tests := []struct {
-		name          string
 		err           error
-		statusCode    int
+		name          string
 		wantName      string
+		statusCode    int
 		wantNilResult bool
 	}{
 		{

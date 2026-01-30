@@ -34,6 +34,16 @@ func TestStrategyConstants(t *testing.T) {
 			constant: StrategyFailover,
 			expected: "failover",
 		},
+		{
+			name:     "least loaded",
+			constant: StrategyLeastLoaded,
+			expected: "least_loaded",
+		},
+		{
+			name:     "weighted failover",
+			constant: StrategyWeightedFailover,
+			expected: "weighted_failover",
+		},
 	}
 
 	for _, tt := range tests {
@@ -86,6 +96,40 @@ func TestNewRouterFailover(t *testing.T) {
 	// Verify timeout is passed correctly
 	if failover.Timeout() != 10*time.Second {
 		t.Errorf("Timeout() = %v, want %v", failover.Timeout(), 10*time.Second)
+	}
+}
+
+func TestNewRouterLeastLoaded(t *testing.T) {
+	t.Parallel()
+
+	router, err := NewRouter(StrategyLeastLoaded, 0)
+	if err != nil {
+		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyLeastLoaded, err)
+	}
+
+	if _, ok := router.(*LeastLoadedRouter); !ok {
+		t.Errorf("NewRouter() returned %T, want *LeastLoadedRouter", router)
+	}
+
+	if router.Name() != StrategyLeastLoaded {
+		t.Errorf("Name() = %q, want %q", router.Name(), StrategyLeastLoaded)
+	}
+}
+
+func TestNewRouterWeightedFailover(t *testing.T) {
+	t.Parallel()
+
+	router, err := NewRouter(StrategyWeightedFailover, 0)
+	if err != nil {
+		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyWeightedFailover, err)
+	}
+
+	if _, ok := router.(*WeightedFailoverRouter); !ok {
+		t.Errorf("NewRouter() returned %T, want *WeightedFailoverRouter", router)
+	}
+
+	if router.Name() != StrategyWeightedFailover {
+		t.Errorf("Name() = %q, want %q", router.Name(), StrategyWeightedFailover)
 	}
 }
 
