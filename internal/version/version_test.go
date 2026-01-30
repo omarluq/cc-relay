@@ -7,8 +7,6 @@ import (
 )
 
 func TestVersion(t *testing.T) {
-	t.Parallel()
-
 	// Version should always be non-empty.
 	if version.Version == "" {
 		t.Error("Version is empty")
@@ -16,8 +14,6 @@ func TestVersion(t *testing.T) {
 }
 
 func TestCommit(t *testing.T) {
-	t.Parallel()
-
 	// Commit should always be non-empty.
 	if version.Commit == "" {
 		t.Error("Commit is empty")
@@ -25,8 +21,6 @@ func TestCommit(t *testing.T) {
 }
 
 func TestBuildDate(t *testing.T) {
-	t.Parallel()
-
 	// BuildDate should always be non-empty.
 	if version.BuildDate == "" {
 		t.Error("BuildDate is empty")
@@ -34,8 +28,6 @@ func TestBuildDate(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	t.Parallel()
-
 	origVersion := version.Version
 	origCommit := version.Commit
 	t.Cleanup(func() {
