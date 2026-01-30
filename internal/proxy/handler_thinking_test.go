@@ -162,10 +162,10 @@ func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	// Verify tool_use inherited signature
+	// Verify tool_use does NOT have signature (API rejects tool_use with signature)
 	toolBlock := gjson.GetBytes(recorder.Body(), "messages.0.content.1")
 	assert.Equal(t, "tool_use", toolBlock.Get("type").String())
-	assert.Equal(t, thinkingSig, toolBlock.Get("signature").String())
+	assert.False(t, toolBlock.Get("signature").Exists(), "tool_use should not include signature")
 }
 
 func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {

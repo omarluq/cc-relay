@@ -267,10 +267,10 @@ func processThinkingBlock(
 	return result, true
 }
 
-// processToolUseBlock processes a tool_use block, applying inherited signature.
+// processToolUseBlock processes a tool_use block, ensuring no signature field is sent.
 //
 //nolint:gocritic // hugeParam: gjson.Result is passed by value by design
-func processToolUseBlock(block gjson.Result, inheritedSignature string) interface{} {
+func processToolUseBlock(block gjson.Result, _ string) interface{} {
 	result := make(map[string]interface{})
 
 	// Copy all fields from original block
@@ -279,12 +279,7 @@ func processToolUseBlock(block gjson.Result, inheritedSignature string) interfac
 		return true
 	})
 
-	// Apply inherited signature if available and block doesn't have one
-	if inheritedSignature != "" {
-		if _, exists := result["signature"]; !exists {
-			result["signature"] = inheritedSignature
-		}
-	}
+	delete(result, "signature")
 
 	return result
 }

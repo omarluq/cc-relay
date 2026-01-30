@@ -179,10 +179,10 @@ func TestProcessRequestThinkingToolUseInheritance(t *testing.T) {
 	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
 	require.NoError(t, err)
 
-	// Verify tool_use inherited signature
+	// Verify tool_use does not include signature
 	toolBlock := gjson.GetBytes(modifiedBody, "messages.0.content.1")
 	assert.Equal(t, "tool_use", toolBlock.Get("type").String())
-	assert.Equal(t, thinkingSig, toolBlock.Get("signature").String(), "tool_use should inherit signature")
+	assert.False(t, toolBlock.Get("signature").Exists(), "tool_use should not include signature")
 	assert.Equal(t, thinkingSig, thinkingCtx.CurrentSignature)
 }
 
