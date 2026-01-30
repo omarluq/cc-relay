@@ -2,7 +2,6 @@
 package proxy
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/omarluq/cc-relay/internal/providers"
@@ -26,7 +25,8 @@ type ProvidersResponse struct {
 
 // ProvidersHandler handles requests to /v1/providers endpoint.
 type ProvidersHandler struct {
-	providers []providers.Provider
+	getProviders ProvidersGetter
+	providers    []providers.Provider
 }
 
 // NewProvidersHandler creates a new providers handler with the given providers.
@@ -36,10 +36,24 @@ func NewProvidersHandler(providerList []providers.Provider) *ProvidersHandler {
 	}
 }
 
+// NewProvidersHandlerWithProviderFunc creates a providers handler with a live provider accessor.
+func NewProvidersHandlerWithProviderFunc(getProviders ProvidersGetter) *ProvidersHandler {
+	return &ProvidersHandler{
+		getProviders: getProviders,
+	}
+}
+
+func (h *ProvidersHandler) providerList() []providers.Provider {
+	if h.getProviders != nil {
+		return h.getProviders()
+	}
+	return h.providers
+}
+
 // ServeHTTP handles GET /v1/providers requests.
 func (h *ProvidersHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	// Collect provider information using lo.Map
-	data := lo.Map(h.providers, func(p providers.Provider, _ int) ProviderInfo {
+	data := lo.Map(h.providerList(), func(p providers.Provider, _ int) ProviderInfo {
 		// Extract model IDs from provider's models using lo.Map
 		modelIDs := lo.Map(p.ListModels(), func(m providers.Model, _ int) string {
 			return m.ID
@@ -59,9 +73,5 @@ func (h *ProvidersHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		Data:   data,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	//nolint:errcheck // Response is already committed with status code
-	json.NewEncoder(w).Encode(response)
+	writeJSON(w, http.StatusOK, response)
 }

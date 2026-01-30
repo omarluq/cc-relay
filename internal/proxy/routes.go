@@ -11,24 +11,27 @@ import (
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/router"
+	"github.com/rs/zerolog/log"
 )
 
 // RoutesOptions configures route setup with optional hot-reload support.
 type RoutesOptions struct {
-	ProviderRouter    router.ProviderRouter
-	Provider          providers.Provider
-	ConfigProvider    config.RuntimeConfigGetter
-	Pool              *keypool.KeyPool
-	ProviderInfosFunc ProviderInfoFunc
-	ProviderPools     map[string]*keypool.KeyPool
-	ProviderKeys      map[string]string
-	GetProviderPools  KeyPoolsFunc
-	GetProviderKeys   KeysFunc
-	HealthTracker     *health.Tracker
-	SignatureCache    *SignatureCache
-	ProviderKey       string
-	ProviderInfos     []router.ProviderInfo
-	AllProviders      []providers.Provider
+	ProviderRouter     router.ProviderRouter
+	Provider           providers.Provider
+	ConfigProvider     config.RuntimeConfigGetter
+	Pool               *keypool.KeyPool
+	ProviderInfosFunc  ProviderInfoFunc
+	ProviderPools      map[string]*keypool.KeyPool
+	ProviderKeys       map[string]string
+	GetProviderPools   KeyPoolsFunc
+	GetProviderKeys    KeysFunc
+	GetAllProviders    ProvidersGetter
+	HealthTracker      *health.Tracker
+	SignatureCache     *SignatureCache
+	ConcurrencyLimiter *ConcurrencyLimiter
+	ProviderKey        string
+	ProviderInfos      []router.ProviderInfo
+	AllProviders       []providers.Provider
 }
 
 const routesOptionsRequiredMsg = "routes options are required"
@@ -121,8 +124,10 @@ func SetupRoutesWithProviders(
 	// Health check endpoint (no auth required)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Health check write error is non-critical
-		w.Write([]byte(`{"status":"ok"}`))
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			// Response already committed; best effort logging only.
+			log.Error().Err(err).Msg("failed to write health response")
+		}
 	})
 
 	return mux, nil
@@ -143,6 +148,7 @@ func SetupRoutesWithRouter(cfg *config.Config, opts *RoutesOptions) (http.Handle
 	opts.ProviderInfosFunc = func() []router.ProviderInfo { return opts.ProviderInfos }
 	opts.GetProviderPools = func() map[string]*keypool.KeyPool { return opts.ProviderPools }
 	opts.GetProviderKeys = func() map[string]string { return opts.ProviderKeys }
+	opts.GetAllProviders = func() []providers.Provider { return opts.AllProviders }
 
 	return SetupRoutesWithRouterLive(opts)
 }
@@ -179,42 +185,52 @@ func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
 	}
 	mux := http.NewServeMux()
 
-	// Create proxy handler with full hot-reload support
-	cfg := opts.ConfigProvider.Get()
-	if cfg == nil {
-		return nil, fmt.Errorf("config provider returned nil config")
-	}
-	debugOpts := cfg.Logging.DebugOptions
-	routingDebug := cfg.Routing.IsDebugEnabled()
-
-	handler, err := NewHandlerWithLiveKeyPools(&HandlerOptions{
-		Provider:          opts.Provider,
-		ProviderInfosFunc: opts.ProviderInfosFunc,
-		ProviderRouter:    opts.ProviderRouter,
-		APIKey:            opts.ProviderKey,
-		Pool:              opts.Pool,
-		GetProviderPools:  opts.GetProviderPools,
-		GetProviderKeys:   opts.GetProviderKeys,
-		RoutingConfig:     &cfg.Routing,
-		DebugOptions:      debugOpts,
-		RoutingDebug:      routingDebug,
-		HealthTracker:     opts.HealthTracker,
-		SignatureCache:    opts.SignatureCache,
-	},
-	)
+	messagesHandler, err := buildMessagesHandler(opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create handler: %w", err)
+		return nil, err
 	}
-	handler.SetRuntimeConfigGetter(opts.ConfigProvider)
+	mux.Handle("POST /v1/messages", messagesHandler)
 
-	// Apply middleware in order:
-	// 1. RequestIDMiddleware (first - generates ID)
-	// 2. LoggingMiddleware (second - logs with ID)
-	// 3. AuthMiddleware (third - auth logs include ID)
-	// 4. Handler
+	providersGetter := liveProvidersGetter(opts)
+	mux.Handle("GET /v1/models", NewModelsHandlerWithProviderFunc(providersGetter))
+	mux.Handle("GET /v1/providers", NewProvidersHandlerWithProviderFunc(providersGetter))
+
+	registerHealthRoute(mux)
+
+	return mux, nil
+}
+
+func buildMessagesHandler(opts *RoutesOptions) (http.Handler, error) {
+	handler, err := buildProxyHandler(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply middleware in order (outermost first):
+	// 1. RequestIDMiddleware - generates request ID
+	// 2. LoggingMiddleware - logs with request ID
+	// 3. ConcurrencyMiddleware - enforces max_concurrent limit (early rejection)
+	// 4. MaxBodyBytesMiddleware - enforces max_body_bytes limit
+	// 5. AuthMiddleware - validates authentication
+	// 6. Handler
 	var messagesHandler http.Handler = handler
 
 	messagesHandler = LiveAuthMiddleware(opts.ConfigProvider)(messagesHandler)
+
+	// Apply max_body_bytes limit (hot-reloadable)
+	messagesHandler = MaxBodyBytesMiddleware(func() int64 {
+		cfg := opts.ConfigProvider.Get()
+		if cfg == nil {
+			return 0
+		}
+		return cfg.Server.MaxBodyBytes
+	})(messagesHandler)
+
+	// Apply concurrency limit if limiter provided
+	if opts.ConcurrencyLimiter != nil {
+		messagesHandler = ConcurrencyMiddleware(opts.ConcurrencyLimiter)(messagesHandler)
+	}
+
 	messagesHandler = LoggingMiddlewareWithProvider(func() config.DebugOptions {
 		cfg := opts.ConfigProvider.Get()
 		if cfg == nil {
@@ -224,28 +240,52 @@ func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
 	})(messagesHandler)
 	messagesHandler = RequestIDMiddleware()(messagesHandler)
 
-	// Register routes
-	mux.Handle("POST /v1/messages", messagesHandler)
+	return messagesHandler, nil
+}
 
-	// Models endpoint (no auth required for discovery)
-	// Use allProviders if provided, otherwise fall back to just the primary provider
-	modelsProviders := opts.AllProviders
-	if modelsProviders == nil {
-		modelsProviders = []providers.Provider{opts.Provider}
+func buildProxyHandler(opts *RoutesOptions) (*Handler, error) {
+	cfg := opts.ConfigProvider.Get()
+	if cfg == nil {
+		return nil, fmt.Errorf("config provider returned nil config")
 	}
-	modelsHandler := NewModelsHandler(modelsProviders)
-	mux.Handle("GET /v1/models", modelsHandler)
+	handler, err := NewHandlerWithLiveKeyPools(&HandlerOptions{
+		Provider:          opts.Provider,
+		ProviderInfosFunc: opts.ProviderInfosFunc,
+		ProviderRouter:    opts.ProviderRouter,
+		APIKey:            opts.ProviderKey,
+		Pool:              opts.Pool,
+		GetProviderPools:  opts.GetProviderPools,
+		GetProviderKeys:   opts.GetProviderKeys,
+		RoutingConfig:     &cfg.Routing,
+		DebugOptions:      cfg.Logging.DebugOptions,
+		RoutingDebug:      cfg.Routing.IsDebugEnabled(),
+		HealthTracker:     opts.HealthTracker,
+		SignatureCache:    opts.SignatureCache,
+	},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create handler: %w", err)
+	}
+	handler.SetRuntimeConfigGetter(opts.ConfigProvider)
+	return handler, nil
+}
 
-	// Providers endpoint (no auth required for discovery)
-	providersHandler := NewProvidersHandler(modelsProviders)
-	mux.Handle("GET /v1/providers", providersHandler)
+func liveProvidersGetter(opts *RoutesOptions) func() []providers.Provider {
+	return func() []providers.Provider {
+		if opts.GetAllProviders != nil {
+			if providersList := opts.GetAllProviders(); providersList != nil {
+				return providersList
+			}
+		}
+		return []providers.Provider{opts.Provider}
+	}
+}
 
-	// Health check endpoint (no auth required)
+func registerHealthRoute(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		//nolint:errcheck // Health check write error is non-critical
-		w.Write([]byte(`{"status":"ok"}`))
+		if _, err := w.Write([]byte(`{"status":"ok"}`)); err != nil {
+			log.Error().Err(err).Msg("failed to write health response")
+		}
 	})
-
-	return mux, nil
 }
