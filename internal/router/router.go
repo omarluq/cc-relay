@@ -31,6 +31,8 @@ const (
 	StrategyShuffle            = "shuffle"
 	StrategyFailover           = "failover"
 	StrategyModelBased         = "model_based"
+	StrategyLeastLoaded        = "least_loaded"
+	StrategyWeightedFailover   = "weighted_failover"
 )
 
 // Common errors returned by routers.
@@ -54,6 +56,13 @@ type ProviderRouter interface {
 
 	// Name returns the strategy name for logging and configuration.
 	Name() string
+}
+
+// ProviderLoadTracker allows routers to track in-flight requests per provider.
+// Used by least_loaded routing to pick the least busy provider.
+type ProviderLoadTracker interface {
+	Acquire(provider providers.Provider)
+	Release(provider providers.Provider)
 }
 
 // ProviderInfo wraps a provider with routing metadata.
@@ -111,6 +120,10 @@ func NewRouter(strategy string, timeout time.Duration) (ProviderRouter, error) {
 		// Model-based filtering happens in handler.go before routing.
 		// Use failover as the underlying router for filtered providers.
 		return NewFailoverRouter(timeout), nil
+	case StrategyLeastLoaded:
+		return NewLeastLoadedRouter(), nil
+	case StrategyWeightedFailover:
+		return NewWeightedFailoverRouter(timeout), nil
 	default:
 		return nil, fmt.Errorf("router: unknown strategy %q", strategy)
 	}
@@ -140,4 +153,18 @@ func (l *LiveRouter) Select(ctx context.Context, providerInfos []ProviderInfo) (
 // Name returns the name of the current router strategy.
 func (l *LiveRouter) Name() string {
 	return l.fn().Name()
+}
+
+// Acquire increments in-flight count for least_loaded routers when supported.
+func (l *LiveRouter) Acquire(provider providers.Provider) {
+	if tracker, ok := l.fn().(ProviderLoadTracker); ok {
+		tracker.Acquire(provider)
+	}
+}
+
+// Release decrements in-flight count for least_loaded routers when supported.
+func (l *LiveRouter) Release(provider providers.Provider) {
+	if tracker, ok := l.fn().(ProviderLoadTracker); ok {
+		tracker.Release(provider)
+	}
 }

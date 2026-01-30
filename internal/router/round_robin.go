@@ -32,9 +32,13 @@ func (r *RoundRobinRouter) Select(_ context.Context, providers []ProviderInfo) (
 
 	// Get next index atomically
 	nextIndex := atomic.AddUint64(&r.index, 1) - 1
-	healthyLen := uint64(len(healthy))
-	//nolint:gosec // Safe: modulo ensures result is within int range (< len(healthy))
-	idx := int(nextIndex % healthyLen)
+	healthyLen := len(healthy)
+	idx64 := nextIndex % uint64(healthyLen)
+	maxInt := uint64(int(^uint(0) >> 1))
+	if idx64 > maxInt {
+		return ProviderInfo{}, ErrNoProviders
+	}
+	idx := int(idx64)
 
 	return healthy[idx], nil
 }
