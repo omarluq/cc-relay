@@ -126,7 +126,8 @@ type ServerConfig struct {
 	Auth          AuthConfig `yaml:"auth" toml:"auth"`
 	TimeoutMS     int        `yaml:"timeout_ms" toml:"timeout_ms"`
 	MaxConcurrent int        `yaml:"max_concurrent" toml:"max_concurrent"`
-	EnableHTTP2   bool       `yaml:"enable_http2" toml:"enable_http2"` // Enable HTTP/2 cleartext (h2c) support
+	MaxBodyBytes  int64      `yaml:"max_body_bytes" toml:"max_body_bytes"` // Max request body size (0 = unlimited)
+	EnableHTTP2   bool       `yaml:"enable_http2" toml:"enable_http2"`     // Enable HTTP/2 cleartext (h2c) support
 }
 
 // AuthConfig defines authentication settings for the proxy.
@@ -169,48 +170,23 @@ func (s *ServerConfig) GetEffectiveAPIKey() string {
 }
 
 // ProviderConfig defines configuration for a backend LLM provider.
-//
-//nolint:govet // Field order optimized for readability, not memory alignment
 type ProviderConfig struct {
-	ModelMapping map[string]string `yaml:"model_mapping" toml:"model_mapping"`
-	Name         string            `yaml:"name" toml:"name"`
-	Type         string            `yaml:"type" toml:"type"`
-	BaseURL      string            `yaml:"base_url" toml:"base_url"`
-	Keys         []KeyConfig       `yaml:"keys" toml:"keys"`
-	Models       []string          `yaml:"models" toml:"models"`
-	Pooling      PoolingConfig     `yaml:"pooling" toml:"pooling"`
-	Enabled      bool              `yaml:"enabled" toml:"enabled"`
-
-	// Cloud provider fields (used when Type is bedrock, vertex, or azure)
-
-	// AWSRegion is the AWS region for Bedrock (e.g., "us-east-1", "us-west-2").
-	// Required when Type is "bedrock".
-	AWSRegion string `yaml:"aws_region" toml:"aws_region"`
-
-	// AWSAccessKeyID and AWSSecretAccessKey for explicit credentials.
-	// If empty, uses AWS SDK default credential chain (env vars, IAM role, etc.).
-	AWSAccessKeyID     string `yaml:"aws_access_key_id" toml:"aws_access_key_id"`
-	AWSSecretAccessKey string `yaml:"aws_secret_access_key" toml:"aws_secret_access_key"`
-
-	// GCPProjectID is the Google Cloud project ID for Vertex AI.
-	// Required when Type is "vertex".
-	GCPProjectID string `yaml:"gcp_project_id" toml:"gcp_project_id"`
-
-	// GCPRegion is the Google Cloud region for Vertex AI (e.g., "us-central1").
-	// Required when Type is "vertex".
-	GCPRegion string `yaml:"gcp_region" toml:"gcp_region"`
-
-	// AzureResourceName is the Azure resource name for Foundry.
-	// Required when Type is "azure".
-	AzureResourceName string `yaml:"azure_resource_name" toml:"azure_resource_name"`
-
-	// AzureDeploymentID is the deployment ID (model) for Azure Foundry.
-	// Optional - can be derived from model mapping.
-	AzureDeploymentID string `yaml:"azure_deployment_id" toml:"azure_deployment_id"`
-
-	// AzureAPIVersion is the Azure API version (e.g., "2024-06-01").
-	// Defaults to "2024-06-01" if not specified.
-	AzureAPIVersion string `yaml:"azure_api_version" toml:"azure_api_version"`
+	ModelMapping       map[string]string `yaml:"model_mapping" toml:"model_mapping"`
+	AWSRegion          string            `yaml:"aws_region" toml:"aws_region"`
+	GCPProjectID       string            `yaml:"gcp_project_id" toml:"gcp_project_id"`
+	AzureAPIVersion    string            `yaml:"azure_api_version" toml:"azure_api_version"`
+	Name               string            `yaml:"name" toml:"name"`
+	Type               string            `yaml:"type" toml:"type"`
+	BaseURL            string            `yaml:"base_url" toml:"base_url"`
+	AzureDeploymentID  string            `yaml:"azure_deployment_id" toml:"azure_deployment_id"`
+	AWSAccessKeyID     string            `yaml:"aws_access_key_id" toml:"aws_access_key_id"`
+	AzureResourceName  string            `yaml:"azure_resource_name" toml:"azure_resource_name"`
+	AWSSecretAccessKey string            `yaml:"aws_secret_access_key" toml:"aws_secret_access_key"`
+	GCPRegion          string            `yaml:"gcp_region" toml:"gcp_region"`
+	Keys               []KeyConfig       `yaml:"keys" toml:"keys"`
+	Models             []string          `yaml:"models" toml:"models"`
+	Pooling            PoolingConfig     `yaml:"pooling" toml:"pooling"`
+	Enabled            bool              `yaml:"enabled" toml:"enabled"`
 }
 
 // PoolingConfig defines key pool behavior for a provider.
@@ -403,6 +379,15 @@ func (s *ServerConfig) GetMaxConcurrentOption() mo.Option[int] {
 		return mo.None[int]()
 	}
 	return mo.Some(s.MaxConcurrent)
+}
+
+// GetMaxBodyBytesOption returns the max body bytes setting as an Option.
+// Returns None if MaxBodyBytes is zero (unlimited).
+func (s *ServerConfig) GetMaxBodyBytesOption() mo.Option[int64] {
+	if s.MaxBodyBytes <= 0 {
+		return mo.None[int64]()
+	}
+	return mo.Some(s.MaxBodyBytes)
 }
 
 // KeyConfig Option helpers for type-safe access to optional rate limit values.

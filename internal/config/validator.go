@@ -15,15 +15,24 @@ const (
 )
 
 // Valid routing strategies.
-var validStrategies = map[string]bool{
-	"":                  true, // Empty defaults to failover
-	"failover":          true,
-	"round_robin":       true,
-	"weighted":          true,
-	"shuffle":           true,
-	"model_based":       true,
-	"least_loaded":      true,
-	"weighted_failover": true,
+var validRoutingStrategies = map[string]bool{
+	"":                    true, // Empty defaults to failover
+	"failover":            true,
+	"round_robin":         true,
+	"weighted_round_robin": true,
+	"shuffle":             true,
+	"model_based":         true,
+	"least_loaded":        true,
+	"weighted_failover":   true,
+}
+
+// Valid keypool strategies.
+var validPoolingStrategies = map[string]bool{
+	"":            true, // Empty defaults to least_loaded
+	"least_loaded": true,
+	"round_robin":  true,
+	"random":       true,
+	"weighted":     true,
 }
 
 // Valid provider types.
@@ -51,6 +60,7 @@ var validLogFormats = map[string]bool{
 	"json":    true,
 	"console": true,
 	"text":    true, // Alias for console
+	"pretty":  true,
 }
 
 // Validate checks the configuration for errors.
@@ -85,6 +95,11 @@ func validateServer(c *Config, errs *ValidationError) {
 	// Validate max_concurrent if set
 	if c.Server.MaxConcurrent < 0 {
 		errs.Add("server.max_concurrent must be >= 0")
+	}
+
+	// Validate max_body_bytes if set
+	if c.Server.MaxBodyBytes < 0 {
+		errs.Add("server.max_body_bytes must be >= 0")
 	}
 }
 
@@ -164,7 +179,7 @@ func validateProvider(p *ProviderConfig, index int, seenNames map[string]bool, e
 	}
 
 	// Validate pooling strategy if set
-	if p.Pooling.Strategy != "" && !validStrategies[p.Pooling.Strategy] {
+	if p.Pooling.Strategy != "" && !validPoolingStrategies[p.Pooling.Strategy] {
 		errs.Addf("%s is invalid (got %q)", prefix("pooling.strategy"), p.Pooling.Strategy)
 	}
 }
@@ -232,9 +247,9 @@ func validateProviderKey(k *KeyConfig, providerName string, index int, errs *Val
 // validateRouting validates the routing configuration section.
 func validateRouting(c *Config, errs *ValidationError) {
 	// Strategy must be valid if set
-	if c.Routing.Strategy != "" && !validStrategies[c.Routing.Strategy] {
+	if c.Routing.Strategy != "" && !validRoutingStrategies[c.Routing.Strategy] {
 		errs.Addf("routing.strategy is invalid (got %q, valid: failover, round_robin, "+
-			"weighted, shuffle, model_based, least_loaded, weighted_failover)",
+			"weighted_round_robin, shuffle, model_based, least_loaded, weighted_failover)",
 			c.Routing.Strategy)
 	}
 
@@ -259,7 +274,7 @@ func validateLogging(c *Config, errs *ValidationError) {
 
 	// Format must be valid if set
 	if !validLogFormats[c.Logging.Format] {
-		errs.Addf("logging.format is invalid (got %q, valid: json, console, text)",
+		errs.Addf("logging.format is invalid (got %q, valid: json, console, text, pretty)",
 			c.Logging.Format)
 	}
 

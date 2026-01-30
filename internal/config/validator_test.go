@@ -302,7 +302,7 @@ func TestValidateValidRoutingStrategies(t *testing.T) {
 	t.Parallel()
 
 	validStrategies := []string{
-		"", "failover", "round_robin", "weighted", "shuffle",
+		"", "failover", "round_robin", "weighted_round_robin", "shuffle",
 		"model_based", "least_loaded", "weighted_failover",
 	}
 
@@ -402,8 +402,8 @@ func TestValidateCloudProviderMissingFields(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		provider ProviderConfig
 		missing  string
+		provider ProviderConfig
 	}{
 		{
 			name:     "bedrock_missing_region",
@@ -587,5 +587,115 @@ func TestValidationErrorEmpty(t *testing.T) {
 
 	if verr.ToError() != nil {
 		t.Error("Expected ToError() to be nil for empty error")
+	}
+}
+
+func TestValidateMaxConcurrent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		maxConcurrent int
+		wantErr       bool
+	}{
+		{
+			name:          "zero is valid (unlimited)",
+			maxConcurrent: 0,
+			wantErr:       false,
+		},
+		{
+			name:          "positive is valid",
+			maxConcurrent: 100,
+			wantErr:       false,
+		},
+		{
+			name:          "negative is invalid",
+			maxConcurrent: -1,
+			wantErr:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &Config{
+				Server: ServerConfig{
+					Listen:        ":8080",
+					MaxConcurrent: tt.maxConcurrent,
+				},
+				Providers: []ProviderConfig{
+					{Name: "test", Type: "anthropic", Enabled: true, Keys: []KeyConfig{{Key: "key"}}},
+				},
+			}
+
+			err := cfg.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Expected validation error for negative max_concurrent")
+				} else if !strings.Contains(err.Error(), "max_concurrent") {
+					t.Errorf("Expected 'max_concurrent' in error, got: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected validation error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateMaxBodyBytes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		maxBodyBytes int64
+		wantErr      bool
+	}{
+		{
+			name:         "zero is valid (unlimited)",
+			maxBodyBytes: 0,
+			wantErr:      false,
+		},
+		{
+			name:         "positive is valid",
+			maxBodyBytes: 10485760, // 10MB
+			wantErr:      false,
+		},
+		{
+			name:         "negative is invalid",
+			maxBodyBytes: -1,
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := &Config{
+				Server: ServerConfig{
+					Listen:       ":8080",
+					MaxBodyBytes: tt.maxBodyBytes,
+				},
+				Providers: []ProviderConfig{
+					{Name: "test", Type: "anthropic", Enabled: true, Keys: []KeyConfig{{Key: "key"}}},
+				},
+			}
+
+			err := cfg.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Expected validation error for negative max_body_bytes")
+				} else if !strings.Contains(err.Error(), "max_body_bytes") {
+					t.Errorf("Expected 'max_body_bytes' in error, got: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected validation error: %v", err)
+				}
+			}
+		})
 	}
 }

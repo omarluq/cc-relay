@@ -181,10 +181,10 @@ func TestAuthConfigIsBearerEnabled(t *testing.T) {
 func TestServerConfigGetEffectiveAPIKey(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // test table struct alignment
+	tests := []struct {
 		name     string
-		config   ServerConfig
 		expected string
+		config   ServerConfig
 	}{
 		{
 			name:     "no api key",
@@ -847,6 +847,50 @@ func TestServerConfigGetMaxConcurrentOption(t *testing.T) {
 	}
 }
 
+func TestServerConfigGetMaxBodyBytesOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		config    ServerConfig
+		wantSome  bool
+		wantValue int64
+	}{
+		{
+			name:     "zero returns None",
+			config:   ServerConfig{MaxBodyBytes: 0},
+			wantSome: false,
+		},
+		{
+			name:     "negative returns None",
+			config:   ServerConfig{MaxBodyBytes: -1},
+			wantSome: false,
+		},
+		{
+			name:      "positive returns Some",
+			config:    ServerConfig{MaxBodyBytes: 10485760}, // 10MB
+			wantSome:  true,
+			wantValue: 10485760,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opt := tt.config.GetMaxBodyBytesOption()
+			if opt.IsPresent() != tt.wantSome {
+				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
+			}
+			if tt.wantSome {
+				if got := opt.MustGet(); got != tt.wantValue {
+					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
+				}
+			}
+		})
+	}
+}
+
 func TestKeyConfigGetRPMLimitOption(t *testing.T) {
 	t.Parallel()
 
@@ -1185,8 +1229,8 @@ func TestProviderConfigGetAzureAPIVersion(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   ProviderConfig
 		expected string
+		config   ProviderConfig
 	}{
 		{
 			name:     "returns default when empty",
@@ -1215,9 +1259,9 @@ func TestProviderConfigValidateCloudConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		config  ProviderConfig
 		name    string
 		errMsg  string
+		config  ProviderConfig
 		wantErr bool
 	}{
 		{

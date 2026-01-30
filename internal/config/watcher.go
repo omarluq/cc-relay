@@ -76,8 +76,9 @@ func NewWatcher(path string, opts ...WatcherOption) (*Watcher, error) {
 	// Watch parent directory to catch atomic writes (temp + rename pattern)
 	dir := filepath.Dir(absPath)
 	if err := fsWatcher.Add(dir); err != nil {
-		//nolint:errcheck // Error discarded during cleanup on failure path
-		fsWatcher.Close()
+		if closeErr := fsWatcher.Close(); closeErr != nil {
+			log.Error().Err(closeErr).Msg("failed to close watcher after add failure")
+		}
 		return nil, err
 	}
 
