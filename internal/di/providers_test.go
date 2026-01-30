@@ -1104,7 +1104,7 @@ func TestCheckerStartsAndStopsWithContainer(t *testing.T) {
 	require.NotNil(t, checkerSvc.Checker, "Checker should be created")
 
 	// Start the checker
-	checkerSvc.Checker.Start()
+	checkerSvc.Start()
 
 	// Give it time to run at least one check cycle
 	time.Sleep(150 * time.Millisecond)

@@ -14,22 +14,11 @@ import (
 // ConfigService wraps the loaded configuration with hot-reload support.
 // It uses atomic.Pointer for lock-free config reads, allowing in-flight
 // requests to continue uninterrupted while new requests use reloaded config.
-//
-//nolint:govet // Field order optimized for readability over memory alignment
 type ConfigService struct {
-	// config holds the current config via atomic pointer for lock-free reads
-	config atomic.Pointer[config.Config]
-
-	// watcher monitors the config file for changes (may be nil if watch fails)
+	config  atomic.Pointer[config.Config]
 	watcher *config.Watcher
-
-	// path is the config file path for reload operations
-	path string
-
-	// Config is the initial config pointer (kept for backward compatibility).
-	//
-	// Deprecated: Use Get() for thread-safe access.
-	Config *config.Config
+	Config  *config.Config
+	path    string
 }
 
 // Get returns the current configuration via atomic load (lock-free read).
@@ -50,6 +39,8 @@ func (c *ConfigService) StartWatching(ctx context.Context) {
 	// Register callback to swap config atomically
 	c.watcher.OnReload(func(newCfg *config.Config) error {
 		c.config.Store(newCfg)
+		// Keep legacy Config pointer in sync for backward compatibility.
+		c.Config = newCfg
 		log.Info().Str("path", c.path).Msg("config hot-reloaded successfully")
 		return nil
 	})

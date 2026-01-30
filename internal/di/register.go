@@ -15,8 +15,9 @@ import "github.com/samber/do/v2"
 // 9. Checker (depends on HealthTracker, Config, Logger)
 // 10. ProviderInfo (depends on Config, Providers, HealthTracker)
 // 11. SignatureCache (depends on Cache)
-// 12. Handler (depends on Config, KeyPool, KeyPoolMap, Providers, Router, ProviderInfo, HealthTracker, SignatureCache)
-// 13. Server (depends on Handler, Config).
+// 12. Concurrency (depends on Config) - global request limiter
+// 13. Handler (depends on all above services)
+// 14. Server (depends on Handler, Config).
 func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewConfig)
 	do.Provide(i, NewLogger)
@@ -29,6 +30,7 @@ func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewChecker)
 	do.Provide(i, NewProviderInfo)
 	do.Provide(i, NewSignatureCache)
+	do.Provide(i, NewConcurrencyService)
 	do.Provide(i, NewProxyHandler)
 	do.Provide(i, NewHTTPServer)
 }

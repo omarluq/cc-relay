@@ -25,24 +25,28 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	providerInfoSvc := do.MustInvoke[*ProviderInfoService](i)
 	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
 	sigCacheSvc := do.MustInvoke[*SignatureCacheService](i)
+	concurrencySvc := do.MustInvoke[*ConcurrencyService](i)
 
 	// Use SetupRoutesWithLiveKeyPools for full hot-reload support:
 	// - Live provider info (enabled/disabled, weights, priorities)
 	// - Live router (strategy/timeout changes without restart)
 	// - Live key pools (newly enabled providers get keys immediately)
+	// - Concurrency limiting with hot-reload
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouterAsFunc())
 	handler, err := proxy.SetupRoutesWithLiveKeyPools(&proxy.RoutesOptions{
-		ConfigProvider:    cfgSvc,
-		Provider:          providerSvc.GetPrimaryProvider(),
-		ProviderInfosFunc: providerInfoSvc.Get, // Hot-reloadable provider info
-		ProviderRouter:    liveRouter,          // Live router for strategy changes
-		ProviderKey:       providerSvc.GetPrimaryKey(),
-		Pool:              poolSvc.Get(),
-		GetProviderPools:  poolMapSvc.GetPools, // Live key pools accessor
-		GetProviderKeys:   poolMapSvc.GetKeys,  // Live fallback keys accessor
-		AllProviders:      providerSvc.GetAllProviders(),
-		HealthTracker:     trackerSvc.Tracker,
-		SignatureCache:    sigCacheSvc.Cache,
+		ConfigProvider:     cfgSvc,
+		Provider:           providerSvc.GetPrimaryProvider(),
+		ProviderInfosFunc:  providerInfoSvc.Get, // Hot-reloadable provider info
+		ProviderRouter:     liveRouter,          // Live router for strategy changes
+		ProviderKey:        providerSvc.GetPrimaryKey(),
+		Pool:               poolSvc.Get(),
+		GetProviderPools:   poolMapSvc.GetPools,    // Live key pools accessor
+		GetProviderKeys:    poolMapSvc.GetKeys,     // Live fallback keys accessor
+		GetAllProviders:    providerSvc.GetAllProviders,
+		AllProviders:       providerSvc.GetAllProviders(),
+		HealthTracker:      trackerSvc.Tracker,
+		SignatureCache:     sigCacheSvc.Cache,
+		ConcurrencyLimiter: concurrencySvc.Limiter, // Hot-reloadable concurrency limit
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup proxy handler: %w", err)
