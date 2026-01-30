@@ -52,13 +52,11 @@ type BedrockCredentialsProvider interface {
 // - anthropic_version in request body (not header)
 // - AWS SigV4 authentication
 // - Event Stream response format (needs conversion to SSE).
-//
-//nolint:govet // Field alignment optimized for readability over memory
 type BedrockProvider struct {
-	BaseProvider
-	region      string
 	credentials BedrockCredentialsProvider
 	signer      *v4.Signer
+	region      string
+	BaseProvider
 }
 
 // BedrockConfig holds Bedrock-specific configuration.

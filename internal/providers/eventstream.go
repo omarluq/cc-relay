@@ -164,17 +164,16 @@ func parseEventStreamHeaders(data []byte) (map[string]string, error) {
 
 // parseHeaderName parses a header name from the data at the given offset.
 func parseHeaderName(data []byte, offset int) (name string, newOffset int, err error) {
-	if offset >= len(data) {
-		return "", offset, nil
+	b, next, err := readByte(data, offset)
+	if err != nil {
+		return "", offset, err
 	}
-	nameLen := int(data[offset]) //#nosec G602 -- bounds checked above
-	offset++
-
-	if offset+nameLen > len(data) {
+	nameLen := int(b)
+	nameBytes, end, err := readSlice(data, next, nameLen)
+	if err != nil {
 		return "", 0, fmt.Errorf("header name truncated")
 	}
-	parsedName := string(data[offset : offset+nameLen]) //#nosec G602 -- bounds checked above
-	return parsedName, offset + nameLen, nil
+	return string(nameBytes), end, nil
 }
 
 // parseHeaderValue parses a header value based on its type.
@@ -202,14 +201,22 @@ func parseStringHeaderValue(
 	if offset+2 > len(data) {
 		return nil, 0, fmt.Errorf("header value length truncated for %q", name)
 	}
-	valueLen := int(binary.BigEndian.Uint16(data[offset : offset+2])) //#nosec G602 -- bounds checked
-	offset += 2
+	lenBytes, next, err := readSlice(data, offset, 2)
+	if err != nil {
+		return nil, 0, fmt.Errorf("header value length truncated for %q", name)
+	}
+	valueLen := int(binary.BigEndian.Uint16(lenBytes))
+	offset = next
 
 	if offset+valueLen > len(data) {
 		return nil, 0, fmt.Errorf("header value truncated for %q", name)
 	}
-	strVal := string(data[offset : offset+valueLen]) //#nosec G602 -- bounds checked above
-	return &strVal, offset + valueLen, nil
+	valueBytes, end, err := readSlice(data, offset, valueLen)
+	if err != nil {
+		return nil, 0, fmt.Errorf("header value truncated for %q", name)
+	}
+	strVal := string(valueBytes)
+	return &strVal, end, nil
 }
 
 // skipNonStringHeader skips non-string header types, returning the new offset.
@@ -223,26 +230,48 @@ func skipNonStringHeader(
 	case 0, 1: // bool true/false - no value bytes
 		return nil, offset, nil
 	case 2: // byte
-		return nil, offset + 1, nil
+		return advanceOffset(data, offset, 1, name)
 	case 3: // short
-		return nil, offset + 2, nil
+		return advanceOffset(data, offset, 2, name)
 	case 4: // int
-		return nil, offset + 4, nil
+		return advanceOffset(data, offset, 4, name)
 	case 5: // long
-		return nil, offset + 8, nil
+		return advanceOffset(data, offset, 8, name)
 	case 6: // bytes
-		if offset+2 > len(data) {
+		lenBytes, next, err := readSlice(data, offset, 2)
+		if err != nil {
 			return nil, 0, fmt.Errorf("bytes header length truncated for %q", name)
 		}
-		bLen := int(binary.BigEndian.Uint16(data[offset : offset+2])) //#nosec G602 -- checked
-		return nil, offset + 2 + bLen, nil
+		bLen := int(binary.BigEndian.Uint16(lenBytes))
+		return advanceOffset(data, next, bLen, name)
 	case 8: // timestamp
-		return nil, offset + 8, nil
+		return advanceOffset(data, offset, 8, name)
 	case 9: // uuid
-		return nil, offset + 16, nil
+		return advanceOffset(data, offset, 16, name)
 	default:
 		return nil, 0, fmt.Errorf("unknown header type %d for %q", headerType, name)
 	}
+}
+
+func readByte(data []byte, offset int) (b byte, next int, err error) {
+	if offset < 0 || offset >= len(data) {
+		return 0, offset, fmt.Errorf("offset out of bounds")
+	}
+	return data[offset], offset + 1, nil
+}
+
+func readSlice(data []byte, offset, length int) (out []byte, next int, err error) {
+	if length < 0 || offset < 0 || offset+length > len(data) {
+		return nil, 0, fmt.Errorf("slice out of bounds")
+	}
+	return data[offset : offset+length], offset + length, nil
+}
+
+func advanceOffset(data []byte, offset, length int, name string) (val *string, next int, err error) {
+	if offset < 0 || offset+length > len(data) {
+		return nil, 0, fmt.Errorf("header value truncated for %q", name)
+	}
+	return nil, offset + length, nil
 }
 
 // EventStreamToSSE converts an AWS Event Stream response to SSE format.

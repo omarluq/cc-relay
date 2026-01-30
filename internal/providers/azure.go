@@ -28,11 +28,11 @@ var DefaultAzureModels = []string{
 // The key difference is the URL structure:
 // https://{resource}.services.ai.azure.com/models/chat/completions?api-version={version}
 type AzureProvider struct {
-	BaseProvider
 	resourceName string
 	deploymentID string
 	apiVersion   string
-	authMethod   string // "api_key" or "entra_id"
+	authMethod   string
+	BaseProvider
 }
 
 // AzureConfig holds Azure-specific configuration.

@@ -14,14 +14,12 @@ const ContentTypeSSE = "text/event-stream"
 
 // BaseProvider provides common functionality for Anthropic-compatible providers.
 // It implements the shared methods that are identical across Anthropic and Z.AI.
-//
-//nolint:govet // Field alignment optimized for readability over memory
 type BaseProvider struct {
 	modelMapping map[string]string
-	models       []string
 	name         string
 	baseURL      string
 	owner        string
+	models       []string
 }
 
 // NewBaseProvider creates a new base provider with the given parameters.
@@ -38,8 +36,8 @@ func NewBaseProviderWithMapping(
 	return BaseProvider{
 		name:         name,
 		baseURL:      baseURL,
-		models:       models,
 		owner:        owner,
+		models:       models,
 		modelMapping: modelMapping,
 	}
 }

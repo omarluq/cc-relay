@@ -38,15 +38,13 @@ var DefaultVertexModels = []string{
 // Vertex AI requires:
 // - Model in URL path (not body)
 // - anthropic_version in request body (not header)
-// - OAuth Bearer token authentication
-//
-//nolint:govet // Field alignment optimized for readability over memory
+// - OAuth Bearer token authentication.
 type VertexProvider struct {
-	BaseProvider
+	tokenSource oauth2.TokenSource
 	projectID   string
 	region      string
-	tokenSource oauth2.TokenSource
-	tokenMu     sync.RWMutex
+	BaseProvider
+	tokenMu sync.RWMutex
 }
 
 // VertexConfig holds Vertex AI-specific configuration.
