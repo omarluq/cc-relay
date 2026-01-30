@@ -25,6 +25,16 @@ func NewTracker(cfg CircuitBreakerConfig, logger *zerolog.Logger) *Tracker {
 	}
 }
 
+// Reset replaces the tracker configuration and clears existing circuits.
+// This is used to apply hot-reload changes consistently across providers.
+func (t *Tracker) Reset(cfg CircuitBreakerConfig, logger *zerolog.Logger) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.config = cfg
+	t.logger = logger
+	t.circuits = make(map[string]*CircuitBreaker)
+}
+
 // GetOrCreateCircuit returns the circuit breaker for a provider, creating it if necessary.
 // This method is thread-safe and uses lazy initialization.
 func (t *Tracker) GetOrCreateCircuit(providerName string) *CircuitBreaker {

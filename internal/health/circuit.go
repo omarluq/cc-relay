@@ -4,6 +4,7 @@ package health
 import (
 	"context"
 	"errors"
+	"math"
 
 	"github.com/rs/zerolog"
 	"github.com/sony/gobreaker/v2"
@@ -40,12 +41,15 @@ func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Lo
 		failureThreshold = DefaultFailureThreshold
 	}
 
+	maxRequests := safeUint32(halfOpenProbes)
+	failureLimit := safeUint32(failureThreshold)
+
 	settings := gobreaker.Settings{
 		Name:        name,
-		MaxRequests: uint32(halfOpenProbes), //nolint:gosec // validated non-negative above
+		MaxRequests: maxRequests,
 		Timeout:     cfg.GetOpenDuration(),
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			return counts.ConsecutiveFailures >= uint32(failureThreshold) //nolint:gosec // validated non-negative above
+			return counts.ConsecutiveFailures >= failureLimit
 		},
 		OnStateChange: func(name string, from, to gobreaker.State) {
 			if logger == nil {
@@ -70,6 +74,16 @@ func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Lo
 		cb:   gobreaker.NewTwoStepCircuitBreaker[struct{}](settings),
 		name: name,
 	}
+}
+
+func safeUint32(value int) uint32 {
+	if value <= 0 {
+		return 0
+	}
+	if value > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(value)
 }
 
 // Allow checks if a request is allowed through the circuit breaker.

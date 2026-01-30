@@ -15,8 +15,8 @@ package health
 import (
 	"context"
 	"crypto/rand"
-	"encoding/binary"
 	"fmt"
+	"math/big"
 	"net/http"
 	"sync"
 	"time"
@@ -253,12 +253,9 @@ func cryptoRandDuration(maxDur time.Duration) time.Duration {
 	if maxDur <= 0 {
 		return 0
 	}
-	var b [8]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		// Fallback to zero jitter if crypto/rand fails
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(maxDur)))
+	if err != nil {
 		return 0
 	}
-	n := binary.LittleEndian.Uint64(b[:])
-	//nolint:gosec // G115: maxDur is always positive (checked above), safe conversion
-	return time.Duration(n % uint64(maxDur))
+	return time.Duration(n.Int64())
 }
