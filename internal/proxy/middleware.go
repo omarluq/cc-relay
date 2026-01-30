@@ -128,11 +128,11 @@ func withRequestFields(ctx context.Context, r *http.Request, shortID string) zer
 		Str("req_id", shortID)
 }
 
-func logRequestStart(ctx context.Context, r *http.Request, shortID string) {
+func logRequestStart(ctx context.Context, r *http.Request, shortID string, debugOpts config.DebugOptions) {
 	logger := withRequestFields(ctx, r, shortID).Logger()
 	logEvent := logger.Info()
 
-	if zerolog.GlobalLevel() <= zerolog.DebugLevel {
+	if zerolog.GlobalLevel() <= zerolog.DebugLevel && debugOpts.LogRequestBody {
 		bodyPreview := getBodyPreview(r)
 		if bodyPreview != "" {
 			logEvent = logEvent.Str("body_preview", bodyPreview)
@@ -215,7 +215,7 @@ func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Hand
 				shortID = shortID[:8]
 			}
 
-			logRequestStart(r.Context(), r, shortID)
+			logRequestStart(r.Context(), r, shortID, debugOpts)
 
 			// Serve request
 			next.ServeHTTP(wrapped, r)
