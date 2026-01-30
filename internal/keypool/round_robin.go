@@ -23,9 +23,13 @@ func (s *RoundRobinSelector) Select(keys []*KeyMetadata) (*KeyMetadata, error) {
 
 	// Get next index atomically
 	nextIndex := atomic.AddUint64(&s.index, 1) - 1
-	keysLen := uint64(len(keys))
-	//nolint:gosec // Safe: modulo ensures result is within int range (< len(keys))
-	startIdx := int(nextIndex % keysLen)
+	keysLen := len(keys)
+	startIdx64 := nextIndex % uint64(keysLen)
+	maxInt := uint64(int(^uint(0) >> 1))
+	if startIdx64 > maxInt {
+		return nil, ErrNoKeys
+	}
+	startIdx := int(startIdx64)
 
 	// Try each key starting from startIdx, wrapping around
 	for i := 0; i < len(keys); i++ {

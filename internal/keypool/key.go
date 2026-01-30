@@ -15,9 +15,9 @@
 package keypool
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"strconv"
 	"sync"
@@ -26,56 +26,37 @@ import (
 
 // KeyMetadata tracks rate limit state and health for a single API key.
 // All methods are safe for concurrent use.
-//
-//nolint:govet // fieldalignment: struct ordered for clarity over memory optimization
 type KeyMetadata struct {
-	// Identity
-	ID     string // Unique identifier (first 8 chars of key hash)
-	APIKey string // The actual API key
-
-	// Reset times - grouped for better alignment
-	RPMResetAt    time.Time // When RPM resets
-	ITPMResetAt   time.Time // When ITPM resets
-	OTPMResetAt   time.Time // When OTPM resets
-	LastErrorAt   time.Time // When last error occurred
-	CooldownUntil time.Time // Don't use until this time (429 retry-after)
-
-	// Health state
-	LastError error // Last error encountered
-
-	mu sync.RWMutex
-
-	// Configured limits (from config or learned from headers)
-	RPMLimit  int // Requests per minute limit
-	ITPMLimit int // Input tokens per minute limit
-	OTPMLimit int // Output tokens per minute limit
-
-	// Current state (updated from response headers)
-	RPMRemaining  int // Remaining requests this window
-	ITPMRemaining int // Remaining input tokens
-	OTPMRemaining int // Remaining output tokens
-
-	// Priority (from config)
-	Priority int // 0=low, 1=normal (default), 2=high
-	Weight   int // For weighted selection strategy
-
-	// Health state
-	Healthy bool // Whether key is usable
+	RPMResetAt    time.Time
+	ITPMResetAt   time.Time
+	OTPMResetAt   time.Time
+	LastErrorAt   time.Time
+	CooldownUntil time.Time
+	LastError     error
+	APIKey        string
+	ID            string
+	RPMLimit      int
+	ITPMLimit     int
+	OTPMLimit     int
+	RPMRemaining  int
+	ITPMRemaining int
+	OTPMRemaining int
+	Priority      int
+	Weight        int
+	mu            sync.RWMutex
+	Healthy       bool
 }
 
 // NewKeyMetadata creates a new KeyMetadata with the given API key and rate limits.
-// The ID is generated from the first 8 characters of the SHA-256 hash of the key.
+// The ID is generated from the first 8 characters of the FNV-1a hash of the key.
 // Initial state: full capacity, healthy, normal priority.
 //
 // Note: The hash is for identification/logging only, NOT for security comparison.
 // The key ID appears in logs for debugging purposes. It's not used for authentication.
-// SHA-256 provides a stable, reproducible identifier from the key material.
 func NewKeyMetadata(apiKey string, rpm, itpm, otpm int) *KeyMetadata {
-	// Generate ID from hash of API key (for logging/identification, not security)
-	// codeql[go/weak-sensitive-data-hashing] SHA-256 used for stable key identification, not security comparison
-	// #nosec G401 -- SHA-256 used for stable key identification, not security comparison
-	hash := sha256.Sum256([]byte(apiKey))
-	id := hex.EncodeToString(hash[:])[:8]
+	hasher := fnv.New64a()
+	_, _ = hasher.Write([]byte(apiKey))
+	id := hex.EncodeToString(hasher.Sum(nil))[:8]
 
 	return &KeyMetadata{
 		ID:            id,
@@ -147,78 +128,61 @@ func (k *KeyMetadata) UpdateFromHeaders(headers http.Header) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	k.parseRPMLimits(headers)
-	k.parseInputTokenLimits(headers)
-	k.parseOutputTokenLimits(headers)
+	k.parseLimits(
+		headers,
+		"anthropic-ratelimit-requests-limit",
+		"anthropic-ratelimit-requests-remaining",
+		"anthropic-ratelimit-requests-reset",
+		&k.RPMLimit,
+		&k.RPMRemaining,
+		&k.RPMResetAt,
+	)
+	k.parseLimits(
+		headers,
+		"anthropic-ratelimit-input-tokens-limit",
+		"anthropic-ratelimit-input-tokens-remaining",
+		"anthropic-ratelimit-input-tokens-reset",
+		&k.ITPMLimit,
+		&k.ITPMRemaining,
+		&k.ITPMResetAt,
+	)
+	k.parseLimits(
+		headers,
+		"anthropic-ratelimit-output-tokens-limit",
+		"anthropic-ratelimit-output-tokens-remaining",
+		"anthropic-ratelimit-output-tokens-reset",
+		&k.OTPMLimit,
+		&k.OTPMRemaining,
+		&k.OTPMResetAt,
+	)
 
 	return nil
 }
 
-// parseRPMLimits parses request rate limit headers.
-//
-//nolint:dupl // Similar pattern repeated for each token type
-func (k *KeyMetadata) parseRPMLimits(headers http.Header) {
-	if val := headers.Get("anthropic-ratelimit-requests-limit"); val != "" {
-		if limit, err := strconv.Atoi(val); err == nil && limit > 0 {
-			k.RPMLimit = limit
+func (k *KeyMetadata) parseLimits(
+	headers http.Header,
+	limitKey string,
+	remainingKey string,
+	resetKey string,
+	limit *int,
+	remaining *int,
+	resetAt *time.Time,
+) {
+	if val := headers.Get(limitKey); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			*limit = parsed
 		}
 	}
 
-	if val := headers.Get("anthropic-ratelimit-requests-remaining"); val != "" {
-		if remaining, err := strconv.Atoi(val); err == nil && remaining >= 0 {
-			k.RPMRemaining = remaining
+	if val := headers.Get(remainingKey); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
+			*remaining = parsed
 		}
 	}
 
-	if val := headers.Get("anthropic-ratelimit-requests-reset"); val != "" {
-		if resetTime, err := time.Parse(time.RFC3339, val); err == nil {
-			k.RPMResetAt = resetTime
-		}
-	}
-}
-
-// parseInputTokenLimits parses input token rate limit headers.
-//
-//nolint:dupl // Similar pattern repeated for each token type
-func (k *KeyMetadata) parseInputTokenLimits(headers http.Header) {
-	if val := headers.Get("anthropic-ratelimit-input-tokens-limit"); val != "" {
-		if limit, err := strconv.Atoi(val); err == nil && limit > 0 {
-			k.ITPMLimit = limit
-		}
-	}
-
-	if val := headers.Get("anthropic-ratelimit-input-tokens-remaining"); val != "" {
-		if remaining, err := strconv.Atoi(val); err == nil && remaining >= 0 {
-			k.ITPMRemaining = remaining
-		}
-	}
-
-	if val := headers.Get("anthropic-ratelimit-input-tokens-reset"); val != "" {
-		if resetTime, err := time.Parse(time.RFC3339, val); err == nil {
-			k.ITPMResetAt = resetTime
-		}
-	}
-}
-
-// parseOutputTokenLimits parses output token rate limit headers.
-//
-//nolint:dupl // Similar pattern repeated for each token type
-func (k *KeyMetadata) parseOutputTokenLimits(headers http.Header) {
-	if val := headers.Get("anthropic-ratelimit-output-tokens-limit"); val != "" {
-		if limit, err := strconv.Atoi(val); err == nil && limit > 0 {
-			k.OTPMLimit = limit
-		}
-	}
-
-	if val := headers.Get("anthropic-ratelimit-output-tokens-remaining"); val != "" {
-		if remaining, err := strconv.Atoi(val); err == nil && remaining >= 0 {
-			k.OTPMRemaining = remaining
-		}
-	}
-
-	if val := headers.Get("anthropic-ratelimit-output-tokens-reset"); val != "" {
-		if resetTime, err := time.Parse(time.RFC3339, val); err == nil {
-			k.OTPMResetAt = resetTime
+	if val := headers.Get(resetKey); val != "" {
+		if parsed, err := time.Parse(time.RFC3339, val); err == nil {
+			*resetAt = parsed
 		}
 	}
 }

@@ -613,6 +613,18 @@ func TestNewSelector(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			name:     "random",
+			strategy: StrategyRandom,
+			wantType: StrategyRandom,
+			wantErr:  false,
+		},
+		{
+			name:     "weighted",
+			strategy: StrategyWeighted,
+			wantType: StrategyWeighted,
+			wantErr:  false,
+		},
+		{
 			name:     "empty defaults to least_loaded",
 			strategy: "",
 			wantType: StrategyLeastLoaded,
