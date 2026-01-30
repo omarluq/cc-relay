@@ -119,23 +119,8 @@ func (l *TokenBucketLimiter) GetUsage() Usage {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	// Approximate remaining capacity by checking if burst-sized request would succeed
-	// For RPM: check if we can do another request
-	requestsRemaining := 0
-	if l.requestLimiter.Allow() {
-		// We consumed one, so add it back
-		l.requestLimiter.Reserve().Cancel()
-		// Estimate remaining based on burst
-		requestsRemaining = l.rpmLimit / 2 // Conservative estimate
-	}
-
-	// For TPM: similar approach
-	tokensRemaining := 0
-	reservation := l.tokenLimiter.Reserve()
-	if reservation.OK() {
-		reservation.Cancel()
-		tokensRemaining = l.tpmLimit / 2 // Conservative estimate
-	}
+	requestsRemaining := clampUsage(int(l.requestLimiter.Tokens()), l.rpmLimit)
+	tokensRemaining := clampUsage(int(l.tokenLimiter.Tokens()), l.tpmLimit)
 
 	return Usage{
 		RequestsUsed:      l.rpmLimit - requestsRemaining,
@@ -145,6 +130,16 @@ func (l *TokenBucketLimiter) GetUsage() Usage {
 		RequestsRemaining: requestsRemaining,
 		TokensRemaining:   tokensRemaining,
 	}
+}
+
+func clampUsage(remaining, limit int) int {
+	if remaining < 0 {
+		return 0
+	}
+	if remaining > limit {
+		return limit
+	}
+	return remaining
 }
 
 // Reserve checks if a specific number of tokens can be reserved.
