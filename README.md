@@ -89,3 +89,5 @@ flowchart LR
 ## Contributing
 
 Contributions welcome! Please open an issue before submitting PRs.
+
+<a href="https://sonarcloud.io/summary/new_code?id=omarluq_cc-relay"><img src="https://sonarcloud.io/images/project_badges/sonarcloud-dark.svg" alt="SonarCloud Quality Gate"/></a>
