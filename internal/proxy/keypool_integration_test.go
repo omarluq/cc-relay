@@ -22,7 +22,46 @@ const (
 	jsonContentType     = "application/json"
 	messagesPayload     = `{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`
 	contentTypeHeader   = "Content-Type"
+	messagesResponse    = `{"id":"msg_123","type":"message","role":"assistant","content":[]}`
 )
+
+func writeMessagesResponse(t *testing.T, w http.ResponseWriter) {
+	t.Helper()
+
+	w.Header().Set(contentTypeHeader, jsonContentType)
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(messagesResponse)); err != nil {
+		t.Errorf(writeResponseErrFmt, err)
+	}
+}
+
+func newMessagesBackend(t *testing.T, handler func(http.ResponseWriter, *http.Request)) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handler != nil {
+			handler(w, r)
+		}
+		writeMessagesResponse(t, w)
+	}))
+}
+
+func newHandlerWithPool(t *testing.T, backendURL string, pool *keypool.KeyPool) http.Handler {
+	t.Helper()
+
+	provider := providers.NewAnthropicProvider("test", backendURL)
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			APIKey: "",
+		},
+	}
+
+	handler, err := proxy.SetupRoutes(cfg, provider, "", pool)
+	if err != nil {
+		t.Fatalf("Failed to setup routes: %v", err)
+	}
+	return handler
+}
 
 func sendMessagesRequest(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
@@ -43,19 +82,12 @@ func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 	usedKeys := make(map[string]int)
 
 	// Create mock backend that tracks API keys
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := newMessagesBackend(t, func(w http.ResponseWriter, r *http.Request) {
 		apiKey := r.Header.Get("x-api-key")
 		mu.Lock()
 		usedKeys[apiKey]++
 		mu.Unlock()
-
-		// Return successful response
-		w.Header().Set(contentTypeHeader, jsonContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf(writeResponseErrFmt, err)
-		}
-	}))
+	})
 	defer backend.Close()
 
 	// Create KeyPool with 2 keys with different RPM limits
@@ -86,18 +118,7 @@ func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 		t.Fatalf("Failed to create key pool: %v", err)
 	}
 
-	// Create handler with pool
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			APIKey: "",
-		},
-	}
-
-	handler, err := proxy.SetupRoutes(cfg, provider, "", pool)
-	if err != nil {
-		t.Fatalf("Failed to setup routes: %v", err)
-	}
+	handler := newHandlerWithPool(t, backend.URL, pool)
 
 	// Send multiple requests
 	for i := 0; i < 4; i++ {
@@ -134,18 +155,12 @@ func TestKeyPoolIntegrationFallbackWhenExhausted(t *testing.T) {
 	usedKeys := make(map[string]int)
 
 	// Create mock backend
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := newMessagesBackend(t, func(w http.ResponseWriter, r *http.Request) {
 		apiKey := r.Header.Get("x-api-key")
 		mu.Lock()
 		usedKeys[apiKey]++
 		mu.Unlock()
-
-		w.Header().Set(contentTypeHeader, jsonContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf(writeResponseErrFmt, err)
-		}
-	}))
+	})
 	defer backend.Close()
 
 	// Create KeyPool with key-1 having lower priority, key-2 having higher priority
@@ -177,18 +192,7 @@ func TestKeyPoolIntegrationFallbackWhenExhausted(t *testing.T) {
 		t.Fatalf("Failed to create key pool: %v", err)
 	}
 
-	// Create handler with pool
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			APIKey: "",
-		},
-	}
-
-	handler, err := proxy.SetupRoutes(cfg, provider, "", pool)
-	if err != nil {
-		t.Fatalf("Failed to setup routes: %v", err)
-	}
+	handler := newHandlerWithPool(t, backend.URL, pool)
 
 	// Send 10 requests - with least_loaded, should use higher capacity key-2 more
 	for i := 0; i < 10; i++ {
@@ -217,14 +221,9 @@ func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 
 	// Create mock backend
 	requestCount := 0
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := newMessagesBackend(t, func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
-		w.Header().Set(contentTypeHeader, jsonContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf(writeResponseErrFmt, err)
-		}
-	}))
+	})
 	defer backend.Close()
 
 	// Create KeyPool with single key with RPM=1 (burst=1, so only 1 immediate request allowed)
@@ -247,18 +246,7 @@ func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 		t.Fatalf("Failed to create key pool: %v", err)
 	}
 
-	// Create handler with pool
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			APIKey: "",
-		},
-	}
-
-	handler, err := proxy.SetupRoutes(cfg, provider, "", pool)
-	if err != nil {
-		t.Fatalf("Failed to setup routes: %v", err)
-	}
+	handler := newHandlerWithPool(t, backend.URL, pool)
 
 	// First request should succeed (uses burst capacity)
 	rec1 := sendMessagesRequest(t, handler)
@@ -291,7 +279,7 @@ func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns rate limit headers
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := newMessagesBackend(t, func(w http.ResponseWriter, r *http.Request) {
 		// Return rate limit headers
 		w.Header().Set("anthropic-ratelimit-requests-limit", "50")
 		w.Header().Set("anthropic-ratelimit-requests-remaining", "45")
@@ -302,13 +290,7 @@ func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 		w.Header().Set("anthropic-ratelimit-output-tokens-limit", "3000")
 		w.Header().Set("anthropic-ratelimit-output-tokens-remaining", "2700")
 		w.Header().Set("anthropic-ratelimit-output-tokens-reset", time.Now().Add(time.Minute).Format(time.RFC3339))
-
-		w.Header().Set(contentTypeHeader, jsonContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
-			t.Errorf(writeResponseErrFmt, err)
-		}
-	}))
+	})
 	defer backend.Close()
 
 	// Create KeyPool with initial limits
@@ -334,24 +316,10 @@ func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 	// Get initial stats
 	initialStats := pool.GetStats()
 
-	// Create handler with pool
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			APIKey: "",
-		},
-	}
-
-	handler, err := proxy.SetupRoutes(cfg, provider, "", pool)
-	if err != nil {
-		t.Fatalf("Failed to setup routes: %v", err)
-	}
+	handler := newHandlerWithPool(t, backend.URL, pool)
 
 	// Send request
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`))
-	req.Header.Set(contentTypeHeader, jsonContentType)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	rec := sendMessagesRequest(t, handler)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Request failed with status %d: %s", rec.Code, rec.Body.String())

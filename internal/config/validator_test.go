@@ -7,7 +7,13 @@ import (
 	"testing"
 )
 
-const defaultListenAddr = "127.0.0.1:8787"
+const (
+	defaultListenAddr = "127.0.0.1:8787"
+	testListenAddr    = ":8080"
+	testProviderName  = "test"
+	testProviderType  = "anthropic"
+	testKeyValue      = "key"
+)
 
 func configWithListen(listen string) *Config {
 	return &Config{
@@ -20,6 +26,19 @@ func configWithListen(listen string) *Config {
 func configWithProvider(provider *ProviderConfig) *Config {
 	cfg := configWithListen(defaultListenAddr)
 	cfg.Providers = []ProviderConfig{*provider}
+	return cfg
+}
+
+func configWithSingleProvider(listen string) *Config {
+	cfg := configWithListen(listen)
+	cfg.Providers = []ProviderConfig{
+		{
+			Name:    testProviderName,
+			Type:    testProviderType,
+			Enabled: true,
+			Keys:    []KeyConfig{{Key: testKeyValue}},
+		},
+	}
 	return cfg
 }
 
@@ -431,20 +450,8 @@ func TestValidateMultipleErrors(t *testing.T) {
 func TestValidateInvalidKeyPriority(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-				Server: ServerConfig{
-					Listen: defaultListenAddr,
-				},
-		Providers: []ProviderConfig{
-			{
-				Name: "test",
-				Type: "anthropic",
-				Keys: []KeyConfig{
-					{Key: "test", Priority: 5},
-				},
-			},
-		},
-	}
+	cfg := configWithSingleProvider(defaultListenAddr)
+	cfg.Providers[0].Keys = []KeyConfig{{Key: "test", Priority: 5}}
 
 	err := cfg.Validate()
 	if err == nil {
@@ -459,20 +466,8 @@ func TestValidateInvalidKeyPriority(t *testing.T) {
 func TestValidateMissingKeyValue(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-				Server: ServerConfig{
-					Listen: defaultListenAddr,
-				},
-		Providers: []ProviderConfig{
-			{
-				Name: "test",
-				Type: "anthropic",
-				Keys: []KeyConfig{
-					{RPMLimit: 60},
-				},
-			},
-		},
-	}
+	cfg := configWithSingleProvider(defaultListenAddr)
+	cfg.Providers[0].Keys = []KeyConfig{{RPMLimit: 60}}
 
 	err := cfg.Validate()
 	if err == nil {
@@ -559,15 +554,8 @@ func TestValidateMaxConcurrent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := &Config{
-				Server: ServerConfig{
-					Listen:        ":8080",
-					MaxConcurrent: tt.maxConcurrent,
-				},
-				Providers: []ProviderConfig{
-					{Name: "test", Type: "anthropic", Enabled: true, Keys: []KeyConfig{{Key: "key"}}},
-				},
-			}
+			cfg := configWithSingleProvider(testListenAddr)
+			cfg.Server.MaxConcurrent = tt.maxConcurrent
 
 			err := cfg.Validate()
 			if tt.wantErr {
@@ -614,15 +602,8 @@ func TestValidateMaxBodyBytes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg := &Config{
-				Server: ServerConfig{
-					Listen:       ":8080",
-					MaxBodyBytes: tt.maxBodyBytes,
-				},
-				Providers: []ProviderConfig{
-					{Name: "test", Type: "anthropic", Enabled: true, Keys: []KeyConfig{{Key: "key"}}},
-				},
-			}
+			cfg := configWithSingleProvider(testListenAddr)
+			cfg.Server.MaxBodyBytes = tt.maxBodyBytes
 
 			err := cfg.Validate()
 			if tt.wantErr {
