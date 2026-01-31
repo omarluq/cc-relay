@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"net/http"
 
@@ -10,8 +11,8 @@ import (
 // APIKeyAuthenticator validates x-api-key header authentication.
 // Uses constant-time comparison to prevent timing attacks.
 type APIKeyAuthenticator struct {
-	// expectedKey is the configured API key.
-	expectedKey string
+	// expectedHash is the SHA-256 hash of the configured API key.
+	expectedHash [sha256.Size]byte
 }
 
 // NewAPIKeyAuthenticator creates a new API key authenticator.
@@ -24,7 +25,7 @@ type APIKeyAuthenticator struct {
 // - Constant-time comparison prevents timing attacks (see Validate method).
 func NewAPIKeyAuthenticator(expectedKey string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{
-		expectedKey: expectedKey,
+		expectedHash: sha256.Sum256([]byte(expectedKey)),
 	}
 }
 
@@ -42,7 +43,8 @@ func (a *APIKeyAuthenticator) Validate(r *http.Request) Result {
 	}
 
 	// CRITICAL: Constant-time comparison prevents timing attacks
-	if subtle.ConstantTimeCompare([]byte(providedKey), []byte(a.expectedKey)) != 1 {
+	providedHash := sha256.Sum256([]byte(providedKey))
+	if subtle.ConstantTimeCompare(providedHash[:], a.expectedHash[:]) != 1 {
 		return Result{
 			Valid: false,
 			Type:  TypeAPIKey,
