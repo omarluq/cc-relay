@@ -117,7 +117,7 @@ func TestValidateValidListenFormats(t *testing.T) {
 		listen string
 	}{
 		{"localhost", "localhost:8787"},
-		{"ipv4", "127.0.0.1:8787"},
+		{"ipv4", defaultListenAddr},
 		{"ipv4_all", "0.0.0.0:8787"},
 		{"empty_host", ":8787"},
 		{"ipv6", "[::1]:8787"},
@@ -432,9 +432,9 @@ func TestValidateInvalidKeyPriority(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
+				Server: ServerConfig{
+					Listen: defaultListenAddr,
+				},
 		Providers: []ProviderConfig{
 			{
 				Name: "test",
@@ -460,9 +460,9 @@ func TestValidateMissingKeyValue(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
+				Server: ServerConfig{
+					Listen: defaultListenAddr,
+				},
 		Providers: []ProviderConfig{
 			{
 				Name: "test",

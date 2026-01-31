@@ -21,13 +21,14 @@ const (
 	messagesEndpoint    = "/v1/messages"
 	jsonContentType     = "application/json"
 	messagesPayload     = `{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`
+	contentTypeHeader   = "Content-Type"
 )
 
 func sendMessagesRequest(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
 
 	req := httptest.NewRequest("POST", messagesEndpoint, strings.NewReader(messagesPayload))
-	req.Header.Set("Content-Type", jsonContentType)
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
@@ -49,7 +50,7 @@ func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 		mu.Unlock()
 
 		// Return successful response
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
 			t.Errorf(writeResponseErrFmt, err)
@@ -139,7 +140,7 @@ func TestKeyPoolIntegrationFallbackWhenExhausted(t *testing.T) {
 		usedKeys[apiKey]++
 		mu.Unlock()
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
 			t.Errorf(writeResponseErrFmt, err)
@@ -218,7 +219,7 @@ func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 	requestCount := 0
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
 			t.Errorf(writeResponseErrFmt, err)
@@ -302,7 +303,7 @@ func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 		w.Header().Set("anthropic-ratelimit-output-tokens-remaining", "2700")
 		w.Header().Set("anthropic-ratelimit-output-tokens-reset", time.Now().Add(time.Minute).Format(time.RFC3339))
 
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set(contentTypeHeader, jsonContentType)
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message","role":"assistant","content":[]}`)); err != nil {
 			t.Errorf(writeResponseErrFmt, err)
@@ -348,7 +349,7 @@ func TestKeyPoolIntegrationUpdateFromHeaders(t *testing.T) {
 
 	// Send request
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentTypeHeader, jsonContentType)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
