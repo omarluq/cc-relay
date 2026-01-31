@@ -7,14 +7,26 @@ import (
 	"testing"
 )
 
+const defaultListenAddr = "127.0.0.1:8787"
+
+func configWithListen(listen string) *Config {
+	return &Config{
+		Server: ServerConfig{
+			Listen: listen,
+		},
+	}
+}
+
+func configWithProvider(provider *ProviderConfig) *Config {
+	cfg := configWithListen(defaultListenAddr)
+	cfg.Providers = []ProviderConfig{*provider}
+	return cfg
+}
+
 func TestValidateValidMinimalConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-	}
+	cfg := configWithListen(defaultListenAddr)
 
 	err := cfg.Validate()
 	if err != nil {
@@ -25,30 +37,26 @@ func TestValidateValidMinimalConfig(t *testing.T) {
 func TestValidateValidFullConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen:        "0.0.0.0:8787",
-			TimeoutMS:     60000,
-			MaxConcurrent: 100,
-		},
-		Providers: []ProviderConfig{
-			{
-				Name:    "anthropic-primary",
-				Type:    "anthropic",
-				Enabled: true,
-				Keys: []KeyConfig{
-					{Key: "sk-ant-test", RPMLimit: 60, TPMLimit: 100000},
-				},
+	cfg := configWithListen("0.0.0.0:8787")
+	cfg.Server.TimeoutMS = 60000
+	cfg.Server.MaxConcurrent = 100
+	cfg.Providers = []ProviderConfig{
+		{
+			Name:    "anthropic-primary",
+			Type:    "anthropic",
+			Enabled: true,
+			Keys: []KeyConfig{
+				{Key: "sk-ant-test", RPMLimit: 60, TPMLimit: 100000},
 			},
 		},
-		Routing: RoutingConfig{
-			Strategy:        "failover",
-			FailoverTimeout: 5000,
-		},
-		Logging: LoggingConfig{
-			Level:  "info",
-			Format: "json",
-		},
+	}
+	cfg.Routing = RoutingConfig{
+		Strategy:        "failover",
+		FailoverTimeout: 5000,
+	}
+	cfg.Logging = LoggingConfig{
+		Level:  "info",
+		Format: "json",
 	}
 
 	err := cfg.Validate()
@@ -60,11 +68,7 @@ func TestValidateValidFullConfig(t *testing.T) {
 func TestValidateMissingServerListen(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			TimeoutMS: 60000,
-		},
-	}
+	cfg := &Config{Server: ServerConfig{TimeoutMS: 60000}}
 
 	err := cfg.Validate()
 	if err == nil {
@@ -91,11 +95,7 @@ func TestValidateInvalidListenFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := &Config{
-				Server: ServerConfig{
-					Listen: tt.listen,
-				},
-			}
+			cfg := configWithListen(tt.listen)
 
 			err := cfg.Validate()
 			if err == nil {
@@ -126,11 +126,7 @@ func TestValidateValidListenFormats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := &Config{
-				Server: ServerConfig{
-					Listen: tt.listen,
-				},
-			}
+			cfg := configWithListen(tt.listen)
 
 			err := cfg.Validate()
 			if err != nil {
@@ -143,17 +139,10 @@ func TestValidateValidListenFormats(t *testing.T) {
 func TestValidateInvalidProviderType(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Providers: []ProviderConfig{
-			{
-				Name: "test",
-				Type: "invalid-type",
-			},
-		},
-	}
+	cfg := configWithProvider(&ProviderConfig{
+		Name: "test",
+		Type: "invalid-type",
+	})
 
 	err := cfg.Validate()
 	if err == nil {
@@ -173,18 +162,11 @@ func TestValidateValidProviderTypes(t *testing.T) {
 	for _, provType := range validTypes {
 		t.Run(provType, func(t *testing.T) {
 			t.Parallel()
-			cfg := &Config{
-				Server: ServerConfig{
-					Listen: "127.0.0.1:8787",
-				},
-				Providers: []ProviderConfig{
-					{
-						Name: "test",
-						Type: provType,
-						Keys: []KeyConfig{{Key: "test-key"}},
-					},
-				},
-			}
+			cfg := configWithProvider(&ProviderConfig{
+				Name: "test",
+				Type: provType,
+				Keys: []KeyConfig{{Key: "test-key"}},
+			})
 
 			// Add required cloud provider fields
 			switch provType {
@@ -208,16 +190,9 @@ func TestValidateValidProviderTypes(t *testing.T) {
 func TestValidateMissingProviderName(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Providers: []ProviderConfig{
-			{
-				Type: "anthropic",
-			},
-		},
-	}
+	cfg := configWithProvider(&ProviderConfig{
+		Type: "anthropic",
+	})
 
 	err := cfg.Validate()
 	if err == nil {
@@ -232,16 +207,9 @@ func TestValidateMissingProviderName(t *testing.T) {
 func TestValidateMissingProviderType(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Providers: []ProviderConfig{
-			{
-				Name: "test",
-			},
-		},
-	}
+	cfg := configWithProvider(&ProviderConfig{
+		Name: "test",
+	})
 
 	err := cfg.Validate()
 	if err == nil {
@@ -256,14 +224,10 @@ func TestValidateMissingProviderType(t *testing.T) {
 func TestValidateDuplicateProviderNames(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Providers: []ProviderConfig{
-			{Name: "anthropic", Type: "anthropic", Keys: []KeyConfig{{Key: "key1"}}},
-			{Name: "anthropic", Type: "anthropic", Keys: []KeyConfig{{Key: "key2"}}},
-		},
+	cfg := configWithListen(defaultListenAddr)
+	cfg.Providers = []ProviderConfig{
+		{Name: "anthropic", Type: "anthropic", Keys: []KeyConfig{{Key: "key1"}}},
+		{Name: "anthropic", Type: "anthropic", Keys: []KeyConfig{{Key: "key2"}}},
 	}
 
 	err := cfg.Validate()
@@ -279,13 +243,9 @@ func TestValidateDuplicateProviderNames(t *testing.T) {
 func TestValidateInvalidRoutingStrategy(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Routing: RoutingConfig{
-			Strategy: "invalid-strategy",
-		},
+	cfg := configWithListen(defaultListenAddr)
+	cfg.Routing = RoutingConfig{
+		Strategy: "invalid-strategy",
 	}
 
 	err := cfg.Validate()
@@ -309,13 +269,9 @@ func TestValidateValidRoutingStrategies(t *testing.T) {
 	for _, strategy := range validStrategies {
 		t.Run(strategy, func(t *testing.T) {
 			t.Parallel()
-			cfg := &Config{
-				Server: ServerConfig{
-					Listen: "127.0.0.1:8787",
-				},
-				Routing: RoutingConfig{
-					Strategy: strategy,
-				},
+			cfg := configWithListen(defaultListenAddr)
+			cfg.Routing = RoutingConfig{
+				Strategy: strategy,
 			}
 
 			// model_based requires model_mapping
@@ -334,13 +290,9 @@ func TestValidateValidRoutingStrategies(t *testing.T) {
 func TestValidateModelBasedRequiresMapping(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Routing: RoutingConfig{
-			Strategy: "model_based",
-		},
+	cfg := configWithListen(defaultListenAddr)
+	cfg.Routing = RoutingConfig{
+		Strategy: "model_based",
 	}
 
 	err := cfg.Validate()
@@ -356,13 +308,9 @@ func TestValidateModelBasedRequiresMapping(t *testing.T) {
 func TestValidateInvalidLoggingLevel(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Logging: LoggingConfig{
-			Level: "verbose",
-		},
+	cfg := configWithListen(defaultListenAddr)
+	cfg.Logging = LoggingConfig{
+		Level: "verbose",
 	}
 
 	err := cfg.Validate()
@@ -378,13 +326,9 @@ func TestValidateInvalidLoggingLevel(t *testing.T) {
 func TestValidateInvalidLoggingFormat(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			Listen: "127.0.0.1:8787",
-		},
-		Logging: LoggingConfig{
-			Format: "xml",
-		},
+	cfg := configWithListen(defaultListenAddr)
+	cfg.Logging = LoggingConfig{
+		Format: "xml",
 	}
 
 	err := cfg.Validate()
@@ -430,12 +374,8 @@ func TestValidateCloudProviderMissingFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := &Config{
-				Server: ServerConfig{
-					Listen: "127.0.0.1:8787",
-				},
-				Providers: []ProviderConfig{tt.provider},
-			}
+			provider := tt.provider
+			cfg := configWithProvider(&provider)
 
 			err := cfg.Validate()
 			if err == nil {
