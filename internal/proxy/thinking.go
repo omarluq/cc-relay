@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -69,25 +70,25 @@ func ProcessRequestThinking(
 
 	modifiedBody := body
 	var err error
+	var dropMessageIndexes []int
 
 	// Process each message
 	messages.ForEach(func(key, msg gjson.Result) bool {
-		role := msg.Get("role").String()
-		if role != "assistant" {
-			return true // Continue to next message
-		}
-
-		content := msg.Get("content")
-		if !content.Exists() || !content.IsArray() {
+		content, ok := assistantContent(&msg)
+		if !ok {
 			return true
 		}
 
 		// Process content blocks for this assistant message
-		modifiedBody, err = processAssistantContent(
+		var dropMessage bool
+		modifiedBody, dropMessage, err = processAssistantContent(
 			ctx, modifiedBody, key.Int(), &content, modelName, cache, thinkingCtx,
 		)
 		if err != nil {
 			return false // Stop iteration on error
+		}
+		if dropMessage {
+			dropMessageIndexes = append(dropMessageIndexes, int(key.Int()))
 		}
 
 		return true
@@ -95,6 +96,13 @@ func ProcessRequestThinking(
 
 	if err != nil {
 		return body, thinkingCtx, err
+	}
+
+	if len(dropMessageIndexes) > 0 {
+		modifiedBody, err = dropMessagesByIndex(modifiedBody, dropMessageIndexes)
+		if err != nil {
+			return body, thinkingCtx, err
+		}
 	}
 
 	return modifiedBody, thinkingCtx, nil
@@ -115,9 +123,12 @@ func processAssistantContent(
 	modelName string,
 	cache *SignatureCache,
 	thinkingCtx *ThinkingContext,
-) ([]byte, error) {
+) (modifiedBody []byte, dropMessage bool, err error) {
 	collector := &blockCollector{}
 	collectBlocks(ctx, content, modelName, cache, thinkingCtx, collector)
+	if len(collector.modifiedBlocks) == 0 {
+		return body, true, nil
+	}
 
 	// Check if reordering is needed (uses tracked types, not original content)
 	if needsReordering(collector) {
@@ -129,10 +140,38 @@ func processAssistantContent(
 	path := fmt.Sprintf("messages.%d.content", msgIndex)
 	newBody, err := sjson.SetBytes(body, path, collector.modifiedBlocks)
 	if err != nil {
-		return body, fmt.Errorf("failed to set content: %w", err)
+		return body, false, fmt.Errorf("failed to set content: %w", err)
 	}
 
-	return newBody, nil
+	return newBody, false, nil
+}
+
+func assistantContent(msg *gjson.Result) (gjson.Result, bool) {
+	if msg.Get("role").String() != "assistant" {
+		return gjson.Result{}, false
+	}
+
+	content := msg.Get("content")
+	if !content.Exists() || !content.IsArray() {
+		return gjson.Result{}, false
+	}
+
+	return content, true
+}
+
+func dropMessagesByIndex(body []byte, indexes []int) ([]byte, error) {
+	sort.Sort(sort.Reverse(sort.IntSlice(indexes)))
+	modifiedBody := body
+
+	for _, idx := range indexes {
+		var err error
+		modifiedBody, err = sjson.DeleteBytes(modifiedBody, fmt.Sprintf("messages.%d", idx))
+		if err != nil {
+			return body, err
+		}
+	}
+
+	return modifiedBody, nil
 }
 
 // collectBlocks iterates content and collects blocks into the collector.

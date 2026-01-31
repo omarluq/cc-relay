@@ -131,6 +131,42 @@ func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 	assert.Equal(t, "text", content.Array()[0].Get("type").String())
 }
 
+func TestHandlerThinkingSignatureDropsEmptyAssistantMessage(t *testing.T) {
+	t.Parallel()
+
+	sigCache, cleanup := newTestSignatureCache(t)
+	defer cleanup()
+
+	backend, recorder := newRecordingBackend(t)
+
+	provider := newTestProvider(backend.URL)
+	handler := newHandlerWithSignatureCache(t, provider, sigCache)
+
+	body := `{
+		"model": "claude-sonnet-4",
+		"messages": [
+			{"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+			{"role": "assistant", "content": [
+				{"type": "thinking", "thinking": "Some thinking...", "signature": ""}
+			]},
+			{"role": "user", "content": [{"type": "text", "text": "Continue"}]}
+		]
+	}`
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req.Header.Set(contentTypeHeader, jsonContentType)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	messages := gjson.GetBytes(recorder.Body(), "messages").Array()
+	assert.Len(t, messages, 2, "should drop assistant message with empty content")
+	assert.Equal(t, "user", messages[0].Get("role").String())
+	assert.Equal(t, "user", messages[1].Get("role").String())
+}
+
 func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 	t.Parallel()
 
