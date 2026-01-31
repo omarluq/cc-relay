@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/cache"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -97,7 +98,7 @@ func (sc *SignatureCache) Set(ctx context.Context, modelName, text, signature st
 	key := sc.cacheKey(modelGroup, text)
 
 	if err := sc.cache.SetWithTTL(ctx, key, []byte(signature), SignatureCacheTTL); err != nil {
-		_ = err
+		log.Debug().Err(err).Msg("signature cache set failed")
 	}
 }
 

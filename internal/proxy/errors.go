@@ -76,15 +76,9 @@ func WriteRateLimitError(w http.ResponseWriter, retryAfter time.Duration) {
 }
 
 func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	if _, err := w.Write(body); err != nil {
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		log.Error().Err(err).Msg("failed to write response")
 	}
 }

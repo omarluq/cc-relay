@@ -14,9 +14,6 @@ import (
 // modelContextKey is used for storing the extracted model name in request context.
 type modelContextKey struct{}
 
-// bodyTooLargeKey is used for storing the body too large error in request context.
-type bodyTooLargeKey struct{}
-
 // ExtractModelFromRequest reads the model field from the request body.
 // Returns mo.None if body is missing, malformed, or has no model field.
 // Returns mo.Some with the model name if extraction succeeds.
@@ -69,17 +66,6 @@ func ExtractModelWithBodyCheck(r *http.Request) (model mo.Option[string], bodyTo
 	}
 
 	return mo.Some(modelStr), false
-}
-
-// MarkBodyTooLarge stores the body too large flag in the request context.
-func MarkBodyTooLarge(ctx context.Context) context.Context {
-	return context.WithValue(ctx, bodyTooLargeKey{}, true)
-}
-
-// IsBodyTooLargeFromContext checks if body too large was detected during model extraction.
-func IsBodyTooLargeFromContext(ctx context.Context) bool {
-	v, ok := ctx.Value(bodyTooLargeKey{}).(bool)
-	return ok && v
 }
 
 // CacheModelInContext stores the extracted model name in the request context.
