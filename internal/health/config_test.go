@@ -11,7 +11,7 @@ func TestCircuitBreakerConfigGetFailureThreshold(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   CircuitBreakerConfig
-		expected int
+		expected uint32
 	}{
 		{
 			name:     "zero value returns default 5",
@@ -27,11 +27,6 @@ func TestCircuitBreakerConfigGetFailureThreshold(t *testing.T) {
 			name:     "custom value 1 returns 1",
 			config:   CircuitBreakerConfig{FailureThreshold: 1},
 			expected: 1,
-		},
-		{
-			name:     "negative value returns default 5",
-			config:   CircuitBreakerConfig{FailureThreshold: -1},
-			expected: 5,
 		},
 	}
 
@@ -93,7 +88,7 @@ func TestCircuitBreakerConfigGetHalfOpenProbes(t *testing.T) {
 	tests := []struct {
 		name     string
 		config   CircuitBreakerConfig
-		expected int
+		expected uint32
 	}{
 		{
 			name:     "zero value returns default 3",
@@ -109,11 +104,6 @@ func TestCircuitBreakerConfigGetHalfOpenProbes(t *testing.T) {
 			name:     "custom value 1 returns 1",
 			config:   CircuitBreakerConfig{HalfOpenProbes: 1},
 			expected: 1,
-		},
-		{
-			name:     "negative value returns default 3",
-			config:   CircuitBreakerConfig{HalfOpenProbes: -2},
-			expected: 3,
 		},
 	}
 

@@ -111,7 +111,7 @@ func serveMessages(t *testing.T, handler http.Handler) *httptest.ResponseRecorde
 func newTrackedHandler(
 	t *testing.T,
 	providerName, backendURL, routerName string,
-	failureThreshold int,
+	failureThreshold uint32,
 ) (*Handler, *health.Tracker) {
 	t.Helper()
 

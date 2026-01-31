@@ -22,23 +22,14 @@ const (
 
 // CircuitBreakerConfig defines circuit breaker behavior.
 type CircuitBreakerConfig struct {
-	// FailureThreshold is the number of consecutive failures before opening the circuit.
-	// Default: 5
-	FailureThreshold int `yaml:"failure_threshold" toml:"failure_threshold"`
-
-	// OpenDurationMS is the duration in milliseconds the circuit stays open before
-	// transitioning to half-open state. Default: 30000 (30 seconds)
-	OpenDurationMS int `yaml:"open_duration_ms" toml:"open_duration_ms"`
-
-	// HalfOpenProbes is the number of probe requests allowed in half-open state.
-	// If all probes succeed, circuit closes. If any fails, circuit reopens.
-	// Default: 3
-	HalfOpenProbes int `yaml:"half_open_probes" toml:"half_open_probes"`
+	OpenDurationMS   int    `yaml:"open_duration_ms" toml:"open_duration_ms"`
+	FailureThreshold uint32 `yaml:"failure_threshold" toml:"failure_threshold"`
+	HalfOpenProbes   uint32 `yaml:"half_open_probes" toml:"half_open_probes"`
 }
 
 // GetFailureThreshold returns the configured failure threshold or default 5.
-func (c *CircuitBreakerConfig) GetFailureThreshold() int {
-	if c.FailureThreshold <= 0 {
+func (c *CircuitBreakerConfig) GetFailureThreshold() uint32 {
+	if c.FailureThreshold == 0 {
 		return DefaultFailureThreshold
 	}
 	return c.FailureThreshold
@@ -54,8 +45,8 @@ func (c *CircuitBreakerConfig) GetOpenDuration() time.Duration {
 }
 
 // GetHalfOpenProbes returns the configured half-open probes or default 3.
-func (c *CircuitBreakerConfig) GetHalfOpenProbes() int {
-	if c.HalfOpenProbes <= 0 {
+func (c *CircuitBreakerConfig) GetHalfOpenProbes() uint32 {
+	if c.HalfOpenProbes == 0 {
 		return DefaultHalfOpenProbes
 	}
 	return c.HalfOpenProbes

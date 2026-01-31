@@ -4,7 +4,6 @@ package health
 import (
 	"context"
 	"errors"
-	"math"
 
 	"github.com/rs/zerolog"
 	"github.com/sony/gobreaker/v2"
@@ -31,18 +30,8 @@ type CircuitBreaker struct {
 // If logger is non-nil, state transitions are logged (Info level, Warn when the breaker opens).
 // The breaker treats a nil error and context.Canceled as successful outcomes.
 func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Logger) *CircuitBreaker {
-	// Get config values with safe uint32 conversion
-	halfOpenProbes := cfg.GetHalfOpenProbes()
-	if halfOpenProbes < 0 {
-		halfOpenProbes = DefaultHalfOpenProbes
-	}
-	failureThreshold := cfg.GetFailureThreshold()
-	if failureThreshold < 0 {
-		failureThreshold = DefaultFailureThreshold
-	}
-
-	maxRequests := safeUint32(halfOpenProbes)
-	failureLimit := safeUint32(failureThreshold)
+	maxRequests := cfg.GetHalfOpenProbes()
+	failureLimit := cfg.GetFailureThreshold()
 
 	settings := gobreaker.Settings{
 		Name:        name,
@@ -74,16 +63,6 @@ func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Lo
 		cb:   gobreaker.NewTwoStepCircuitBreaker[struct{}](settings),
 		name: name,
 	}
-}
-
-func safeUint32(value int) uint32 {
-	if value <= 0 {
-		return 0
-	}
-	if value > math.MaxUint32 {
-		return math.MaxUint32
-	}
-	return uint32(value)
 }
 
 // Allow checks if a request is allowed through the circuit breaker.
