@@ -16,7 +16,22 @@ import (
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
-const writeResponseErrFmt = "failed to write response: %v"
+const (
+	writeResponseErrFmt = "failed to write response: %v"
+	messagesEndpoint    = "/v1/messages"
+	jsonContentType     = "application/json"
+	messagesPayload     = `{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`
+)
+
+func sendMessagesRequest(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest("POST", messagesEndpoint, strings.NewReader(messagesPayload))
+	req.Header.Set("Content-Type", jsonContentType)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
 
 // TestKeyPoolIntegration_DistributesRequests verifies that requests distribute across keys
 func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
@@ -85,10 +100,7 @@ func TestKeyPoolIntegrationDistributesRequests(t *testing.T) {
 
 	// Send multiple requests
 	for i := 0; i < 4; i++ {
-		req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
+		rec := sendMessagesRequest(t, handler)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("Request %d failed with status %d: %s", i, rec.Code, rec.Body.String())
@@ -179,10 +191,7 @@ func TestKeyPoolIntegrationFallbackWhenExhausted(t *testing.T) {
 
 	// Send 10 requests - with least_loaded, should use higher capacity key-2 more
 	for i := 0; i < 10; i++ {
-		req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`))
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
+		rec := sendMessagesRequest(t, handler)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("Request %d failed with status %d: %s", i, rec.Code, rec.Body.String())
@@ -251,10 +260,7 @@ func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 	}
 
 	// First request should succeed (uses burst capacity)
-	req1 := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`))
-	req1.Header.Set("Content-Type", "application/json")
-	rec1 := httptest.NewRecorder()
-	handler.ServeHTTP(rec1, req1)
+	rec1 := sendMessagesRequest(t, handler)
 
 	if rec1.Code != http.StatusOK {
 		t.Errorf("First request should succeed, got status %d", rec1.Code)
@@ -264,10 +270,7 @@ func TestKeyPoolIntegration429WhenAllExhausted(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Second request should return 429 (burst exhausted, no refill yet)
-	req2 := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-3-opus-20240229","messages":[],"max_tokens":100}`))
-	req2.Header.Set("Content-Type", "application/json")
-	rec2 := httptest.NewRecorder()
-	handler.ServeHTTP(rec2, req2)
+	rec2 := sendMessagesRequest(t, handler)
 
 	if rec2.Code != http.StatusTooManyRequests {
 		t.Logf("Note: Token bucket with burst=limit allows %d immediate requests", requestCount)
