@@ -32,9 +32,9 @@ server:
 # Routing Configuration
 # ============================================================================
 routing:
-  # Available strategies: simple-shuffle, round-robin, least-busy, failover
-  # simple-shuffle: Weighted random selection (recommended for most use cases)
-  strategy: "simple-shuffle"
+  # Available strategies: shuffle, round_robin, weighted_round_robin, failover
+  # shuffle: Weighted random selection (recommended for most use cases)
+  strategy: "shuffle"
 
 # ============================================================================
 # Provider Configurations
