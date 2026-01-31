@@ -61,7 +61,7 @@ func SetupRoutes(
 //
 // The allProviders parameter is used for the /v1/models and /v1/providers endpoints
 // to list models and providers from all configured providers. If nil, only the primary
-// provider's models are listed.
+// Returns an error if the underlying proxy handler cannot be created.
 func SetupRoutesWithProviders(
 	cfg *config.Config,
 	provider providers.Provider,
@@ -139,7 +139,9 @@ func SetupRoutesWithProviders(
 //   - POST /v1/messages - Proxy to backend provider with router-based selection
 //   - GET /v1/models - List available models from all providers (no auth required)
 //   - GET /v1/providers - List active providers with metadata (no auth required)
-//   - GET /health - Health check endpoint (no auth required)
+// SetupRoutesWithRouter wires runtime accessors into the provided RoutesOptions and returns an HTTP handler configured for router-based multi-provider routes.
+//
+// If opts is nil, an error is returned. On success, this function sets opts.ConfigProvider to a runtime-backed config, and populates opts.ProviderInfosFunc, opts.GetProviderPools, opts.GetProviderKeys, and opts.GetAllProviders with functions that expose the corresponding fields from opts; it then constructs and returns the configured router-based handler.
 func SetupRoutesWithRouter(cfg *config.Config, opts *RoutesOptions) (http.Handler, error) {
 	if opts == nil {
 		return nil, errors.New(routesOptionsRequiredMsg)
@@ -178,7 +180,9 @@ func SetupRoutesWithRouterLive(opts *RoutesOptions) (http.Handler, error) {
 //   - POST /v1/messages - Proxy to backend provider with router-based selection
 //   - GET /v1/models - List available models from all providers (no auth required)
 //   - GET /v1/providers - List active providers with metadata (no auth required)
-//   - GET /health - Health check endpoint (no auth required)
+// SetupRoutesWithLiveKeyPools configures an HTTP mux for live key-pool routing and registers routes for messages, models, providers, and health.
+// The mux exposes POST /v1/messages, GET /v1/models, GET /v1/providers, and GET /health.
+// It returns an error if opts is nil or if constructing the handlers fails.
 func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
 	if opts == nil {
 		return nil, errors.New(routesOptionsRequiredMsg)
@@ -200,6 +204,11 @@ func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
 	return mux, nil
 }
 
+// buildMessagesHandler composes and returns the HTTP handler used for POST /v1/messages with live-reloadable middleware applied.
+// 
+// The returned handler wraps the underlying proxy handler with middleware (outermost to innermost): LiveAuth, MaxBodyBytes
+// (value read from the runtime config), optional Concurrency (if a limiter is provided), Logging (debug options read from the runtime config),
+// and RequestID. An error is returned if the underlying proxy handler cannot be constructed.
 func buildMessagesHandler(opts *RoutesOptions) (http.Handler, error) {
 	handler, err := buildProxyHandler(opts)
 	if err != nil {
@@ -243,6 +252,10 @@ func buildMessagesHandler(opts *RoutesOptions) (http.Handler, error) {
 	return messagesHandler, nil
 }
 
+// buildProxyHandler creates a Handler configured for live key-pool routing using the runtime
+// configuration obtained from opts.ConfigProvider and routing/provider data from opts.
+// It returns an error if the runtime config is nil or if handler construction fails.
+// The returned handler will have its runtime config getter set to opts.ConfigProvider.
 func buildProxyHandler(opts *RoutesOptions) (*Handler, error) {
 	cfg := opts.ConfigProvider.Get()
 	if cfg == nil {
@@ -270,6 +283,8 @@ func buildProxyHandler(opts *RoutesOptions) (*Handler, error) {
 	return handler, nil
 }
 
+// liveProvidersGetter returns a function that yields the active providers for routing based on the given RoutesOptions.
+// The returned function calls opts.GetAllProviders when it is set and returns its non-nil result; otherwise it returns a slice containing only opts.Provider.
 func liveProvidersGetter(opts *RoutesOptions) func() []providers.Provider {
 	return func() []providers.Provider {
 		if opts.GetAllProviders != nil {
@@ -281,6 +296,8 @@ func liveProvidersGetter(opts *RoutesOptions) func() []providers.Provider {
 	}
 }
 
+// registerHealthRoute registers the GET /health endpoint on mux.
+// The endpoint responds with HTTP 200 and body `{"status":"ok"}` and logs an error if writing the response fails.
 func registerHealthRoute(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

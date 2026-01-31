@@ -32,6 +32,8 @@ var ErrCacheFetchFailed = errors.New("cache: fetch operation failed")
 // ErrCacheCorrupt indicates cached data could not be decoded and should be refetched.
 var ErrCacheCorrupt = errors.New("cache: corrupt cached data")
 
+// ignoreCacheErr discards the provided error.
+// It is used when cache write failures are intentionally ignored.
 func ignoreCacheErr(err error) {
 	if err != nil {
 		_ = err
@@ -143,7 +145,8 @@ func (c *ROCache) GetOrFetch(
 //	    func() ro.Observable[User] {
 //	        return fetchUserFromAPI(123)
 //	    },
-//	)
+// GetOrFetchTyped attempts to read a JSON-encoded value of type T from the cache and, on miss or corrupted cache entry, obtains it from the provided fetch observable.
+// If a non-corruption cache error occurs the observable emits that error; if the fetch observable produces no value the observable emits ErrCacheFetchFailed. On a successful fetch the value is stored in the cache (cache write errors are ignored) and emitted.
 func GetOrFetchTyped[T any](
 	ctx context.Context,
 	c *ROCache,
@@ -179,6 +182,11 @@ func GetOrFetchTyped[T any](
 	})
 }
 
+// getCachedTyped attempts to read a cached entry for key and decode it from JSON.
+// On cache miss (ErrNotFound) it returns the zero value, false, nil.
+// If decoding succeeds it returns the decoded value, true, nil.
+// If decoding fails it returns the zero value, false, ErrCacheCorrupt.
+// Any other cache retrieval error is returned unchanged.
 func getCachedTyped[T any](ctx context.Context, c *ROCache, key string) (result T, found bool, err error) {
 	data, err := c.cache.Get(ctx, key)
 	if err != nil {
@@ -194,6 +202,8 @@ func getCachedTyped[T any](ctx context.Context, c *ROCache, key string) (result 
 	return result, true, nil
 }
 
+// fetchTyped executes the provided fetch observable and captures a single emitted value, if any.
+// It returns the captured value, a boolean that is true when a value was produced, and any error emitted by the observable.
 func fetchTyped[T any](fetch func() ro.Observable[T]) (result T, hasResult bool, err error) {
 	var fetchErr error
 	fetch().Subscribe(ro.NewObserver(
@@ -213,6 +223,8 @@ func fetchTyped[T any](fetch func() ro.Observable[T]) (result T, hasResult bool,
 	return result, hasResult, nil
 }
 
+// cacheTyped marshals value to JSON and stores it in the ROCache under key using the cache's TTL.
+// If JSON marshaling fails, the function returns without storing the value. Cache write errors are ignored.
 func cacheTyped[T any](ctx context.Context, c *ROCache, key string, value T) {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -359,7 +371,9 @@ func (c *ROCache) Underlying() Cache {
 //	users := fetchAllUsers()
 //	cached := Stream(ctx, roCache, users, func(u User) string {
 //	    return fmt.Sprintf("user:%d", u.ID)
-//	})
+// Stream subscribes to the source observable and writes each emitted item to the ROCache
+// using keyFunc(item) and the cache's TTL while passing the original stream through unchanged.
+// JSON marshaling failures or cache write errors are ignored.
 func Stream[T any](
 	ctx context.Context,
 	c *ROCache,

@@ -13,7 +13,9 @@ type WeightedFailoverRouter struct {
 }
 
 // NewWeightedFailoverRouter creates a weighted failover router with the given timeout.
-// If timeout is 0, defaults to 5 seconds. If triggers is empty, uses DefaultTriggers().
+// NewWeightedFailoverRouter constructs a WeightedFailoverRouter configured with the
+// provided timeout and failover triggers. If timeout is 0, it defaults to 5 seconds;
+// if no triggers are provided, DefaultTriggers() is used.
 func NewWeightedFailoverRouter(timeout time.Duration, triggers ...FailoverTrigger) *WeightedFailoverRouter {
 	if timeout == 0 {
 		timeout = 5 * time.Second
@@ -105,6 +107,10 @@ func (r *WeightedFailoverRouter) weightedOrder(providers []ProviderInfo) []Provi
 	return order
 }
 
+// weightedIndex selects a provider index at random, proportional to each provider's effective weight.
+// It treats weights <= 0 as 1. If the sum of effective weights is <= 0, it returns 0.
+// A random roll in [0, total) is drawn using randIntn(total) and mapped to the provider whose
+// cumulative weight contains the roll. If mapping fails unexpectedly, the last index is returned.
 func weightedIndex(providers []ProviderInfo) int {
 	total := 0
 	for _, p := range providers {
@@ -125,6 +131,8 @@ func weightedIndex(providers []ProviderInfo) int {
 	return len(providers) - 1
 }
 
+// effectiveWeight returns the effective weight used for routing.
+// It treats any weight less than or equal to zero as 1; otherwise it returns the given weight.
 func effectiveWeight(weight int) int {
 	if weight <= 0 {
 		return 1

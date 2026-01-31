@@ -248,7 +248,8 @@ func (h *Checker) checkAllProviders() {
 	}
 }
 
-// cryptoRandDuration returns a cryptographically random duration between 0 and maxDur.
+// cryptoRandDuration returns a cryptographically secure random duration d such that 0 <= d < maxDur.
+// If maxDur is less than or equal to zero, or if a secure random value cannot be obtained, it returns 0.
 func cryptoRandDuration(maxDur time.Duration) time.Duration {
 	if maxDur <= 0 {
 		return 0

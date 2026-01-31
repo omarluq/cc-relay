@@ -100,7 +100,10 @@ func FilterHealthy(providerInfos []ProviderInfo) []ProviderInfo {
 //   - round_robin: Sequential rotation
 //   - weighted_round_robin: Weighted sequential rotation
 //   - shuffle: Random selection
-//   - failover: Priority-based with fallback (default)
+// NewRouter creates a ProviderRouter for the given strategy.
+// It defaults an empty strategy to "failover" and returns an error for unknown strategies.
+// The provided timeout is applied to routers that require a timeout (failover, weighted_failover, and model-based which uses failover).
+// Supported strategies: "round_robin", "shuffle", "weighted_round_robin", "failover", "model_based", "least_loaded", "weighted_failover".
 func NewRouter(strategy string, timeout time.Duration) (ProviderRouter, error) {
 	// Normalize empty to default strategy
 	if strategy == "" {

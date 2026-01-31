@@ -15,12 +15,23 @@ var configInitCmd = &cobra.Command{
 	RunE:  runConfigInit,
 }
 
+// init registers the config "init" subcommand and its CLI flags.
+// It adds the command to configCmd and defines the "output" (-o) flag for the target
+// config file path (default: ~/.config/cc-relay/config.yaml) and the "force" flag
+// to allow overwriting an existing config file.
 func init() {
 	configCmd.AddCommand(configInitCmd)
 	configInitCmd.Flags().StringP("output", "o", "", "output path (default: ~/.config/cc-relay/config.yaml)")
 	configInitCmd.Flags().Bool("force", false, "overwrite existing config file")
 }
 
+// runConfigInit creates a default configuration file for cc-relay at the provided
+// output path or, if none is provided, at ~/.config/cc-relay/config.yaml.
+// It creates parent directories as needed (permissions 0750), writes the config
+// file with permissions 0600, and prints post-creation next steps to stdout.
+// It returns an error if flag retrieval fails, if the target file already exists
+// and --force is not set, or if any filesystem operation (directory creation or
+// file write) fails.
 func runConfigInit(cmd *cobra.Command, _ []string) error {
 	output, err := cmd.Flags().GetString("output")
 	if err != nil {

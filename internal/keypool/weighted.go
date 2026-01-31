@@ -8,7 +8,7 @@ import (
 type WeightedSelector struct {
 }
 
-// NewWeightedSelector creates a new weighted selector.
+// NewWeightedSelector returns a new WeightedSelector that selects available keys using weighted random selection.
 func NewWeightedSelector() *WeightedSelector {
 	return &WeightedSelector{
 	}
@@ -54,6 +54,8 @@ func (s *WeightedSelector) Name() string {
 	return StrategyWeighted
 }
 
+// effectiveKeyWeight normalizes a key weight so that it is always at least 1.
+// If the provided weight is less than or equal to zero, it returns 1; otherwise it returns the original weight.
 func effectiveKeyWeight(weight int) int {
 	if weight <= 0 {
 		return 1

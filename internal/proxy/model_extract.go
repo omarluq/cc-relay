@@ -23,7 +23,9 @@ type bodyTooLargeKey struct{}
 // The request body is restored for subsequent reads.
 //
 // If the body exceeds max_body_bytes limit (set via http.MaxBytesReader),
-// returns mo.None. Use ExtractModelWithBodyCheck for explicit error detection.
+// ExtractModelFromRequest extracts the "model" field from the JSON request body and restores the body for downstream use.
+// It returns mo.Some(model) when a non-empty "model" string is present, or mo.None when extraction fails or the field is absent.
+// For callers that need to distinguish a body-too-large read error, use ExtractModelWithBodyCheck.
 func ExtractModelFromRequest(r *http.Request) mo.Option[string] {
 	model, _ := ExtractModelWithBodyCheck(r)
 	return model
@@ -35,7 +37,9 @@ func ExtractModelFromRequest(r *http.Request) mo.Option[string] {
 //   - mo.None[string] if body is missing, malformed, or has no model field
 //   - bodyTooLarge=true if reading failed due to http.MaxBytesReader limit
 //
-// The request body is always restored for downstream use.
+// ExtractModelWithBodyCheck extracts the "model" field from the request JSON body and restores the body so it remains usable by downstream handlers.
+// It returns mo.Some(model) when a non-empty "model" string is present in the parsed JSON, otherwise mo.None[string]().
+// The boolean return value is true only when reading the body failed due to a body-too-large error; on nil body, read errors other than size limits, JSON parse failures, or missing/empty "model", it returns false.
 func ExtractModelWithBodyCheck(r *http.Request) (model mo.Option[string], bodyTooLarge bool) {
 	if r.Body == nil {
 		return mo.None[string](), false
@@ -71,12 +75,13 @@ func ExtractModelWithBodyCheck(r *http.Request) (model mo.Option[string], bodyTo
 	return mo.Some(modelStr), false
 }
 
-// MarkBodyTooLarge stores the body too large flag in the request context.
+// MarkBodyTooLarge returns a copy of ctx with a boolean flag set indicating the request body was too large to read.
 func MarkBodyTooLarge(ctx context.Context) context.Context {
 	return context.WithValue(ctx, bodyTooLargeKey{}, true)
 }
 
-// IsBodyTooLargeFromContext checks if body too large was detected during model extraction.
+// IsBodyTooLargeFromContext reports whether the request context contains a flag indicating the request body was too large during extraction.
+// It returns true if the flag is present and set to true, otherwise false.
 func IsBodyTooLargeFromContext(ctx context.Context) bool {
 	v, ok := ctx.Value(bodyTooLargeKey{}).(bool)
 	return ok && v

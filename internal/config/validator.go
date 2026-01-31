@@ -77,7 +77,8 @@ func (c *Config) Validate() error {
 	return errs.ToError()
 }
 
-// validateServer validates the server configuration section.
+// validateServer checks server configuration and records validation errors into errs.
+// It requires server.listen to be present and a valid host:port address, and verifies that Server.TimeoutMS, Server.MaxConcurrent, and Server.MaxBodyBytes are >= 0.
 func validateServer(c *Config, errs *ValidationError) {
 	// Server.Listen is required
 	if c.Server.Listen == "" {
@@ -142,7 +143,10 @@ func validateProviders(c *Config, errs *ValidationError) {
 	}
 }
 
-// validateProvider validates a single provider configuration.
+// validateProvider validates a single ProviderConfig and records any problems.
+// It adds validation errors to errs and records provider names in seenNames to detect duplicates.
+// Checks performed include presence and uniqueness of the provider name, validity of the provider type,
+// cloud-provider specific configuration, validation of each API key, and the pooling.strategy value.
 func validateProvider(p *ProviderConfig, index int, seenNames map[string]bool, errs *ValidationError) {
 	prefix := func(field string) string {
 		if p.Name != "" {
@@ -244,7 +248,8 @@ func validateProviderKey(k *KeyConfig, providerName string, index int, errs *Val
 	}
 }
 
-// validateRouting validates the routing configuration section.
+// validateRouting validates the routing-related fields of cfg and records any problems on errs.
+// It verifies that a non-empty Strategy is one of the allowed strategies, that FailoverTimeout is greater than or equal to zero, and that ModelMapping is provided when Strategy is "model_based".
 func validateRouting(c *Config, errs *ValidationError) {
 	// Strategy must be valid if set
 	if c.Routing.Strategy != "" && !validRoutingStrategies[c.Routing.Strategy] {

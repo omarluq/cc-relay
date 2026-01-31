@@ -52,7 +52,7 @@ type KeyMetadata struct {
 // Initial state: full capacity, healthy, normal priority.
 //
 // Note: The hash is for identification/logging only, NOT for security comparison.
-// The key ID appears in logs for debugging purposes. It's not used for authentication.
+// Remaining capacities are initialized to their respective limits. The key is marked healthy and given default Priority and Weight of 1.
 func NewKeyMetadata(apiKey string, rpm, itpm, otpm int) *KeyMetadata {
 	hasher := fnv.New64a()
 	_, _ = hasher.Write([]byte(apiKey))

@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// randIntn returns an integer in the range [0, n). If n <= 0, it returns 0.
+// It prefers a cryptographically secure random value and falls back to a time-based value if the secure RNG fails.
 func randIntn(n int) int {
 	if n <= 0 {
 		return 0

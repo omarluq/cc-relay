@@ -16,7 +16,7 @@ type Tracker struct {
 	mu       sync.RWMutex
 }
 
-// NewTracker creates a new Tracker with the given configuration.
+// NewTracker creates a Tracker initialized with the provided CircuitBreakerConfig and logger, and with an empty circuits map.
 func NewTracker(cfg CircuitBreakerConfig, logger *zerolog.Logger) *Tracker {
 	return &Tracker{
 		circuits: make(map[string]*CircuitBreaker),

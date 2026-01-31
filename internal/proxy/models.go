@@ -24,14 +24,15 @@ type ModelsHandler struct {
 // ProvidersGetter returns the current provider list for live updates.
 type ProvidersGetter func() []providers.Provider
 
-// NewModelsHandler creates a new models handler with the given providers.
+// NewModelsHandler creates a ModelsHandler that uses the provided static list of providers.
+// The providerList parameter supplies the fallback providers returned by the handler when no live provider function is configured.
 func NewModelsHandler(providerList []providers.Provider) *ModelsHandler {
 	return &ModelsHandler{
 		providers: providerList,
 	}
 }
 
-// NewModelsHandlerWithProviderFunc creates a models handler with a live provider accessor.
+// getProviders is invoked to fetch the current slice of providers whenever the handler assembles the models response.
 func NewModelsHandlerWithProviderFunc(getProviders ProvidersGetter) *ModelsHandler {
 	return &ModelsHandler{
 		getProviders: getProviders,

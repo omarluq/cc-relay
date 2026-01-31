@@ -29,14 +29,16 @@ type ProvidersHandler struct {
 	providers    []providers.Provider
 }
 
-// NewProvidersHandler creates a new providers handler with the given providers.
+// NewProvidersHandler returns a ProvidersHandler that serves the given static list of providers.
+// The provided list is used when no live provider accessor (getProviders) is configured.
 func NewProvidersHandler(providerList []providers.Provider) *ProvidersHandler {
 	return &ProvidersHandler{
 		providers: providerList,
 	}
 }
 
-// NewProvidersHandlerWithProviderFunc creates a providers handler with a live provider accessor.
+// NewProvidersHandlerWithProviderFunc returns a ProvidersHandler that uses the provided getProviders function to obtain the live list of providers when serving requests.
+// The supplied getProviders function will be called at request time to fetch current providers.
 func NewProvidersHandlerWithProviderFunc(getProviders ProvidersGetter) *ProvidersHandler {
 	return &ProvidersHandler{
 		getProviders: getProviders,

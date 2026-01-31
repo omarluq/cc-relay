@@ -132,6 +132,9 @@ func (l *TokenBucketLimiter) GetUsage() Usage {
 	}
 }
 
+// clampUsage clamps remaining to the inclusive range [0, limit].
+// It returns 0 if remaining is less than 0, limit if remaining is greater than limit,
+// or remaining otherwise.
 func clampUsage(remaining, limit int) int {
 	if remaining < 0 {
 		return 0

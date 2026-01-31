@@ -21,7 +21,13 @@ type thinkingAffinityContextKey struct{}
 // be validated by the same provider. If requests are routed to a different
 // provider (e.g., via round-robin), the signature validation fails.
 //
-// The request body is restored for subsequent reads.
+// HasThinkingSignature reports whether the HTTP request body contains an assistant
+// message with a content block of type "thinking" that includes a non-empty
+// signature.
+//
+// The request body is restored and r.ContentLength is updated so the request can
+// be read again by downstream handlers. If the body cannot be read or parsed as
+// the expected JSON structure, HasThinkingSignature returns false.
 func HasThinkingSignature(r *http.Request) bool {
 	if r.Body == nil {
 		return false

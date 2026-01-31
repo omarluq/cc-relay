@@ -44,6 +44,11 @@ func init() {
 		"enable debug mode (sets log level to debug and enables all debug options)")
 }
 
+// runServe initializes configuration and services, configures logging, starts the health checker and configuration watcher, and runs the HTTP server with graceful shutdown.
+// 
+// It determines the configuration file path, constructs the dependency injection container, applies CLI overrides to the configuration, initializes the logger, lazily obtains the server service, starts the health checker, and starts a watcher for config hot-reloads before invoking runWithGracefulShutdown.
+// 
+// It returns any error encountered during initialization or while starting/running the server.
 func runServe(_ *cobra.Command, _ []string) error {
 	// Determine config path
 	configPath := cfgFile

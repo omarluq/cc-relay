@@ -17,7 +17,11 @@ import "github.com/samber/do/v2"
 // 11. SignatureCache (depends on Cache)
 // 12. Concurrency (depends on Config) - global request limiter
 // 13. Handler (depends on all above services)
-// 14. Server (depends on Handler, Config).
+// RegisterSingletons registers application constructors as singletons into the provided injector.
+// Registrations are ordered to satisfy service dependencies (Config first, Server last) and include
+// Config, Logger, Cache, ProviderMap, KeyPool, KeyPoolMap, Router, HealthTracker, Checker,
+// ProviderInfo, SignatureCache, ConcurrencyService, ProxyHandler, and HTTPServer. The given injector
+// is populated via do.Provide for each constructor.
 func RegisterSingletons(i do.Injector) {
 	do.Provide(i, NewConfig)
 	do.Provide(i, NewLogger)

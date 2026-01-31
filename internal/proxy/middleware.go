@@ -29,7 +29,12 @@ const authSucceededMsg = "authentication succeeded"
 // - API keys are high-entropy secrets (32+ random characters), not passwords
 // - SHA-256 provides sufficient pre-image resistance for high-entropy inputs
 // - Pre-hashing at middleware creation prevents per-request hash computation
-// - Constant-time comparison (subtle.ConstantTimeCompare) prevents timing attacks.
+// AuthMiddleware creates HTTP middleware that enforces an API key provided in the x-api-key header.
+// 
+// The middleware pre-hashes the expected API key at creation time and compares it to the provided
+// key using a constant-time comparison to mitigate timing attacks. If the header is missing or the
+// key is invalid, the middleware writes a 401 Unauthorized authentication error; on success it logs
+// authentication and calls the next handler.
 func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 	// Pre-hash expected key at creation time (not per-request)
 	expectedHash := sha256.Sum256([]byte(expectedAPIKey))
@@ -121,6 +126,8 @@ func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.
 // DebugOptionsProvider returns current debug options for live-config logging.
 type DebugOptionsProvider func() config.DebugOptions
 
+// withRequestFields returns a zerolog.Context with the HTTP method, request path,
+// and short request ID ("req_id") fields populated for logging.
 func withRequestFields(ctx context.Context, r *http.Request, shortID string) zerolog.Context {
 	return zerolog.Ctx(ctx).With().
 		Str("method", r.Method).
@@ -128,6 +135,9 @@ func withRequestFields(ctx context.Context, r *http.Request, shortID string) zer
 		Str("req_id", shortID)
 }
 
+// logRequestStart logs the start of an HTTP request, including method, path, and the provided short request ID.
+// If the global logger level is debug and debugOpts.LogRequestBody is true, it also adds a redacted preview of the request body
+// as the `body_preview` field when a preview is available.
 func logRequestStart(ctx context.Context, r *http.Request, shortID string, debugOpts config.DebugOptions) {
 	logger := withRequestFields(ctx, r, shortID).Logger()
 	logEvent := logger.Info()
@@ -187,7 +197,11 @@ func statusSymbol(statusCode int) string {
 	}
 }
 
-// LoggingMiddlewareWithProvider logs each request using live debug options.
+// LoggingMiddlewareWithProvider returns middleware that logs request start and completion
+// using live debug options obtained from the provided DebugOptionsProvider.
+// If provider is nil, default debug options are used. The middleware attaches a per-request
+// timing container to the context, wraps the ResponseWriter to capture status and streaming
+// metrics, and records duration and final status on completion.
 func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -490,7 +504,9 @@ type ConcurrencyLimiter struct {
 }
 
 // NewConcurrencyLimiter creates a new concurrency limiter with the given max limit.
-// A limit of 0 or negative means unlimited.
+// NewConcurrencyLimiter creates a ConcurrencyLimiter initialized with the provided maximum
+// number of concurrent in-flight requests. A maxLimit of 0 or any negative value means
+// the limiter is unlimited. The returned limiter's current in-flight count starts at zero.
 func NewConcurrencyLimiter(maxLimit int64) *ConcurrencyLimiter {
 	l := &ConcurrencyLimiter{}
 	l.limit.Store(maxLimit)
@@ -544,7 +560,7 @@ func (l *ConcurrencyLimiter) Release() {
 }
 
 // ConcurrencyMiddleware creates middleware that enforces a global concurrency limit.
-// Uses the provided ConcurrencyLimiter which supports hot-reload via SetLimit.
+// it is released after the wrapped handler completes.
 func ConcurrencyMiddleware(limiter *ConcurrencyLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -565,7 +581,14 @@ func ConcurrencyMiddleware(limiter *ConcurrencyLimiter) func(http.Handler) http.
 
 // MaxBodyBytesMiddleware creates middleware that limits request body size.
 // Uses http.MaxBytesReader to enforce the limit efficiently.
-// The limitProvider is called per-request to support hot-reload.
+// MaxBodyBytesMiddleware returns middleware that enforces a per-request maximum request
+// body size using the provided limitProvider.
+//
+// MaxBodyBytesMiddleware calls limitProvider for each incoming request (allowing hot-reload
+// of the limit). If the provider returns a value greater than zero and the request has a
+// non-nil Body, the middleware replaces r.Body with an http.MaxBytesReader that enforces
+// that limit. If the limit is zero or negative, or the request has no Body, the request
+// is passed through unchanged.
 func MaxBodyBytesMiddleware(limitProvider func() int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -26,6 +26,8 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
+// runStatus checks the cc-relay /health endpoint using the loaded configuration and prints a success or failure message.
+// It returns nil when the endpoint responds with HTTP 200; otherwise it returns an error describing the failure (configuration load error, request creation error, unreachable server, non-200 status, or timeout).
 func runStatus(_ *cobra.Command, _ []string) error {
 	// Load config to get server listen address
 	configPath := cfgFile

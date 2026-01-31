@@ -29,6 +29,10 @@ type CircuitBreaker struct {
 // NewCircuitBreaker creates a CircuitBreaker configured with the provided name, configuration, and optional logger.
 // Negative half-open probe or failure-threshold values in cfg are replaced with package defaults.
 // If logger is non-nil, state transitions are logged (Info level, Warn when the breaker opens).
+// NewCircuitBreaker creates a CircuitBreaker configured for the given provider name using values from cfg and an optional logger.
+// It derives half-open probe and failure-threshold values from cfg (using package defaults when negative), clamps them to uint32 bounds,
+// sets the breaker timeout and max-requests, and trips when consecutive failures reach the configured threshold.
+// When provided, logger is used to record state transitions (logged at Warn level when opening).
 // The breaker treats a nil error and context.Canceled as successful outcomes.
 func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Logger) *CircuitBreaker {
 	// Get config values with safe uint32 conversion
@@ -76,6 +80,8 @@ func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Lo
 	}
 }
 
+// safeUint32 converts an int to uint32, returning 0 for values less than or equal to 0
+// and math.MaxUint32 for values greater than math.MaxUint32.
 func safeUint32(value int) uint32 {
 	if value <= 0 {
 		return 0

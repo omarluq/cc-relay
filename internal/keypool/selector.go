@@ -32,7 +32,12 @@ const (
 
 // NewSelector creates a KeySelector based on the strategy name.
 // Returns an error if the strategy is unknown.
-// Empty string defaults to least_loaded.
+// NewSelector returns a KeySelector implementation corresponding to the provided
+// strategy name.
+ // If strategy is an empty string, StrategyLeastLoaded is used.
+// Supported values are StrategyLeastLoaded, StrategyRoundRobin,
+// StrategyRandom, and StrategyWeighted. If an unknown strategy is supplied,
+// the function returns an error describing the unrecognized value.
 func NewSelector(strategy string) (KeySelector, error) {
 	switch strategy {
 	case StrategyLeastLoaded, "":

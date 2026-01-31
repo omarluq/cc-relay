@@ -14,7 +14,8 @@ type ConcurrencyService struct {
 }
 
 // NewConcurrencyService creates the concurrency limiter service.
-// The limiter is initialized with the current config value and updated on hot-reload.
+// NewConcurrencyService constructs a ConcurrencyService whose Limiter is initialized from the current configuration and kept in sync with hot-reloads.
+// If no configuration is available, the limiter's initial limit is 0. It registers a watcher on the ConfigService to update the limiter when Server.MaxConcurrent changes.
 func NewConcurrencyService(i do.Injector) (*ConcurrencyService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	cfg := cfgSvc.Get()

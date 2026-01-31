@@ -15,7 +15,8 @@ type LeastLoadedRouter struct {
 	mu       sync.Mutex
 }
 
-// NewLeastLoadedRouter creates a new least-loaded router.
+// NewLeastLoadedRouter creates a new LeastLoadedRouter with its per-provider
+// in-flight counters map initialized for tracking concurrent requests.
 func NewLeastLoadedRouter() *LeastLoadedRouter {
 	return &LeastLoadedRouter{
 		inFlight: make(map[string]*atomic.Int64),

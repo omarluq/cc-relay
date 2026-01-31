@@ -164,7 +164,8 @@ func parseEventStreamHeaders(data []byte) (map[string]string, error) {
 	return headers, nil
 }
 
-// parseHeaderName parses a header name from the data at the given offset.
+// parseHeaderName reads a 1-byte length at offset and returns the header name and the offset immediately after the name.
+// It returns an error if the length byte or the subsequent name bytes are truncated.
 func parseHeaderName(data []byte, offset int) (name string, newOffset int, err error) {
 	b, next, err := readByte(data, offset)
 	if err != nil {
@@ -194,7 +195,11 @@ func parseHeaderValue(
 	}
 }
 
-// parseStringHeaderValue parses a string header value.
+// parseStringHeaderValue parses a string header value from data beginning at offset.
+// It reads a 2-byte big-endian length followed by that many bytes, returns a pointer
+// to the decoded string and the offset immediately after the value. The provided
+// name is used in error messages when the length or value bytes are truncated; an
+// error is returned on any bounds or read failure.
 func parseStringHeaderValue(
 	data []byte,
 	offset int,
@@ -221,7 +226,7 @@ func parseStringHeaderValue(
 	return &strVal, end, nil
 }
 
-// skipNonStringHeader skips non-string header types, returning the new offset.
+// An error is returned if a length field or value is truncated or if the header type is unknown.
 func skipNonStringHeader(
 	data []byte,
 	offset int,
@@ -255,6 +260,8 @@ func skipNonStringHeader(
 	}
 }
 
+// readByte returns the byte at the given offset and the offset advanced by one.
+// It returns an error if the offset is outside the bounds of data.
 func readByte(data []byte, offset int) (b byte, next int, err error) {
 	if offset < 0 || offset >= len(data) {
 		return 0, offset, fmt.Errorf("offset out of bounds")
@@ -262,6 +269,10 @@ func readByte(data []byte, offset int) (b byte, next int, err error) {
 	return data[offset], offset + 1, nil
 }
 
+// readSlice returns a subslice of data starting at offset with the specified length and the updated offset after the slice.
+// 
+// If the requested range is out of bounds (length < 0, offset < 0, or offset+length > len(data)), readSlice returns a non-nil error with the message "slice out of bounds".
+// The returned next value is offset + length when no error occurs.
 func readSlice(data []byte, offset, length int) (out []byte, next int, err error) {
 	if length < 0 || offset < 0 || offset+length > len(data) {
 		return nil, 0, fmt.Errorf("slice out of bounds")
@@ -269,6 +280,10 @@ func readSlice(data []byte, offset, length int) (out []byte, next int, err error
 	return data[offset : offset+length], offset + length, nil
 }
 
+// advanceOffset advances the provided offset by length after validating that the range fits within data.
+// 
+// If the range is valid, it returns a nil string pointer, the new offset (offset + length), and a nil error.
+// If the range is out of bounds, it returns nil, 0, and an error indicating the header value for name was truncated.
 func advanceOffset(data []byte, offset, length int, name string) (val *string, next int, err error) {
 	if offset < 0 || offset+length > len(data) {
 		return nil, 0, fmt.Errorf(headerValueTruncatedFmt, name)

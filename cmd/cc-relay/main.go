@@ -45,7 +45,8 @@ func init() {
 }
 
 // main is the entry point of the application.
-// It sets up signal handling and executes the CLI with Fang styling.
+// main initializes a signal-aware context, sets the CLI version template, configures Fang options, and runs the root command.
+// If execution fails, the process exits with status code 1.
 func main() {
 	// Create signal-aware context for graceful shutdown on SIGINT/SIGTERM
 	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

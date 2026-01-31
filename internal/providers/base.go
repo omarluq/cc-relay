@@ -27,7 +27,8 @@ func NewBaseProvider(name, baseURL, owner string, models []string) BaseProvider 
 	return NewBaseProviderWithMapping(name, baseURL, owner, models, nil)
 }
 
-// NewBaseProviderWithMapping creates a new base provider with model mapping.
+// NewBaseProviderWithMapping creates a BaseProvider configured with the given name, base URL, owner, models, and optional model mapping.
+// If modelMapping is nil, the provider will use model IDs as-is (no name translation).
 func NewBaseProviderWithMapping(
 	name, baseURL, owner string,
 	models []string,

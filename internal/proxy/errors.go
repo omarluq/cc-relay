@@ -11,13 +11,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// IsBodyTooLargeError checks if an error is from http.MaxBytesReader.
+// IsBodyTooLargeError reports whether err is an *http.MaxBytesError, indicating the request body exceeded the configured maximum size.
 func IsBodyTooLargeError(err error) bool {
 	var maxBytesErr *http.MaxBytesError
 	return errors.As(err, &maxBytesErr)
 }
 
-// WriteBodyTooLargeError writes a 413 Request Entity Too Large response.
+// WriteBodyTooLargeError writes a 413 Request Entity Too Large response in the relay's
+// JSON error format with error type "request_too_large" and message
+// "Request body exceeds the maximum allowed size".
 func WriteBodyTooLargeError(w http.ResponseWriter) {
 	WriteError(w, http.StatusRequestEntityTooLarge, "request_too_large",
 		"Request body exceeds the maximum allowed size")
@@ -43,7 +45,8 @@ type ErrorDetail struct {
 	Message string `json:"message"`
 }
 
-// WriteError writes a JSON error response in Anthropic API format.
+// WriteError writes an HTTP JSON error response using the Anthropic error envelope.
+// The response body is {"type":"error","error":{"type": <errorType>, "message": <message>}} and the HTTP status code is set to statusCode.
 func WriteError(w http.ResponseWriter, statusCode int, errorType, message string) {
 	response := ErrorResponse{
 		Type: "error",
@@ -57,6 +60,10 @@ func WriteError(w http.ResponseWriter, statusCode int, errorType, message string
 }
 
 // WriteRateLimitError writes a 429 Too Many Requests response in Anthropic format.
+// WriteRateLimitError writes a 429 Too Many Requests response with rate-limit metadata.
+// 
+// WriteRateLimitError sets the Retry-After header (in seconds, minimum 1), logs the retry duration,
+// and responds with an Anthropic-formatted error of type "rate_limit_error" and a standardized message.
 // The retryAfter parameter specifies when capacity will be available.
 func WriteRateLimitError(w http.ResponseWriter, retryAfter time.Duration) {
 	// Set Retry-After header (RFC 6585)
@@ -75,6 +82,9 @@ func WriteRateLimitError(w http.ResponseWriter, retryAfter time.Duration) {
 		"All API keys are currently at rate limit capacity. Please retry after the specified time.")
 }
 
+// writeJSON marshals payload to JSON and sends it as the HTTP response with the provided status code.
+// If marshaling fails, it sends an Internal Server Error response containing the marshal error message.
+// The response Content-Type is set to "application/json". Any error that occurs while writing the response body is logged.
 func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
 	body, err := json.Marshal(payload)
 	if err != nil {

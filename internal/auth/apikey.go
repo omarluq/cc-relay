@@ -21,7 +21,8 @@ type APIKeyAuthenticator struct {
 // - API keys are high-entropy secrets (32+ random characters), not passwords
 // - SHA-256 provides sufficient pre-image resistance for high-entropy inputs
 // - Passwords require slow hashes (bcrypt/argon2) due to limited entropy
-// - Constant-time comparison prevents timing attacks (see Validate method).
+// NewAPIKeyAuthenticator creates an APIKeyAuthenticator that validates requests against the provided API key.
+// The supplied expectedKey is stored and used for constant-time comparisons during validation to mitigate timing attacks.
 func NewAPIKeyAuthenticator(expectedKey string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{
 		expectedKey: expectedKey,

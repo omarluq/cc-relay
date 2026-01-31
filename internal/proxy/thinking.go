@@ -52,7 +52,15 @@ func HasThinkingBlocks(body []byte) bool {
 // 4. Tracks signature for tool_use inheritance
 // 5. Reorders blocks so thinking comes first
 //
-// Returns modified body and context, or error.
+// ProcessRequestThinking parses the top-level "messages" array in body and processes
+// assistant messages to handle "thinking" blocks, returning a possibly modified body
+// and a ThinkingContext describing accumulated thinking state.
+//
+// If no top-level "messages" array is present, the original body and an empty
+// ThinkingContext are returned. Only messages with role "assistant" are inspected;
+// if processing any assistant message fails, the original body and the error are
+// returned. The returned ThinkingContext is populated with signature and text
+// information, and counters for dropped or reordered blocks as blocks are processed.
 func ProcessRequestThinking(
 	ctx context.Context,
 	body []byte,
@@ -106,7 +114,10 @@ type blockCollector struct {
 	modifiedTypes  []string // Tracks type of each kept block for reordering
 }
 
-// processAssistantContent processes content blocks in an assistant message.
+// processAssistantContent processes the content array of an assistant message, producing a modified set of content blocks,
+// optionally reordering thinking blocks and writing the result back into the request body.
+// If reordering occurs, it sets thinkingCtx.ReorderedBlocks to true.
+// It returns the updated body with the replaced content, or an error if the content cannot be written into the body.
 func processAssistantContent(
 	ctx context.Context,
 	body []byte,
@@ -135,7 +146,11 @@ func processAssistantContent(
 	return newBody, nil
 }
 
-// collectBlocks iterates content and collects blocks into the collector.
+// collectBlocks iterates the provided content array and appends processed blocks
+// and their corresponding types into the collector.
+// It preserves non-special blocks unchanged; thinking blocks may be omitted if
+// no valid signature is available, and tool_use blocks are returned with their
+// signature removed.
 func collectBlocks(
 	ctx context.Context,
 	content *gjson.Result,
@@ -214,7 +229,7 @@ func reorderBlocks(blocks []interface{}, types []string) []interface{} {
 }
 
 // processThinkingBlock processes a single thinking block.
-// Returns the processed block value and whether to keep it.
+// The function extracts the "thinking" text and the client-provided "signature". It attempts to obtain a cached signature for the same model and thinking text; if none is found it parses or validates the client signature. If no valid signature can be resolved the function increments thinkingCtx.DroppedBlocks and indicates the block should be dropped. On success it updates thinkingCtx.CurrentSignature with the resolved signature and returns a new map with keys "type" ("thinking"), "thinking" (the text), and "signature" (the resolved raw signature).
 func processThinkingBlock(
 	ctx context.Context,
 	block *gjson.Result,
@@ -261,7 +276,8 @@ func processThinkingBlock(
 	return result, true
 }
 
-// processToolUseBlock processes a tool_use block, ensuring no signature field is sent.
+// processToolUseBlock returns a copy of the provided tool_use block with the "signature" field removed.
+// The returned value is a map[string]interface{} representing the block's fields without the signature.
 func processToolUseBlock(block *gjson.Result, _ string) interface{} {
 	result := make(map[string]interface{})
 

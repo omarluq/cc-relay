@@ -15,7 +15,8 @@ type HandlerService struct {
 	Handler http.Handler
 }
 
-// NewProxyHandler creates the HTTP handler with all middleware.
+// NewProxyHandler constructs a HandlerService whose Handler is an HTTP handler wired with middleware, provider routing, live key-pool hot-reload, provider info and router hot-reload, signature caching, health tracking, and a hot-reloadable concurrency limiter.
+// It returns an error if proxy route setup fails.
 func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	providerSvc := do.MustInvoke[*ProviderMapService](i)

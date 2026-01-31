@@ -47,7 +47,17 @@ func WithDebounceDelay(d time.Duration) WatcherOption {
 
 // NewWatcher creates a new config file watcher for the given path.
 // The path is resolved to an absolute path. The watcher monitors the parent
-// directory to properly detect atomic writes (temp file + rename pattern).
+// NewWatcher creates a Watcher for the given file path.
+//
+// It resolves the provided path to an absolute path, initializes an underlying
+// fsnotify watcher, applies any WatcherOption values, and begins watching the
+// file's parent directory to detect atomic write patterns (temporary file
+// creation followed by rename). The returned Watcher uses a default debounce
+// delay of 100ms which can be overridden via options.
+//
+// The function returns an error if the path cannot be resolved, the fsnotify
+// watcher cannot be created, or adding the parent directory to the watcher
+// fails.
 func NewWatcher(path string, opts ...WatcherOption) (*Watcher, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {

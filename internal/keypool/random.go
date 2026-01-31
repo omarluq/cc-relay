@@ -8,7 +8,7 @@ import (
 type RandomSelector struct {
 }
 
-// NewRandomSelector creates a new random selector.
+// NewRandomSelector creates a new RandomSelector.
 func NewRandomSelector() *RandomSelector {
 	return &RandomSelector{
 	}

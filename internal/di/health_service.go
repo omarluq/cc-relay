@@ -27,7 +27,8 @@ type CheckerService struct {
 	startedMu sync.Mutex
 }
 
-// NewHealthTracker creates the health tracker from configuration.
+// NewHealthTracker constructs a HealthTrackerService using configuration and logger from the injector.
+// It retrieves ConfigService and LoggerService from the injector and builds a health.Tracker configured with the circuit breaker settings.
 func NewHealthTracker(i do.Injector) (*HealthTrackerService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	loggerSvc := do.MustInvoke[*LoggerService](i)
@@ -43,7 +44,9 @@ func NewHealthTracker(i do.Injector) (*HealthTrackerService, error) {
 	}, nil
 }
 
-// NewChecker creates the health checker from configuration.
+// NewChecker creates a CheckerService wired from the dependency injector, builds the initial health checker from the current configuration, and begins watching for configuration reloads.
+// 
+// The returned service is ready to be started; if configuration-based construction fails, an error is returned.
 func NewChecker(i do.Injector) (*CheckerService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
@@ -145,6 +148,7 @@ func (h *CheckerService) swapChecker(checker *health.Checker) {
 	}
 }
 
+// - "azure":  uses pc.AzureResourceName to form "https://{resource}.services.ai.azure.com"
 func providerHealthBaseURL(pc *config.ProviderConfig) string {
 	baseURL := pc.BaseURL
 	switch pc.Type {
