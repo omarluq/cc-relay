@@ -259,6 +259,55 @@ func TestParseSignature(t *testing.T) {
 	}
 }
 
+func TestProcessRequestThinkingPreservesUnknownFields(t *testing.T) {
+	// Regression test for Anthropic API error:
+	// "thinking blocks in the latest assistant message cannot be modified"
+	// The proxy was reconstructing thinking blocks from scratch, losing fields like
+	// 'data' and 'redacted_thinking' that Anthropic now requires to be preserved.
+	ctx := context.Background()
+
+	sig := "valid_signature_that_is_definitely_long_enough_for_validation"
+
+	// Thinking block with additional fields that must be preserved
+	body := `{
+		"model": "claude-sonnet-4",
+		"messages": [
+			{
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": "Some thinking...",
+						"signature": "` + sig + `",
+						"data": {"some": "metadata", "tokens": 1234}
+					},
+					{
+						"type": "thinking",
+						"thinking": "Redacted thinking...",
+						"signature": "` + sig + `",
+						"redacted_thinking": true
+					}
+				]
+			}
+		]
+	}`
+
+	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, thinkingCtx.DroppedBlocks)
+
+	// Verify first thinking block preserves 'data' field
+	dataField := gjson.GetBytes(modifiedBody, "messages.0.content.0.data")
+	assert.True(t, dataField.Exists(), "data field should be preserved")
+	assert.Equal(t, "metadata", dataField.Get("some").String(), "data.some should be preserved")
+	assert.Equal(t, float64(1234), dataField.Get("tokens").Float(), "data.tokens should be preserved")
+
+	// Verify second thinking block preserves 'redacted_thinking' field
+	redactedField := gjson.GetBytes(modifiedBody, "messages.0.content.1.redacted_thinking")
+	assert.True(t, redactedField.Exists(), "redacted_thinking field should be preserved")
+	assert.True(t, redactedField.Bool(), "redacted_thinking should be true")
+}
+
 func TestProcessResponseSignature(t *testing.T) {
 	cfg := cache.Config{
 		Mode: cache.ModeSingle,

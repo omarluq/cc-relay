@@ -114,7 +114,99 @@ type blockCollector struct {
 	modifiedTypes  []string // Tracks type of each kept block for reordering
 }
 
+// thinkingBlockResult holds the outcome of processing a single thinking block.
+type thinkingBlockResult struct {
+	signature  string
+	blockIndex int64
+	keep       bool
+}
+
+// blockAnalysis holds the results of analyzing content blocks.
+type blockAnalysis struct {
+	thinkingResults []thinkingBlockResult
+	blockTypes      []string
+	toolUseIndexes  []int64
+	totalBlocks     int
+}
+
+// analyzeContentBlocks scans content for thinking/tool_use blocks and their signatures.
+// Extracted to reduce cognitive complexity of processAssistantContent.
+func analyzeContentBlocks(
+	ctx context.Context,
+	content *gjson.Result,
+	modelName string,
+	cache *SignatureCache,
+	thinkingCtx *ThinkingContext,
+) blockAnalysis {
+	var analysis blockAnalysis
+
+	content.ForEach(func(key, block gjson.Result) bool {
+		blockType := block.Get("type").String()
+		analysis.blockTypes = append(analysis.blockTypes, blockType)
+		analysis.totalBlocks++
+
+		switch blockType {
+		case blockTypeThinking:
+			sig := resolveThinkingSignature(ctx, &block, modelName, cache)
+			keep := sig != ""
+			if keep {
+				thinkingCtx.CurrentSignature = sig
+			}
+			analysis.thinkingResults = append(analysis.thinkingResults, thinkingBlockResult{
+				blockIndex: key.Int(),
+				signature:  sig,
+				keep:       keep,
+			})
+		case blockTypeToolUse:
+			if block.Get("signature").Exists() {
+				analysis.toolUseIndexes = append(analysis.toolUseIndexes, key.Int())
+			}
+		}
+		return true
+	})
+
+	return analysis
+}
+
 // processAssistantContent processes content blocks in an assistant message.
+// Uses surgical in-place edits when possible (only updating signature fields),
+// falling back to full content replacement only when blocks need to be dropped
+// or reordered. This preserves the original JSON structure byte-for-byte for
+// thinking blocks, which the Anthropic API requires.
+// countKeptBlocks returns how many blocks will be kept after dropping unsigned thinking.
+func (a *blockAnalysis) countKeptBlocks() int {
+	kept := a.totalBlocks
+	for _, r := range a.thinkingResults {
+		if !r.keep {
+			kept--
+		}
+	}
+	return kept
+}
+
+// rebuildContent rebuilds the content array via the slow path (drops or reordering).
+func rebuildContent(
+	ctx context.Context,
+	body []byte,
+	msgIndex int64,
+	content *gjson.Result,
+	modelName string,
+	cache *SignatureCache,
+	thinkingCtx *ThinkingContext,
+	needsReorder bool,
+) ([]byte, error) {
+	thinkingCtx.ReorderedBlocks = needsReorder
+	collector := &blockCollector{}
+	collectBlocks(ctx, content, modelName, cache, thinkingCtx, collector)
+
+	if needsReorder {
+		collector.modifiedBlocks = reorderBlocks(collector.modifiedBlocks, collector.modifiedTypes)
+	}
+
+	path := fmt.Sprintf("messages.%d.content", msgIndex)
+	return sjson.SetBytes(body, path, collector.modifiedBlocks)
+}
+
 func processAssistantContent(
 	ctx context.Context,
 	body []byte,
@@ -124,26 +216,112 @@ func processAssistantContent(
 	cache *SignatureCache,
 	thinkingCtx *ThinkingContext,
 ) (modifiedBody []byte, dropMessage bool, err error) {
-	collector := &blockCollector{}
-	collectBlocks(ctx, content, modelName, cache, thinkingCtx, collector)
-	if len(collector.modifiedBlocks) == 0 {
+	analysis := analyzeContentBlocks(ctx, content, modelName, cache, thinkingCtx)
+	keptCount := analysis.countKeptBlocks()
+
+	if keptCount == 0 {
+		thinkingCtx.DroppedBlocks += analysis.totalBlocks - keptCount
 		return body, true, nil
 	}
 
-	// Check if reordering is needed (uses tracked types, not original content)
-	if needsReordering(collector) {
-		thinkingCtx.ReorderedBlocks = true
-		collector.modifiedBlocks = reorderBlocks(collector.modifiedBlocks, collector.modifiedTypes)
+	needsDrop := keptCount < analysis.totalBlocks
+	needsReorder := !needsDrop && checkReorderNeeded(analysis.blockTypes)
+
+	if !needsDrop && !needsReorder {
+		return surgicalUpdate(body, msgIndex, analysis.thinkingResults, analysis.toolUseIndexes)
 	}
 
-	// Update the content array in the body
-	path := fmt.Sprintf("messages.%d.content", msgIndex)
-	newBody, err := sjson.SetBytes(body, path, collector.modifiedBlocks)
+	newBody, err := rebuildContent(ctx, body, msgIndex, content, modelName, cache, thinkingCtx, needsReorder)
 	if err != nil {
 		return body, false, fmt.Errorf("failed to set content: %w", err)
 	}
 
 	return newBody, false, nil
+}
+
+// surgicalUpdate updates only the signature fields in-place without re-serializing blocks.
+// This preserves the original JSON structure byte-for-byte, which Anthropic requires.
+func surgicalUpdate(
+	body []byte,
+	msgIndex int64,
+	thinkingResults []thinkingBlockResult,
+	toolUseIndexes []int64,
+) (modifiedBody []byte, dropMessage bool, err error) {
+	modifiedBody = body
+
+	// Update thinking block signatures in place
+	for _, r := range thinkingResults {
+		if !r.keep {
+			continue
+		}
+		path := fmt.Sprintf("messages.%d.content.%d.signature", msgIndex, r.blockIndex)
+		modifiedBody, err = sjson.SetBytes(modifiedBody, path, r.signature)
+		if err != nil {
+			return body, false, fmt.Errorf("failed to update signature: %w", err)
+		}
+	}
+
+	// Remove signature from tool_use blocks
+	for _, idx := range toolUseIndexes {
+		path := fmt.Sprintf("messages.%d.content.%d.signature", msgIndex, idx)
+		modifiedBody, err = sjson.DeleteBytes(modifiedBody, path)
+		if err != nil {
+			return body, false, fmt.Errorf("failed to delete tool_use signature: %w", err)
+		}
+	}
+
+	return modifiedBody, false, nil
+}
+
+// resolveThinkingSignature resolves the signature for a thinking block.
+// Returns the valid signature, or empty string if block should be dropped.
+//
+// Priority order:
+// 1. Client-provided signature (if valid/prefixed) — most authoritative
+// 2. Cached signature — for unsigned blocks from previous responses
+// 3. Drop — if no valid signature available.
+func resolveThinkingSignature(
+	ctx context.Context,
+	block *gjson.Result,
+	modelName string,
+	cache *SignatureCache,
+) string {
+	thinkingText := block.Get("thinking").String()
+	clientSig := block.Get("signature").String()
+
+	// First, try to use the client-provided signature.
+	// The client sends back the exact signature we gave them, which is the
+	// most authoritative source for this specific thinking block.
+	if clientSig != "" {
+		// Check if it's a prefixed signature from us
+		_, rawSig, ok := ParseSignature(clientSig)
+		if ok {
+			return rawSig // Strip the prefix, return the original signature
+		}
+		// Check if it's a valid unprefixed signature
+		if IsValidSignature(modelName, clientSig) {
+			return clientSig
+		}
+	}
+
+	// Client didn't provide a valid signature — try cache as fallback.
+	// This handles the case where the client sends an unsigned thinking block
+	// that we previously signed (cached from the response).
+	if cache != nil {
+		if cached := cache.Get(ctx, modelName, thinkingText); cached != "" {
+			return cached
+		}
+	}
+
+	// No valid signature available — block should be dropped
+	return ""
+}
+
+// checkReorderNeeded checks if thinking blocks need to be moved before other blocks.
+func checkReorderNeeded(blockTypes []string) bool {
+	firstThinking := findFirstIndex(blockTypes, blockTypeThinking)
+	firstOther := findFirstNonIndex(blockTypes, blockTypeThinking)
+	return firstThinking != -1 && firstOther != -1 && firstOther < firstThinking
 }
 
 func assistantContent(msg *gjson.Result) (gjson.Result, bool) {
@@ -175,6 +353,7 @@ func dropMessagesByIndex(body []byte, indexes []int) ([]byte, error) {
 }
 
 // collectBlocks iterates content and collects blocks into the collector.
+// Used only in the slow path (drops or reordering needed).
 func collectBlocks(
 	ctx context.Context,
 	content *gjson.Result,
@@ -203,16 +382,6 @@ func collectBlocks(
 		}
 		return true
 	})
-}
-
-// needsReordering checks if thinking blocks need to be moved before other blocks.
-// Uses tracked types from collector instead of re-parsing original content.
-func needsReordering(collector *blockCollector) bool {
-	firstThinkingIdx := findFirstIndex(collector.modifiedTypes, blockTypeThinking)
-	firstOtherIdx := findFirstNonIndex(collector.modifiedTypes, blockTypeThinking)
-
-	// Only reorder if we have both types and other comes before thinking
-	return firstThinkingIdx != -1 && firstOtherIdx != -1 && firstOtherIdx < firstThinkingIdx
 }
 
 // findFirstIndex returns the index of the first occurrence of target, or -1.
@@ -254,6 +423,8 @@ func reorderBlocks(blocks []interface{}, types []string) []interface{} {
 
 // processThinkingBlock processes a single thinking block.
 // Returns the processed block value and whether to keep it.
+// Preserves ALL original fields except updating the signature field.
+// Used only in the slow path (drops or reordering needed).
 func processThinkingBlock(
 	ctx context.Context,
 	block *gjson.Result,
@@ -261,25 +432,7 @@ func processThinkingBlock(
 	cache *SignatureCache,
 	thinkingCtx *ThinkingContext,
 ) (interface{}, bool) {
-	thinkingText := block.Get("thinking").String()
-	clientSig := block.Get("signature").String()
-
-	// Try to get cached signature first
-	var signature string
-	if cache != nil {
-		signature = cache.Get(ctx, modelName, thinkingText)
-	}
-
-	// Fall back to client signature if cache miss
-	if signature == "" {
-		// Parse client signature (may have model group prefix)
-		_, rawSig, ok := ParseSignature(clientSig)
-		if ok {
-			signature = rawSig
-		} else if IsValidSignature(modelName, clientSig) {
-			signature = clientSig
-		}
-	}
+	signature := resolveThinkingSignature(ctx, block, modelName, cache)
 
 	// Drop block if no valid signature
 	if signature == "" {
@@ -290,12 +443,14 @@ func processThinkingBlock(
 	// Update current signature for tool_use inheritance
 	thinkingCtx.CurrentSignature = signature
 
-	// Create modified block with signature
-	result := map[string]interface{}{
-		"type":      blockTypeThinking,
-		"thinking":  thinkingText,
-		"signature": signature,
-	}
+	// Preserve entire original block, only updating the signature field.
+	// This ensures fields like 'data', 'redacted_thinking', etc. are preserved.
+	result := make(map[string]interface{})
+	block.ForEach(func(key, value gjson.Result) bool {
+		result[key.String()] = value.Value()
+		return true
+	})
+	result["signature"] = signature
 
 	return result, true
 }
