@@ -225,7 +225,7 @@ func processAssistantContent(
 	}
 
 	needsDrop := keptCount < analysis.totalBlocks
-	needsReorder := !needsDrop && checkReorderNeeded(analysis.blockTypes)
+	needsReorder := checkReorderNeeded(analysis.blockTypes)
 
 	if !needsDrop && !needsReorder {
 		return surgicalUpdate(body, msgIndex, analysis.thinkingResults, analysis.toolUseIndexes)
