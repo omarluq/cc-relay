@@ -113,6 +113,82 @@ func TestProcessRequestThinkingCachedSignature(t *testing.T) {
 	assert.Equal(t, 0, thinkingCtx.DroppedBlocks, "should not drop block with cached sig")
 }
 
+func TestProcessRequestThinkingClientSignatureTakesPriority(t *testing.T) {
+	ctx := context.Background()
+
+	cfg := cache.Config{
+		Mode: cache.ModeSingle,
+		Ristretto: cache.RistrettoConfig{
+			NumCounters: 1e4,
+			MaxCost:     1 << 20,
+			BufferItems: 64,
+		},
+	}
+	c, err := cache.New(context.Background(), &cfg)
+	require.NoError(t, err)
+	defer c.Close()
+
+	sigCache := NewSignatureCache(c)
+
+	// Pre-populate cache with a DIFFERENT signature for the same thinking text
+	thinkingText := "I need to consider this carefully..."
+	wrongSig := "wrong_signature_from_cache"
+	sigCache.Set(ctx, "claude-sonnet-4", thinkingText, wrongSig)
+
+	// Request with thinking block that has a valid CLIENT signature
+	// This should WIN over the cached signature
+	clientSig := "claude#correct_client_sig"
+	body := `{
+		"model": "claude-sonnet-4",
+		"messages": [
+			{"role": "assistant", "content": [
+				{
+					"type": "thinking",
+					"thinking": "I need to consider this carefully...",
+					"signature": "` + clientSig + `"
+				}
+			]}
+		]
+	}`
+
+	modifiedBody, _, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", sigCache)
+	require.NoError(t, err)
+
+	// Verify the CLIENT signature was used, not the cached one
+	sig := gjson.GetBytes(modifiedBody, "messages.0.content.0.signature").String()
+	assert.Equal(t, "correct_client_sig", sig, "should prefer client signature over cache")
+}
+
+func TestProcessRequestThinkingDropsAndReordersCorrectly(t *testing.T) {
+	ctx := context.Background()
+
+	// Request with unsigned thinking (to drop), text, and thinking (signed)
+	// After dropping unsigned block, the remaining blocks should be reordered:
+	// thinking should come before text
+	validSig := "valid_signature_that_is_definitely_long_enough_for_validation"
+	body := `{
+		"model": "claude-sonnet-4",
+		"messages": [
+			{"role": "assistant", "content": [
+				{"type": "text", "text": "This should come after thinking"},
+				{"type": "thinking", "thinking": "Let me think...", "signature": ""},
+				{"type": "thinking", "thinking": "Now I decide", "signature": "` + validSig + `"}
+			]}
+		]
+	}`
+
+	modifiedBody, _, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	require.NoError(t, err)
+
+	// Verify unsigned block was dropped
+	content := gjson.GetBytes(modifiedBody, "messages.0.content").Array()
+	assert.Len(t, content, 2, "should have 2 blocks after dropping")
+
+	// Verify thinking comes first
+	assert.Equal(t, "thinking", content[0].Get("type").String(), "thinking block should be first")
+	assert.Equal(t, "text", content[1].Get("type").String(), "text block should be second")
+}
+
 func TestProcessRequestThinkingClientSignature(t *testing.T) {
 	ctx := context.Background()
 
