@@ -13,6 +13,12 @@ import (
 	"github.com/omarluq/cc-relay/internal/cache"
 )
 
+// Test gjson path constants to avoid duplication.
+const (
+	pathFirstSig = "messages.0.content.0.signature"
+	pathContent  = "messages.0.content"
+)
+
 func TestHasThinkingBlocks(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -108,7 +114,7 @@ func TestProcessRequestThinkingCachedSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify cached signature was used
-	sig := gjson.GetBytes(modifiedBody, "messages.0.content.0.signature").String()
+	sig := gjson.GetBytes(modifiedBody, pathFirstSig).String()
 	assert.Equal(t, validSig, sig, "should use cached signature")
 	assert.Equal(t, 0, thinkingCtx.DroppedBlocks, "should not drop block with cached sig")
 }
@@ -155,7 +161,7 @@ func TestProcessRequestThinkingClientSignatureTakesPriority(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the CLIENT signature was used, not the cached one
-	sig := gjson.GetBytes(modifiedBody, "messages.0.content.0.signature").String()
+	sig := gjson.GetBytes(modifiedBody, pathFirstSig).String()
 	assert.Equal(t, "correct_client_sig", sig, "should prefer client signature over cache")
 }
 
@@ -181,7 +187,7 @@ func TestProcessRequestThinkingDropsAndReordersCorrectly(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify unsigned block was dropped
-	content := gjson.GetBytes(modifiedBody, "messages.0.content").Array()
+	content := gjson.GetBytes(modifiedBody, pathContent).Array()
 	assert.Len(t, content, 2, "should have 2 blocks after dropping")
 
 	// Verify thinking comes first
@@ -208,7 +214,7 @@ func TestProcessRequestThinkingClientSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify client signature was preserved
-	sig := gjson.GetBytes(modifiedBody, "messages.0.content.0.signature").String()
+	sig := gjson.GetBytes(modifiedBody, pathFirstSig).String()
 	assert.Equal(t, clientSig, sig, "should preserve valid client signature")
 	assert.Equal(t, 0, thinkingCtx.DroppedBlocks)
 }
@@ -230,7 +236,7 @@ func TestProcessRequestThinkingUnsignedBlockDropped(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify thinking block was dropped
-	content := gjson.GetBytes(modifiedBody, "messages.0.content")
+	content := gjson.GetBytes(modifiedBody, pathContent)
 	assert.Equal(t, 1, len(content.Array()), "should have only 1 block (text)")
 	assert.Equal(t, "text", content.Array()[0].Get("type").String())
 	assert.Equal(t, 1, thinkingCtx.DroppedBlocks, "should record dropped block")
@@ -283,7 +289,7 @@ func TestProcessRequestThinkingBlockReordering(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify blocks were reordered
-	content := gjson.GetBytes(modifiedBody, "messages.0.content")
+	content := gjson.GetBytes(modifiedBody, pathContent)
 	assert.Equal(t, 2, len(content.Array()))
 	assert.Equal(t, "thinking", content.Array()[0].Get("type").String(), "thinking should be first")
 	assert.Equal(t, "text", content.Array()[1].Get("type").String(), "text should be second")
