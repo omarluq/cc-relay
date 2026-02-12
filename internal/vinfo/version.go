@@ -1,5 +1,5 @@
-// Package version provides version information for cc-relay.
-package version
+// Package vinfo provides version information for cc-relay.
+package vinfo
 
 import (
 	"fmt"

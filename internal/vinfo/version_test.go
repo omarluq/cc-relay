@@ -1,44 +1,44 @@
-package version_test
+package vinfo_test
 
 import (
 	"testing"
 
-	"github.com/omarluq/cc-relay/internal/version"
+	"github.com/omarluq/cc-relay/internal/vinfo"
 )
 
 func TestVersion(t *testing.T) {
 	// Version should always be non-empty.
-	if version.Version == "" {
+	if vinfo.Version == "" {
 		t.Error("Version is empty")
 	}
 }
 
 func TestCommit(t *testing.T) {
 	// Commit should always be non-empty.
-	if version.Commit == "" {
+	if vinfo.Commit == "" {
 		t.Error("Commit is empty")
 	}
 }
 
 func TestBuildDate(t *testing.T) {
 	// BuildDate should always be non-empty.
-	if version.BuildDate == "" {
+	if vinfo.BuildDate == "" {
 		t.Error("BuildDate is empty")
 	}
 }
 
 func TestString(t *testing.T) {
-	origVersion := version.Version
-	origCommit := version.Commit
+	origVersion := vinfo.Version
+	origCommit := vinfo.Commit
 	t.Cleanup(func() {
-		version.Version = origVersion
-		version.Commit = origCommit
+		vinfo.Version = origVersion
+		vinfo.Commit = origCommit
 	})
 
-	version.Version = "v0.0.11-20-ga961617-dirty"
-	version.Commit = "a961617"
+	vinfo.Version = "v0.0.11-20-ga961617-dirty"
+	vinfo.Commit = "a961617"
 
-	got := version.String()
+	got := vinfo.String()
 	want := "v0.0.11-a961617-20"
 	if got != want {
 		t.Errorf("String() = %q, want %q", got, want)
