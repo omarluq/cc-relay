@@ -32,9 +32,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/omarluq/cc-relay/internal/version.Version={{.Version}}
-      - -X github.com/omarluq/cc-relay/internal/version.Commit={{.Commit}}
-      - -X github.com/omarluq/cc-relay/internal/version.BuildDate={{.Date}}
+      - -X github.com/omarluq/cc-relay/internal/vinfo.Version={{.Version}}
+      - -X github.com/omarluq/cc-relay/internal/vinfo.Commit={{.Commit}}
+      - -X github.com/omarluq/cc-relay/internal/vinfo.BuildDate={{.Date}}
 
 archives:
   - id: default

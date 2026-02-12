@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 
-	"github.com/omarluq/cc-relay/internal/version"
+	"github.com/omarluq/cc-relay/internal/vinfo"
 )
 
 const (
@@ -54,7 +54,7 @@ func main() {
 
 	// Configure Fang with version info and styling
 	fangOpts := []fang.Option{
-		fang.WithVersion(version.String()),
+		fang.WithVersion(vinfo.String()),
 	}
 
 	if err := fang.Execute(ctx, rootCmd, fangOpts...); err != nil {

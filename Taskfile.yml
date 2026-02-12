@@ -37,9 +37,9 @@ tasks:
       BUILD_DATE:
         sh: date -u +"%Y-%m-%dT%H:%M:%SZ"
       LDFLAGS: >-
-        -X github.com/omarluq/cc-relay/internal/version.Version={{.VERSION}}
-        -X github.com/omarluq/cc-relay/internal/version.Commit={{.COMMIT}}
-        -X github.com/omarluq/cc-relay/internal/version.BuildDate={{.BUILD_DATE}}
+        -X github.com/omarluq/cc-relay/internal/vinfo.Version={{.VERSION}}
+        -X github.com/omarluq/cc-relay/internal/vinfo.Commit={{.COMMIT}}
+        -X github.com/omarluq/cc-relay/internal/vinfo.BuildDate={{.BUILD_DATE}}
     cmds:
       - mkdir -p {{.BUILD_DIR}}
       - go build -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/cc-relay
