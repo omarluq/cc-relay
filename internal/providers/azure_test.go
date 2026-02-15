@@ -404,6 +404,7 @@ func TestDefaultAzureModels(t *testing.T) {
 	// Ensure default models list is reasonable
 	assert.NotEmpty(t, DefaultAzureModels)
 	assert.Contains(t, DefaultAzureModels, "claude-sonnet-4-5-20250514")
+	assert.Contains(t, DefaultAzureModels, "claude-opus-4-6")
 	assert.Contains(t, DefaultAzureModels, "claude-opus-4-5-20250514")
 	assert.Contains(t, DefaultAzureModels, "claude-haiku-3-5-20241022")
 }

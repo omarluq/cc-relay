@@ -29,6 +29,7 @@ const (
 // DefaultVertexModels are the default models available from Vertex AI.
 // Model IDs use Vertex format: model-name@version.
 var DefaultVertexModels = []string{
+	"claude-opus-4-6",
 	"claude-sonnet-4-5@20250514",
 	"claude-opus-4-5@20250514",
 	"claude-haiku-3-5@20241022",

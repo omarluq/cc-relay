@@ -67,7 +67,7 @@ routing:
   # model_mapping:
   #   claude-opus: anthropic      # claude-opus-* → anthropic
   #   claude-sonnet: anthropic    # claude-sonnet-* → anthropic
-  #   glm-4: zai                  # glm-4* → zai
+  #   glm: zai                    # glm* → zai
   #   qwen: ollama                # qwen* → ollama
   #   llama: ollama               # llama* → ollama
 
@@ -87,6 +87,7 @@ providers:
 
     # Models available from this provider (shown in /v1/models endpoint)
     models:
+      - "claude-opus-4-6"
       - "claude-sonnet-4-5-20250514"
       - "claude-opus-4-5-20250514"
       - "claude-haiku-3-5-20241022"
@@ -111,6 +112,7 @@ providers:
 
     # Models available from Z.AI (shown in /v1/models endpoint)
     models:
+      - "GLM-5"
       - "GLM-4.7"
       - "GLM-4.5-Air"
 
@@ -119,7 +121,8 @@ providers:
 
     # Map Anthropic model names to Z.AI models
     model_mapping:
-      "claude-sonnet-4-5-20250929": "GLM-4.7"
+      "claude-opus-4-6": "GLM-5"
+      "claude-sonnet-4-5-20250514": "GLM-4.7"
       "claude-sonnet-4-5": "GLM-4.7"
       "claude-haiku-4-5-20251001": "GLM-4.5-Air"
       "claude-haiku-4-5": "GLM-4.5-Air"
@@ -134,7 +137,8 @@ providers:
     base_url: "http://localhost:11434"
 
     model_mapping:
-      "claude-sonnet-4-5-20250929": "qwen3:32b"
+      "claude-opus-4-6": "qwen3:72b"
+      "claude-sonnet-4-5-20250514": "qwen3:32b"
       "claude-sonnet-4-5": "qwen3:32b"
       "claude-haiku-4-5-20251001": "qwen3:8b"
       "claude-haiku-4-5": "qwen3:8b"
@@ -159,6 +163,7 @@ providers:
     # Map Claude model names to Bedrock model IDs
     # Bedrock uses format: anthropic.{model}-v1:0
     model_mapping:
+      "claude-opus-4-6": "anthropic.claude-opus-4-6-v1:0"
       "claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0"
       "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250929-v1:0"
       "claude-haiku-4-5-20251001": "anthropic.claude-haiku-4-5-20251001-v1:0"
@@ -184,7 +189,8 @@ providers:
 
     # Azure uses deployment names as model identifiers
     model_mapping:
-      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5"
+      "claude-opus-4-6": "claude-opus-4-6"
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
       "claude-sonnet-4-5": "claude-sonnet-4-5"
       "claude-haiku-4-5": "claude-haiku-4-5"
 
@@ -208,8 +214,9 @@ providers:
 
     # Model mapping for Vertex AI format
     model_mapping:
-      "claude-sonnet-4-5-20250929": "claude-sonnet-4-5@20250929"
-      "claude-sonnet-4-5": "claude-sonnet-4-5@20250929"
+      "claude-opus-4-6": "claude-opus-4-6"
+      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
+      "claude-sonnet-4-5": "claude-sonnet-4-5@20250514"
       "claude-haiku-4-5-20251001": "claude-haiku-4-5@20251001"
 
 # ============================================================================

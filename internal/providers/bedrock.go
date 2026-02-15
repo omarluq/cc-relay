@@ -36,6 +36,7 @@ const (
 // DefaultBedrockModels are the default Claude models available on Bedrock.
 // Model IDs use Bedrock format: anthropic.model-name-version.
 var DefaultBedrockModels = []string{
+	"anthropic.claude-opus-4-6-v1:0",
 	"anthropic.claude-sonnet-4-5-20250514-v1:0",
 	"anthropic.claude-opus-4-5-20250514-v1:0",
 	"anthropic.claude-haiku-3-5-20241022-v1:0",
