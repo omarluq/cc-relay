@@ -67,7 +67,7 @@ routing:
   # model_mapping:
   #   claude-opus: anthropic      # claude-opus-* → anthropic
   #   claude-sonnet: anthropic    # claude-sonnet-* → anthropic
-  #   glm: zai                    # glm* → zai
+  #   GLM: zai                    # GLM* → zai
   #   qwen: ollama                # qwen* → ollama
   #   llama: ollama               # llama* → ollama
 
@@ -164,9 +164,9 @@ providers:
     # Bedrock uses format: anthropic.{model}-v1:0
     model_mapping:
       "claude-opus-4-6": "anthropic.claude-opus-4-6-v1:0"
-      "claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0"
-      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250929-v1:0"
-      "claude-haiku-4-5-20251001": "anthropic.claude-haiku-4-5-20251001-v1:0"
+      "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250514-v1:0"
+      "claude-haiku-3-5-20241022": "anthropic.claude-haiku-3-5-20241022-v1:0"
 
   # --------------------------------------------------------------------------
   # Azure AI Foundry
