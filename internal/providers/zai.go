@@ -11,9 +11,9 @@ const (
 
 // DefaultZAIModels are the default models available from Z.AI.
 var DefaultZAIModels = []string{
+	"GLM-5",
 	"GLM-4.7",
 	"GLM-4.5-Air",
-	"GLM-4-Plus",
 }
 
 // ZAIProvider implements the Provider interface for Z.AI's Anthropic-compatible API.
