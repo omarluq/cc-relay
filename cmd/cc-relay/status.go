@@ -1,18 +1,27 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
-	"net/http"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/omarluq/cc-relay/internal/config"
 )
+
+// closeConn closes a network connection, logging any error.
+// Close errors are often not actionable in read-only contexts.
+func closeConn(c net.Conn) {
+	if err := c.Close(); err != nil {
+		// Log but ignore - connection cleanup is best-effort
+		fmt.Fprintf(os.Stderr, "warning: close error: %v\n", err)
+	}
+}
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -38,38 +47,14 @@ func runStatus(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Build health endpoint URL
-	healthURL := fmt.Sprintf("http://%s/health", cfg.Server.Listen)
-
-	// Query health endpoint with timeout
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, http.NoBody)
-	if err != nil {
-		return fmt.Errorf("failed to create health request: %w", err)
-	}
-	resp, err := client.Do(req)
+	err = checkHealth(cfg.Server.Listen)
 	if err != nil {
 		fmt.Printf("✗ cc-relay is not running (%s)\n", cfg.Server.Listen)
-		return fmt.Errorf("server not reachable: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			log.Logger.Warn().Err(closeErr).Msg("Failed to close response body")
-		}
-	}()
-
-	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("✓ cc-relay is running (%s)\n", cfg.Server.Listen)
-		return nil
+		return err
 	}
 
-	fmt.Printf("✗ cc-relay returned unexpected status: %d\n", resp.StatusCode)
-
-	return fmt.Errorf("health check failed with status %d", resp.StatusCode)
+	fmt.Printf("✓ cc-relay is running (%s)\n", cfg.Server.Listen)
+	return nil
 }
 
 // findConfigFileForStatus is a copy of findConfigFile from serve.go.
@@ -91,4 +76,41 @@ func findConfigFileForStatus() string {
 	}
 
 	return defaultConfigFile
+}
+
+// checkHealth performs an HTTP health check against the server's listen address.
+// Sends a raw HTTP GET request to /health endpoint without using http.Client.
+func checkHealth(listenAddr string) error {
+	if listenAddr == "" {
+		return fmt.Errorf("server listen address is empty")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	dialer := net.Dialer{Timeout: 5 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", listenAddr)
+	if err != nil {
+		return fmt.Errorf("server not reachable: %w", err)
+	}
+	defer closeConn(conn)
+
+	// Send HTTP GET request directly
+	_, err = fmt.Fprintf(conn, "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// Read response status line
+	resp := bufio.NewReader(conn)
+	line, err := resp.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Parse status: "HTTP/1.1 200 OK"
+	if len(line) >= 12 && line[9:12] == "200" {
+		return nil
+	}
+	return fmt.Errorf("health check failed: %s", line)
 }

@@ -20,7 +20,10 @@ func TestHTTPHealthCheckSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	check := NewHTTPHealthCheck("test-provider", server.URL, server.Client())
+	check, checkErr := NewHTTPHealthCheck("test-provider", server.URL, server.Client())
+	if checkErr != nil {
+		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
+	}
 
 	err := check.Check(context.Background())
 	if err != nil {
@@ -35,7 +38,10 @@ func TestHTTPHealthCheckFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	check := NewHTTPHealthCheck("test-provider", server.URL, server.Client())
+	check, checkErr := NewHTTPHealthCheck("test-provider", server.URL, server.Client())
+	if checkErr != nil {
+		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
+	}
 
 	err := check.Check(context.Background())
 	if err == nil {
@@ -53,7 +59,10 @@ func TestHTTPHealthCheckTimeout(t *testing.T) {
 
 	// Use client with very short timeout
 	client := &http.Client{Timeout: 50 * time.Millisecond}
-	check := NewHTTPHealthCheck("test-provider", server.URL, client)
+	check, checkErr := NewHTTPHealthCheck("test-provider", server.URL, client)
+	if checkErr != nil {
+		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -65,7 +74,10 @@ func TestHTTPHealthCheckTimeout(t *testing.T) {
 }
 
 func TestHTTPHealthCheckProviderName(t *testing.T) {
-	check := NewHTTPHealthCheck("my-provider", "http://example.com", nil)
+	check, checkErr := NewHTTPHealthCheck("my-provider", "http://example.com", nil)
+	if checkErr != nil {
+		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
+	}
 	if check.ProviderName() != "my-provider" {
 		t.Errorf("expected provider name 'my-provider', got %q", check.ProviderName())
 	}
@@ -73,9 +85,12 @@ func TestHTTPHealthCheckProviderName(t *testing.T) {
 
 func TestHTTPHealthCheckDefaultClient(t *testing.T) {
 	// When nil client is passed, should create default
-	check := NewHTTPHealthCheck("test", "http://localhost", nil)
-	if check.client == nil {
-		t.Error("expected non-nil client when nil was passed")
+	check, checkErr := NewHTTPHealthCheck("test", "http://localhost", nil)
+	if checkErr != nil {
+		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
+	}
+	if check.host == "" {
+		t.Error("expected non-empty host")
 	}
 }
 

@@ -31,7 +31,7 @@ type ProviderProxy struct {
 	KeyPool            *keypool.KeyPool
 	targetURL          *url.URL
 	modifyResponseHook ModifyResponseFunc
-	APIKey             string
+	APIKey             string `json:"-"`
 	debugOpts          config.DebugOptions
 }
 

@@ -32,7 +32,7 @@ type PoolConfig struct {
 // KeyConfig defines the configuration for a single API key.
 type KeyConfig struct {
 	// APIKey is the actual API key value
-	APIKey string `json:"api_key" yaml:"api_key"`
+	APIKey string `json:"-" yaml:"api_key"`
 
 	// RPMLimit is the requests per minute limit (0 = unlimited, learn from headers)
 	RPMLimit int `json:"rpm_limit" yaml:"rpm_limit"`
@@ -330,7 +330,7 @@ func (p *KeyPool) Keys() []*KeyMetadata {
 // KeySelection contains the result of a successful key selection.
 type KeySelection struct {
 	KeyID  string // The unique key identifier
-	APIKey string // The actual API key value
+	APIKey string `json:"-"` // The actual API key value
 }
 
 // GetKeyResult selects a key from the pool and returns mo.Result[KeySelection].
