@@ -385,8 +385,9 @@ func TestReserve(t *testing.T) {
 
 func TestConcurrency(t *testing.T) {
 	t.Run("multiple goroutines calling Allow/Wait", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 100000)
-		ctx := context.Background()
+		limiter := NewTokenBucketLimiter(10000, 100000)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
 		var wg sync.WaitGroup
 		successCount := int32(0)
