@@ -13,6 +13,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const testProviderName = "test-provider"
+
+func mustNewHTTPHealthCheck(t *testing.T, name, url string, client *http.Client) *HTTPHealthCheck {
+	t.Helper()
+	check, err := NewHTTPHealthCheck(name, url, client)
+	if err != nil {
+		t.Fatalf("NewHTTPHealthCheck failed: %v", err)
+	}
+	return check
+}
+
 func TestHTTPHealthCheckSuccess(t *testing.T) {
 	// Create a test server that returns 200 OK
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -20,10 +31,7 @@ func TestHTTPHealthCheckSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	check, checkErr := NewHTTPHealthCheck("test-provider", server.URL, server.Client())
-	if checkErr != nil {
-		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
-	}
+	check := mustNewHTTPHealthCheck(t, testProviderName, server.URL, server.Client())
 
 	err := check.Check(context.Background())
 	if err != nil {
@@ -38,10 +46,7 @@ func TestHTTPHealthCheckFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	check, checkErr := NewHTTPHealthCheck("test-provider", server.URL, server.Client())
-	if checkErr != nil {
-		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
-	}
+	check := mustNewHTTPHealthCheck(t, testProviderName, server.URL, server.Client())
 
 	err := check.Check(context.Background())
 	if err == nil {
@@ -59,10 +64,7 @@ func TestHTTPHealthCheckTimeout(t *testing.T) {
 
 	// Use client with very short timeout
 	client := &http.Client{Timeout: 50 * time.Millisecond}
-	check, checkErr := NewHTTPHealthCheck("test-provider", server.URL, client)
-	if checkErr != nil {
-		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
-	}
+	check := mustNewHTTPHealthCheck(t, testProviderName, server.URL, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -74,10 +76,7 @@ func TestHTTPHealthCheckTimeout(t *testing.T) {
 }
 
 func TestHTTPHealthCheckProviderName(t *testing.T) {
-	check, checkErr := NewHTTPHealthCheck("my-provider", "http://example.com", nil)
-	if checkErr != nil {
-		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
-	}
+	check := mustNewHTTPHealthCheck(t, "my-provider", "http://example.com", nil)
 	if check.ProviderName() != "my-provider" {
 		t.Errorf("expected provider name 'my-provider', got %q", check.ProviderName())
 	}
@@ -85,17 +84,14 @@ func TestHTTPHealthCheckProviderName(t *testing.T) {
 
 func TestHTTPHealthCheckDefaultClient(t *testing.T) {
 	// When nil client is passed, should create default
-	check, checkErr := NewHTTPHealthCheck("test", "http://localhost", nil)
-	if checkErr != nil {
-		t.Fatalf("NewHTTPHealthCheck failed: %v", checkErr)
-	}
+	check := mustNewHTTPHealthCheck(t, "test", "http://localhost", nil)
 	if check.host == "" {
 		t.Error("expected non-empty host")
 	}
 }
 
 func TestNoOpHealthCheckAlwaysHealthy(t *testing.T) {
-	check := NewNoOpHealthCheck("test-provider")
+	check := NewNoOpHealthCheck(testProviderName)
 
 	// Should always return nil
 	for i := 0; i < 10; i++ {
@@ -235,15 +231,15 @@ func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
 	checker := NewChecker(tracker, checkCfg, &logger)
 
 	// Register provider with successful health check
-	mockCheck := &mockHealthCheck{name: "test-provider", checkErr: nil}
+	mockCheck := &mockHealthCheck{name: testProviderName, checkErr: nil}
 	checker.RegisterProvider(mockCheck)
 
 	// Open the circuit
 	testErr := errors.New("test error")
-	tracker.RecordFailure("test-provider", testErr)
-	tracker.RecordFailure("test-provider", testErr)
+	tracker.RecordFailure(testProviderName, testErr)
+	tracker.RecordFailure(testProviderName, testErr)
 
-	if tracker.GetState("test-provider") != StateOpen {
+	if tracker.GetState(testProviderName) != StateOpen {
 		t.Fatal("expected circuit to be OPEN")
 	}
 
@@ -251,7 +247,7 @@ func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Verify circuit is now HALF-OPEN
-	if tracker.GetState("test-provider") != StateHalfOpen {
+	if tracker.GetState(testProviderName) != StateHalfOpen {
 		// Run check to trigger success recording
 		checker.checkAllProviders()
 	}
@@ -299,13 +295,13 @@ func TestCheckerDoesNotRecordSuccessOnFailedCheck(t *testing.T) {
 	checker := NewChecker(tracker, checkCfg, &logger)
 
 	// Register provider with failing health check
-	mockCheck := &mockHealthCheck{name: "test-provider", checkErr: errors.New("health check failed")}
+	mockCheck := &mockHealthCheck{name: testProviderName, checkErr: errors.New("health check failed")}
 	checker.RegisterProvider(mockCheck)
 
 	// Open the circuit
 	testErr := errors.New("test error")
-	tracker.RecordFailure("test-provider", testErr)
-	tracker.RecordFailure("test-provider", testErr)
+	tracker.RecordFailure(testProviderName, testErr)
+	tracker.RecordFailure(testProviderName, testErr)
 
 	// Run health check
 	checker.checkAllProviders()
@@ -316,7 +312,7 @@ func TestCheckerDoesNotRecordSuccessOnFailedCheck(t *testing.T) {
 	}
 
 	// Circuit should still be OPEN (no success recorded)
-	if tracker.GetState("test-provider") != StateOpen {
+	if tracker.GetState(testProviderName) != StateOpen {
 		t.Error("expected circuit to remain OPEN after failed health check")
 	}
 }
@@ -336,13 +332,13 @@ func TestCheckerStartStop(t *testing.T) {
 	checkCfg := CheckConfig{Enabled: &enabled, IntervalMS: 50} // 50ms base interval
 	checker := NewChecker(tracker, checkCfg, &logger)
 
-	mockCheck := &mockHealthCheck{name: "test-provider"}
+	mockCheck := &mockHealthCheck{name: testProviderName}
 	checker.RegisterProvider(mockCheck)
 
 	// Open the circuit so checks run
 	testErr := errors.New("test error")
-	tracker.RecordFailure("test-provider", testErr)
-	tracker.RecordFailure("test-provider", testErr)
+	tracker.RecordFailure(testProviderName, testErr)
+	tracker.RecordFailure(testProviderName, testErr)
 
 	// Start checker
 	checker.Start()
@@ -381,7 +377,7 @@ func TestCheckerDisabledDoesNotStart(t *testing.T) {
 	checkCfg := CheckConfig{Enabled: &enabled, IntervalMS: 10}
 	checker := NewChecker(tracker, checkCfg, &logger)
 
-	mockCheck := &mockHealthCheck{name: "test-provider"}
+	mockCheck := &mockHealthCheck{name: testProviderName}
 	checker.RegisterProvider(mockCheck)
 
 	// Start (should not actually start due to disabled)
