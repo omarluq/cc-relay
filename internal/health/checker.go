@@ -37,10 +37,12 @@ type ProviderHealthCheck interface {
 	ProviderName() string
 }
 
-// closeHealthConn closes a net.Conn, handling the error to satisfy errcheck.
+// closeHealthConn closes a net.Conn, ignoring close errors.
 func closeHealthConn(c net.Conn) {
-	if err := c.Close(); err != nil {
-		// Connection close errors are expected during timeouts and cancellation.
+	// Close errors during health checks are expected and not actionable.
+	err := c.Close()
+	if err != nil {
+		// Intentionally ignored - connection is being cleaned up.
 		return
 	}
 }
