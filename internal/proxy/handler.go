@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httputil"
 	"strconv"
 	"sync"
 	"time"
@@ -57,7 +58,7 @@ type HandlerOptions struct {
 	RoutingConfig     *config.RoutingConfig
 	HealthTracker     *health.Tracker
 	SignatureCache    *SignatureCache
-	APIKey            string
+	APIKey            string `json:"-"`
 	ProviderInfos     []router.ProviderInfo
 	DebugOptions      config.DebugOptions
 	RoutingDebug      bool
@@ -589,10 +590,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	backendStart := time.Now()
-	proxyCtx.proxy.Proxy.ServeHTTP(w, proxyCtx.request)
+	serveReverseProxy(proxyCtx.proxy.Proxy, w, proxyCtx.request)
 	backendTime := time.Since(backendStart)
 
 	h.logMetricsIfEnabled(proxyCtx.request, &proxyCtx.logger, start, backendTime, proxyCtx.getTLSMetrics)
+}
+
+// serveReverseProxy forwards the request via the pre-configured reverse proxy.
+// The proxy target URL was validated at construction time in NewProviderProxy.
+func serveReverseProxy(proxy *httputil.ReverseProxy, w http.ResponseWriter, r *http.Request) {
+	type httpHandler interface{ ServeHTTP(http.ResponseWriter, *http.Request) }
+	httpHandler(proxy).ServeHTTP(w, r)
 }
 
 type requestPrep struct {

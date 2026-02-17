@@ -122,7 +122,7 @@ func (r *RoutingConfig) IsDebugEnabled() bool {
 // ServerConfig defines server-level settings.
 type ServerConfig struct {
 	Listen        string     `yaml:"listen" toml:"listen"`
-	APIKey        string     `yaml:"api_key" toml:"api_key"` // Legacy: use Auth.APIKey instead
+	APIKey        string     `json:"-" yaml:"api_key" toml:"api_key"` // Legacy: use Auth.APIKey instead
 	Auth          AuthConfig `yaml:"auth" toml:"auth"`
 	TimeoutMS     int        `yaml:"timeout_ms" toml:"timeout_ms"`
 	MaxConcurrent int        `yaml:"max_concurrent" toml:"max_concurrent"`
@@ -134,11 +134,11 @@ type ServerConfig struct {
 type AuthConfig struct {
 	// APIKey is the expected value for x-api-key header authentication.
 	// If empty, API key authentication is disabled.
-	APIKey string `yaml:"api_key" toml:"api_key"`
+	APIKey string `json:"-" yaml:"api_key" toml:"api_key"`
 
 	// BearerSecret is the expected Bearer token value.
 	// If empty but AllowBearer is true, any bearer token is accepted.
-	BearerSecret string `yaml:"bearer_secret" toml:"bearer_secret"`
+	BearerSecret string `json:"-" yaml:"bearer_secret" toml:"bearer_secret"`
 
 	// AllowBearer enables Authorization: Bearer token authentication.
 	// Used by Claude Code subscription users.

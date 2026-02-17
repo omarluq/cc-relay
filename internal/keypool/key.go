@@ -33,7 +33,7 @@ type KeyMetadata struct {
 	LastErrorAt   time.Time
 	CooldownUntil time.Time
 	LastError     error
-	APIKey        string
+	APIKey        string `json:"-"`
 	ID            string
 	RPMLimit      int
 	ITPMLimit     int

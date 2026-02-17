@@ -405,10 +405,9 @@ func writeSSEEvent(
 	// Convert to SSE format
 	sseEvent := formatSSEEvent(eventType, msg.Payload)
 
-	if _, err := w.Write(sseEvent); err != nil {
+	if err := writeSSEBytes(w, flusher, sseEvent); err != nil {
 		return false, fmt.Errorf("eventstream: failed to write SSE event: %w", err)
 	}
-	flusher.Flush()
 
 	return true, nil
 }
@@ -424,11 +423,21 @@ func writeExceptionEvent(
 		"event: error\ndata: {\"error\":{\"type\":%q,\"message\":%q}}\n\n",
 		exceptionType, string(payload),
 	)
-	if _, err := w.Write([]byte(errEvent)); err != nil {
+	if err := writeSSEBytes(w, flusher, []byte(errEvent)); err != nil {
 		return false, fmt.Errorf("eventstream: failed to write error event: %w", err)
 	}
-	flusher.Flush()
 	return true, nil
+}
+
+// writeSSEBytes writes pre-formatted SSE data to the response and flushes.
+// Content-Type is set to text/event-stream before writing.
+func writeSSEBytes(w http.ResponseWriter, flusher http.Flusher, data []byte) error {
+	w.Header().Set("Content-Type", ContentTypeSSE)
+	if _, err := io.Writer(w).Write(data); err != nil {
+		return err
+	}
+	flusher.Flush()
+	return nil
 }
 
 // formatSSEEvent formats an Event Stream event as an SSE event.
