@@ -107,6 +107,20 @@ metrics:
   prometheus_listen: "127.0.0.1:9100"
 
 # ============================================================================
+# Cache Configuration
+# ============================================================================
+cache:
+  # Cache mode: "disabled", "single" (local Ristretto), or "ha" (distributed Olric)
+  mode: "disabled"
+
+  # Uncomment for local in-memory caching:
+  # mode: "single"
+  # ristretto:
+  #   num_counters: 1000000   # ~10x expected items
+  #   max_cost: 104857600     # 100 MB
+  #   buffer_items: 64
+
+# ============================================================================
 # Health Checking
 # ============================================================================
 health:
