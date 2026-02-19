@@ -55,7 +55,7 @@ func TestRoundRobinRouterEvenDistribution(t *testing.T) {
 	numRequests := 9 // 3 providers * 3 rounds
 	selectionCounts := make(map[int]int)
 
-	for idx := 0; idx < numRequests; idx++ {
+	for range numRequests {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -86,7 +86,7 @@ func TestRoundRobinRouterSequentialOrder(t *testing.T) {
 
 	// Track selection sequence
 	var selections []int
-	for idx := 0; idx < 6; idx++ {
+	for range 6 {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -121,7 +121,7 @@ func TestRoundRobinRouterSkipsUnhealthy(t *testing.T) {
 	}
 
 	// With provider 1 unhealthy, should only select from 0 and 2
-	for iteration := 0; iteration < 4; iteration++ {
+	for iteration := range 4 {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -144,10 +144,10 @@ func TestRoundRobinRouterConcurrentSafety(t *testing.T) {
 	requestsPerGoroutine := 100
 
 	waitGroup.Add(numGoroutines)
-	for gIdx := 0; gIdx < numGoroutines; gIdx++ {
+	for range numGoroutines {
 		go func() {
 			defer waitGroup.Done()
-			for reqIdx := 0; reqIdx < requestsPerGoroutine; reqIdx++ {
+			for range requestsPerGoroutine {
 				_, err := rtr.Select(context.Background(), providers)
 				if err != nil {
 					t.Errorf("Concurrent Select() error = %v", err)
@@ -196,7 +196,7 @@ func TestRoundRobinRouterNilIsHealthyTreatedAsHealthy(t *testing.T) {
 // If allHealthy is true, all providers are marked healthy.
 func createTestProviders(n int, allHealthy bool) []router.ProviderInfo {
 	providers := make([]router.ProviderInfo, n)
-	for idx := 0; idx < n; idx++ {
+	for idx := range n {
 		healthy := allHealthy
 		providers[idx] = router.ProviderInfo{
 			Provider:  router.NewTestProvider(string(rune('a' + idx))),

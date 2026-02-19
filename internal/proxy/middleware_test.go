@@ -88,10 +88,10 @@ func runConcurrentRequests(
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(workers)
 
-	for workerIndex := 0; workerIndex < workers; workerIndex++ {
+	for workerIndex := range workers {
 		go func(workerID int) {
 			defer waitGroup.Done()
-			for iterIndex := 0; iterIndex < iterations; iterIndex++ {
+			for iterIndex := range iterations {
 				key, expected := keyFn(workerID, iterIndex)
 				rec := doAPIKeyRequest(t, handler, key)
 				if rec.Code != expected {
@@ -113,7 +113,7 @@ func startConfigSwitcher(
 	waitGroup.Add(1)
 	go func() {
 		defer waitGroup.Done()
-		for iterIndex := 0; iterIndex < iterations; iterIndex++ {
+		for iterIndex := range iterations {
 			if iterIndex%2 == 0 {
 				runtime.Store(cfg1)
 			} else {
@@ -915,7 +915,7 @@ func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	startConfigSwitcher(&waitGroup, runtime, cfg1, cfg2, iterations)
 
-	for workerIndex := 0; workerIndex < goroutines; workerIndex++ {
+	for workerIndex := range goroutines {
 		waitGroup.Add(1)
 		go func(workerID int) {
 			defer waitGroup.Done()
@@ -973,7 +973,7 @@ func TestConcurrencyLimiterUnlimited(t *testing.T) {
 	limiter := proxy.NewConcurrencyLimiter(0)
 
 	// Should always succeed with limit 0
-	for idx := 0; idx < 100; idx++ {
+	for range 100 {
 		require.True(t, limiter.TryAcquire())
 	}
 	require.Equal(t, int64(100), limiter.CurrentInFlight())
@@ -1030,7 +1030,7 @@ func TestConcurrencyLimiterConcurrentAccess(t *testing.T) {
 	rejected := make(chan struct{}, 100)
 
 	// Spawn many goroutines trying to acquire
-	for workerIndex := 0; workerIndex < 50; workerIndex++ {
+	for range 50 {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()

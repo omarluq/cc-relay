@@ -60,8 +60,8 @@ func (e SSEEvent) String() string {
 	}
 	if len(e.Data) > 0 {
 		// Split data on newlines and emit each as separate data: line
-		lines := bytes.Split(e.Data, []byte("\n"))
-		for _, line := range lines {
+		lines := bytes.SplitSeq(e.Data, []byte("\n"))
+		for line := range lines {
 			fmt.Fprintf(&buf, "data: %s\n", line)
 		}
 	}
@@ -193,13 +193,13 @@ func isComment(line []byte) bool {
 
 // splitFieldValue splits a line into field name and value.
 func splitFieldValue(line []byte) (field, value []byte) {
-	colonIdx := bytes.IndexByte(line, ':')
-	if colonIdx == -1 {
+	before, after, ok := bytes.Cut(line, []byte{':'})
+	if !ok {
 		return line, nil
 	}
 
-	field = line[:colonIdx]
-	value = line[colonIdx+1:]
+	field = before
+	value = after
 
 	// Remove optional leading space from value
 	if len(value) > 0 && value[0] == ' ' {

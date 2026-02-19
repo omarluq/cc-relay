@@ -283,9 +283,9 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		provider1Calls++
 		// Return response with signature (use printable chars, not null bytes)
-		resp := map[string]interface{}{
-			"content": []interface{}{
-				map[string]interface{}{
+		resp := map[string]any{
+			"content": []any{
+				map[string]any{
 					"type":      "thinking",
 					"thinking":  "Provider 1 thinking",
 					"signature": "sig1_abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz",

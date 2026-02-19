@@ -138,7 +138,7 @@ func (p *KeyPool) GetKey(ctx context.Context) (keyID, apiKey string, err error) 
 	// Try to select a key, checking rate limiter for each attempt
 	// Selector may return multiple candidates, try each until one has capacity
 	maxAttempts := len(availableKeys)
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	for attempt := range maxAttempts {
 		// Select key based on strategy
 		key, err := p.selector.Select(availableKeys)
 		if err != nil {

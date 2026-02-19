@@ -70,7 +70,7 @@ func TestWeightedRoundRobinRouterSelectEqualWeights(t *testing.T) {
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
 	iterations := 300 // Exact multiple of 3 for perfect distribution
 
-	for idx := 0; idx < iterations; idx++ {
+	for range iterations {
 		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -102,7 +102,7 @@ func TestWeightedRoundRobinRouterSelectProportionalWeights(t *testing.T) {
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
 	iterations := 600 // Exact multiple of total weight (6) for perfect distribution
 
-	for idx := 0; idx < iterations; idx++ {
+	for range iterations {
 		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -142,7 +142,7 @@ func TestWeightedRoundRobinRouterSelectDefaultWeight(t *testing.T) {
 	counts := map[string]int{"a": 0, "b": 0}
 	iterations := 300 // Multiple of total weight (3)
 
-	for idx := 0; idx < iterations; idx++ {
+	for range iterations {
 		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -176,7 +176,7 @@ func TestWeightedRoundRobinRouterSelectNegativeWeight(t *testing.T) {
 	counts := map[string]int{"a": 0, "b": 0}
 	iterations := 300
 
-	for idx := 0; idx < iterations; idx++ {
+	for range iterations {
 		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -212,7 +212,7 @@ func TestWeightedRoundRobinRouterSelectSkipsUnhealthy(t *testing.T) {
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
 	iterations := 400 // Multiple of 4 (3+1)
 
-	for idx := 0; idx < iterations; idx++ {
+	for range iterations {
 		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -249,7 +249,7 @@ func TestWeightedRoundRobinRouterSelectReinitializesOnProviderChange(t *testing.
 	}
 
 	// Make some selections to build up state
-	for idx := 0; idx < 10; idx++ {
+	for range 10 {
 		_, err := wrr.Select(context.Background(), infos1)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -267,7 +267,7 @@ func TestWeightedRoundRobinRouterSelectReinitializesOnProviderChange(t *testing.
 	counts := map[string]int{"c": 0, "d": 0, "e": 0}
 	iterations := 300
 
-	for idx := 0; idx < iterations; idx++ {
+	for range iterations {
 		prov, err := wrr.Select(context.Background(), infos2)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -300,11 +300,11 @@ func TestWeightedRoundRobinRouterSelectConcurrentSafety(t *testing.T) {
 	mutex := sync.Mutex{}
 	counts := map[string]int{"a": 0, "b": 0}
 
-	for gIdx := 0; gIdx < goroutines; gIdx++ {
+	for range goroutines {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			for selIdx := 0; selIdx < selectionsPerGoroutine; selIdx++ {
+			for range selectionsPerGoroutine {
 				prov, err := wrr.Select(context.Background(), infos)
 				if err != nil {
 					t.Errorf("Select() unexpected error: %v", err)
@@ -350,7 +350,7 @@ func TestWeightedRoundRobinRouterSelectSmoothDistribution(t *testing.T) {
 
 	// Get 6 selections - should see smooth pattern
 	selections := make([]string, 0, 6)
-	for idx := 0; idx < 6; idx++ {
+	for range 6 {
 		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
@@ -388,7 +388,7 @@ func TestWeightedRoundRobinRouterSelectSingleProvider(t *testing.T) {
 		newWRRInfo("only", 5, healthy()),
 	}
 
-	for idx := 0; idx < 10; idx++ {
+	for range 10 {
 		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)

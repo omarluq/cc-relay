@@ -39,7 +39,7 @@ func TestLiveRouterHotReloadStrategyChange(t *testing.T) {
 
 	// With round_robin, should distribute across providers
 	roundRobinSelections := make([]int, 0, 4)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		selected, err := liveRouter.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		roundRobinSelections = append(roundRobinSelections, selected.Weight)
@@ -58,7 +58,7 @@ func TestLiveRouterHotReloadStrategyChange(t *testing.T) {
 	// With failover, should always select highest priority (higher priority number = higher priority)
 	// Provider with Priority 3 (Weight 3) should always be selected
 	failoverSelections := make([]int, 0, 4)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		selected, err := liveRouter.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		failoverSelections = append(failoverSelections, selected.Weight)

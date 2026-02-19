@@ -136,7 +136,7 @@ func TestRoundRobinDistributionProperties(t *testing.T) {
 			selections := make(map[string]int)
 			iterations := keyCount * 3
 
-			for iteration := 0; iteration < iterations; iteration++ {
+			for range iterations {
 				selected, err := selector.Select(keys)
 				if err != nil {
 					return false
@@ -274,7 +274,7 @@ func TestNewSelectorProperties(t *testing.T) {
 
 func createTestKeysWithVaryingCapacity(numKeys int) []*keypool.KeyMetadata {
 	keys := make([]*keypool.KeyMetadata, numKeys)
-	for keyIdx := 0; keyIdx < numKeys; keyIdx++ {
+	for keyIdx := range numKeys {
 		rpm := 100
 		remaining := (keyIdx + 1) * 10
 		keys[keyIdx] = keypool.NewKeyMetadata(fmt.Sprintf("sk-test-varied-%d", keyIdx), rpm, 10000, 10000)
@@ -289,7 +289,7 @@ func createTestKeysWithVaryingCapacity(numKeys int) []*keypool.KeyMetadata {
 
 func createHealthyKeys(numKeys int) []*keypool.KeyMetadata {
 	keys := make([]*keypool.KeyMetadata, numKeys)
-	for keyIdx := 0; keyIdx < numKeys; keyIdx++ {
+	for keyIdx := range numKeys {
 		keys[keyIdx] = keypool.NewKeyMetadata(fmt.Sprintf("sk-test-healthy-%d", keyIdx), 100, 10000, 10000)
 	}
 	return keys
@@ -297,7 +297,7 @@ func createHealthyKeys(numKeys int) []*keypool.KeyMetadata {
 
 func createUnavailableKeys(numKeys int) []*keypool.KeyMetadata {
 	keys := make([]*keypool.KeyMetadata, numKeys)
-	for keyIdx := 0; keyIdx < numKeys; keyIdx++ {
+	for keyIdx := range numKeys {
 		keys[keyIdx] = keypool.NewKeyMetadata(fmt.Sprintf("sk-test-unavail-%d", keyIdx), 100, 10000, 10000)
 		keys[keyIdx].MarkUnhealthy(fmt.Errorf("test error"))
 	}
@@ -306,7 +306,7 @@ func createUnavailableKeys(numKeys int) []*keypool.KeyMetadata {
 
 func createMixedAvailabilityKeys(total, unavailable int) []*keypool.KeyMetadata {
 	keys := make([]*keypool.KeyMetadata, total)
-	for keyIdx := 0; keyIdx < total; keyIdx++ {
+	for keyIdx := range total {
 		keys[keyIdx] = keypool.NewKeyMetadata(fmt.Sprintf("sk-test-mixed-%d", keyIdx), 100, 10000, 10000)
 		if keyIdx < unavailable {
 			keys[keyIdx].MarkUnhealthy(fmt.Errorf("test error"))

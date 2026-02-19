@@ -401,7 +401,7 @@ func TestFailoverRouterSelectWithRetryConcurrentSafety(t *testing.T) {
 	}
 
 	var waitGroup sync.WaitGroup
-	for idx := 0; idx < 100; idx++ {
+	for range 100 {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()

@@ -391,7 +391,7 @@ func TestRoundRobinSelector(t *testing.T) {
 
 	// First three should be unique
 	seen := make(map[string]bool)
-	for idx := 0; idx < 3; idx++ {
+	for idx := range 3 {
 		assert.False(t, seen[selectedKeys[idx]], "Selected duplicate key %q in first 3 selections", selectedKeys[idx])
 		seen[selectedKeys[idx]] = true
 	}
@@ -413,7 +413,7 @@ func TestRoundRobinSelectorSkipsUnavailable(t *testing.T) {
 
 	keys[1].SetCooldown(time.Now().Add(5 * time.Minute))
 
-	for iteration := 0; iteration < 4; iteration++ {
+	for iteration := range 4 {
 		selected, err := selector.Select(keys)
 		require.NoError(t, err)
 		assert.NotEqual(t, "key2", selected.APIKey, "Selected unavailable key2 on iteration %d", iteration)
@@ -436,10 +436,10 @@ func TestRoundRobinSelectorConcurrent(t *testing.T) {
 	selectionsPerGoroutine := 10
 
 	waitGroup.Add(numGoroutines)
-	for goroutineIdx := 0; goroutineIdx < numGoroutines; goroutineIdx++ {
+	for range numGoroutines {
 		go func() {
 			defer waitGroup.Done()
-			for iteration := 0; iteration < selectionsPerGoroutine; iteration++ {
+			for range selectionsPerGoroutine {
 				_, err := selector.Select(keys)
 				if err != nil {
 					t.Errorf("Concurrent Select() error = %v", err)
@@ -554,7 +554,7 @@ func TestLeastLoadedSelectorVariousCapacities(t *testing.T) {
 	keys := createTestKeys([]float64{1.0, 0.75, 0.5, 0.25})
 
 	// Should always select the first key (100% capacity)
-	for iteration := 0; iteration < 5; iteration++ {
+	for iteration := range 5 {
 		selected, err := selector.Select(keys)
 		require.NoError(t, err)
 		assert.Equal(t, "key1", selected.APIKey,

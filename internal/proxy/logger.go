@@ -92,14 +92,14 @@ func buildConsoleWriter(output io.Writer) zerolog.ConsoleWriter {
 		FormatLevel:     formatLevel,
 		FormatMessage:   formatMessage,
 		FormatFieldName: formatFieldName,
-		FormatFieldValue: func(i interface{}) string {
+		FormatFieldValue: func(i any) string {
 			return fmt.Sprintf("%s", i)
 		},
 	}
 }
 
 // formatLevel formats log level with ANSI colors.
-func formatLevel(i interface{}) string {
+func formatLevel(i any) string {
 	levelStr, ok := i.(string)
 	if !ok {
 		return ""
@@ -121,7 +121,7 @@ func formatLevel(i interface{}) string {
 }
 
 // formatMessage formats log message with arrow prefix.
-func formatMessage(i interface{}) string {
+func formatMessage(i any) string {
 	if i == nil {
 		return ""
 	}
@@ -129,7 +129,7 @@ func formatMessage(i interface{}) string {
 }
 
 // formatFieldName formats field names with dim styling.
-func formatFieldName(i interface{}) string {
+func formatFieldName(i any) string {
 	return fmt.Sprintf("\033[2m%s=\033[0m", i) // Dim
 }
 

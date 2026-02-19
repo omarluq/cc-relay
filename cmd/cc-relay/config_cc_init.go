@@ -53,7 +53,7 @@ func applyCCRelayConfig(home, proxyURL string) (string, error) {
 	settingsPath := filepath.Clean(filepath.Join(home, ".claude", "settings.json"))
 
 	// Read existing settings or create new
-	var settings map[string]interface{}
+	var settings map[string]any
 
 	data, readErr := os.ReadFile(settingsPath)
 	if readErr == nil {
@@ -61,13 +61,13 @@ func applyCCRelayConfig(home, proxyURL string) (string, error) {
 			return "", fmt.Errorf("failed to parse settings.json: %w", unmarshalErr)
 		}
 	} else {
-		settings = make(map[string]interface{})
+		settings = make(map[string]any)
 	}
 
 	// Get or create env map
-	env, ok := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]any)
 	if !ok {
-		env = make(map[string]interface{})
+		env = make(map[string]any)
 	}
 
 	// Set proxy env vars

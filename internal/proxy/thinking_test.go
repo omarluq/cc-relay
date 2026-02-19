@@ -401,11 +401,11 @@ func TestProcessResponseSignature(t *testing.T) {
 	modifiedData := proxy.ProcessResponseSignature(ctx, []byte(eventData), thinkingText, "claude-sonnet-4", sigCache)
 
 	// Verify signature was prefixed
-	var result map[string]interface{}
+	var result map[string]any
 	err := json.Unmarshal(modifiedData, &result)
 	require.NoError(t, err)
 
-	delta, ok := result["delta"].(map[string]interface{})
+	delta, ok := result["delta"].(map[string]any)
 	require.True(t, ok, "delta should be a map")
 	assert.Equal(t, "claude#"+signature, delta["signature"])
 
@@ -468,7 +468,7 @@ func BenchmarkHasThinkingBlocks(b *testing.B) {
 
 	b.Run("JSONParse", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			var body map[string]interface{}
+			var body map[string]any
 			// Intentionally ignoring errors in benchmark for fair comparison
 			if unmarshalErr := json.Unmarshal(bodyWithThinking, &body); unmarshalErr != nil {
 				b.Fatal(unmarshalErr)

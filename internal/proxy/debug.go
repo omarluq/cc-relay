@@ -109,7 +109,7 @@ func extractModelInfo(bodyBytes []byte) (model string, maxTokens int) {
 		return "", 0
 	}
 
-	var bodyMap map[string]interface{}
+	var bodyMap map[string]any
 	if json.Unmarshal(bodyBytes, &bodyMap) != nil {
 		return "", 0
 	}

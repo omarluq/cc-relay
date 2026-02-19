@@ -71,7 +71,7 @@ func TestShuffleRouterSkipsUnhealthyDistinct(t *testing.T) {
 
 	// Select multiple times and verify we never get the unhealthy one
 	selectedWeights := make(map[int]bool)
-	for idx := 0; idx < 20; idx++ {
+	for range 20 {
 		prov, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -96,7 +96,7 @@ func TestShuffleRouterDealingCardsEachGetsOneBeforeSeconds(t *testing.T) {
 
 	// First round: each provider should get exactly 1 request
 	firstRound := make(map[int]int) // weight -> count
-	for idx := 0; idx < 3; idx++ {
+	for range 3 {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -113,7 +113,7 @@ func TestShuffleRouterDealingCardsEachGetsOneBeforeSeconds(t *testing.T) {
 
 	// Second round: again each should get exactly 1 more
 	secondRound := make(map[int]int)
-	for idx := 0; idx < 3; idx++ {
+	for range 3 {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -136,7 +136,7 @@ func TestShuffleRouterReshufflesWhenExhausted(t *testing.T) {
 	providers := createShuffleTestProviders(2)
 
 	// Exhaust the deck (2 requests)
-	for idx := 0; idx < 2; idx++ {
+	for range 2 {
 		_, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -167,7 +167,7 @@ func TestShuffleRouterReshufflesWhenProviderCountChanges(t *testing.T) {
 
 	// Make 3 requests - should work and distribute across all 3
 	counts := make(map[int]int)
-	for idx := 0; idx < 3; idx++ {
+	for range 3 {
 		selected, err := rtr.Select(context.Background(), providers3)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -192,10 +192,10 @@ func TestShuffleRouterConcurrentSafety(t *testing.T) {
 	requestsPerGoroutine := 100
 
 	waitGroup.Add(numGoroutines)
-	for gIdx := 0; gIdx < numGoroutines; gIdx++ {
+	for range numGoroutines {
 		go func() {
 			defer waitGroup.Done()
-			for reqIdx := 0; reqIdx < requestsPerGoroutine; reqIdx++ {
+			for range requestsPerGoroutine {
 				_, err := rtr.Select(context.Background(), providers)
 				if err != nil {
 					t.Errorf("Concurrent Select() error = %v", err)
@@ -225,7 +225,7 @@ func TestShuffleRouterNilIsHealthyTreatedAsHealthy(t *testing.T) {
 
 	// Both should be selectable - do 2 rounds (4 requests)
 	counts := make(map[int]int)
-	for idx := 0; idx < 4; idx++ {
+	for range 4 {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -247,7 +247,7 @@ func TestShuffleRouterSingleProvider(t *testing.T) {
 		{Provider: router.NewTestProvider("only"), Weight: 42, Priority: 0, IsHealthy: func() bool { return true }},
 	}
 
-	for idx := 0; idx < 5; idx++ {
+	for range 5 {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -266,7 +266,7 @@ func TestShuffleRouterEvenDistributionOverManyRounds(t *testing.T) {
 
 	// Run 40 requests (10 complete rounds)
 	counts := make(map[int]int)
-	for idx := 0; idx < 40; idx++ {
+	for range 40 {
 		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
@@ -285,7 +285,7 @@ func TestShuffleRouterEvenDistributionOverManyRounds(t *testing.T) {
 // createShuffleTestProviders creates N healthy providers with unique weights for identification.
 func createShuffleTestProviders(n int) []router.ProviderInfo {
 	providers := make([]router.ProviderInfo, n)
-	for idx := 0; idx < n; idx++ {
+	for idx := range n {
 		providers[idx] = router.ProviderInfo{
 			Provider:  router.NewTestProvider(string(rune('a' + idx))),
 			Weight:    idx + 1, // Use weight as identifier (1, 2, 3, ...)

@@ -26,14 +26,14 @@ func settingsPathForHome(home string) string {
 	return filepath.Join(home, claudeDirName, settingsFileName)
 }
 
-func readSettings(t *testing.T, home string) map[string]interface{} {
+func readSettings(t *testing.T, home string) map[string]any {
 	t.Helper()
 	data, err := os.ReadFile(settingsPathForHome(home))
 	if err != nil {
 		t.Fatalf(readSettingsErrFmt, err)
 	}
 
-	var settings map[string]interface{}
+	var settings map[string]any
 	if err := json.Unmarshal(data, &settings); err != nil {
 		t.Fatalf(parseSettingsErrFmt, err)
 	}
@@ -41,7 +41,7 @@ func readSettings(t *testing.T, home string) map[string]interface{} {
 	return settings
 }
 
-func writeSettings(t *testing.T, home string, settings map[string]interface{}) {
+func writeSettings(t *testing.T, home string, settings map[string]any) {
 	t.Helper()
 	claudeDir := filepath.Join(home, claudeDirName)
 	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
@@ -73,7 +73,7 @@ func TestApplyCCRelayConfigNewSettings(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	env, ok := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
@@ -92,9 +92,9 @@ func TestApplyCCRelayConfigExistingSettings(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	existingSettings := map[string]interface{}{
+	existingSettings := map[string]any{
 		"theme": themeDark,
-		"env": map[string]interface{}{
+		"env": map[string]any{
 			"OTHER_VAR": otherEnvValue,
 		},
 	}
@@ -111,7 +111,7 @@ func TestApplyCCRelayConfigExistingSettings(t *testing.T) {
 		t.Errorf(themePreservedErrFmt, settings["theme"])
 	}
 
-	env, ok := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
@@ -138,7 +138,7 @@ func TestApplyCCRelayConfigCustomProxyURL(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	env, ok := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
@@ -152,9 +152,9 @@ func TestRemoveCCRelayConfigExistingSettings(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	existingSettings := map[string]interface{}{
+	existingSettings := map[string]any{
 		"theme": themeDark,
-		"env": map[string]interface{}{
+		"env": map[string]any{
 			"ANTHROPIC_BASE_URL":   ccRelayProxyURL,
 			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayValue,
 			"OTHER_VAR":            otherEnvValue,
@@ -177,7 +177,7 @@ func TestRemoveCCRelayConfigExistingSettings(t *testing.T) {
 		t.Errorf(themePreservedErrFmt, settings["theme"])
 	}
 
-	env, ok := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
@@ -214,7 +214,7 @@ func TestRemoveCCRelayConfigNoEnvSection(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	existingSettings := map[string]interface{}{
+	existingSettings := map[string]any{
 		"theme": themeDark,
 	}
 	writeSettings(t, tmpDir, existingSettings)
@@ -234,8 +234,8 @@ func TestRemoveCCRelayConfigNoCCRelayConfig(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	existingSettings := map[string]interface{}{
-		"env": map[string]interface{}{
+	existingSettings := map[string]any{
+		"env": map[string]any{
 			"OTHER_VAR": otherEnvValue,
 		},
 	}
@@ -252,7 +252,7 @@ func TestRemoveCCRelayConfigNoCCRelayConfig(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	env, ok := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
@@ -266,9 +266,9 @@ func TestRemoveCCRelayConfigRemovesEmptyEnv(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	existingSettings := map[string]interface{}{
+	existingSettings := map[string]any{
 		"theme": themeDark,
-		"env": map[string]interface{}{
+		"env": map[string]any{
 			"ANTHROPIC_BASE_URL":   ccRelayProxyURL,
 			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayValue,
 		},
@@ -287,7 +287,7 @@ func TestRemoveCCRelayConfigRemovesEmptyEnv(t *testing.T) {
 	settings := readSettings(t, tmpDir)
 
 	if env, exists := settings["env"]; exists {
-		if envMap, ok := env.(map[string]interface{}); ok && len(envMap) > 0 {
+		if envMap, ok := env.(map[string]any); ok && len(envMap) > 0 {
 			t.Errorf("Expected env section to be removed or empty, got %v", envMap)
 		}
 	}

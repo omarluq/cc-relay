@@ -69,7 +69,7 @@ func testBedrockProviderWithDefaultCreds(
 // request transformation.
 func assertBedrockPreservesBodyFields(
 	t *testing.T,
-	result map[string]interface{},
+	result map[string]any,
 	expectedVersion string,
 ) {
 	t.Helper()
@@ -330,7 +330,7 @@ func TestBedrockProviderTransformRequestBody(t *testing.T) {
 
 		require.NoError(t, err)
 
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.Unmarshal(newBody, &result)
 		require.NoError(t, err)
 
@@ -357,7 +357,7 @@ func TestBedrockProviderTransformRequestBody(t *testing.T) {
 
 		require.NoError(t, err)
 
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.Unmarshal(newBody, &result)
 		require.NoError(t, err)
 

@@ -1306,7 +1306,7 @@ func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 	handler, tracker := newTrackedHandler(t, test500ProviderName, backend.URL, "test", 2)
 
 	// Make multiple requests to trip the circuit
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		rr := serveJSONMessages(t, handler)
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	}
@@ -1326,7 +1326,7 @@ func TestHandlerReportOutcomeFailure429(t *testing.T) {
 	handler, tracker := newTrackedHandler(t, test429ProviderName, backend.URL, "test", 2)
 
 	// Make multiple requests to trip the circuit
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		rr := serveJSONMessages(t, handler)
 		assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 	}
@@ -1344,7 +1344,7 @@ func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 	handler, tracker := newTrackedHandler(t, test400ProviderName, backend.URL, "test", 2)
 
 	// Make multiple 400 requests
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		rr := serveJSONMessages(t, handler)
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	}
@@ -1429,7 +1429,7 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	}`
 
 	// Make multiple requests with thinking - should always get first healthy provider
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		rr := serveJSONMessagesBody(t, handler, thinkingBody)
 		assert.Equal(t, http.StatusOK, rr.Code)
 	}

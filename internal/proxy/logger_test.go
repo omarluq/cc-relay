@@ -33,7 +33,7 @@ func TestNewLoggerJSONFormat(t *testing.T) {
 	logger.Info().Msg("test message")
 
 	// Verify JSON format
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &logEntry); err != nil {
 		t.Fatalf("Log output is not valid JSON: %v", err)
 	}

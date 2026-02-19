@@ -63,7 +63,7 @@ func TestRemoveModelFromBody(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		checkFields map[string]interface{}
+		checkFields map[string]any
 		name        string
 		body        []byte
 		wantModel   bool
@@ -74,7 +74,7 @@ func TestRemoveModelFromBody(t *testing.T) {
 			body:      []byte(`{"model":"claude-3-opus-20240229","max_tokens":1024,"stream":true}`),
 			wantModel: false,
 			wantErr:   false,
-			checkFields: map[string]interface{}{
+			checkFields: map[string]any{
 				"max_tokens": float64(1024),
 				"stream":     true,
 			},
@@ -84,14 +84,14 @@ func TestRemoveModelFromBody(t *testing.T) {
 			body:        []byte(`{"max_tokens":1024}`),
 			wantModel:   false,
 			wantErr:     false,
-			checkFields: map[string]interface{}{"max_tokens": float64(1024)},
+			checkFields: map[string]any{"max_tokens": float64(1024)},
 		},
 		{
 			name:        "empty object",
 			body:        []byte(`{}`),
 			wantModel:   false,
 			wantErr:     false,
-			checkFields: map[string]interface{}{},
+			checkFields: map[string]any{},
 		},
 	}
 
@@ -107,7 +107,7 @@ func TestRemoveModelFromBody(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse result to check fields
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			err = json.Unmarshal(result, &parsed)
 			require.NoError(t, err)
 
@@ -164,7 +164,7 @@ func TestAddAnthropicVersion(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse result to check version
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			err = json.Unmarshal(result, &parsed)
 			require.NoError(t, err)
 
@@ -229,7 +229,7 @@ func TestTransformBodyForCloudProvider(t *testing.T) {
 			assert.Equal(t, testCase.expectedModel, model)
 
 			// Parse result to verify transformation
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			err = json.Unmarshal(newBody, &parsed)
 			require.NoError(t, err)
 
@@ -260,7 +260,7 @@ func TestTransformBodyForCloudProviderPreservesFields(t *testing.T) {
 
 	assert.Equal(t, "claude-3-opus-20240229", model)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err = json.Unmarshal(newBody, &parsed)
 	require.NoError(t, err)
 
@@ -276,7 +276,7 @@ func TestTransformBodyForCloudProviderPreservesFields(t *testing.T) {
 	assert.False(t, hasModel)
 
 	// Messages should be preserved
-	messages, ok := parsed["messages"].([]interface{})
+	messages, ok := parsed["messages"].([]any)
 	assert.True(t, ok)
 	assert.Len(t, messages, 1)
 }
