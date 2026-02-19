@@ -1,8 +1,10 @@
 package cache
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -121,3 +123,107 @@ func NewForTest(ctx context.Context, cfg *Config, testLog *zerolog.Logger) (Cach
 
 	return result, nil
 }
+
+// NewTestLogger creates a test logger at the given level, returning
+// the buffer (for inspecting output) and the logger pointer.
+func NewTestLogger(level zerolog.Level) (*bytes.Buffer, *zerolog.Logger) {
+	var buf bytes.Buffer
+	logger := zerolog.New(&buf).Level(level)
+	return &buf, &logger
+}
+
+// DefaultTestRistrettoConfig returns the standard test Ristretto configuration
+// used across most tests, reducing duplication.
+func DefaultTestRistrettoConfig() RistrettoConfig {
+	return RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+}
+
+// SmallTestRistrettoConfig returns a smaller test Ristretto configuration
+// for lightweight tests.
+func SmallTestRistrettoConfig() RistrettoConfig {
+	return RistrettoConfig{
+		NumCounters: 1000,
+		MaxCost:     1 << 20,
+		BufferItems: 64,
+	}
+}
+
+// ZeroOlricConfig returns a zero-value OlricConfig for use in factory tests
+// that only exercise non-HA paths.
+func ZeroOlricConfig() OlricConfig {
+	return OlricConfig{
+		DMapName:          "",
+		BindAddr:          "",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          false,
+	}
+}
+
+// DefaultTestOlricConfig returns the standard embedded Olric configuration
+// used across most integration tests, reducing duplication.
+// Only DMapName and BindAddr need to be parameterized for test isolation.
+func DefaultTestOlricConfig(dmapName, bindAddr string) OlricConfig {
+	return OlricConfig{
+		DMapName:          dmapName,
+		BindAddr:          bindAddr,
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          true,
+	}
+}
+
+// ZeroRistrettoConfig returns a zero-value RistrettoConfig for factory tests.
+func ZeroRistrettoConfig() RistrettoConfig {
+	return RistrettoConfig{
+		NumCounters: 0,
+		MaxCost:     0,
+		BufferItems: 0,
+	}
+}
+
+// NewTestRistrettoCacheWithCleanup creates a ristretto cache with the default
+// test config and registers cleanup with t.Cleanup.
+func NewTestRistrettoCacheWithCleanup(t *testing.T, testLogger *zerolog.Logger) *ristrettoCache {
+	t.Helper()
+	cache, err := newRistrettoCacheWithLog(DefaultTestRistrettoConfig(), testLogger)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := cache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+	return cache
+}
+
+// NewTestNoopCacheWithCleanup creates a noop cache with the given logger
+// and registers cleanup with t.Cleanup.
+func NewTestNoopCacheWithCleanup(t *testing.T, testLogger *zerolog.Logger) *noopCache {
+	t.Helper()
+	cache := newNoopCacheWithLog(testLogger)
+	t.Cleanup(func() {
+		if closeErr := cache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+	return cache
+}
+

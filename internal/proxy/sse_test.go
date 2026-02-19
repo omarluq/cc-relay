@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
@@ -103,36 +102,8 @@ func TestSSESignatureProcessorAccumulatesThinking(t *testing.T) {
 func TestSSESignatureProcessorCachesSignature(t *testing.T) {
 	t.Parallel()
 
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
-
-	sigCache := proxy.NewSignatureCache(cacheInstance)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 	processor := proxy.NewSSESignatureProcessor(sigCache, "claude-sonnet-4")
 	ctx := context.Background()
 

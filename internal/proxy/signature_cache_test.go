@@ -8,9 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/omarluq/cc-relay/internal/cache"
-
-
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
@@ -48,37 +45,8 @@ func TestGetModelGroup(t *testing.T) {
 
 func TestSignatureCacheCacheKey(t *testing.T) {
 	t.Parallel()
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
-
-	sigCache := proxy.NewSignatureCache(cacheInstance)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 	require.NotNil(t, sigCache)
 
 	// Test deterministic key generation
@@ -101,37 +69,8 @@ func TestSignatureCacheCacheKey(t *testing.T) {
 
 func TestSignatureCacheGetSet(t *testing.T) {
 	t.Parallel()
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
-
-	sigCache := proxy.NewSignatureCache(cacheInstance)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 	ctx := context.Background()
 
 	// Generate a valid signature (>= MinSignatureLen)
@@ -165,37 +104,8 @@ func TestSignatureCacheGetSet(t *testing.T) {
 
 func TestSignatureCacheSkipsShortSignatures(t *testing.T) {
 	t.Parallel()
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
-
-	sigCache := proxy.NewSignatureCache(cacheInstance)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 	ctx := context.Background()
 
 	// Try to set a short signature (should be skipped)
@@ -259,37 +169,8 @@ func TestIsValidSignature(t *testing.T) {
 
 func TestSignatureCacheGeminiSentinel(t *testing.T) {
 	t.Parallel()
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
-
-	sigCache := proxy.NewSignatureCache(cacheInstance)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 	ctx := context.Background()
 
 	// Gemini sentinel should be cached even though it's short

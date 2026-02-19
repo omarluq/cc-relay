@@ -3,45 +3,30 @@ package router_test
 import (
 	"context"
 	"errors"
-	"net/http"
 	"sync"
 	"testing"
 
-	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
-// mockProvider implements providers.Provider for testing.
-type mockProvider struct {
-	name string
+// healthy returns a health-check function that always returns true.
+func healthy() func() bool {
+	return func() bool { return true }
 }
 
-func (m *mockProvider) Name() string                                 { return m.name }
-func (m *mockProvider) BaseURL() string                              { return "http://test" }
-func (m *mockProvider) Owner() string                                { return "test" }
-func (m *mockProvider) Authenticate(_ *http.Request, _ string) error { return nil }
-func (m *mockProvider) ForwardHeaders(_ http.Header) http.Header     { return http.Header{} }
-func (m *mockProvider) SupportsStreaming() bool                      { return true }
-func (m *mockProvider) SupportsTransparentAuth() bool                { return false }
-func (m *mockProvider) ListModels() []providers.Model                { return nil }
-func (m *mockProvider) GetModelMapping() map[string]string           { return nil }
-func (m *mockProvider) MapModel(model string) string                 { return model }
-
-func (m *mockProvider) TransformRequest(
-	body []byte, endpoint string,
-) (newBody []byte, targetURL string, err error) {
-	return body, "http://test" + endpoint, nil
+// unhealthy returns a health-check function that always returns false.
+func unhealthy() func() bool {
+	return func() bool { return false }
 }
 
-func (m *mockProvider) TransformResponse(
-	_ *http.Response, _ http.ResponseWriter,
-) error {
-	return nil
-}
-
-func (m *mockProvider) RequiresBodyTransform() bool { return false }
-func (m *mockProvider) StreamingContentType() string {
-	return providers.ContentTypeSSE
+// newWRRInfo creates a ProviderInfo for weighted round-robin tests.
+func newWRRInfo(name string, weight int, isHealthy func() bool) router.ProviderInfo {
+	return router.ProviderInfo{
+		Provider:  router.NewTestProvider(name),
+		IsHealthy: isHealthy,
+		Weight:    weight,
+		Priority:  0,
+	}
 }
 
 func TestWeightedRoundRobinRouterSelectNoProviders(t *testing.T) {
@@ -60,8 +45,8 @@ func TestWeightedRoundRobinRouterSelectAllUnhealthy(t *testing.T) {
 
 	wrr := router.NewWeightedRoundRobinRouter()
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return false }, Weight: 1, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return false }, Weight: 1, Priority: 0},
+		newWRRInfo("a", 1, unhealthy()),
+		newWRRInfo("b", 1, unhealthy()),
 	}
 
 	_, err := wrr.Select(context.Background(), infos)
@@ -76,9 +61,9 @@ func TestWeightedRoundRobinRouterSelectEqualWeights(t *testing.T) {
 
 	wrr := router.NewWeightedRoundRobinRouter()
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		newWRRInfo("a", 1, healthy()),
+		newWRRInfo("b", 1, healthy()),
+		newWRRInfo("c", 1, healthy()),
 	}
 
 	// With equal weights, distribution should be even
@@ -109,9 +94,9 @@ func TestWeightedRoundRobinRouterSelectProportionalWeights(t *testing.T) {
 	// A:3, B:2, C:1 = total 6
 	// Expected: A~50%, B~33%, C~17%
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 3, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		newWRRInfo("a", 3, healthy()),
+		newWRRInfo("b", 2, healthy()),
+		newWRRInfo("c", 1, healthy()),
 	}
 
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
@@ -150,8 +135,8 @@ func TestWeightedRoundRobinRouterSelectDefaultWeight(t *testing.T) {
 	wrr := router.NewWeightedRoundRobinRouter()
 	// Provider with Weight=0 should get default weight of 1
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
+		newWRRInfo("a", 2, healthy()),
+		newWRRInfo("b", 0, healthy()),
 	}
 
 	counts := map[string]int{"a": 0, "b": 0}
@@ -184,8 +169,8 @@ func TestWeightedRoundRobinRouterSelectNegativeWeight(t *testing.T) {
 	wrr := router.NewWeightedRoundRobinRouter()
 	// Provider with negative weight should get default weight of 1
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: -5, Priority: 0},
+		newWRRInfo("a", 2, healthy()),
+		newWRRInfo("b", -5, healthy()),
 	}
 
 	counts := map[string]int{"a": 0, "b": 0}
@@ -219,9 +204,9 @@ func TestWeightedRoundRobinRouterSelectSkipsUnhealthy(t *testing.T) {
 	// A:3 healthy, B:2 unhealthy, C:1 healthy
 	// Only A and C should be selected, proportional to their weights (3:1)
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 3, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return false }, Weight: 2, Priority: 0},
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		newWRRInfo("a", 3, healthy()),
+		newWRRInfo("b", 2, unhealthy()),
+		newWRRInfo("c", 1, healthy()),
 	}
 
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
@@ -259,8 +244,8 @@ func TestWeightedRoundRobinRouterSelectReinitializesOnProviderChange(t *testing.
 
 	// Initial providers
 	infos1 := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		newWRRInfo("a", 1, healthy()),
+		newWRRInfo("b", 1, healthy()),
 	}
 
 	// Make some selections to build up state
@@ -273,9 +258,9 @@ func TestWeightedRoundRobinRouterSelectReinitializesOnProviderChange(t *testing.
 
 	// Change provider list
 	infos2 := []router.ProviderInfo{
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
-		{Provider: &mockProvider{"d"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
-		{Provider: &mockProvider{"e"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		newWRRInfo("c", 1, healthy()),
+		newWRRInfo("d", 1, healthy()),
+		newWRRInfo("e", 1, healthy()),
 	}
 
 	// Should work without issue - state reinitializes
@@ -304,8 +289,8 @@ func TestWeightedRoundRobinRouterSelectConcurrentSafety(t *testing.T) {
 
 	wrr := router.NewWeightedRoundRobinRouter()
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		newWRRInfo("a", 2, healthy()),
+		newWRRInfo("b", 1, healthy()),
 	}
 
 	var waitGroup sync.WaitGroup
@@ -359,8 +344,8 @@ func TestWeightedRoundRobinRouterSelectSmoothDistribution(t *testing.T) {
 	// rather than clustering (e.g., not AAABBC pattern but ABACAB pattern)
 	wrr := router.NewWeightedRoundRobinRouter()
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		newWRRInfo("a", 2, healthy()),
+		newWRRInfo("b", 1, healthy()),
 	}
 
 	// Get 6 selections - should see smooth pattern
@@ -400,7 +385,7 @@ func TestWeightedRoundRobinRouterSelectSingleProvider(t *testing.T) {
 
 	wrr := router.NewWeightedRoundRobinRouter()
 	infos := []router.ProviderInfo{
-		{Provider: &mockProvider{"only"}, IsHealthy: func() bool { return true }, Weight: 5, Priority: 0},
+		newWRRInfo("only", 5, healthy()),
 	}
 
 	for idx := 0; idx < 10; idx++ {

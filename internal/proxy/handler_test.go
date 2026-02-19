@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -285,20 +284,8 @@ func TestNewHandlerWithLiveProvidersNilProviderInfosFunc(t *testing.T) {
 func TestHandlerForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend that echoes headers
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		// Check for anthropic headers
-		if request.Header.Get(anthropicVersionHeader) != proxy.AnthropicVersion {
-			t.Errorf("Expected Anthropic-Version header, got %q", request.Header.Get(anthropicVersionHeader))
-		}
-
-		if request.Header.Get("Anthropic-Beta") != "test-feature" {
-			t.Errorf("Expected Anthropic-Beta header, got %q", request.Header.Get("Anthropic-Beta"))
-		}
-
-		writer.WriteHeader(http.StatusOK)
-	}))
-	defer backend.Close()
+	// Create mock backend that captures headers
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	// Create provider pointing to mock backend
 	provider := proxy.NewTestProvider(backend.URL)
@@ -314,6 +301,10 @@ func TestHandlerForwardsAnthropicHeaders(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
+
+	// Verify headers were forwarded
+	assert.Equal(t, proxy.AnthropicVersion, headerCapture.Get(anthropicVersionHeader))
+	assert.Equal(t, "test-feature", headerCapture.Get("Anthropic-Beta"))
 }
 
 func TestHandlerHasErrorHandler(t *testing.T) {
@@ -372,49 +363,12 @@ func TestHandlerPreservesToolUseId(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that echoes request body
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		body, err := io.ReadAll(request.Body)
-		if err != nil {
-			t.Fatalf("Failed to read request body: %v", err)
-		}
-
-		// Echo the body back
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write(body); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewEchoBackend(t)
 
 	// Create provider pointing to mock backend
 	provider := proxy.NewTestProvider(backend.URL)
 
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            testKey,
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	if err != nil {
-		t.Fatalf("proxy.NewHandler failed: %v", err)
-	}
+	handler := newHandlerWithAPIKey(t, provider)
 
 	// Request body with tool_use_id
 	requestBody := `{"model":"claude-3-5-sonnet","messages":[{"role":"user","content":"test"}],` +
@@ -571,20 +525,14 @@ func TestHandlerKeyPoolUpdate(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns rate limit headers
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("anthropic-ratelimit-requests-limit", "100")
-		writer.Header().Set("anthropic-ratelimit-requests-remaining", "99")
-		writer.Header().Set("anthropic-ratelimit-input-tokens-limit", "50000")
-		writer.Header().Set("anthropic-ratelimit-input-tokens-remaining", "49000")
-		writer.Header().Set("anthropic-ratelimit-output-tokens-limit", "20000")
-		writer.Header().Set("anthropic-ratelimit-output-tokens-remaining", "19000")
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewStatusBackend(t, http.StatusOK, `{"id":"test"}`, map[string]string{
+		"anthropic-ratelimit-requests-limit":          "100",
+		"anthropic-ratelimit-requests-remaining":      "99",
+		"anthropic-ratelimit-input-tokens-limit":      "50000",
+		"anthropic-ratelimit-input-tokens-remaining":  "49000",
+		"anthropic-ratelimit-output-tokens-limit":     "20000",
+		"anthropic-ratelimit-output-tokens-remaining": "19000",
+	})
 
 	// Create key pool
 	pool := newKeyPool(t, []keypool.KeyConfig{
@@ -610,17 +558,10 @@ func TestHandlerBackend429(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend that returns 429
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set("Retry-After", "60")
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusTooManyRequests)
-		if _, err := writer.Write([]byte(
-			`{"type":"error","error":{"type":"rate_limit_error","message":"rate limit"}}`),
-		); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewStatusBackend(t, http.StatusTooManyRequests,
+		`{"type":"error","error":{"type":"rate_limit_error","message":"rate limit"}}`,
+		map[string]string{"Retry-After": "60"},
+	)
 
 	// Create key pool
 	pool := newKeyPool(t, []keypool.KeyConfig{
@@ -647,43 +588,12 @@ func TestHandlerBackend429(t *testing.T) {
 func TestHandlerSingleKeyMode(t *testing.T) {
 	t.Parallel()
 
-	// Create mock backend
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		// Verify auth header uses single key
-		assert.Equal(t, testSingleKey, request.Header.Get("X-Api-Key"))
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	// Create mock backend that captures headers
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	// Create handler without key pool (nil)
 	provider := proxy.NewTestProvider(backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            testSingleKey,
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newTestHandler(t, provider, nil, nil, testSingleKey, false)
 
 	// Make request
 	req := proxy.NewMessagesRequestWithHeaders("{}")
@@ -691,6 +601,9 @@ func TestHandlerSingleKeyMode(t *testing.T) {
 
 	// Verify response OK
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
+
+	// Verify auth header uses single key
+	assert.Equal(t, testSingleKey, headerCapture.Get("X-Api-Key"))
 
 	// Verify no x-cc-relay-* headers (single key mode)
 	assert.Empty(t, responseRecorder.Header().Get(proxy.HeaderRelayKeyID))
@@ -702,46 +615,11 @@ func TestHandlerSingleKeyMode(t *testing.T) {
 func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	t.Parallel()
 
-	var receivedAuthHeader string
-	var receivedAPIKeyHeader string
-
 	// Create mock backend that captures headers
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedAuthHeader = request.Header.Get("Authorization")
-		receivedAPIKeyHeader = request.Header.Get("x-api-key")
-
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	provider := proxy.NewTestProvider(backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            "our-fallback-key",
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newTestHandler(t, provider, nil, nil, "our-fallback-key", false)
 
 	// Create request WITHOUT any auth headers
 	req := proxy.NewMessagesRequestWithHeaders("{}",
@@ -754,10 +632,10 @@ func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
 	// Client Authorization should be empty (none provided)
-	assert.Empty(t, receivedAuthHeader)
+	assert.Empty(t, headerCapture.Get("Authorization"))
 
 	// Our fallback key should be used
-	assert.Equal(t, "our-fallback-key", receivedAPIKeyHeader)
+	assert.Equal(t, "our-fallback-key", headerCapture.Get("x-api-key"))
 }
 
 // TestHandler_ForwardsClientAuthWhenPresent tests that client Authorization header
@@ -765,47 +643,12 @@ func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 	t.Parallel()
 
-	var receivedAuthHeader string
-	var receivedAPIKeyHeader string
-
 	// Create mock backend that captures headers
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedAuthHeader = request.Header.Get("Authorization")
-		receivedAPIKeyHeader = request.Header.Get("x-api-key")
-
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	// Create handler with a configured fallback key
 	provider := proxy.NewTestProvider(backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            fallbackKey,
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newTestHandler(t, provider, nil, nil, fallbackKey, false)
 
 	// Create request WITH client Authorization header
 	req := proxy.NewMessagesRequestWithHeaders("{}",
@@ -818,10 +661,10 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
 	// CRITICAL: Client Authorization header should be forwarded UNCHANGED
-	assert.Equal(t, "Bearer sub_12345", receivedAuthHeader)
+	assert.Equal(t, "Bearer sub_12345", headerCapture.Get("Authorization"))
 
 	// Our fallback key should NOT be added
-	assert.Empty(t, receivedAPIKeyHeader, "fallback key should not be added when client has auth")
+	assert.Empty(t, headerCapture.Get("x-api-key"), "fallback key should not be added when client has auth")
 }
 
 // TestHandler_ForwardsClientAPIKeyWhenPresent tests that client x-api-key header
@@ -829,45 +672,10 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	t.Parallel()
 
-	var receivedAuthHeader string
-	var receivedAPIKeyHeader string
-
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedAuthHeader = request.Header.Get("Authorization")
-		receivedAPIKeyHeader = request.Header.Get("x-api-key")
-
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	provider := proxy.NewTestProvider(backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            fallbackKey,
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newTestHandler(t, provider, nil, nil, fallbackKey, false)
 
 	// Create request WITH client x-api-key header
 	req := proxy.NewMessagesRequestWithHeaders("{}",
@@ -879,10 +687,10 @@ func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
 	// Client x-api-key should be forwarded UNCHANGED
-	assert.Equal(t, "sk-ant-client-key", receivedAPIKeyHeader)
+	assert.Equal(t, "sk-ant-client-key", headerCapture.Get("x-api-key"))
 
 	// No Authorization header should be added
-	assert.Empty(t, receivedAuthHeader)
+	assert.Empty(t, headerCapture.Get("Authorization"))
 }
 
 // TestHandler_TransparentModeSkipsKeyPool tests that key pool is skipped
@@ -890,14 +698,7 @@ func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
 	// Create key pool with test keys
 	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
@@ -909,29 +710,7 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	provider := proxy.NewTestProvider(backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              pool,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            "",
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newHandlerWithPool(t, provider, pool)
 
 	// Create request WITH client auth
 	req := proxy.NewMessagesRequestWithHeaders("{}",
@@ -952,14 +731,7 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
 	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
 		Strategy: "least_loaded",
@@ -970,29 +742,7 @@ func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	provider := proxy.NewTestProvider(backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              pool,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            "",
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newHandlerWithPool(t, provider, pool)
 
 	// Create request WITHOUT client auth
 	req := proxy.NewMessagesRequestWithHeaders("{}")
@@ -1012,45 +762,10 @@ func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
-	var receivedVersion string
-	var receivedBeta string
-
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedVersion = request.Header.Get(anthropicVersionHeader)
-		receivedBeta = request.Header.Get("Anthropic-Beta")
-
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	provider := proxy.NewTestProvider(backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            fallbackKey,
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newTestHandler(t, provider, nil, nil, fallbackKey, false)
 
 	req := proxy.NewMessagesRequestWithHeaders("{}",
 		proxy.HeaderPair{Key: "Authorization", Value: "Bearer client-token"},
@@ -1060,8 +775,8 @@ func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	responseRecorder := proxy.ServeRequest(t, handler, req)
 
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
-	assert.Equal(t, proxy.AnthropicVersion2024, receivedVersion)
-	assert.Equal(t, proxy.AnthropicBetaExtendedThinking, receivedBeta)
+	assert.Equal(t, proxy.AnthropicVersion2024, headerCapture.Get(anthropicVersionHeader))
+	assert.Equal(t, proxy.AnthropicBetaExtendedThinking, headerCapture.Get("Anthropic-Beta"))
 }
 
 // TestHandler_NonTransparentProviderUsesConfiguredKeys tests that providers
@@ -1070,20 +785,7 @@ func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 	t.Parallel()
 
-	var receivedAPIKey string
-	var receivedAuthHeader string
-
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedAPIKey = request.Header.Get("x-api-key")
-		receivedAuthHeader = request.Header.Get("Authorization")
-
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	// Z.AI provider does NOT support transparent auth
 	provider := providers.NewZAIProvider("test-zai", backend.URL)
@@ -1100,8 +802,9 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 
 	// CRITICAL: Client Authorization should NOT be forwarded to Z.AI
 	// Instead, our configured x-api-key should be used
-	assert.Empty(t, receivedAuthHeader, "client Authorization should not be forwarded to non-transparent provider")
-	assert.Equal(t, "zai-configured-key", receivedAPIKey, "configured key should be used for Z.AI")
+	assert.Empty(t, headerCapture.Get("Authorization"),
+		"client Authorization should not be forwarded to non-transparent provider")
+	assert.Equal(t, "zai-configured-key", headerCapture.Get("x-api-key"), "configured key should be used for Z.AI")
 }
 
 // TestHandler_NonTransparentProviderWithKeyPool tests that non-transparent providers
@@ -1109,18 +812,7 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	t.Parallel()
 
-	var receivedAPIKey string
-
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedAPIKey = request.Header.Get("x-api-key")
-
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	// Create key pool
 	pool, err := keypool.NewKeyPool("test-zai", keypool.PoolConfig{
@@ -1140,29 +832,7 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 
 	// Z.AI provider does NOT support transparent auth
 	provider := providers.NewZAIProvider("test-zai", backend.URL)
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              pool,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            "",
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newHandlerWithPool(t, provider, pool)
 
 	// Client sends Authorization header
 	req := proxy.NewMessagesRequestWithHeaders("{}",
@@ -1179,7 +849,7 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	)
 
 	// Configured pool key should be sent, not client auth
-	assert.Equal(t, "zai-test-pool-key-one", receivedAPIKey)
+	assert.Equal(t, "zai-test-pool-key-one", headerCapture.Get("x-api-key"))
 }
 
 // TestParseRetryAfter tests the parseRetryAfter helper function.
@@ -1270,40 +940,11 @@ func (c *captureRouter) Name() string {
 func TestHandlerSingleProviderMode(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
 	provider := proxy.NewTestProvider(backend.URL)
 	// No router (nil), no providers list (nil) - single provider mode
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            testKey,
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newHandlerWithAPIKey(t, provider)
 
 	req := proxy.NewMessagesRequestWithHeaders("{}")
 	responseRecorder := proxy.ServeRequest(t, handler, req)
@@ -1318,14 +959,7 @@ func TestHandlerSingleProviderMode(t *testing.T) {
 func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		writer.WriteHeader(http.StatusOK)
-		if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
 	provider1 := proxy.NewNamedProvider("provider1", backend.URL)
 	provider2 := proxy.NewNamedProvider("provider2", backend.URL)
@@ -1429,23 +1063,8 @@ func setupModelBasedHandler(
 func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 	t.Parallel()
 
-	backendA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"provider":"a"}`)); err != nil {
-			return
-		}
-	}))
-	defer backendA.Close()
-
-	backendB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"provider":"b"}`)); err != nil {
-			return
-		}
-	}))
-	defer backendB.Close()
+	backendA := proxy.NewJSONBackend(t, `{"provider":"a"}`)
+	backendB := proxy.NewJSONBackend(t, `{"provider":"b"}`)
 
 	providerA := proxy.NewNamedProvider(providerAName, backendA.URL)
 	providerB := proxy.NewNamedProvider(providerBName, backendB.URL)
@@ -1506,14 +1125,7 @@ func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 func TestHandlerDebugHeadersDisabledByDefault(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
 	provider := proxy.NewTestProvider(backend.URL)
 	providerInfos := []router.ProviderInfo{
@@ -1547,14 +1159,7 @@ func TestHandlerDebugHeadersDisabledByDefault(t *testing.T) {
 func TestHandlerDebugHeadersWhenEnabled(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"test"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
 	provider := proxy.NewNamedProvider(testProviderName, backend.URL)
 	providerInfos := []router.ProviderInfo{
@@ -1622,29 +1227,7 @@ func TestHandlerSelectProviderSingleMode(t *testing.T) {
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	// No router, no providers - single provider mode
-	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
-		Provider:          provider,
-		ProviderRouter:    nil,
-		ProviderPools:     nil,
-		ProviderInfosFunc: nil,
-		Pool:              nil,
-		ProviderKeys:      nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		RoutingConfig:     nil,
-		HealthTracker:     nil,
-		SignatureCache:    nil,
-		APIKey:            testKey,
-		ProviderInfos:     nil,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-		RoutingDebug: false,
-	})
-	require.NoError(t, err)
+	handler := newHandlerWithAPIKey(t, provider)
 
 	info, err := proxy.HandlerSelectProvider(context.Background(), handler, "", false)
 	require.NoError(t, err)
@@ -1688,13 +1271,7 @@ func TestHandlerHealthHeaderWhenEnabled(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"id":"msg_123","type":"message"}`)); err != nil {
-			return
-		}
-	}))
-	defer backend.Close()
+	backend := proxy.NewJSONBackend(t, `{"id":"msg_123","type":"message"}`)
 
 	handler, _ := newTrackedHandler(t, "test", backend.URL, "round_robin", 5)
 	rr := serveJSONMessages(t, handler)

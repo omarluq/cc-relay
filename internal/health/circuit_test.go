@@ -1,23 +1,20 @@
 package health_test
 
 import (
-	"github.com/omarluq/cc-relay/internal/health"
 	"context"
 	"errors"
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog"
+	"github.com/omarluq/cc-relay/internal/health"
 )
 
 const testProviderName = "test-provider"
 
 func TestNewCircuitBreakerDefaultSettings(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(0, 0, 0)
 
 	if breaker == nil {
 		t.Fatal("expected non-nil health.CircuitBreaker")
@@ -32,14 +29,8 @@ func TestNewCircuitBreakerDefaultSettings(t *testing.T) {
 
 func TestCircuitBreakerAllowWhenClosed(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 5,
-		OpenDurationMS:   1000,
-		HalfOpenProbes:   3,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(5, 1000, 3)
 
 	done, err := breaker.Allow()
 	if err != nil {
@@ -58,14 +49,8 @@ func TestCircuitBreakerAllowWhenClosed(t *testing.T) {
 
 func TestCircuitBreakerOpensAfterThresholdFailures(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 3,
-		OpenDurationMS:   1000,
-		HalfOpenProbes:   1,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(3, 1000, 1)
 	testErr := errors.New("test error")
 
 	for i := 0; i < 3; i++ {
@@ -91,14 +76,8 @@ func TestCircuitBreakerOpensAfterThresholdFailures(t *testing.T) {
 
 func TestCircuitBreakerTransitionsToHalfOpenAfterTimeout(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   100,
-		HalfOpenProbes:   1,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 100, 1)
 	testErr := errors.New("test error")
 
 	for i := 0; i < 2; i++ {
@@ -129,14 +108,8 @@ func TestCircuitBreakerTransitionsToHalfOpenAfterTimeout(t *testing.T) {
 
 func TestCircuitBreakerClosesAfterSuccessfulProbes(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   50,
-		HalfOpenProbes:   2,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 50, 2)
 	testErr := errors.New("test error")
 
 	for i := 0; i < 2; i++ {
@@ -164,14 +137,8 @@ func TestCircuitBreakerClosesAfterSuccessfulProbes(t *testing.T) {
 
 func TestCircuitBreakerContextCanceledNotFailure(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   1000,
-		HalfOpenProbes:   1,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 1000, 1)
 
 	for i := 0; i < 5; i++ {
 		done, allowErr := breaker.Allow()
@@ -188,14 +155,8 @@ func TestCircuitBreakerContextCanceledNotFailure(t *testing.T) {
 
 func TestCircuitBreakerReportSuccess(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 5,
-		OpenDurationMS:   1000,
-		HalfOpenProbes:   3,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(5, 1000, 3)
 
 	recorded := breaker.ReportSuccess()
 
@@ -210,14 +171,8 @@ func TestCircuitBreakerReportSuccess(t *testing.T) {
 
 func TestCircuitBreakerReportFailure(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   1000,
-		HalfOpenProbes:   1,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 1000, 1)
 	testErr := errors.New("test error")
 
 	recorded := breaker.ReportFailure(testErr)
@@ -237,14 +192,8 @@ func TestCircuitBreakerReportFailure(t *testing.T) {
 
 func TestCircuitBreakerReportSuccessWhenOpen(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   1000,
-		HalfOpenProbes:   1,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 1000, 1)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
@@ -274,14 +223,8 @@ func TestCircuitBreakerReportSuccessWhenOpen(t *testing.T) {
 
 func TestCircuitBreakerReportFailureWhenOpen(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   1000,
-		HalfOpenProbes:   1,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 1000, 1)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
@@ -311,14 +254,8 @@ func TestCircuitBreakerReportFailureWhenOpen(t *testing.T) {
 
 func TestCircuitBreakerReportSuccessWhenHalfOpen(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   50,
-		HalfOpenProbes:   2,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 50, 2)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
@@ -350,14 +287,8 @@ func TestCircuitBreakerReportSuccessWhenHalfOpen(t *testing.T) {
 
 func TestCircuitBreakerReportFailureWhenHalfOpen(t *testing.T) {
 	t.Parallel()
-	logger := zerolog.Nop()
-	cfg := health.CircuitBreakerConfig{
-		FailureThreshold: 2,
-		OpenDurationMS:   50,
-		HalfOpenProbes:   2,
-	}
 
-	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewTestBreaker(2, 50, 2)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state

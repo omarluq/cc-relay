@@ -10,9 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,141 +31,12 @@ const (
 // newMiddlewareTestConfig builds a fully-initialized config.Config with all exhaustruct fields set.
 // Only Server.Auth is customizable; remaining fields use zero values.
 func newMiddlewareTestConfig(authCfg config.AuthConfig) *config.Config {
-	return &config.Config{
-		Providers: nil,
-		Routing: config.RoutingConfig{
-			ModelMapping:    nil,
-			Strategy:        "",
-			DefaultProvider: "",
-			FailoverTimeout: 0,
-			Debug:           false,
-		},
-		Logging: config.LoggingConfig{
-			Level:  "",
-			Format: "",
-			Output: "",
-			Pretty: false,
-			DebugOptions: config.DebugOptions{
-				LogRequestBody:     false,
-				LogResponseHeaders: false,
-				LogTLSMetrics:      false,
-				MaxBodyLogSize:     0,
-			},
-		},
-		Health: health.Config{
-			HealthCheck: health.CheckConfig{
-				Enabled:    nil,
-				IntervalMS: 0,
-			},
-			CircuitBreaker: health.CircuitBreakerConfig{
-				OpenDurationMS:   0,
-				FailureThreshold: 0,
-				HalfOpenProbes:   0,
-			},
-		},
-		Server: config.ServerConfig{
-			Listen:        "",
-			APIKey:        "",
-			Auth:          authCfg,
-			TimeoutMS:     0,
-			MaxConcurrent: 0,
-			MaxBodyBytes:  0,
-			EnableHTTP2:   false,
-		},
-		Cache: cache.Config{
-			Mode: "",
-			Olric: cache.OlricConfig{
-				DMapName:          "",
-				BindAddr:          "",
-				Environment:       "",
-				Addresses:         nil,
-				Peers:             nil,
-				ReplicaCount:      0,
-				ReadQuorum:        0,
-				WriteQuorum:       0,
-				LeaveTimeout:      0,
-				MemberCountQuorum: 0,
-				Embedded:          false,
-			},
-			Ristretto: cache.RistrettoConfig{
-				NumCounters: 0,
-				MaxCost:     0,
-				BufferItems: 0,
-			},
-		},
-	}
+	return proxy.TestConfigWithAuth(authCfg)
 }
 
 // newMiddlewareTestConfigWithLegacyKey builds a config with legacy Server.APIKey set.
 func newMiddlewareTestConfigWithLegacyKey(apiKey string) *config.Config {
-	return &config.Config{
-		Providers: nil,
-		Routing: config.RoutingConfig{
-			ModelMapping:    nil,
-			Strategy:        "",
-			DefaultProvider: "",
-			FailoverTimeout: 0,
-			Debug:           false,
-		},
-		Logging: config.LoggingConfig{
-			Level:  "",
-			Format: "",
-			Output: "",
-			Pretty: false,
-			DebugOptions: config.DebugOptions{
-				LogRequestBody:     false,
-				LogResponseHeaders: false,
-				LogTLSMetrics:      false,
-				MaxBodyLogSize:     0,
-			},
-		},
-		Health: health.Config{
-			HealthCheck: health.CheckConfig{
-				Enabled:    nil,
-				IntervalMS: 0,
-			},
-			CircuitBreaker: health.CircuitBreakerConfig{
-				OpenDurationMS:   0,
-				FailureThreshold: 0,
-				HalfOpenProbes:   0,
-			},
-		},
-		Server: config.ServerConfig{
-			Listen: "",
-			APIKey: apiKey,
-			Auth: config.AuthConfig{
-				APIKey:            "",
-				BearerSecret:      "",
-				AllowBearer:       false,
-				AllowSubscription: false,
-			},
-			TimeoutMS:     0,
-			MaxConcurrent: 0,
-			MaxBodyBytes:  0,
-			EnableHTTP2:   false,
-		},
-		Cache: cache.Config{
-			Mode: "",
-			Olric: cache.OlricConfig{
-				DMapName:          "",
-				BindAddr:          "",
-				Environment:       "",
-				Addresses:         nil,
-				Peers:             nil,
-				ReplicaCount:      0,
-				ReadQuorum:        0,
-				WriteQuorum:       0,
-				LeaveTimeout:      0,
-				MemberCountQuorum: 0,
-				Embedded:          false,
-			},
-			Ristretto: cache.RistrettoConfig{
-				NumCounters: 0,
-				MaxCost:     0,
-				BufferItems: 0,
-			},
-		},
-	}
+	return proxy.TestConfig(apiKey)
 }
 
 // emptyAuthConfig returns a fully-initialized AuthConfig with all fields at zero values.

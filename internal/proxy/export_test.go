@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 
@@ -87,6 +88,35 @@ type headerPair struct {
 	Value string
 }
 
+// mockProvider is a minimal provider implementation for testing in package proxy.
+type mockProvider struct {
+	baseURL string
+	name    string
+}
+
+func (m *mockProvider) Name() string                                 { return m.name }
+func (m *mockProvider) BaseURL() string                              { return m.baseURL }
+func (m *mockProvider) Owner() string                                { return m.name }
+func (m *mockProvider) Authenticate(_ *http.Request, _ string) error { return nil }
+func (m *mockProvider) ForwardHeaders(_ http.Header) http.Header     { return nil }
+func (m *mockProvider) SupportsStreaming() bool                      { return true }
+func (m *mockProvider) GetModelMapping() map[string]string           { return nil }
+func (m *mockProvider) MapModel(model string) string                 { return model }
+func (m *mockProvider) ListModels() []providers.Model                { return nil }
+func (m *mockProvider) SupportsTransparentAuth() bool                { return false }
+func (m *mockProvider) GetTransparentAuthHeader() string             { return "" }
+func (m *mockProvider) HasValidTransparentAuth(_ *http.Request) bool { return false }
+func (m *mockProvider) TransformRequest(body []byte, endpoint string) (newBody []byte, targetURL string, err error) {
+	return body, endpoint, nil
+}
+func (m *mockProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
+	return nil
+}
+func (m *mockProvider) RequiresBodyTransform() bool { return false }
+func (m *mockProvider) StreamingContentType() string {
+	return providers.ContentTypeSSE
+}
+
 // ---------------------------------------------------------------------------
 // Exported types (uppercase aliases, used by tests in package proxy_test)
 // ---------------------------------------------------------------------------
@@ -96,6 +126,12 @@ type RecordingBackend = recordingBackend
 
 // HeaderPair exports the headerPair type for proxy_test package.
 type HeaderPair = headerPair
+
+// HeaderCapture exports the headerCapture type for proxy_test package.
+type HeaderCapture = headerCapture
+
+// MockProvider exports the mockProvider type for proxy_test package.
+type MockProvider = mockProvider
 
 // ---------------------------------------------------------------------------
 // Internal test helper functions (lowercase, used by tests in package proxy)
@@ -189,6 +225,73 @@ func newStatusBackend(
 	return server
 }
 
+// headerCapture stores captured request headers from a test backend.
+type headerCapture struct {
+	headers http.Header
+	mu      sync.Mutex
+}
+
+func (c *headerCapture) Get(key string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.headers == nil {
+		return ""
+	}
+	return c.headers.Get(key)
+}
+
+// newHeaderCaptureBackend creates a test server that captures all incoming request
+// headers and returns a JSON response. This eliminates the repeated pattern of
+// inline httptest.NewServer blocks that capture headers (e.g. Authorization,
+// x-api-key, Anthropic-Version) and write a JSON 200 OK response.
+func newHeaderCaptureBackend(t *testing.T) (*httptest.Server, *headerCapture) {
+	t.Helper()
+
+	capture := &headerCapture{
+		mu:      sync.Mutex{},
+		headers: nil,
+	}
+	server := httptest.NewServer(http.HandlerFunc(
+		func(writer http.ResponseWriter, request *http.Request) {
+			capture.mu.Lock()
+			capture.headers = request.Header.Clone()
+			capture.mu.Unlock()
+
+			writer.Header().Set(contentTypeHeader, jsonContentType)
+			writer.WriteHeader(http.StatusOK)
+			if _, err := writer.Write([]byte(`{"id":"test"}`)); err != nil {
+				return
+			}
+		},
+	))
+	t.Cleanup(server.Close)
+	return server, capture
+}
+
+// newEchoBackend creates a test server that echoes the request body back as a
+// JSON response. This eliminates the repeated pattern of inline httptest.NewServer
+// blocks that read the request body and write it back.
+func newEchoBackend(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(
+		func(writer http.ResponseWriter, request *http.Request) {
+			body, err := io.ReadAll(request.Body)
+			if err != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			writer.Header().Set(contentTypeHeader, jsonContentType)
+			writer.WriteHeader(http.StatusOK)
+			if _, writeErr := writer.Write(body); writeErr != nil {
+				return
+			}
+		},
+	))
+	t.Cleanup(server.Close)
+	return server
+}
+
 func newMessagesRequest(body io.Reader) *http.Request {
 	req := httptest.NewRequest("POST", messagesPath, body)
 	req.Header.Set("anthropic-version", anthropicVersion)
@@ -220,6 +323,27 @@ func newTestProvider(providerURL string) providers.Provider {
 
 func newNamedProvider(name, providerURL string) providers.Provider {
 	return providers.NewAnthropicProvider(name, providerURL)
+}
+
+// newMockProvider creates a minimal mock provider with a given name and base URL.
+// This is used when tests need a lightweight provider mock without real HTTP
+// backend behavior (e.g., model filter tests, provider info tests).
+func newMockProvider(name string) *mockProvider {
+	return &mockProvider{
+		baseURL: "",
+		name:    name,
+	}
+}
+
+// parseTestURL parses a URL string and fails the test if it is invalid.
+// This satisfies the gosec G704 linter by ensuring tainted URLs are validated.
+func parseTestURL(t *testing.T, rawURL string) string {
+	t.Helper()
+
+	parsedURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+
+	return parsedURL.String()
 }
 
 func newTestSignatureCache(t *testing.T) (sigCache *SignatureCache, cleanup func()) {
@@ -370,6 +494,27 @@ func testConfig(apiKey string) *config.Config {
 		Logging:   testLoggingConfig(),
 		Health:    testHealthConfig(),
 		Cache:     testCacheConfig(),
+	}
+}
+
+// testConfigWithAuth returns a minimal config.Config with custom auth for testing.
+// All fields are explicitly initialized to satisfy exhaustruct linter.
+func testConfigWithAuth(authCfg config.AuthConfig) *config.Config {
+	return &config.Config{
+		Providers: nil,
+		Server: config.ServerConfig{
+			Listen:        "",
+			APIKey:        "",
+			Auth:          authCfg,
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
+		},
+		Routing: testRoutingConfig(),
+		Logging: testLoggingConfig(),
+		Health:  testHealthConfig(),
+		Cache:   testCacheConfig(),
 	}
 }
 
@@ -571,6 +716,14 @@ var (
 	NewTestProvider = newTestProvider
 	// NewNamedProvider creates a test provider with a name.
 	NewNamedProvider = newNamedProvider
+	// NewMockProvider creates a minimal mock provider for testing.
+	NewMockProvider = newMockProvider
+	// ParseTestURL parses a URL string and fails the test if invalid.
+	ParseTestURL = parseTestURL
+	// NewHeaderCaptureBackend creates a test server that captures request headers.
+	NewHeaderCaptureBackend = newHeaderCaptureBackend
+	// NewEchoBackend creates a test server that echoes the request body.
+	NewEchoBackend = newEchoBackend
 	// NewTestSignatureCache creates a signature cache for testing.
 	NewTestSignatureCache = newTestSignatureCache
 	// NewHandlerWithSignatureCache creates a handler with signature cache.
@@ -589,6 +742,8 @@ var (
 	TestCacheConfig = testCacheConfig
 	// TestConfig returns a minimal config.Config for testing.
 	TestConfig = testConfig
+	// TestConfigWithAuth returns a minimal config.Config with custom auth for testing.
+	TestConfigWithAuth = testConfigWithAuth
 	// TestHandlerOptions returns a HandlerOptions struct for testing.
 	TestHandlerOptions = testHandlerOptions
 	// MustTestHandlerOptions creates a HandlerOptions for testing.
@@ -686,7 +841,7 @@ func NewTestResponseWriter() *ResponseWriter {
 		ResponseWriter: rec,
 		statusCode:     http.StatusOK,
 		sseEvents:      0,
-		isStreaming:     false,
+		isStreaming:    false,
 	}
 }
 
@@ -727,4 +882,3 @@ func GetResponseWriterIsStreaming(rw *ResponseWriter) bool {
 func GetResponseWriterSSEEvents(rw *ResponseWriter) int {
 	return rw.sseEvents
 }
-

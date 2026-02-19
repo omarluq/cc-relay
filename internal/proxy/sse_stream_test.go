@@ -16,6 +16,17 @@ import (
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
+// sseEvent creates an SSEEvent with default zero values for unset fields.
+// This reduces duplication from exhaustruct-required field initialization.
+func sseEvent(event string, data []byte) proxy.SSEEvent {
+	return proxy.SSEEvent{Event: event, ID: "", Data: data, Retry: 0}
+}
+
+// sseEventFull creates an SSEEvent with all fields specified.
+func sseEventFull(event, id string, data []byte, retry int) proxy.SSEEvent {
+	return proxy.SSEEvent{Event: event, ID: id, Data: data, Retry: retry}
+}
+
 // testEventData defines a single SSE event test case.
 type testEventData struct {
 	name     string
@@ -33,32 +44,32 @@ func sseEventTestCases() []testEventData {
 		},
 		{
 			name:     "data only",
-			event:    proxy.SSEEvent{Event: "", ID: "", Data: []byte("hello"), Retry: 0},
+			event:    sseEvent("", []byte("hello")),
 			expected: "data: hello\n\n",
 		},
 		{
 			name:     "event with type",
-			event:    proxy.SSEEvent{Event: "message", ID: "", Data: []byte("hello"), Retry: 0},
+			event:    sseEvent("message", []byte("hello")),
 			expected: "event: message\ndata: hello\n\n",
 		},
 		{
 			name:     "event with id",
-			event:    proxy.SSEEvent{Event: "message", ID: "123", Data: []byte("hello"), Retry: 0},
+			event:    sseEventFull("message", "123", []byte("hello"), 0),
 			expected: "event: message\nid: 123\ndata: hello\n\n",
 		},
 		{
 			name:     "event with retry",
-			event:    proxy.SSEEvent{Event: "message", ID: "", Data: []byte("hello"), Retry: 3000},
+			event:    sseEventFull("message", "", []byte("hello"), 3000),
 			expected: "event: message\nretry: 3000\ndata: hello\n\n",
 		},
 		{
 			name:     "multiline data",
-			event:    proxy.SSEEvent{Event: "message", ID: "", Data: []byte("line1\nline2\nline3"), Retry: 0},
+			event:    sseEvent("message", []byte("line1\nline2\nline3")),
 			expected: "event: message\ndata: line1\ndata: line2\ndata: line3\n\n",
 		},
 		{
 			name:     "full event",
-			event:    proxy.SSEEvent{Event: "message", ID: "456", Data: []byte("hello"), Retry: 5000},
+			event:    sseEventFull("message", "456", []byte("hello"), 5000),
 			expected: "event: message\nid: 456\nretry: 5000\ndata: hello\n\n",
 		},
 	}
@@ -88,61 +99,60 @@ func streamSSETestCases() []streamSSETestCase {
 		{
 			name:     "single event",
 			input:    "data: hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("", []byte("hello"))},
 		},
 		{
 			name:     "event with type",
 			input:    "event: message\ndata: hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "message", ID: "", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("message", []byte("hello"))},
 		},
 		{
 			name:     "event with id",
 			input:    "id: 123\ndata: hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "123", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEventFull("", "123", []byte("hello"), 0)},
 		},
 		{
 			name:     "event with retry",
 			input:    "retry: 3000\ndata: hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 3000}},
+			expected: []proxy.SSEEvent{sseEventFull("", "", []byte("hello"), 3000)},
 		},
 		{
 			name:     "multiline data",
 			input:    "data: line1\ndata: line2\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("line1\nline2"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("", []byte("line1\nline2"))},
 		},
 		{
 			name:  "multiple events",
 			input: "data: first\n\ndata: second\n\n",
 			expected: []proxy.SSEEvent{
-				{Event: "", ID: "", Data: []byte("first"), Retry: 0},
-				{Event: "", ID: "", Data: []byte("second"),
-					Retry: 0},
+				sseEvent("", []byte("first")),
+				sseEvent("", []byte("second")),
 			},
 		},
 		{
 			name:     "comment ignored",
 			input:    ": this is a comment\ndata: hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("", []byte("hello"))},
 		},
 		{
 			name:     "field without value",
 			input:    "event\ndata: hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("", []byte("hello"))},
 		},
 		{
 			name:     "value with leading space",
 			input:    "data: hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("", []byte("hello"))},
 		},
 		{
 			name:     "value without leading space",
 			input:    "data:hello\n\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("", []byte("hello"))},
 		},
 		{
 			name:     "CRLF line endings",
 			input:    "data: hello\r\n\r\n",
-			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
+			expected: []proxy.SSEEvent{sseEvent("", []byte("hello"))},
 		},
 		{
 			name:     "empty input",
@@ -178,7 +188,7 @@ func TestStreamSSEPendingEventAtEOF(t *testing.T) {
 	events, err := ro.Collect(proxy.StreamSSE(reader))
 	require.NoError(t, err)
 
-	expected := []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}}
+	expected := []proxy.SSEEvent{sseEvent("", []byte("hello"))}
 	assert.Equal(t, expected, events)
 }
 
@@ -205,8 +215,8 @@ func TestForwardSSE(t *testing.T) {
 	t.Parallel()
 
 	events := []proxy.SSEEvent{
-		{Event: "message", ID: "", Data: []byte("first"), Retry: 0},
-		{Event: "message", ID: "", Data: []byte("second"), Retry: 0},
+		sseEvent("message", []byte("first")),
+		sseEvent("message", []byte("second")),
 	}
 
 	source := ro.FromSlice(events)
@@ -226,7 +236,7 @@ func TestForwardSSE(t *testing.T) {
 func TestForwardSSENotFlushable(t *testing.T) {
 	t.Parallel()
 
-	events := ro.FromSlice([]proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}})
+	events := ro.FromSlice([]proxy.SSEEvent{sseEvent("", []byte("hello"))})
 	writer := &nonFlushableWriter{
 		ResponseWriter: nil,
 	}
@@ -253,7 +263,7 @@ func (w *nonFlushableWriter) WriteHeader(_ int) {}
 func TestForwardSSEWriteError(t *testing.T) {
 	t.Parallel()
 
-	events := ro.FromSlice([]proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}})
+	events := ro.FromSlice([]proxy.SSEEvent{sseEvent("", []byte("hello"))})
 	writeErr := errors.New("write error")
 	writer := &errorWriter{
 		headers: http.Header{},
@@ -286,7 +296,7 @@ func TestWriteSSEEvent(t *testing.T) {
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
-	event := proxy.SSEEvent{Event: "ping", ID: "", Data: []byte("pong"), Retry: 0}
+	event := sseEvent("ping", []byte("pong"))
 
 	err := proxy.WriteSSEEvent(rec, event)
 	require.NoError(t, err)
@@ -301,7 +311,7 @@ func TestWriteSSEEventNotFlushable(t *testing.T) {
 	writer := &nonFlushableWriter{
 		ResponseWriter: nil,
 	}
-	event := proxy.SSEEvent{Event: "", ID: "", Data: []byte("hello"), Retry: 0}
+	event := sseEvent("", []byte("hello"))
 
 	err := proxy.WriteSSEEvent(writer, event)
 	assert.Error(t, err)
@@ -315,10 +325,10 @@ func TestFilterEvents(t *testing.T) {
 	t.Parallel()
 
 	events := []proxy.SSEEvent{
-		{Event: "message", ID: "", Data: []byte("1"), Retry: 0},
-		{Event: "ping", ID: "", Data: []byte("2"), Retry: 0},
-		{Event: "message", ID: "", Data: []byte("3"), Retry: 0},
-		{Event: "error", ID: "", Data: []byte("4"), Retry: 0},
+		sseEvent("message", []byte("1")),
+		sseEvent("ping", []byte("2")),
+		sseEvent("message", []byte("3")),
+		sseEvent("error", []byte("4")),
 	}
 
 	source := ro.FromSlice(events)
@@ -328,8 +338,8 @@ func TestFilterEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []proxy.SSEEvent{
-		{Event: "message", ID: "", Data: []byte("1"), Retry: 0},
-		{Event: "message", ID: "", Data: []byte("3"), Retry: 0},
+		sseEvent("message", []byte("1")),
+		sseEvent("message", []byte("3")),
 	}
 	assert.Equal(t, expected, results)
 }
@@ -338,10 +348,10 @@ func TestFilterEventsByPrefix(t *testing.T) {
 	t.Parallel()
 
 	events := []proxy.SSEEvent{
-		{Event: "content_block_start", ID: "", Data: []byte("1"), Retry: 0},
-		{Event: "message_delta", ID: "", Data: []byte("2"), Retry: 0},
-		{Event: "content_block_delta", ID: "", Data: []byte("3"), Retry: 0},
-		{Event: "content_block_stop", ID: "", Data: []byte("4"), Retry: 0},
+		sseEvent("content_block_start", []byte("1")),
+		sseEvent("message_delta", []byte("2")),
+		sseEvent("content_block_delta", []byte("3")),
+		sseEvent("content_block_stop", []byte("4")),
 	}
 
 	source := ro.FromSlice(events)
@@ -351,9 +361,9 @@ func TestFilterEventsByPrefix(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []proxy.SSEEvent{
-		{Event: "content_block_start", ID: "", Data: []byte("1"), Retry: 0},
-		{Event: "content_block_delta", ID: "", Data: []byte("3"), Retry: 0},
-		{Event: "content_block_stop", ID: "", Data: []byte("4"), Retry: 0},
+		sseEvent("content_block_start", []byte("1")),
+		sseEvent("content_block_delta", []byte("3")),
+		sseEvent("content_block_stop", []byte("4")),
 	}
 	assert.Equal(t, expected, results)
 }
@@ -362,8 +372,8 @@ func TestMapEventData(t *testing.T) {
 	t.Parallel()
 
 	events := []proxy.SSEEvent{
-		{Event: "message", ID: "", Data: []byte("hello"), Retry: 0},
-		{Event: "message", ID: "", Data: []byte("world"), Retry: 0},
+		sseEvent("message", []byte("hello")),
+		sseEvent("message", []byte("world")),
 	}
 
 	source := ro.FromSlice(events)
@@ -373,8 +383,8 @@ func TestMapEventData(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []proxy.SSEEvent{
-		{Event: "message", ID: "", Data: []byte("HELLO"), Retry: 0},
-		{Event: "message", ID: "", Data: []byte("WORLD"), Retry: 0},
+		sseEvent("message", []byte("HELLO")),
+		sseEvent("message", []byte("WORLD")),
 	}
 	assert.Equal(t, expected, results)
 }
@@ -383,9 +393,9 @@ func TestCountEvents(t *testing.T) {
 	t.Parallel()
 
 	events := []proxy.SSEEvent{
-		{Event: "", ID: "", Data: []byte("1"), Retry: 0},
-		{Event: "", ID: "", Data: []byte("2"), Retry: 0},
-		{Event: "", ID: "", Data: []byte("3"), Retry: 0},
+		sseEvent("", []byte("1")),
+		sseEvent("", []byte("2")),
+		sseEvent("", []byte("3")),
 	}
 
 	source := ro.FromSlice(events)

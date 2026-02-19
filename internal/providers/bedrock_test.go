@@ -40,6 +40,31 @@ func newMockCredentialsProvider(accessKey, secretKey string) *mockCredentialsPro
 	}
 }
 
+// testBedrockConfig creates a base BedrockConfig with all fields set.
+// Use opts to override specific fields for testing.
+func testBedrockConfig(opts func(*providers.BedrockConfig)) *providers.BedrockConfig {
+	cfg := &providers.BedrockConfig{
+		ModelMapping: nil,
+		Name:         "test-bedrock",
+		Region:       "us-east-1",
+		Models:       nil,
+	}
+	if opts != nil {
+		opts(cfg)
+	}
+	return cfg
+}
+
+// testBedrockProviderWithDefaultCreds creates a provider with default mock credentials.
+func testBedrockProviderWithDefaultCreds(
+	t *testing.T,
+	cfg *providers.BedrockConfig,
+) *providers.BedrockProvider {
+	t.Helper()
+	creds := newMockCredentialsProvider("AKID", "SECRET")
+	return providers.NewBedrockProviderWithCredentials(cfg, creds)
+}
+
 // assertBedrockPreservesBodyFields checks that body fields are preserved during
 // request transformation.
 func assertBedrockPreservesBodyFields(
@@ -84,12 +109,7 @@ func TestNewBedrockProviderWithCredentials(t *testing.T) {
 	t.Parallel()
 	t.Run("creates provider with required config", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		creds := newMockCredentialsProvider("AKID", "SECRET")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -101,12 +121,7 @@ func TestNewBedrockProviderWithCredentials(t *testing.T) {
 
 	t.Run("uses default models when none specified", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		creds := newMockCredentialsProvider("AKID", "SECRET")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -116,12 +131,9 @@ func TestNewBedrockProviderWithCredentials(t *testing.T) {
 
 	t.Run("uses custom models when specified", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       []string{"anthropic.claude-custom-v1:0"},
-		}
+		cfg := testBedrockConfig(func(c *providers.BedrockConfig) {
+			c.Models = []string{"anthropic.claude-custom-v1:0"}
+		})
 		creds := newMockCredentialsProvider("AKID", "SECRET")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -149,12 +161,9 @@ func TestNewBedrockProviderBaseURL(t *testing.T) {
 			testCase := region
 			t.Run(testCase.region, func(t *testing.T) {
 				t.Parallel()
-				cfg := &providers.BedrockConfig{
-					ModelMapping: nil,
-					Name:         "test-bedrock",
-					Region:       testCase.region,
-					Models:       nil,
-				}
+				cfg := testBedrockConfig(func(c *providers.BedrockConfig) {
+					c.Region = testCase.region
+				})
 				creds := newMockCredentialsProvider("AKID", "SECRET")
 				provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -168,12 +177,7 @@ func TestBedrockProviderAuthenticateSigV4(t *testing.T) {
 	t.Parallel()
 	t.Run("adds SigV4 authorization header", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		creds := newMockCredentialsProvider("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -194,12 +198,7 @@ func TestBedrockProviderAuthenticateSigV4(t *testing.T) {
 
 	t.Run("adds X-Amz-Date header", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		creds := newMockCredentialsProvider("AKID", "SECRET")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -213,12 +212,7 @@ func TestBedrockProviderAuthenticateSigV4(t *testing.T) {
 
 	t.Run("preserves request body after signing", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		creds := newMockCredentialsProvider("AKID", "SECRET")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -240,14 +234,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 	t.Parallel()
 	t.Run("handles empty body", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
-		creds := newMockCredentialsProvider("AKID", "SECRET")
-		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+		provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", http.NoBody)
 
@@ -259,12 +246,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 
 	t.Run("returns error when credentials fail", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		creds := &mockCredentialsProvider{
 			err:   errors.New("credential refresh failed"),
 			creds: aws.Credentials{},
@@ -280,12 +262,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 
 	t.Run("returns error when no credentials configured", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		provider := providers.NewBedrockProviderWithCredentials(cfg, nil)
 
 		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", http.NoBody)
@@ -297,14 +274,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 
 	t.Run("ignores API key parameter", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
-		creds := newMockCredentialsProvider("AKID", "SECRET")
-		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+		provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
 		err := provider.Authenticate(req, "ignored-api-key")
@@ -318,14 +288,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 
 func TestBedrockProviderForwardHeaders(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	t.Run("removes anthropic-version header", func(t *testing.T) {
 		t.Parallel()
@@ -357,14 +320,7 @@ func TestBedrockProviderForwardHeaders(t *testing.T) {
 
 func TestBedrockProviderTransformRequestBody(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	t.Run("removes model from body and adds anthropic_version", func(t *testing.T) {
 		t.Parallel()
@@ -411,14 +367,7 @@ func TestBedrockProviderTransformRequestBody(t *testing.T) {
 
 func TestBedrockProviderTransformRequestURL(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	t.Run("constructs correct URL with model in path", func(t *testing.T) {
 		t.Parallel()
@@ -435,14 +384,12 @@ func TestBedrockProviderTransformRequestURL(t *testing.T) {
 
 	t.Run("applies model mapping", func(t *testing.T) {
 		t.Parallel()
-		cfgWithMapping := &providers.BedrockConfig{
-			ModelMapping: map[string]string{
+		creds := newMockCredentialsProvider("AKID", "SECRET")
+		cfgWithMapping := testBedrockConfig(func(c *providers.BedrockConfig) {
+			c.ModelMapping = map[string]string{
 				"claude-4": "anthropic.claude-sonnet-4-5-20250514-v1:0",
-			},
-			Name:   "test-bedrock",
-			Region: "us-east-1",
-			Models: nil,
-		}
+			}
+		})
 		providerWithMapping := providers.NewBedrockProviderWithCredentials(cfgWithMapping, creds)
 
 		body := []byte(`{"model":"claude-4","messages":[]}`)
@@ -466,14 +413,7 @@ func TestBedrockProviderTransformRequestURL(t *testing.T) {
 
 func TestBedrockProviderTransformResponse(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	t.Run("returns nil for non-event-stream response", func(t *testing.T) {
 		t.Parallel()
@@ -527,14 +467,7 @@ func TestBedrockProviderTransformResponse(t *testing.T) {
 
 func TestBedrockProviderRequiresBodyTransform(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	assert.True(t, provider.RequiresBodyTransform())
 }
@@ -555,14 +488,7 @@ func TestBedrockProviderSupportsStreaming(t *testing.T) {
 
 func TestBedrockProviderStreamingContentType(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	// Bedrock uses Event Stream format
 	assert.Equal(t, providers.ContentTypeEventStream, provider.StreamingContentType())
@@ -570,16 +496,13 @@ func TestBedrockProviderStreamingContentType(t *testing.T) {
 
 func TestBedrockProviderModelMapping(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: map[string]string{
+	cfg := testBedrockConfig(func(c *providers.BedrockConfig) {
+		c.ModelMapping = map[string]string{
 			"claude-4":     "anthropic.claude-sonnet-4-5-20250514-v1:0",
 			"claude-opus":  "anthropic.claude-opus-4-5-20250514-v1:0",
 			"claude-haiku": "anthropic.claude-haiku-3-5-20241022-v1:0",
-		},
-		Name:   "test-bedrock",
-		Region: "us-east-1",
-		Models: nil,
-	}
+		}
+	})
 	creds := newMockCredentialsProvider("AKID", "SECRET")
 	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -604,28 +527,14 @@ func TestBedrockProviderInterfaceCompliance(t *testing.T) {
 
 func TestBedrockProviderOwner(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	assert.Equal(t, "aws", provider.Owner())
 }
 
 func TestBedrockProviderSupportsTransparentAuth(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "us-east-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 	// Bedrock uses SigV4, not client API keys
 	assert.False(t, provider.SupportsTransparentAuth())
@@ -635,12 +544,7 @@ func TestBedrockProviderSigningDetails(t *testing.T) {
 	t.Parallel()
 	t.Run("signature covers request body", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
+		cfg := testBedrockConfig(nil)
 		creds := newMockCredentialsProvider("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
@@ -664,14 +568,7 @@ func TestBedrockProviderSigningDetails(t *testing.T) {
 
 	t.Run("signed headers include host and content-type", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.BedrockConfig{
-			ModelMapping: nil,
-			Name:         "test-bedrock",
-			Region:       "us-east-1",
-			Models:       nil,
-		}
-		creds := newMockCredentialsProvider("AKID", "SECRET")
-		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+		provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
 		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
 		req.Header.Set("Content-Type", "application/json")
@@ -689,14 +586,9 @@ func TestBedrockProviderSigningDetails(t *testing.T) {
 
 func TestBedrockProviderGetRegion(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.BedrockConfig{
-		ModelMapping: nil,
-		Name:         "test-bedrock",
-		Region:       "eu-central-1",
-		Models:       nil,
-	}
-	creds := newMockCredentialsProvider("AKID", "SECRET")
-	provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
+	provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(func(c *providers.BedrockConfig) {
+		c.Region = "eu-central-1"
+	}))
 
 	assert.Equal(t, "eu-central-1", provider.GetRegion())
 }

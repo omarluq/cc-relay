@@ -22,12 +22,8 @@ const (
 	okBackendBody = `{"status":"ok"}`
 )
 
-func newTestConfig(apiKey string) *config.Config {
-	return proxy.TestConfig(apiKey)
-}
-
 func newTestConfigWithListen(apiKey, listen string) *config.Config {
-	cfg := newTestConfig(apiKey)
+	cfg := proxy.TestConfig(apiKey)
 	cfg.Server.Listen = listen
 	return cfg
 }
@@ -43,11 +39,6 @@ func newAuthHandler(t *testing.T, backend *httptest.Server, auth config.AuthConf
 	cfg := newAuthConfig(auth)
 	provider := proxy.NewTestProvider(backend.URL)
 	return setupRoutesHandler(t, cfg, provider)
-}
-
-func newOKBackend(t *testing.T) *httptest.Server {
-	t.Helper()
-	return proxy.NewBackendServer(t, okBackendBody)
 }
 
 func TestSetupRoutesCreatesHandler(t *testing.T) {
@@ -66,7 +57,7 @@ func TestSetupRoutesCreatesHandler(t *testing.T) {
 func TestSetupRoutesAuthMiddlewareApplied(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig(testAPIKey)
+	cfg := proxy.TestConfig(testAPIKey)
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -84,9 +75,9 @@ func TestSetupRoutesAuthMiddlewareWithValidKey(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend server
-	backend := newOKBackend(t)
+	backend := proxy.NewBackendServer(t, okBackendBody)
 
-	cfg := newTestConfig(testAPIKey)
+	cfg := proxy.TestConfig(testAPIKey)
 	provider := proxy.NewTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -109,7 +100,7 @@ func TestSetupRoutesNoAuthWhenAPIKeyEmpty(t *testing.T) {
 	// Create mock backend server
 	backend := proxy.NewBackendServer(t, `{"status":"ok"}`)
 
-	cfg := newTestConfig("") // No auth configured
+	cfg := proxy.TestConfig("") // No auth configured
 	provider := proxy.NewTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -126,7 +117,7 @@ func TestSetupRoutesNoAuthWhenAPIKeyEmpty(t *testing.T) {
 func TestSetupRoutesHealthEndpoint(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig(testAPIKey) // Auth enabled
+	cfg := proxy.TestConfig(testAPIKey) // Auth enabled
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -148,7 +139,7 @@ func TestSetupRoutesHealthEndpoint(t *testing.T) {
 func TestSetupRoutesHealthEndpointWithAuth(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig(testAPIKey)
+	cfg := proxy.TestConfig(testAPIKey)
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -167,7 +158,7 @@ func TestSetupRoutesHealthEndpointWithAuth(t *testing.T) {
 func TestSetupRoutesOnlyPOSTToMessages(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig("") // No auth for simpler test
+	cfg := proxy.TestConfig("") // No auth for simpler test
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -194,22 +185,9 @@ func TestSetupRoutesWithLiveKeyPoolsRoutingDebugToggles(t *testing.T) {
 
 	routingDebugOn := proxy.TestRoutingConfig()
 	routingDebugOn.Debug = true
-	cfgA := &config.Config{
-		Providers: nil,
-		Server:    proxy.TestServerConfig(""),
-		Routing:   routingDebugOn,
-		Logging:   proxy.TestLoggingConfig(),
-		Health:    proxy.TestHealthConfig(),
-		Cache:     proxy.TestCacheConfig(),
-	}
-	cfgB := &config.Config{
-		Providers: nil,
-		Server:    proxy.TestServerConfig(""),
-		Routing:   proxy.TestRoutingConfig(),
-		Logging:   proxy.TestLoggingConfig(),
-		Health:    proxy.TestHealthConfig(),
-		Cache:     proxy.TestCacheConfig(),
-	}
+	cfgA := proxy.TestConfig("")
+	cfgA.Routing = routingDebugOn
+	cfgB := proxy.TestConfig("")
 	runtimeCfg := config.NewRuntime(cfgA)
 	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
 
@@ -236,8 +214,8 @@ func TestSetupRoutesWithLiveKeyPoolsAuthToggle(t *testing.T) {
 		proxy.TestProviderInfoWithHealth(provider, func() bool { return true }),
 	}
 
-	cfgA := newTestConfig(testAPIKey)
-	cfgB := newTestConfig("")
+	cfgA := proxy.TestConfig(testAPIKey)
+	cfgB := proxy.TestConfig("")
 
 	runtimeCfg := config.NewRuntime(cfgA)
 	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
@@ -291,7 +269,7 @@ func TestSetupRoutesWithLiveKeyPoolsNilConfigProvider(t *testing.T) {
 func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig("")
+	cfg := proxy.TestConfig("")
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -351,7 +329,7 @@ func newLiveKeyPoolsHandler(
 func TestSetupRoutesInvalidProviderBaseURL(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig(testAPIKey)
+	cfg := proxy.TestConfig(testAPIKey)
 
 	// Create provider with invalid base URL
 	provider := proxy.NewTestProvider("://invalid-url")
@@ -369,7 +347,7 @@ func TestSetupRoutesInvalidProviderBaseURL(t *testing.T) {
 func TestSetupRoutes404ForUnknownPath(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig("")
+	cfg := proxy.TestConfig("")
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -386,7 +364,7 @@ func TestSetupRoutes404ForUnknownPath(t *testing.T) {
 func TestSetupRoutesMessagesPathMustBeExact(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig("")
+	cfg := proxy.TestConfig("")
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -428,7 +406,7 @@ func TestSetupRoutesMultiAuthWithBearerToken(t *testing.T) {
 func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 	t.Parallel()
 
-	handler := newAuthHandler(t, newOKBackend(t), config.AuthConfig{
+	handler := newAuthHandler(t, proxy.NewBackendServer(t, okBackendBody), config.AuthConfig{
 		APIKey:            "",
 		AllowBearer:       true,
 		BearerSecret:      "correct-token",
@@ -449,7 +427,7 @@ func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	t.Parallel()
 
-	backend := newOKBackend(t)
+	backend := proxy.NewBackendServer(t, okBackendBody)
 
 	handler := newAuthHandler(t, backend, config.AuthConfig{
 		APIKey:            "test-api-key",
@@ -499,7 +477,7 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 func TestSetupRoutesMultiAuthBearerWithoutSecret(t *testing.T) {
 	t.Parallel()
 
-	backend := newOKBackend(t)
+	backend := proxy.NewBackendServer(t, okBackendBody)
 
 	handler := newAuthHandler(t, backend, config.AuthConfig{
 		APIKey:            "",
@@ -522,10 +500,10 @@ func TestSetupRoutesMultiAuthBearerWithoutSecret(t *testing.T) {
 func TestSetupRoutesLegacyAPIKeyFallback(t *testing.T) {
 	t.Parallel()
 
-	backend := newOKBackend(t)
+	backend := proxy.NewBackendServer(t, okBackendBody)
 
 	// Use legacy Server.APIKey without Auth config
-	cfg := newTestConfig("legacy-key")
+	cfg := proxy.TestConfig("legacy-key")
 	provider := proxy.NewTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
@@ -546,7 +524,7 @@ func TestSetupRoutesLegacyAPIKeyFallback(t *testing.T) {
 func TestSetupRoutesModelsEndpoint(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig(testAPIKey) // Auth enabled
+	cfg := proxy.TestConfig(testAPIKey) // Auth enabled
 
 	// Create providers with models
 	anthropicProvider := providers.NewAnthropicProviderWithModels(
@@ -615,7 +593,7 @@ func TestSetupRoutesModelsEndpointOnlyGET(t *testing.T) {
 func TestSetupRoutesModelsEndpointEmptyProviders(t *testing.T) {
 	t.Parallel()
 
-	cfg := newTestConfig("")
+	cfg := proxy.TestConfig("")
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	// Call with empty allProviders
@@ -635,7 +613,7 @@ func TestSetupRoutesModelsEndpointEmptyProviders(t *testing.T) {
 func TestSetupRoutesSubscriptionTokenAuth(t *testing.T) {
 	t.Parallel()
 
-	backend := newOKBackend(t)
+	backend := proxy.NewBackendServer(t, okBackendBody)
 
 	// Test that allow_subscription works as an alias for allow_bearer
 	handler := newAuthHandler(t, backend, config.AuthConfig{
@@ -659,7 +637,7 @@ func TestSetupRoutesSubscriptionTokenAuth(t *testing.T) {
 func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	t.Parallel()
 
-	backend := newOKBackend(t)
+	backend := proxy.NewBackendServer(t, okBackendBody)
 
 	// Test that both subscription and API key auth work together
 	handler := newAuthHandler(t, backend, config.AuthConfig{

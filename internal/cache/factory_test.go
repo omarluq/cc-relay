@@ -12,38 +12,12 @@ import (
 
 const factoryTestKey = "test-key"
 
-// emptyOlricConfig returns an empty OlricConfig for test setup.
-func emptyOlricConfig() cache.OlricConfig {
-	return cache.OlricConfig{
-		DMapName:          "",
-		BindAddr:          "",
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          false,
-	}
-}
-
-// emptyRistrettoConfig returns an empty RistrettoConfig for test setup.
-func emptyRistrettoConfig() cache.RistrettoConfig {
-	return cache.RistrettoConfig{
-		NumCounters: 0,
-		MaxCost:     0,
-		BufferItems: 0,
-	}
-}
-
 func TestNewModeSingleCreatesRistretto(t *testing.T) {
 	t.Parallel()
 	cfg := cache.Config{
 		Mode:      cache.ModeSingle,
-		Olric:     emptyOlricConfig(),
-		Ristretto: cache.RistrettoConfig{NumCounters: 1000, MaxCost: 1 << 20, BufferItems: 64},
+		Olric:     cache.ZeroOlricConfig(),
+		Ristretto: cache.SmallTestRistrettoConfig(),
 	}
 
 	ctx := context.Background()
@@ -84,8 +58,8 @@ func TestNewModeDisabledCreatesNoop(t *testing.T) {
 	t.Parallel()
 	cfg := cache.Config{
 		Mode:      cache.ModeDisabled,
-		Olric:     emptyOlricConfig(),
-		Ristretto: emptyRistrettoConfig(),
+		Olric:     cache.ZeroOlricConfig(),
+		Ristretto: cache.ZeroRistrettoConfig(),
 	}
 
 	ctx := context.Background()
@@ -127,25 +101,9 @@ func TestNewModeHACreatesOlric(t *testing.T) {
 	}
 
 	cfg := cache.Config{
-		Mode:  cache.ModeHA,
-		Olric: cache.OlricConfig{
-			DMapName:          "test-cache",
-			BindAddr:          "127.0.0.1:3320",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          true,
-		},
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 0,
-			MaxCost:     0,
-			BufferItems: 0,
-		},
+		Mode:      cache.ModeHA,
+		Olric:     cache.DefaultTestOlricConfig("test-cache", "127.0.0.1:3320"),
+		Ristretto: cache.ZeroRistrettoConfig(),
 	}
 
 	ctx := context.Background()
@@ -179,8 +137,8 @@ func TestNewInvalidModeReturnsError(t *testing.T) {
 	t.Parallel()
 	cfg := cache.Config{
 		Mode:      cache.Mode("invalid-mode"),
-		Olric:     emptyOlricConfig(),
-		Ristretto: emptyRistrettoConfig(),
+		Olric:     cache.ZeroOlricConfig(),
+		Ristretto: cache.ZeroRistrettoConfig(),
 	}
 
 	ctx := context.Background()
@@ -203,14 +161,14 @@ func TestNewInvalidConfigReturnsError(t *testing.T) {
 	}{
 		{
 			name:    "empty mode",
-			cfg:     cache.Config{Mode: "", Olric: emptyOlricConfig(), Ristretto: emptyRistrettoConfig()},
+			cfg:     cache.Config{Mode: "", Olric: cache.ZeroOlricConfig(), Ristretto: cache.ZeroRistrettoConfig()},
 			wantErr: "mode is required",
 		},
 		{
 			name: "single mode with zero max_cost",
 			cfg: cache.Config{
 				Mode:      cache.ModeSingle,
-				Olric:     emptyOlricConfig(),
+				Olric:     cache.ZeroOlricConfig(),
 				Ristretto: cache.RistrettoConfig{NumCounters: 1000, MaxCost: 0, BufferItems: 64},
 			},
 			wantErr: "max_cost must be positive",
@@ -219,34 +177,26 @@ func TestNewInvalidConfigReturnsError(t *testing.T) {
 			name: "single mode with zero num_counters",
 			cfg: cache.Config{
 				Mode:      cache.ModeSingle,
-				Olric:     emptyOlricConfig(),
+				Olric:     cache.ZeroOlricConfig(),
 				Ristretto: cache.RistrettoConfig{NumCounters: 0, MaxCost: 1 << 20, BufferItems: 64},
 			},
 			wantErr: "num_counters must be positive",
 		},
 		{
-			name:    "ha mode without addresses and not embedded",
-			cfg:     cache.Config{Mode: cache.ModeHA, Olric: emptyOlricConfig(), Ristretto: emptyRistrettoConfig()},
+			name: "ha mode without addresses and not embedded",
+			cfg: cache.Config{
+				Mode:      cache.ModeHA,
+				Olric:     cache.ZeroOlricConfig(),
+				Ristretto: cache.ZeroRistrettoConfig(),
+			},
 			wantErr: "addresses required",
 		},
 		{
 			name: "ha mode embedded without bind_addr",
 			cfg: cache.Config{
-				Mode: cache.ModeHA,
-				Olric: cache.OlricConfig{
-					DMapName:          "",
-					BindAddr:          "",
-					Environment:       "",
-					Addresses:         nil,
-					Peers:             nil,
-					ReplicaCount:      0,
-					ReadQuorum:        0,
-					WriteQuorum:       0,
-					LeaveTimeout:      0,
-					MemberCountQuorum: 0,
-					Embedded:          true,
-				},
-				Ristretto: emptyRistrettoConfig(),
+				Mode:      cache.ModeHA,
+				Olric:     cache.DefaultTestOlricConfig("", ""),
+				Ristretto: cache.ZeroRistrettoConfig(),
 			},
 			wantErr: "bind_addr required",
 		},
@@ -272,7 +222,7 @@ func TestNewDefaultConfigWorks(t *testing.T) {
 	// Test that DefaultRistrettoConfig produces a valid single-mode config
 	cfg := cache.Config{
 		Mode:      cache.ModeSingle,
-		Olric:     emptyOlricConfig(),
+		Olric:     cache.ZeroOlricConfig(),
 		Ristretto: cache.DefaultRistrettoConfig(),
 	}
 
