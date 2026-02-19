@@ -39,6 +39,7 @@ var validPoolingStrategies = map[string]bool{
 var validProviderTypes = map[string]bool{
 	"anthropic":     true,
 	"zai":           true,
+	"minimax":       true,
 	"ollama":        true,
 	ProviderBedrock: true,
 	ProviderVertex:  true,
