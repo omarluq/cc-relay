@@ -176,9 +176,15 @@ func TestHandlerThinkingSignatureDropsEmptyAssistantMessage(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 
 	messages := gjson.GetBytes(recorder.Body(), "messages").Array()
-	assert.Len(t, messages, 2, "should drop assistant message with empty content")
+	assert.Len(t, messages, 3, "should keep assistant message with placeholder to prevent consecutive user messages")
 	assert.Equal(t, "user", messages[0].Get("role").String())
-	assert.Equal(t, "user", messages[1].Get("role").String())
+	assert.Equal(t, "assistant", messages[1].Get("role").String())
+	// Thinking block replaced with empty text placeholder
+	content := messages[1].Get("content").Array()
+	assert.Len(t, content, 1)
+	assert.Equal(t, "text", content[0].Get("type").String())
+	assert.Equal(t, "", content[0].Get("text").String())
+	assert.Equal(t, "user", messages[2].Get("role").String())
 }
 
 func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {

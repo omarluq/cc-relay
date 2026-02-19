@@ -228,6 +228,17 @@ func processAssistantContent(
 	keptCount := analysis.countKeptBlocks()
 
 	if keptCount == 0 {
+		// Before dropping the entire assistant message, check if dropping it would
+		// orphan tool_result blocks in adjacent user messages. This happens when:
+		// 1. The client truncated conversation before sending to proxy, OR
+		// 2. A previous assistant message with tool_use was already dropped
+		// If dropping this message would leave orphaned tool_results, keep the message
+		// with a placeholder text block instead of dropping entirely.
+		if WouldOrphanToolResults(body, msgIndex) {
+			// Keep message but replace with placeholder to avoid orphaning tool_results
+			thinkingCtx.DroppedBlocks += analysis.totalBlocks
+			return ReplaceContentWithPlaceholder(body, msgIndex), false, nil
+		}
 		thinkingCtx.DroppedBlocks += analysis.totalBlocks - keptCount
 		return body, true, nil
 	}
@@ -390,6 +401,102 @@ func collectBlocks(
 		}
 		return true
 	})
+}
+
+const (
+	blockTypeToolResult = "tool_result"
+	roleUser            = "user"
+)
+
+// WouldOrphanToolResults checks if dropping the assistant message at msgIndex
+// would leave orphaned tool_result blocks in adjacent user messages.
+// The Anthropic API requires every tool_result to have a corresponding tool_use
+// in the immediately preceding assistant message. Dropping an assistant message
+// can violate this invariant.
+func WouldOrphanToolResults(body []byte, msgIndex int64) bool {
+	totalMessages := countMessages(body)
+	if totalMessages == 0 {
+		return false
+	}
+
+	nextIdx := msgIndex + 1
+
+	// Dropping between two user messages would create consecutive user messages.
+	if msgIndex > 0 && nextIdx < totalMessages {
+		if isConsecutiveUserPair(body, msgIndex-1, nextIdx) {
+			return true
+		}
+	}
+
+	// If next message is a user message with tool_result, dropping would orphan it.
+	if nextIdx < totalMessages && nextMessageHasToolResult(body, nextIdx) {
+		return true
+	}
+
+	return false
+}
+
+// countMessages returns the number of messages in the body.
+func countMessages(body []byte) int64 {
+	messages := gjson.GetBytes(body, "messages")
+	if !messages.Exists() || !messages.IsArray() {
+		return 0
+	}
+
+	count := int64(0)
+	messages.ForEach(func(_, _ gjson.Result) bool {
+		count++
+		return true
+	})
+
+	return count
+}
+
+// isConsecutiveUserPair checks if both messages at the given indices are user messages.
+func isConsecutiveUserPair(body []byte, idxA, idxB int64) bool {
+	msgA := gjson.GetBytes(body, fmt.Sprintf("messages.%d", idxA))
+	msgB := gjson.GetBytes(body, fmt.Sprintf("messages.%d", idxB))
+
+	return msgA.Get("role").String() == roleUser &&
+		msgB.Get("role").String() == roleUser
+}
+
+// nextMessageHasToolResult checks if the message at nextIdx is a user message
+// containing tool_result blocks.
+func nextMessageHasToolResult(body []byte, nextIdx int64) bool {
+	nextMsg := gjson.GetBytes(body, fmt.Sprintf("messages.%d", nextIdx))
+	if nextMsg.Get("role").String() != roleUser {
+		return false
+	}
+
+	hasToolResult := false
+	nextMsg.Get("content").ForEach(func(_, block gjson.Result) bool {
+		if block.Get("type").String() == blockTypeToolResult {
+			hasToolResult = true
+			return false
+		}
+		return true
+	})
+
+	return hasToolResult
+}
+
+// ReplaceContentWithPlaceholder replaces the content of an assistant message
+// with a single text block, preserving the message structure so that adjacent
+// tool_result blocks are not orphaned.
+func ReplaceContentWithPlaceholder(body []byte, msgIndex int64) []byte {
+	placeholder := []any{
+		map[string]any{
+			"type": "text",
+			"text": "",
+		},
+	}
+	path := fmt.Sprintf("messages.%d.content", msgIndex)
+	modifiedBody, err := sjson.SetBytes(body, path, placeholder)
+	if err != nil {
+		return body
+	}
+	return modifiedBody
 }
 
 // findFirstIndex returns the index of the first occurrence of target, or -1.
