@@ -35,11 +35,11 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 	expectedHash := sha256.Sum256([]byte(expectedAPIKey))
 
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			providedKey := r.Header.Get("x-api-key")
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			providedKey := request.Header.Get("x-api-key")
 
 			if providedKey == "" {
-				failAuth(w, r, "missing x-api-key header")
+				failAuth(writer, request, "missing x-api-key header")
 				return
 			}
 
@@ -47,28 +47,28 @@ func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
 
 			// CRITICAL: Constant-time comparison prevents timing attacks
 			if subtle.ConstantTimeCompare(providedHash[:], expectedHash[:]) != 1 {
-				failAuth(w, r, "invalid x-api-key")
+				failAuth(writer, request, "invalid x-api-key")
 				return
 			}
 
-			zerolog.Ctx(r.Context()).Debug().Msg(authSucceededMsg)
-			next.ServeHTTP(w, r)
+			zerolog.Ctx(request.Context()).Debug().Msg(authSucceededMsg)
+			next.ServeHTTP(writer, request)
 		})
 	}
 }
 
-func failAuth(w http.ResponseWriter, r *http.Request, reason string) {
-	zerolog.Ctx(r.Context()).Warn().Msg("authentication failed: " + reason)
-	WriteError(w, http.StatusUnauthorized, "authentication_error", reason)
+func failAuth(writer http.ResponseWriter, request *http.Request, reason string) {
+	zerolog.Ctx(request.Context()).Warn().Msg("authentication failed: " + reason)
+	WriteError(writer, http.StatusUnauthorized, "authentication_error", reason)
 }
 
-func handleAuthResult(ctx context.Context, w http.ResponseWriter, result auth.Result) bool {
+func handleAuthResult(ctx context.Context, writer http.ResponseWriter, result auth.Result) bool {
 	if !result.Valid {
 		zerolog.Ctx(ctx).Warn().
 			Str("auth_type", string(result.Type)).
 			Str("error", result.Error).
 			Msg("authentication failed")
-		WriteError(w, http.StatusUnauthorized, "authentication_error", result.Error)
+		WriteError(writer, http.StatusUnauthorized, "authentication_error", result.Error)
 		return false
 	}
 
@@ -106,14 +106,14 @@ func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.
 	chainAuth := auth.NewChainAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			result := chainAuth.Validate(r)
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			result := chainAuth.Validate(request)
 
-			if !handleAuthResult(r.Context(), w, result) {
+			if !handleAuthResult(request.Context(), writer, result) {
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(writer, request)
 		})
 	}
 }
@@ -128,23 +128,23 @@ func withRequestFields(ctx context.Context, r *http.Request, shortID string) zer
 		Str("req_id", shortID)
 }
 
-func logRequestStart(ctx context.Context, r *http.Request, shortID string, debugOpts config.DebugOptions) {
-	logger := withRequestFields(ctx, r, shortID).Logger()
+func logRequestStart(ctx context.Context, request *http.Request, shortID string, debugOpts config.DebugOptions) {
+	logger := withRequestFields(ctx, request, shortID).Logger()
 	logEvent := logger.Info()
 
 	if zerolog.GlobalLevel() <= zerolog.DebugLevel && debugOpts.LogRequestBody {
-		bodyPreview := getBodyPreview(r)
+		bodyPreview := getBodyPreview(request)
 		if bodyPreview != "" {
 			logEvent = logEvent.Str("body_preview", bodyPreview)
 		}
 	}
 
-	logEvent.Msgf("%s %s", r.Method, r.URL.Path)
+	logEvent.Msgf("%s %s", request.Method, request.URL.Path)
 }
 
 func logRequestCompletion(
 	ctx context.Context,
-	r *http.Request,
+	request *http.Request,
 	wrapped *responseWriter,
 	duration time.Duration,
 	shortID string,
@@ -153,7 +153,7 @@ func logRequestCompletion(
 	statusMsg := statusSymbol(wrapped.statusCode)
 	completionMsg := formatCompletionMessage(wrapped.statusCode, statusMsg, durationStr)
 
-	logCtx := withRequestFields(ctx, r, shortID).
+	logCtx := withRequestFields(ctx, request, shortID).
 		Int("status", wrapped.statusCode).
 		Str("duration", durationStr)
 
@@ -167,11 +167,12 @@ func logRequestCompletion(
 	}
 
 	logger := logCtx.Logger()
-	if wrapped.statusCode >= 500 {
+	switch {
+	case wrapped.statusCode >= 500:
 		logger.Error().Msg(completionMsg)
-	} else if wrapped.statusCode >= 400 {
+	case wrapped.statusCode >= 400:
 		logger.Warn().Msg(completionMsg)
-	} else {
+	default:
 		logger.Info().Msg(completionMsg)
 	}
 }
@@ -190,8 +191,13 @@ func statusSymbol(statusCode int) string {
 // LoggingMiddlewareWithProvider logs each request using live debug options.
 func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			debugOpts := config.DebugOptions{}
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			debugOpts := config.DebugOptions{
+				LogRequestBody:     false,
+				LogResponseHeaders: false,
+				LogTLSMetrics:      false,
+				MaxBodyLogSize:     0,
+			}
 			if provider != nil {
 				debugOpts = provider()
 			}
@@ -199,28 +205,33 @@ func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Hand
 			start := time.Now()
 
 			// Log request details in debug mode
-			LogRequestDetails(r.Context(), r, debugOpts)
+			LogRequestDetails(request.Context(), request, debugOpts)
 
 			// Attach timings container for downstream middleware/handlers
-			ctx, _ := withRequestTimings(r.Context())
-			r = r.WithContext(ctx)
+			ctx, _ := withRequestTimings(request.Context())
+			request = request.WithContext(ctx)
 
 			// Wrap ResponseWriter to capture status code
-			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			wrapped := &responseWriter{
+				ResponseWriter: writer,
+				statusCode:     http.StatusOK,
+				sseEvents:      0,
+				isStreaming:     false,
+			}
 
 			// Get request ID for logging
-			requestID := GetRequestID(r.Context())
+			requestID := GetRequestID(request.Context())
 			shortID := requestID
 			if len(shortID) > 8 {
 				shortID = shortID[:8]
 			}
 
-			logRequestStart(r.Context(), r, shortID, debugOpts)
+			logRequestStart(request.Context(), request, shortID, debugOpts)
 
 			// Serve request
-			next.ServeHTTP(wrapped, r)
+			next.ServeHTTP(wrapped, request)
 
-			logRequestCompletion(r.Context(), r, wrapped, time.Since(start), shortID)
+			logRequestCompletion(request.Context(), request, wrapped, time.Since(start), shortID)
 		})
 	}
 }
@@ -241,16 +252,16 @@ type authCacheStore struct {
 	mu    sync.Mutex
 }
 
-func (s *authCacheStore) cached(fp string) *authCache {
+func (s *authCacheStore) cached(fingerprint string) *authCache {
 	if v := s.cache.Load(); v != nil {
-		if c, ok := v.(*authCache); ok && c.fingerprint == fp {
+		if c, ok := v.(*authCache); ok && c.fingerprint == fingerprint {
 			return c
 		}
 	}
 	return nil
 }
 
-func buildAuthCache(fp string, authConfig config.AuthConfig, effectiveKey string) *authCache {
+func buildAuthCache(fingerprint string, authConfig config.AuthConfig, effectiveKey string) *authCache {
 	var authenticators []auth.Authenticator
 	if authConfig.IsBearerEnabled() {
 		authenticators = append(authenticators, auth.NewBearerAuthenticator(authConfig.BearerSecret))
@@ -270,18 +281,18 @@ func buildAuthCache(fp string, authConfig config.AuthConfig, effectiveKey string
 	}
 
 	return &authCache{
-		fingerprint: fp,
+		fingerprint: fingerprint,
 		chain:       chain,
 	}
 }
 
 func (s *authCacheStore) getOrBuild(
-	fp string,
+	fingerprint string,
 	authConfig config.AuthConfig,
 	effectiveKey string,
 ) *authCache {
 	// Fast path: check cache without lock.
-	if c := s.cached(fp); c != nil {
+	if c := s.cached(fingerprint); c != nil {
 		return c
 	}
 
@@ -290,11 +301,11 @@ func (s *authCacheStore) getOrBuild(
 	defer s.mu.Unlock()
 
 	// Double-check after acquiring lock.
-	if c := s.cached(fp); c != nil {
+	if c := s.cached(fingerprint); c != nil {
 		return c
 	}
 
-	cache := buildAuthCache(fp, authConfig, effectiveKey)
+	cache := buildAuthCache(fingerprint, authConfig, effectiveKey)
 	s.cache.Store(cache)
 	return cache
 }
@@ -305,21 +316,21 @@ func (s *authCacheStore) getOrBuild(
 func authFingerprint(bearerEnabled bool, bearerSecret, apiKey string) string {
 	// Format: "b<0|1>|<len>:<bearerSecret>|<len>:<apiKey>"
 	// Length-prefix prevents collision when secrets contain delimiters.
-	b := byte('0')
+	bearerByte := byte('0')
 	if bearerEnabled {
-		b = '1'
+		bearerByte = '1'
 	}
 
-	buf := make([]byte, 0, 8+len(bearerSecret)+len(apiKey))
-	buf = append(buf, 'b', b, '|')
-	buf = strconv.AppendInt(buf, int64(len(bearerSecret)), 10)
-	buf = append(buf, ':')
-	buf = append(buf, bearerSecret...)
-	buf = append(buf, '|')
-	buf = strconv.AppendInt(buf, int64(len(apiKey)), 10)
-	buf = append(buf, ':')
-	buf = append(buf, apiKey...)
-	return string(buf)
+	buffer := make([]byte, 0, 8+len(bearerSecret)+len(apiKey))
+	buffer = append(buffer, 'b', bearerByte, '|')
+	buffer = strconv.AppendInt(buffer, int64(len(bearerSecret)), 10)
+	buffer = append(buffer, ':')
+	buffer = append(buffer, bearerSecret...)
+	buffer = append(buffer, '|')
+	buffer = strconv.AppendInt(buffer, int64(len(apiKey)), 10)
+	buffer = append(buffer, ':')
+	buffer = append(buffer, apiKey...)
+	return string(buffer)
 }
 
 func getRuntimeConfig(cfgProvider config.RuntimeConfigGetter) *config.Config {
@@ -338,35 +349,38 @@ func recordAuthTiming(ctx context.Context, start time.Time) {
 // LiveAuthMiddleware creates middleware that enforces auth based on live config.
 // It rebuilds the authenticator chain when auth-related config values change.
 func LiveAuthMiddleware(cfgProvider config.RuntimeConfigGetter) func(http.Handler) http.Handler {
-	store := &authCacheStore{}
+	store := &authCacheStore{
+		cache: atomic.Value{},
+		mu:    sync.Mutex{},
+	}
 
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			cfg := getRuntimeConfig(cfgProvider)
 			if cfg == nil {
-				next.ServeHTTP(w, r)
+				next.ServeHTTP(writer, request)
 				return
 			}
 
 			authConfig := cfg.Server.Auth
 			effectiveKey := cfg.Server.GetEffectiveAPIKey()
-			fp := authFingerprint(authConfig.IsBearerEnabled(), authConfig.BearerSecret, effectiveKey)
+			fpValue := authFingerprint(authConfig.IsBearerEnabled(), authConfig.BearerSecret, effectiveKey)
 
 			start := time.Now()
-			cached := store.getOrBuild(fp, authConfig, effectiveKey)
-			recordAuthTiming(r.Context(), start)
+			cached := store.getOrBuild(fpValue, authConfig, effectiveKey)
+			recordAuthTiming(request.Context(), start)
 
 			if cached.chain == nil {
-				next.ServeHTTP(w, r)
+				next.ServeHTTP(writer, request)
 				return
 			}
 
-			result := cached.chain.Validate(r)
-			if !handleAuthResult(r.Context(), w, result) {
+			result := cached.chain.Validate(request)
+			if !handleAuthResult(request.Context(), writer, result) {
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(writer, request)
 		})
 	}
 }
@@ -374,42 +388,42 @@ func LiveAuthMiddleware(cfgProvider config.RuntimeConfigGetter) func(http.Handle
 // RequestIDMiddleware adds X-Request-ID header and logger with request ID to context.
 func RequestIDMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			// Extract or generate request ID
-			requestID := r.Header.Get("X-Request-ID")
-			ctx := AddRequestID(r.Context(), requestID)
+			requestID := request.Header.Get("X-Request-ID")
+			ctx := AddRequestID(request.Context(), requestID)
 
 			// Write request ID to response header
 			if requestID == "" {
 				requestID = GetRequestID(ctx)
 			}
 
-			w.Header().Set("X-Request-ID", requestID)
+			writer.Header().Set("X-Request-ID", requestID)
 
 			// Attach logger to request
-			r = r.WithContext(ctx)
+			request = request.WithContext(ctx)
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(writer, request)
 		})
 	}
 }
 
 // formatDuration formats duration in a human-readable form with microsecond precision.
 // Uses dynamic units so very fast requests show in µs while longer ones show in ms/s.
-func formatDuration(d time.Duration) string {
-	if d <= 0 {
+func formatDuration(duration time.Duration) string {
+	if duration <= 0 {
 		return "0s"
 	}
-	d = d.Round(time.Microsecond)
+	duration = duration.Round(time.Microsecond)
 	switch {
-	case d < time.Millisecond:
-		return fmt.Sprintf("%dµs", d.Microseconds())
-	case d < time.Second:
-		return fmt.Sprintf("%.2fms", float64(d)/float64(time.Millisecond))
-	case d < time.Minute:
-		return fmt.Sprintf("%.2fs", d.Seconds())
+	case duration < time.Millisecond:
+		return fmt.Sprintf("%dµs", duration.Microseconds())
+	case duration < time.Second:
+		return fmt.Sprintf("%.2fms", float64(duration)/float64(time.Millisecond))
+	case duration < time.Minute:
+		return fmt.Sprintf("%.2fs", duration.Seconds())
 	default:
-		return d.Truncate(time.Second).String()
+		return duration.Truncate(time.Second).String()
 	}
 }
 
@@ -421,19 +435,19 @@ func formatCompletionMessage(status int, symbol, duration string) string {
 // getBodyPreview reads the first 200 characters of the request body.
 // Redacts any "api_key" or "key" fields to prevent logging sensitive data.
 // Returns empty string if body cannot be read or is empty.
-func getBodyPreview(r *http.Request) string {
-	if r.Body == nil {
+func getBodyPreview(request *http.Request) string {
+	if request.Body == nil {
 		return ""
 	}
 
 	// Read body (limited to 500 bytes for safety)
-	body, err := io.ReadAll(io.LimitReader(r.Body, 500))
+	body, err := io.ReadAll(io.LimitReader(request.Body, 500))
 	if err != nil || len(body) == 0 {
 		return ""
 	}
 
 	// Restore body for downstream handlers
-	r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(body), r.Body))
+	request.Body = io.NopCloser(io.MultiReader(bytes.NewReader(body), request.Body))
 
 	// Convert to string and truncate to 200 chars
 	preview := string(body)
@@ -467,18 +481,18 @@ func (rw *responseWriter) WriteHeader(code int) {
 }
 
 // Write intercepts writes to count SSE events.
-func (rw *responseWriter) Write(b []byte) (int, error) {
+func (rw *responseWriter) Write(data []byte) (int, error) {
 	// Count SSE events if streaming
 	if rw.isStreaming {
 		// Count occurrences of "event:" prefix in the data
-		data := string(b)
-		for i := 0; i < len(data); i++ {
-			if i+6 <= len(data) && data[i:i+6] == "event:" {
+		dataStr := string(data)
+		for i := 0; i < len(dataStr); i++ {
+			if i+6 <= len(dataStr) && dataStr[i:i+6] == "event:" {
 				rw.sseEvents++
 			}
 		}
 	}
-	return rw.ResponseWriter.Write(b)
+	return rw.ResponseWriter.Write(data)
 }
 
 // ConcurrencyLimiter enforces a global maximum number of concurrent requests.
@@ -492,9 +506,12 @@ type ConcurrencyLimiter struct {
 // NewConcurrencyLimiter creates a new concurrency limiter with the given max limit.
 // A limit of 0 or negative means unlimited.
 func NewConcurrencyLimiter(maxLimit int64) *ConcurrencyLimiter {
-	l := &ConcurrencyLimiter{}
-	l.limit.Store(maxLimit)
-	return l
+	limiter := &ConcurrencyLimiter{
+		limit:   atomic.Int64{},
+		current: atomic.Int64{},
+	}
+	limiter.limit.Store(maxLimit)
+	return limiter
 }
 
 // SetLimit updates the concurrency limit for hot-reload support.
@@ -547,18 +564,18 @@ func (l *ConcurrencyLimiter) Release() {
 // Uses the provided ConcurrencyLimiter which supports hot-reload via SetLimit.
 func ConcurrencyMiddleware(limiter *ConcurrencyLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			if !limiter.TryAcquire() {
-				zerolog.Ctx(r.Context()).Warn().
+				zerolog.Ctx(request.Context()).Warn().
 					Int64("limit", limiter.GetLimit()).
 					Int64("current", limiter.CurrentInFlight()).
 					Msg("request rejected: concurrency limit reached")
-				WriteError(w, http.StatusServiceUnavailable, "server_busy",
+				WriteError(writer, http.StatusServiceUnavailable, "server_busy",
 					"server is at maximum capacity, please retry later")
 				return
 			}
 			defer limiter.Release()
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(writer, request)
 		})
 	}
 }
@@ -568,12 +585,12 @@ func ConcurrencyMiddleware(limiter *ConcurrencyLimiter) func(http.Handler) http.
 // The limitProvider is called per-request to support hot-reload.
 func MaxBodyBytesMiddleware(limitProvider func() int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			limit := limitProvider()
-			if limit > 0 && r.Body != nil {
-				r.Body = http.MaxBytesReader(w, r.Body, limit)
+			if limit > 0 && request.Body != nil {
+				request.Body = http.MaxBytesReader(writer, request.Body, limit)
 			}
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(writer, request)
 		})
 	}
 }

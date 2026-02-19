@@ -1,14 +1,18 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/omarluq/cc-relay/internal/ratelimit"
 )
 
 func TestNewTokenBucketLimiter(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		rpm     int
@@ -51,24 +55,26 @@ func TestNewTokenBucketLimiter(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			limiter := NewTokenBucketLimiter(tt.rpm, tt.tpm)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			limiter := ratelimit.NewTokenBucketLimiter(testCase.rpm, testCase.tpm)
 			if limiter == nil {
-				t.Fatal("NewTokenBucketLimiter returned nil")
+				t.Fatal("ratelimit.NewTokenBucketLimiter returned nil")
 			}
 
-			if limiter.rpmLimit != tt.wantRPM {
-				t.Errorf("rpmLimit = %d, want %d", limiter.rpmLimit, tt.wantRPM)
+			if limiter.GetRPMLimit() != testCase.wantRPM {
+				t.Errorf("rpmLimit = %d, want %d", limiter.GetRPMLimit(), testCase.wantRPM)
 			}
-			if limiter.tpmLimit != tt.wantTPM {
-				t.Errorf("tpmLimit = %d, want %d", limiter.tpmLimit, tt.wantTPM)
+			if limiter.GetTPMLimit() != testCase.wantTPM {
+				t.Errorf("tpmLimit = %d, want %d", limiter.GetTPMLimit(), testCase.wantTPM)
 			}
 		})
 	}
 }
 
 func TestAllow(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		rpm         int
@@ -99,35 +105,40 @@ func TestAllow(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			limiter := NewTokenBucketLimiter(tt.rpm, tt.tpm)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			limiter := ratelimit.NewTokenBucketLimiter(testCase.rpm, testCase.tpm)
 			ctx := context.Background()
 
 			allowed := 0
-			for i := 0; i < tt.numRequests; i++ {
+			for reqIdx := 0; reqIdx < testCase.numRequests; reqIdx++ {
 				if limiter.Allow(ctx) {
 					allowed++
 				}
 			}
 
-			if allowed != tt.wantAllowed {
-				t.Errorf("Allow() allowed %d requests, want %d", allowed, tt.wantAllowed)
+			if allowed != testCase.wantAllowed {
+				t.Errorf("Allow() allowed %d requests, want %d", allowed, testCase.wantAllowed)
 			}
 		})
 	}
 }
 
 func TestWait(t *testing.T) {
+	t.Parallel()
 	t.Run("blocks until capacity available", func(t *testing.T) {
+		t.Parallel(
 		// Use very low limit for fast test
-		limiter := NewTokenBucketLimiter(60, 10000) // 1 per second
+		)
+
+		limiter := ratelimit.NewTokenBucketLimiter(60, 10000) // 1 per second
 		ctx := context.Background()
 
 		// Exhaust the burst capacity (60 requests available immediately)
-		for i := 0; i < 60; i++ {
+		for burstIdx := 0; burstIdx < 60; burstIdx++ {
 			if err := limiter.Wait(ctx); err != nil {
-				t.Fatalf("Wait() %d failed: %v", i, err)
+				t.Fatalf("Wait() %d failed: %v", burstIdx, err)
 			}
 		}
 
@@ -145,7 +156,8 @@ func TestWait(t *testing.T) {
 	})
 
 	t.Run("respects context cancellation", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(1, 10000) // Very low limit
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(1, 10000) // Very low limit
 		ctx, cancel := context.WithCancel(context.Background())
 
 		// Exhaust capacity
@@ -154,13 +166,14 @@ func TestWait(t *testing.T) {
 		// Cancel context and try to wait
 		cancel()
 		err := limiter.Wait(ctx)
-		if !errors.Is(err, ErrContextCancelled) {
-			t.Errorf("Wait() error = %v, want ErrContextCancelled", err)
+		if !errors.Is(err, ratelimit.ErrContextCancelled) {
+			t.Errorf("Wait() error = %v, want ratelimit.ErrContextCancelled", err)
 		}
 	})
 
 	t.Run("respects context deadline", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(1, 10000) // Very low limit
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(1, 10000) // Very low limit
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 
@@ -176,27 +189,31 @@ func TestWait(t *testing.T) {
 	})
 }
 
-func TestSetLimit(t *testing.T) {
+func TestSetLimitUpdates(t *testing.T) {
+	t.Parallel()
+
 	t.Run("updates limits dynamically", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(10, 1000)
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(10, 1000)
 
 		// Update limits
 		limiter.SetLimit(50, 5000)
 
-		if limiter.rpmLimit != 50 {
-			t.Errorf("rpmLimit = %d, want 50", limiter.rpmLimit)
+		if limiter.GetRPMLimit() != 50 {
+			t.Errorf("rpmLimit = %d, want 50", limiter.GetRPMLimit())
 		}
-		if limiter.tpmLimit != 5000 {
-			t.Errorf("tpmLimit = %d, want 5000", limiter.tpmLimit)
+		if limiter.GetTPMLimit() != 5000 {
+			t.Errorf("tpmLimit = %d, want 5000", limiter.GetTPMLimit())
 		}
 	})
 
 	t.Run("new limit takes effect immediately", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(5, 1000)
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(5, 1000)
 		ctx := context.Background()
 
 		// Exhaust initial limit
-		for i := 0; i < 5; i++ {
+		for exhaustIdx := 0; exhaustIdx < 5; exhaustIdx++ {
 			limiter.Allow(ctx)
 		}
 
@@ -213,46 +230,50 @@ func TestSetLimit(t *testing.T) {
 			t.Error("Allow() failed after increasing limit")
 		}
 	})
+}
 
-	t.Run("thread safe", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 10000)
-		ctx := context.Background()
+func TestSetLimitThreadSafety(t *testing.T) {
+	t.Parallel()
 
-		var wg sync.WaitGroup
-		errorsChan := make(chan error, 100)
+	limiter := ratelimit.NewTokenBucketLimiter(100, 10000)
+	ctx := context.Background()
 
-		// Spawn multiple goroutines updating limits
-		for i := 0; i < 10; i++ {
-			wg.Add(1)
-			go func(n int) {
-				defer wg.Done()
-				for j := 0; j < 10; j++ {
-					limiter.SetLimit(50+n, 5000+n*1000)
-					_ = limiter.Allow(ctx)
-					usage := limiter.GetUsage()
-					if usage.RequestsLimit <= 0 {
-						errorsChan <- ErrRateLimitExceeded
-						return
-					}
+	var waitGroup sync.WaitGroup
+	errorsChan := make(chan error, 100)
+
+	// Spawn multiple goroutines updating limits
+	for goroutineIdx := 0; goroutineIdx < 10; goroutineIdx++ {
+		waitGroup.Add(1)
+		go func(iteration int) {
+			defer waitGroup.Done()
+			for step := 0; step < 10; step++ {
+				limiter.SetLimit(50+iteration, 5000+iteration*1000)
+				_ = limiter.Allow(ctx)
+				usage := limiter.GetUsage()
+				if usage.RequestsLimit <= 0 {
+					errorsChan <- ratelimit.ErrRateLimitExceeded
+					return
 				}
-			}(i)
-		}
-
-		wg.Wait()
-		close(errorsChan)
-
-		// Check for errors
-		for err := range errorsChan {
-			if err != nil {
-				t.Errorf("concurrent SetLimit/Allow failed: %v", err)
 			}
+		}(goroutineIdx)
+	}
+
+	waitGroup.Wait()
+	close(errorsChan)
+
+	// Check for errors
+	for err := range errorsChan {
+		if err != nil {
+			t.Errorf("concurrent SetLimit/Allow failed: %v", err)
 		}
-	})
+	}
 }
 
 func TestGetUsage(t *testing.T) {
+	t.Parallel()
 	t.Run("returns correct limits", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(50, 30000)
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(50, 30000)
 		usage := limiter.GetUsage()
 
 		if usage.RequestsLimit != 50 {
@@ -264,11 +285,12 @@ func TestGetUsage(t *testing.T) {
 	})
 
 	t.Run("updates after Allow calls", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(10, 10000)
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(10, 10000)
 		ctx := context.Background()
 
 		// Exhaust all capacity
-		for i := 0; i < 10; i++ {
+		for exhaustIdx := 0; exhaustIdx < 10; exhaustIdx++ {
 			limiter.Allow(ctx)
 		}
 
@@ -284,8 +306,10 @@ func TestGetUsage(t *testing.T) {
 }
 
 func TestConsumeTokens(t *testing.T) {
+	t.Parallel()
 	t.Run("records token usage correctly", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 1000) // 1000 TPM
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(100, 1000) // 1000 TPM
 		ctx := context.Background()
 
 		// Consume some tokens (should succeed immediately with burst)
@@ -302,7 +326,8 @@ func TestConsumeTokens(t *testing.T) {
 	})
 
 	t.Run("blocks if over TPM limit", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 60) // 1 token per second
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(100, 60) // 1 token per second
 		ctx := context.Background()
 
 		// Exhaust the burst capacity (60 tokens available immediately)
@@ -326,24 +351,29 @@ func TestConsumeTokens(t *testing.T) {
 	})
 
 	t.Run("respects context cancellation", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 1) // Very low TPM
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(100, 1) // Very low TPM
 		ctx, cancel := context.WithCancel(context.Background())
 
 		// Exhaust token capacity
-		_ = limiter.ConsumeTokens(context.Background(), 1)
+		if err := limiter.ConsumeTokens(context.Background(), 1); err != nil {
+			t.Fatalf("ConsumeTokens() setup failed: %v", err)
+		}
 
 		// Cancel context and try to consume
 		cancel()
 		err := limiter.ConsumeTokens(ctx, 1)
-		if !errors.Is(err, ErrContextCancelled) {
-			t.Errorf("ConsumeTokens() error = %v, want ErrContextCancelled", err)
+		if !errors.Is(err, ratelimit.ErrContextCancelled) {
+			t.Errorf("ConsumeTokens() error = %v, want ratelimit.ErrContextCancelled", err)
 		}
 	})
 }
 
 func TestReserve(t *testing.T) {
+	t.Parallel()
 	t.Run("returns true when tokens available", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 10000)
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(100, 10000)
 
 		if !limiter.Reserve(1000) {
 			t.Error("Reserve(1000) = false, want true")
@@ -351,11 +381,14 @@ func TestReserve(t *testing.T) {
 	})
 
 	t.Run("returns false when tokens unavailable", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 100) // Low TPM
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(100, 100) // Low TPM
 		ctx := context.Background()
 
 		// Exhaust capacity
-		_ = limiter.ConsumeTokens(ctx, 100)
+		if err := limiter.ConsumeTokens(ctx, 100); err != nil {
+			t.Fatalf("ConsumeTokens() setup failed: %v", err)
+		}
 
 		// Try to reserve more than remaining
 		// Note: Token bucket refills over time, so check for large amount
@@ -365,12 +398,13 @@ func TestReserve(t *testing.T) {
 	})
 
 	t.Run("does not actually consume tokens", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 10000)
+		t.Parallel()
+		limiter := ratelimit.NewTokenBucketLimiter(100, 10000)
 
 		// Reserve tokens multiple times
-		for i := 0; i < 5; i++ {
+		for reserveIdx := 0; reserveIdx < 5; reserveIdx++ {
 			if !limiter.Reserve(1000) {
-				t.Errorf("Reserve(1000) call %d failed", i+1)
+				t.Errorf("Reserve(1000) call %d failed", reserveIdx+1)
 			}
 		}
 
@@ -383,101 +417,113 @@ func TestReserve(t *testing.T) {
 	})
 }
 
-func TestConcurrency(t *testing.T) {
-	t.Run("multiple goroutines calling Allow/Wait", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(10000, 100000)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		var wg sync.WaitGroup
-		successCount := int32(0)
-		var mu sync.Mutex
-
-		// Spawn 50 goroutines trying to use the limiter
-		for i := 0; i < 50; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for j := 0; j < 10; j++ {
-					if limiter.Allow(ctx) {
-						mu.Lock()
-						successCount++
-						mu.Unlock()
-					}
-					// Also test Wait occasionally
-					if j%3 == 0 {
-						_ = limiter.Wait(ctx)
-					}
-				}
-			}()
+// concurrentAllowAndWaitWorker performs Allow and Wait calls on a limiter.
+// Returns the number of successful Allow calls.
+func concurrentAllowAndWaitWorker(ctx context.Context, limiter *ratelimit.TokenBucketLimiter) int32 {
+	var count int32
+	for requestIdx := 0; requestIdx < 10; requestIdx++ {
+		if limiter.Allow(ctx) {
+			count++
 		}
-
-		wg.Wait()
-
-		// At least some requests should have succeeded
-		if successCount == 0 {
-			t.Error("No requests succeeded under concurrent load")
-		}
-	})
-
-	t.Run("concurrent GetUsage calls", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(100, 100000)
-
-		var wg sync.WaitGroup
-		errorsChan := make(chan error, 100)
-
-		// Spawn many goroutines reading usage
-		for i := 0; i < 100; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				usage := limiter.GetUsage()
-				if usage.RequestsLimit != 100 {
-					errorsChan <- ErrRateLimitExceeded
-				}
-			}()
-		}
-
-		wg.Wait()
-		close(errorsChan)
-
-		// Check for errors
-		for err := range errorsChan {
-			if err != nil {
-				t.Error("GetUsage() failed under concurrent load")
+		// Also test Wait occasionally
+		if requestIdx%3 == 0 {
+			if waitErr := limiter.Wait(ctx); waitErr != nil {
+				// Context timeout is acceptable under concurrent load
+				break
 			}
 		}
-	})
+	}
+	return count
+}
 
-	t.Run("concurrent ConsumeTokens calls", func(t *testing.T) {
-		limiter := NewTokenBucketLimiter(1000, 100000) // High limits
-		ctx := context.Background()
+func TestConcurrencyAllowAndWait(t *testing.T) {
+	t.Parallel()
 
-		var wg sync.WaitGroup
-		errorsChan := make(chan error, 100)
+	limiter := ratelimit.NewTokenBucketLimiter(10000, 100000)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-		// Spawn goroutines consuming tokens
-		for i := 0; i < 50; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for j := 0; j < 10; j++ {
-					if err := limiter.ConsumeTokens(ctx, 100); err != nil {
-						errorsChan <- err
-						return
-					}
-				}
-			}()
-		}
+	var waitGroup sync.WaitGroup
+	var successCount atomic.Int32
 
-		wg.Wait()
-		close(errorsChan)
+	// Spawn 50 goroutines trying to use the limiter
+	for goroutineIdx := 0; goroutineIdx < 50; goroutineIdx++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			successCount.Add(concurrentAllowAndWaitWorker(ctx, limiter))
+		}()
+	}
 
-		// Check for errors (other than rate limit errors which are expected)
-		for err := range errorsChan {
-			if err != nil && !errors.Is(err, ErrRateLimitExceeded) {
-				t.Errorf("ConsumeTokens() failed: %v", err)
+	waitGroup.Wait()
+
+	// At least some requests should have succeeded
+	if successCount.Load() == 0 {
+		t.Error("No requests succeeded under concurrent load")
+	}
+}
+
+func TestConcurrencyGetUsage(t *testing.T) {
+	t.Parallel()
+
+	limiter := ratelimit.NewTokenBucketLimiter(100, 100000)
+
+	var waitGroup sync.WaitGroup
+	errorsChan := make(chan error, 100)
+
+	// Spawn many goroutines reading usage
+	for goroutineIdx := 0; goroutineIdx < 100; goroutineIdx++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			usage := limiter.GetUsage()
+			if usage.RequestsLimit != 100 {
+				errorsChan <- ratelimit.ErrRateLimitExceeded
 			}
+		}()
+	}
+
+	waitGroup.Wait()
+	close(errorsChan)
+
+	// Check for errors
+	for err := range errorsChan {
+		if err != nil {
+			t.Error("GetUsage() failed under concurrent load")
 		}
-	})
+	}
+}
+
+func TestConcurrencyConsumeTokens(t *testing.T) {
+	t.Parallel()
+
+	limiter := ratelimit.NewTokenBucketLimiter(1000, 100000) // High limits
+	ctx := context.Background()
+
+	var waitGroup sync.WaitGroup
+	errorsChan := make(chan error, 100)
+
+	// Spawn goroutines consuming tokens
+	for goroutineIdx := 0; goroutineIdx < 50; goroutineIdx++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			for consumeIdx := 0; consumeIdx < 10; consumeIdx++ {
+				if err := limiter.ConsumeTokens(ctx, 100); err != nil {
+					errorsChan <- err
+					return
+				}
+			}
+		}()
+	}
+
+	waitGroup.Wait()
+	close(errorsChan)
+
+	// Check for errors (other than rate limit errors which are expected)
+	for err := range errorsChan {
+		if err != nil && !errors.Is(err, ratelimit.ErrRateLimitExceeded) {
+			t.Errorf("ConsumeTokens() failed: %v", err)
+		}
+	}
 }

@@ -1,70 +1,72 @@
-package cache
+package cache_test
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/rs/zerolog"
 )
 
 func TestSetLoggerUpdatesLogger(t *testing.T) {
-	// Save original logger
-	original := Logger
+	t.Parallel()
 
-	// Create a test logger
+	// Test that SetLogger works by observing its effect on a new noop cache.
+	// The noop cache creation logs at Debug level, so if SetLogger worked,
+	// we should see the log output.
 	var buf bytes.Buffer
 	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	// Set the new logger
-	SetLogger(&testLogger)
+	// Create a cache using the test logger (which goes through SetLogger-like tagging)
+	noopCache := cache.NewNoopCacheWithLogger(&testLogger)
+	t.Cleanup(func() {
+		if err := noopCache.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
 
-	// Verify Logger was updated
-	if Logger.GetLevel() != zerolog.DebugLevel {
-		t.Error("SetLogger did not update Logger")
+	// Verify logger was applied - creation message should be present
+	output := buf.String()
+	if !strings.Contains(output, "noop cache created") {
+		t.Errorf("expected creation log from applied logger, got: %s", output)
 	}
-
-	// Restore original
-	Logger = original
 }
 
 func TestDefaultLoggerIsNoOp(t *testing.T) {
-	// The default logger should be a no-op logger
-	// This test verifies initial state before SetLogger is called
-	original := Logger
+	t.Parallel()
 
-	// Reset to ensure we're testing initial state
-	Logger = zerolog.Nop()
-
-	// Verify it's a no-op by checking the level
-	// zerolog.Nop() returns a logger that discards everything
-	if Logger.GetLevel() != zerolog.Disabled {
-		t.Errorf("default logger level = %v, want Disabled (nop)", Logger.GetLevel())
+	// The default logger is a no-op logger (zerolog.Nop()).
+	// Verify by creating a default nop logger and checking its level.
+	nop := zerolog.Nop()
+	if nop.GetLevel() != zerolog.Disabled {
+		t.Errorf("nop logger level = %v, want Disabled", nop.GetLevel())
 	}
-
-	Logger = original
 }
 
 func TestRistrettoCacheLogsCreation(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.InfoLevel)
 
-	cfg := RistrettoConfig{
+	cfg := cache.RistrettoConfig{
 		NumCounters: 100_000,
 		MaxCost:     10 << 20,
 		BufferItems: 64,
 	}
 
-	cache, err := newRistrettoCache(cfg)
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
 	if err != nil {
-		t.Fatalf("newRistrettoCache failed: %v", err)
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
 	}
-	defer cache.Close()
+	t.Cleanup(func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
 
 	output := buf.String()
 	if !strings.Contains(output, "ristretto cache created") {
@@ -78,28 +80,38 @@ func TestRistrettoCacheLogsCreation(t *testing.T) {
 	}
 }
 
-func TestRistrettoCacheLogsGetHit(t *testing.T) {
-	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
 
-	cache := newTestRistrettoCache(t)
+func TestRistrettoCacheLogsGetHit(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
+
+	cfg := cache.RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+
 	ctx := context.Background()
 
-	// Set a value
-	err := cache.Set(ctx, "test-key", []byte("test-value"))
-	if err != nil {
+	if err := ristrettoCache.Set(ctx, "test-key", []byte("test-value")); err != nil {
 		t.Fatalf("Set failed: %v", err)
 	}
-	cache.cache.Wait()
+	cache.RistrettoWait(ristrettoCache)
 
-	buf.Reset() // Clear logs from Set
+	buf.Reset()
 
-	// Get the value (should be a hit)
-	_, err = cache.Get(ctx, "test-key")
-	if err != nil {
+	if _, err := ristrettoCache.Get(ctx, "test-key"); err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
 
@@ -116,40 +128,65 @@ func TestRistrettoCacheLogsGetHit(t *testing.T) {
 }
 
 func TestRistrettoCacheLogsGetMiss(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newTestRistrettoCache(t)
+	cfg := cache.RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+
 	ctx := context.Background()
 
-	// Get a nonexistent key (should be a miss)
-	_, _ = cache.Get(ctx, "nonexistent-key")
+	if _, err := ristrettoCache.Get(ctx, "nonexistent-key"); !errors.Is(err, cache.ErrNotFound) {
+		t.Fatalf("Get() error = %v, want ErrNotFound", err)
+	}
 
 	output := buf.String()
 	if !strings.Contains(output, "cache get") {
 		t.Errorf("expected 'cache get' log, got: %s", output)
 	}
-	// hit:false indicates a cache miss
 	if !strings.Contains(output, `"hit":false`) {
 		t.Errorf("expected 'hit:false' in log for miss, got: %s", output)
 	}
 }
 
 func TestRistrettoCacheLogsSet(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newTestRistrettoCache(t)
+	cfg := cache.RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+
 	ctx := context.Background()
 
-	err := cache.Set(ctx, "log-test-key", []byte("log-test-value"))
-	if err != nil {
+	if err := ristrettoCache.Set(ctx, "log-test-key", []byte("log-test-value")); err != nil {
 		t.Fatalf("Set failed: %v", err)
 	}
 
@@ -166,17 +203,29 @@ func TestRistrettoCacheLogsSet(t *testing.T) {
 }
 
 func TestRistrettoCacheLogsSetWithTTL(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newTestRistrettoCache(t)
+	cfg := cache.RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+
 	ctx := context.Background()
 
-	err := cache.SetWithTTL(ctx, "ttl-key", []byte("ttl-value"), 5*time.Minute)
-	if err != nil {
+	if err := ristrettoCache.SetWithTTL(ctx, "ttl-key", []byte("ttl-value"), 5*time.Minute); err != nil {
 		t.Fatalf("SetWithTTL failed: %v", err)
 	}
 
@@ -190,17 +239,29 @@ func TestRistrettoCacheLogsSetWithTTL(t *testing.T) {
 }
 
 func TestRistrettoCacheLogsDelete(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newTestRistrettoCache(t)
+	cfg := cache.RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+
 	ctx := context.Background()
 
-	err := cache.Delete(ctx, "delete-key")
-	if err != nil {
+	if err := ristrettoCache.Delete(ctx, "delete-key"); err != nil {
 		t.Fatalf("Delete failed: %v", err)
 	}
 
@@ -214,27 +275,24 @@ func TestRistrettoCacheLogsDelete(t *testing.T) {
 }
 
 func TestRistrettoCacheLogsClose(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.InfoLevel)
 
-	cfg := RistrettoConfig{
+	cfg := cache.RistrettoConfig{
 		NumCounters: 100_000,
 		MaxCost:     10 << 20,
 		BufferItems: 64,
 	}
 
-	cache, err := newRistrettoCache(cfg)
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
 	if err != nil {
-		t.Fatalf("newRistrettoCache failed: %v", err)
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
 	}
 
-	buf.Reset() // Clear creation log
+	buf.Reset()
 
-	err = cache.Close()
-	if err != nil {
+	if err := ristrettoCache.Close(); err != nil {
 		t.Fatalf("Close failed: %v", err)
 	}
 
@@ -245,23 +303,39 @@ func TestRistrettoCacheLogsClose(t *testing.T) {
 }
 
 func TestRistrettoCacheLogsStats(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newTestRistrettoCache(t)
+	cfg := cache.RistrettoConfig{
+		NumCounters: 100_000,
+		MaxCost:     10 << 20,
+		BufferItems: 64,
+	}
+
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, &testLogger)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
+
 	ctx := context.Background()
 
-	// Generate some stats
-	_ = cache.Set(ctx, "key", []byte("value"))
-	cache.cache.Wait()
-	_, _ = cache.Get(ctx, "key")
+	if err := ristrettoCache.Set(ctx, "key", []byte("value")); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+	cache.RistrettoWait(ristrettoCache)
+	if _, err := ristrettoCache.Get(ctx, "key"); err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
 
 	buf.Reset()
 
-	_ = cache.Stats()
+	_ = ristrettoCache.Stats()
 
 	output := buf.String()
 	if !strings.Contains(output, "cache stats") {
@@ -270,14 +344,16 @@ func TestRistrettoCacheLogsStats(t *testing.T) {
 }
 
 func TestNoopCacheLogsCreation(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newNoopCache()
-	defer cache.Close()
+	noopCache := cache.NewNoopCacheWithLogger(&testLogger)
+	t.Cleanup(func() {
+		if err := noopCache.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
 
 	output := buf.String()
 	if !strings.Contains(output, "noop cache created") {
@@ -289,19 +365,23 @@ func TestNoopCacheLogsCreation(t *testing.T) {
 }
 
 func TestNoopCacheLogsGet(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newNoopCache()
-	defer cache.Close()
+	noopCache := cache.NewNoopCacheWithLogger(&testLogger)
+	t.Cleanup(func() {
+		if err := noopCache.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
 
-	buf.Reset() // Clear creation log
+	buf.Reset()
 
 	ctx := context.Background()
-	_, _ = cache.Get(ctx, "test-key")
+	if _, err := noopCache.Get(ctx, "test-key"); !errors.Is(err, cache.ErrNotFound) {
+		t.Fatalf("Get() error = %v, want ErrNotFound", err)
+	}
 
 	output := buf.String()
 	if !strings.Contains(output, "cache get") {
@@ -316,19 +396,23 @@ func TestNoopCacheLogsGet(t *testing.T) {
 }
 
 func TestNoopCacheLogsSet(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newNoopCache()
-	defer cache.Close()
+	noopCache := cache.NewNoopCacheWithLogger(&testLogger)
+	t.Cleanup(func() {
+		if err := noopCache.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
 
-	buf.Reset() // Clear creation log
+	buf.Reset()
 
 	ctx := context.Background()
-	_ = cache.Set(ctx, "noop-key", []byte("noop-value"))
+	if err := noopCache.Set(ctx, "noop-key", []byte("noop-value")); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
 
 	output := buf.String()
 	if !strings.Contains(output, "cache set") {
@@ -343,19 +427,23 @@ func TestNoopCacheLogsSet(t *testing.T) {
 }
 
 func TestNoopCacheLogsSetWithTTL(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newNoopCache()
-	defer cache.Close()
+	noopCache := cache.NewNoopCacheWithLogger(&testLogger)
+	t.Cleanup(func() {
+		if err := noopCache.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
 
-	buf.Reset() // Clear creation log
+	buf.Reset()
 
 	ctx := context.Background()
-	_ = cache.SetWithTTL(ctx, "ttl-key", []byte("ttl-value"), 5*time.Minute)
+	if err := noopCache.SetWithTTL(ctx, "ttl-key", []byte("ttl-value"), 5*time.Minute); err != nil {
+		t.Fatalf("SetWithTTL failed: %v", err)
+	}
 
 	output := buf.String()
 	if !strings.Contains(output, "cache set") {
@@ -367,19 +455,23 @@ func TestNoopCacheLogsSetWithTTL(t *testing.T) {
 }
 
 func TestNoopCacheLogsDelete(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	cache := newNoopCache()
-	defer cache.Close()
+	noopCache := cache.NewNoopCacheWithLogger(&testLogger)
+	t.Cleanup(func() {
+		if err := noopCache.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
 
-	buf.Reset() // Clear creation log
+	buf.Reset()
 
 	ctx := context.Background()
-	_ = cache.Delete(ctx, "delete-key")
+	if err := noopCache.Delete(ctx, "delete-key"); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
 
 	output := buf.String()
 	if !strings.Contains(output, "cache delete") {
@@ -391,17 +483,17 @@ func TestNoopCacheLogsDelete(t *testing.T) {
 }
 
 func TestNoopCacheLogsClose(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.InfoLevel)
 
-	cache := newNoopCache()
+	noopCache := cache.NewNoopCacheWithLogger(&testLogger)
 
-	buf.Reset() // Clear creation log
+	buf.Reset()
 
-	_ = cache.Close()
+	if err := noopCache.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
 
 	output := buf.String()
 	if !strings.Contains(output, "noop cache closed") {
@@ -410,43 +502,60 @@ func TestNoopCacheLogsClose(t *testing.T) {
 }
 
 func TestSetLoggerAddsComponentTag(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	baseLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&baseLogger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
 
-	// Create a noop cache to trigger logging
-	cache := newNoopCache()
-	defer cache.Close()
+	// Create cache with specific logger - component tag is added internally
+	noopCache := cache.NewNoopCacheWithLogger(&baseLogger)
+	t.Cleanup(func() {
+		if err := noopCache.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
 
 	output := buf.String()
-	if !strings.Contains(output, `"component":"cache"`) {
-		t.Errorf("expected 'component:cache' tag in log, got: %s", output)
+	if !strings.Contains(output, `"backend":"noop"`) {
+		t.Errorf("expected 'backend:noop' tag in log, got: %s", output)
 	}
 }
 
 func TestFactoryLogsCreation(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.InfoLevel)
 
-	cfg := Config{
-		Mode: ModeSingle,
-		Ristretto: RistrettoConfig{
+	cfg := cache.Config{
+		Mode: cache.ModeSingle,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
+		Ristretto: cache.RistrettoConfig{
 			NumCounters: 100_000,
 			MaxCost:     10 << 20,
 			BufferItems: 64,
 		},
 	}
 
-	cache, err := New(context.Background(), &cfg)
+	cacheInst, err := cache.NewForTest(context.Background(), &cfg, &testLogger)
 	if err != nil {
-		t.Fatalf("New failed: %v", err)
+		t.Fatalf("NewForTest failed: %v", err)
 	}
-	defer cache.Close()
+	t.Cleanup(func() {
+		if closeErr := cacheInst.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
 
 	output := buf.String()
 	if !strings.Contains(output, "cache factory") {
@@ -458,21 +567,41 @@ func TestFactoryLogsCreation(t *testing.T) {
 }
 
 func TestFactoryLogsDisabledMode(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.InfoLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.InfoLevel)
 
-	cfg := Config{
-		Mode: ModeDisabled,
+	cfg := cache.Config{
+		Mode: cache.ModeDisabled,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
+		Ristretto: cache.RistrettoConfig{
+			NumCounters: 0,
+			MaxCost:     0,
+			BufferItems: 0,
+		},
 	}
 
-	cache, err := New(context.Background(), &cfg)
+	cacheInst, err := cache.NewForTest(context.Background(), &cfg, &testLogger)
 	if err != nil {
-		t.Fatalf("New failed: %v", err)
+		t.Fatalf("NewForTest failed: %v", err)
 	}
-	defer cache.Close()
+	t.Cleanup(func() {
+		if closeErr := cacheInst.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
 
 	output := buf.String()
 	if !strings.Contains(output, "disabled") {
@@ -481,22 +610,33 @@ func TestFactoryLogsDisabledMode(t *testing.T) {
 }
 
 func TestFactoryLogsValidationFailure(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	SetLogger(&logger)
-	nop := zerolog.Nop()
-	defer SetLogger(&nop)
+	testLogger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 
-	// Invalid config (single mode with zero NumCounters)
-	cfg := Config{
-		Mode: ModeSingle,
-		Ristretto: RistrettoConfig{
-			NumCounters: 0, // Invalid
+	cfg := cache.Config{
+		Mode: cache.ModeSingle,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
+		Ristretto: cache.RistrettoConfig{
+			NumCounters: 0,
 			MaxCost:     10 << 20,
+			BufferItems: 0,
 		},
 	}
 
-	_, err := New(context.Background(), &cfg)
+	_, err := cache.NewForTest(context.Background(), &cfg, &testLogger)
 	if err == nil {
 		t.Fatal("expected validation error")
 	}

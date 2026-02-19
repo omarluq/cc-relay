@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"bytes"
@@ -8,17 +8,20 @@ import (
 	"testing"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 func TestNewLoggerJSONFormat(t *testing.T) {
+	t.Parallel()
 	cfg := config.LoggingConfig{
-		Level:  "info",
-		Format: "json",
-		Output: "stdout",
-		Pretty: false,
+		Level:        "info",
+		Format:       "json",
+		Output:       "stdout",
+		Pretty:       false,
+		DebugOptions: proxy.TestDebugOptions(),
 	}
 
-	logger, err := NewLogger(cfg)
+	logger, err := proxy.NewLogger(cfg)
 	if err != nil {
 		t.Fatalf("NewLogger failed: %v", err)
 	}
@@ -45,14 +48,16 @@ func TestNewLoggerJSONFormat(t *testing.T) {
 }
 
 func TestNewLoggerConsoleFormat(t *testing.T) {
+	t.Parallel()
 	cfg := config.LoggingConfig{
-		Level:  "debug",
-		Format: "console",
-		Output: "stdout",
-		Pretty: false,
+		Level:        "debug",
+		Format:       "console",
+		Output:       "stdout",
+		Pretty:       false,
+		DebugOptions: proxy.TestDebugOptions(),
 	}
 
-	logger, err := NewLogger(cfg)
+	logger, err := proxy.NewLogger(cfg)
 	if err != nil {
 		t.Fatalf("NewLogger failed: %v", err)
 	}
@@ -70,13 +75,16 @@ func TestNewLoggerConsoleFormat(t *testing.T) {
 }
 
 func TestNewLoggerLevelFiltering(t *testing.T) {
+	t.Parallel()
 	cfg := config.LoggingConfig{
-		Level:  "warn",
-		Format: "json",
-		Output: "stdout",
+		Level:        "warn",
+		Format:       "json",
+		Output:       "stdout",
+		Pretty:       false,
+		DebugOptions: proxy.TestDebugOptions(),
 	}
 
-	logger, err := NewLogger(cfg)
+	logger, err := proxy.NewLogger(cfg)
 	if err != nil {
 		t.Fatalf("NewLogger failed: %v", err)
 	}
@@ -100,10 +108,11 @@ func TestNewLoggerLevelFiltering(t *testing.T) {
 }
 
 func TestAddRequestIDGeneratesUUID(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ctx = AddRequestID(ctx, "")
+	ctx = proxy.AddRequestID(ctx, "")
 
-	requestID := GetRequestID(ctx)
+	requestID := proxy.GetRequestID(ctx)
 	if requestID == "" {
 		t.Error("Expected generated UUID, got empty string")
 	}
@@ -115,11 +124,12 @@ func TestAddRequestIDGeneratesUUID(t *testing.T) {
 }
 
 func TestAddRequestIDUsesProvidedID(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	expectedID := "custom-request-id-123"
-	ctx = AddRequestID(ctx, expectedID)
+	ctx = proxy.AddRequestID(ctx, expectedID)
 
-	requestID := GetRequestID(ctx)
+	requestID := proxy.GetRequestID(ctx)
 	if requestID != expectedID {
 		t.Errorf("Expected request ID %s, got %s", expectedID, requestID)
 	}

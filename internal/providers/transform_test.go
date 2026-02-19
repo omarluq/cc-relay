@@ -1,4 +1,4 @@
-package providers
+package providers_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/omarluq/cc-relay/internal/providers"
 )
 
 func TestExtractModel(t *testing.T) {
@@ -48,11 +50,11 @@ func TestExtractModel(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			result := ExtractModel(tt.body)
-			assert.Equal(t, tt.expected, result)
+			result := providers.ExtractModel(testCase.body)
+			assert.Equal(t, testCase.expected, result)
 		})
 	}
 }
@@ -93,12 +95,12 @@ func TestRemoveModelFromBody(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := RemoveModelFromBody(tt.body)
-			if tt.wantErr {
+			result, err := providers.RemoveModelFromBody(testCase.body)
+			if testCase.wantErr {
 				require.Error(t, err)
 				return
 			}
@@ -111,10 +113,10 @@ func TestRemoveModelFromBody(t *testing.T) {
 
 			// Model should be absent
 			_, hasModel := parsed["model"]
-			assert.Equal(t, tt.wantModel, hasModel, "model field presence")
+			assert.Equal(t, testCase.wantModel, hasModel, "model field presence")
 
 			// Check expected fields
-			for key, expectedVal := range tt.checkFields {
+			for key, expectedVal := range testCase.checkFields {
 				assert.Equal(t, expectedVal, parsed[key], "field %s", key)
 			}
 		})
@@ -150,12 +152,12 @@ func TestAddAnthropicVersion(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := AddAnthropicVersion(tt.body, tt.version)
-			if tt.wantErr {
+			result, err := providers.AddAnthropicVersion(testCase.body, testCase.version)
+			if testCase.wantErr {
 				require.Error(t, err)
 				return
 			}
@@ -166,7 +168,7 @@ func TestAddAnthropicVersion(t *testing.T) {
 			err = json.Unmarshal(result, &parsed)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.version, parsed["anthropic_version"])
+			assert.Equal(t, testCase.version, parsed["anthropic_version"])
 		})
 	}
 }
@@ -212,19 +214,19 @@ func TestTransformBodyForCloudProvider(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			newBody, model, err := TransformBodyForCloudProvider(tt.body, tt.version)
-			if tt.wantErr {
+			newBody, model, err := providers.TransformBodyForCloudProvider(testCase.body, testCase.version)
+			if testCase.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 
 			// Check extracted model
-			assert.Equal(t, tt.expectedModel, model)
+			assert.Equal(t, testCase.expectedModel, model)
 
 			// Parse result to verify transformation
 			var parsed map[string]interface{}
@@ -233,10 +235,10 @@ func TestTransformBodyForCloudProvider(t *testing.T) {
 
 			// Model should be removed
 			_, hasModel := parsed["model"]
-			assert.Equal(t, tt.wantModelInBody, hasModel, "model should be removed from body")
+			assert.Equal(t, testCase.wantModelInBody, hasModel, "model should be removed from body")
 
 			// Version should be added
-			assert.Equal(t, tt.version, parsed["anthropic_version"])
+			assert.Equal(t, testCase.version, parsed["anthropic_version"])
 		})
 	}
 }
@@ -253,7 +255,7 @@ func TestTransformBodyForCloudProviderPreservesFields(t *testing.T) {
 		"stream": true
 	}`)
 
-	newBody, model, err := TransformBodyForCloudProvider(body, "bedrock-2023-05-31")
+	newBody, model, err := providers.TransformBodyForCloudProvider(body, "bedrock-2023-05-31")
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-3-opus-20240229", model)
@@ -329,11 +331,11 @@ func TestIsStreamingRequest(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			result := IsStreamingRequest(tt.body)
-			assert.Equal(t, tt.expected, result)
+			result := providers.IsStreamingRequest(testCase.body)
+			assert.Equal(t, testCase.expected, result)
 		})
 	}
 }

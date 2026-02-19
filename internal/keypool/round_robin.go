@@ -10,7 +10,7 @@ type RoundRobinSelector struct {
 
 // NewRoundRobinSelector creates a new round-robin selector.
 func NewRoundRobinSelector() *RoundRobinSelector {
-	return &RoundRobinSelector{}
+	return &RoundRobinSelector{index: 0}
 }
 
 // Select picks the next available key in round-robin order.

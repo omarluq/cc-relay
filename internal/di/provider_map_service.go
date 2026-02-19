@@ -92,28 +92,31 @@ func (s *ProviderMapService) RebuildFrom(cfg *config.Config) error {
 	var primaryKey string
 
 	for idx := range cfg.Providers {
-		p := &cfg.Providers[idx]
-		if !p.Enabled {
+		providerCfg := &cfg.Providers[idx]
+		if !providerCfg.Enabled {
 			continue
 		}
 
-		prov, err := createProvider(ctx, p)
+		prov, err := createProvider(ctx, providerCfg)
 		if errors.Is(err, ErrUnknownProviderType) {
-			log.Warn().Str("provider", p.Name).Str("type", p.Type).Msg("skipping unknown provider type on reload")
+			log.Warn().
+				Str("provider", providerCfg.Name).
+				Str("type", providerCfg.Type).
+				Msg("skipping unknown provider type on reload")
 			continue // Skip unknown provider types
 		}
 		if err != nil {
-			log.Error().Err(err).Str("provider", p.Name).Msg("failed to create provider on reload")
+			log.Error().Err(err).Str("provider", providerCfg.Name).Msg("failed to create provider on reload")
 			continue // Log and skip, don't fail the entire reload
 		}
 
-		providerMap[p.Name] = prov
+		providerMap[providerCfg.Name] = prov
 		allProviders = append(allProviders, prov)
 
 		if primaryProvider == nil {
 			primaryProvider = prov
-			if len(p.Keys) > 0 {
-				primaryKey = p.Keys[0].Key
+			if len(providerCfg.Keys) > 0 {
+				primaryKey = providerCfg.Keys[0].Key
 			}
 		}
 	}
@@ -161,9 +164,12 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	cfg := cfgSvc.Config
 
 	svc := &ProviderMapService{
-		cfgSvc:       cfgSvc,
-		Providers:    make(map[string]providers.Provider),
-		AllProviders: nil,
+		data:            atomic.Pointer[providerMapData]{},
+		cfgSvc:          cfgSvc,
+		Providers:       make(map[string]providers.Provider),
+		PrimaryProvider: nil,
+		PrimaryKey:      "",
+		AllProviders:    nil,
 	}
 
 	var primaryProvider providers.Provider
@@ -172,12 +178,12 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	ctx := context.Background()
 
 	for idx := range cfg.Providers {
-		p := &cfg.Providers[idx]
-		if !p.Enabled {
+		providerCfg := &cfg.Providers[idx]
+		if !providerCfg.Enabled {
 			continue
 		}
 
-		prov, err := createProvider(ctx, p)
+		prov, err := createProvider(ctx, providerCfg)
 		if errors.Is(err, ErrUnknownProviderType) {
 			continue // Skip unknown provider types
 		}
@@ -185,14 +191,14 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 			return nil, err
 		}
 
-		svc.Providers[p.Name] = prov
+		svc.Providers[providerCfg.Name] = prov
 		svc.AllProviders = append(svc.AllProviders, prov)
 
 		// First enabled provider becomes the primary
 		if primaryProvider == nil {
 			primaryProvider = prov
-			if len(p.Keys) > 0 {
-				primaryKey = p.Keys[0].Key
+			if len(providerCfg.Keys) > 0 {
+				primaryKey = providerCfg.Keys[0].Key
 			}
 		}
 	}

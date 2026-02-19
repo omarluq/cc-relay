@@ -70,6 +70,7 @@ func setupTestProxy(t *testing.T) *httptest.Server {
 }
 
 func TestIntegrationNonStreamingRequest(t *testing.T) {
+	t.Parallel()
 	server := setupTestProxy(t)
 
 	// Create request body
@@ -132,6 +133,7 @@ func TestIntegrationNonStreamingRequest(t *testing.T) {
 }
 
 func TestIntegrationStreamingRequest(t *testing.T) {
+	t.Parallel()
 	server := setupTestProxy(t)
 
 	// Create streaming request
@@ -271,6 +273,7 @@ func checkEventGap(last, now time.Time) error {
 }
 
 func TestIntegrationToolUseIdPreservation(t *testing.T) {
+	t.Parallel()
 	server := setupTestProxy(t)
 
 	// First request: Ask Claude to use a tool
@@ -401,6 +404,7 @@ func TestIntegrationToolUseIdPreservation(t *testing.T) {
 }
 
 func TestIntegrationAuthenticationRejection(t *testing.T) {
+	t.Parallel()
 	server := setupTestProxy(t)
 
 	// Create request without API key
@@ -460,6 +464,7 @@ func TestIntegrationAuthenticationRejection(t *testing.T) {
 }
 
 func TestIntegrationHeaderForwarding(t *testing.T) {
+	t.Parallel()
 	server := setupTestProxy(t)
 
 	// Create request with anthropic headers
@@ -507,9 +512,11 @@ func TestIntegrationHeaderForwarding(t *testing.T) {
 }
 
 func TestIntegrationErrorFormatCompliance(t *testing.T) {
+	t.Parallel()
 	for _, tt := range errorFormatCases() {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			runErrorFormatCase(t, tt)
 		})
 	}
@@ -683,6 +690,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 }
 
 func TestIntegrationHealthEndpoint(t *testing.T) {
+	t.Parallel()
 	server := setupTestProxy(t)
 
 	// Create health check request
@@ -720,6 +728,7 @@ func TestIntegrationHealthEndpoint(t *testing.T) {
 }
 
 func TestIntegrationConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	server := setupTestProxy(t)
 
 	// Test that proxy can handle concurrent requests

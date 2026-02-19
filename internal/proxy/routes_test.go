@@ -1,5 +1,5 @@
 // Package proxy implements the HTTP proxy server for cc-relay.
-package proxy
+package proxy_test
 
 import (
 	"net/http"
@@ -12,6 +12,9 @@ import (
 	"github.com/omarluq/cc-relay/internal/router"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 const (
@@ -20,11 +23,7 @@ const (
 )
 
 func newTestConfig(apiKey string) *config.Config {
-	return &config.Config{
-		Server: config.ServerConfig{
-			APIKey: apiKey,
-		},
-	}
+	return proxy.TestConfig(apiKey)
 }
 
 func newTestConfigWithListen(apiKey, listen string) *config.Config {
@@ -34,30 +33,28 @@ func newTestConfigWithListen(apiKey, listen string) *config.Config {
 }
 
 func newAuthConfig(auth config.AuthConfig) *config.Config {
-	return &config.Config{
-		Server: config.ServerConfig{
-			Auth: auth,
-		},
-	}
+	cfg := proxy.TestConfig("")
+	cfg.Server.Auth = auth
+	return cfg
 }
 
 func newAuthHandler(t *testing.T, backend *httptest.Server, auth config.AuthConfig) http.Handler {
 	t.Helper()
 	cfg := newAuthConfig(auth)
-	provider := newTestProvider(backend.URL)
+	provider := proxy.NewTestProvider(backend.URL)
 	return setupRoutesHandler(t, cfg, provider)
 }
 
 func newOKBackend(t *testing.T) *httptest.Server {
 	t.Helper()
-	return newBackendServer(t, okBackendBody)
+	return proxy.NewBackendServer(t, okBackendBody)
 }
 
 func TestSetupRoutesCreatesHandler(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfigWithListen(testAPIKey, "127.0.0.1:0")
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -70,13 +67,13 @@ func TestSetupRoutesAuthMiddlewareApplied(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig(testAPIKey)
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request without API key should return 401
-	req := newMessagesRequestWithHeaders("{}")
-	rec := serveRequest(t, handler, req)
+	req := proxy.NewMessagesRequestWithHeaders("{}")
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rec.Code)
@@ -90,16 +87,16 @@ func TestSetupRoutesAuthMiddlewareWithValidKey(t *testing.T) {
 	backend := newOKBackend(t)
 
 	cfg := newTestConfig(testAPIKey)
-	provider := newTestProvider(backend.URL)
+	provider := proxy.NewTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request with valid API key should pass auth and reach backend
-	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: apiKeyHeader, value: testAPIKey},
+	req := proxy.NewMessagesRequestWithHeaders("{}",
+		proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: testAPIKey},
 	)
 
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code == http.StatusUnauthorized {
 		t.Errorf("expected auth to pass, got 401: %s", rec.Body.String())
@@ -110,16 +107,16 @@ func TestSetupRoutesNoAuthWhenAPIKeyEmpty(t *testing.T) {
 	t.Parallel()
 
 	// Create mock backend server
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := proxy.NewBackendServer(t, `{"status":"ok"}`)
 
 	cfg := newTestConfig("") // No auth configured
-	provider := newTestProvider(backend.URL)
+	provider := proxy.NewTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Request without API key should NOT return 401 when auth is disabled
-	req := newMessagesRequestWithHeaders("{}")
-	rec := serveRequest(t, handler, req)
+	req := proxy.NewMessagesRequestWithHeaders("{}")
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code == http.StatusUnauthorized {
 		t.Errorf("expected no auth when APIKey is empty, got 401: %s", rec.Body.String())
@@ -130,13 +127,13 @@ func TestSetupRoutesHealthEndpoint(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig(testAPIKey) // Auth enabled
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Health endpoint should work without auth
 	req := httptest.NewRequest("GET", "/health", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rec.Code)
@@ -152,7 +149,7 @@ func TestSetupRoutesHealthEndpointWithAuth(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig(testAPIKey)
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
@@ -160,7 +157,7 @@ func TestSetupRoutesHealthEndpointWithAuth(t *testing.T) {
 	// (health check should never require auth)
 	req := httptest.NewRequest("GET", "/health", http.NoBody)
 	// Intentionally NOT setting x-api-key header
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("health endpoint should not require auth, got status %d", rec.Code)
@@ -171,13 +168,13 @@ func TestSetupRoutesOnlyPOSTToMessages(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig("") // No auth for simpler test
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// GET to /v1/messages should not be handled
 	req := httptest.NewRequest("GET", "/v1/messages", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	// Should return 405 Method Not Allowed (Go 1.22+ router behavior)
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -188,33 +185,43 @@ func TestSetupRoutesOnlyPOSTToMessages(t *testing.T) {
 func TestSetupRoutesWithLiveKeyPoolsRoutingDebugToggles(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"ok":true}`)
+	backend := proxy.NewBackendServer(t, `{"ok":true}`)
 
-	provider := newTestProvider(backend.URL)
+	provider := proxy.NewTestProvider(backend.URL)
 	providerInfos := []router.ProviderInfo{
-		{Provider: provider, IsHealthy: func() bool { return true }},
+		proxy.TestProviderInfoWithHealth(provider, func() bool { return true }),
 	}
 
+	routingDebugOn := proxy.TestRoutingConfig()
+	routingDebugOn.Debug = true
 	cfgA := &config.Config{
-		Server:  config.ServerConfig{APIKey: ""},
-		Routing: config.RoutingConfig{Debug: true},
+		Providers: nil,
+		Server:    proxy.TestServerConfig(""),
+		Routing:   routingDebugOn,
+		Logging:   proxy.TestLoggingConfig(),
+		Health:    proxy.TestHealthConfig(),
+		Cache:     proxy.TestCacheConfig(),
 	}
 	cfgB := &config.Config{
-		Server:  config.ServerConfig{APIKey: ""},
-		Routing: config.RoutingConfig{Debug: false},
+		Providers: nil,
+		Server:    proxy.TestServerConfig(""),
+		Routing:   proxy.TestRoutingConfig(),
+		Logging:   proxy.TestLoggingConfig(),
+		Health:    proxy.TestHealthConfig(),
+		Cache:     proxy.TestCacheConfig(),
 	}
 	runtimeCfg := config.NewRuntime(cfgA)
 	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
 
-	req := newMessagesRequestWithHeaders(`{"model":"test","messages":[]}`)
-	rec := serveRequest(t, handler, req)
+	req := proxy.NewMessagesRequestWithHeaders(`{"model":"test","messages":[]}`)
+	rec := proxy.ServeRequest(t, handler, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.NotEmpty(t, rec.Header().Get("X-CC-Relay-Strategy"))
 
 	runtimeCfg.Store(cfgB)
 
-	req2 := newMessagesRequestWithHeaders(`{"model":"test","messages":[]}`)
-	rec2 := serveRequest(t, handler, req2)
+	req2 := proxy.NewMessagesRequestWithHeaders(`{"model":"test","messages":[]}`)
+	rec2 := proxy.ServeRequest(t, handler, req2)
 	assert.Equal(t, http.StatusOK, rec2.Code)
 	assert.Empty(t, rec2.Header().Get("X-CC-Relay-Strategy"))
 }
@@ -222,11 +229,11 @@ func TestSetupRoutesWithLiveKeyPoolsRoutingDebugToggles(t *testing.T) {
 func TestSetupRoutesWithLiveKeyPoolsAuthToggle(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"ok":true}`)
+	backend := proxy.NewBackendServer(t, `{"ok":true}`)
 
-	provider := newTestProvider(backend.URL)
+	provider := proxy.NewTestProvider(backend.URL)
 	providerInfos := []router.ProviderInfo{
-		{Provider: provider, IsHealthy: func() bool { return true }},
+		proxy.TestProviderInfoWithHealth(provider, func() bool { return true }),
 	}
 
 	cfgA := newTestConfig(testAPIKey)
@@ -235,14 +242,14 @@ func TestSetupRoutesWithLiveKeyPoolsAuthToggle(t *testing.T) {
 	runtimeCfg := config.NewRuntime(cfgA)
 	handler := newLiveKeyPoolsHandler(t, runtimeCfg, provider, providerInfos)
 
-	unauthReq := newMessagesRequestWithHeaders("{}")
-	unauthRec := serveRequest(t, handler, unauthReq)
+	unauthReq := proxy.NewMessagesRequestWithHeaders("{}")
+	unauthRec := proxy.ServeRequest(t, handler, unauthReq)
 	assert.Equal(t, http.StatusUnauthorized, unauthRec.Code)
 
 	runtimeCfg.Store(cfgB)
 
-	okReq := newMessagesRequestWithHeaders("{}")
-	okRec := serveRequest(t, handler, okReq)
+	okReq := proxy.NewMessagesRequestWithHeaders("{}")
+	okRec := proxy.ServeRequest(t, handler, okReq)
 	assert.Equal(t, http.StatusOK, okRec.Code)
 }
 
@@ -255,22 +262,27 @@ func (nilRuntimeConfigGetter) Get() *config.Config {
 func TestSetupRoutesWithLiveKeyPoolsNilConfigProvider(t *testing.T) {
 	t.Parallel()
 
-	provider := newTestProvider("http://example.com")
+	provider := proxy.NewTestProvider("http://example.com")
 	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
 	require.NoError(t, err)
 
-	handler, err := SetupRoutesWithLiveKeyPools(&RoutesOptions{
-		ConfigProvider:    nilRuntimeConfigGetter{},
-		Provider:          provider,
-		ProviderInfosFunc: func() []router.ProviderInfo { return nil },
-		ProviderRouter:    routerInstance,
-		ProviderKey:       "",
-		Pool:              nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		AllProviders:      []providers.Provider{provider},
-		HealthTracker:     nil,
-		SignatureCache:    nil,
+	handler, err := proxy.SetupRoutesWithLiveKeyPools(&proxy.RoutesOptions{
+		ConfigProvider:     nilRuntimeConfigGetter{},
+		Provider:           provider,
+		ProviderInfosFunc:  func() []router.ProviderInfo { return nil },
+		ProviderRouter:     routerInstance,
+		ProviderKey:        "",
+		Pool:               nil,
+		GetProviderPools:   nil,
+		GetProviderKeys:    nil,
+		AllProviders:       []providers.Provider{provider},
+		HealthTracker:      nil,
+		SignatureCache:     nil,
+		ProviderPools:      nil,
+		ProviderKeys:       nil,
+		GetAllProviders:    nil,
+		ConcurrencyLimiter: nil,
+		ProviderInfos:      nil,
 	})
 	require.Error(t, err)
 	assert.Nil(t, handler)
@@ -280,13 +292,13 @@ func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig("")
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// POST to /health should not be handled
 	req := httptest.NewRequest("POST", "/health", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	// Should return 405 Method Not Allowed
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -297,7 +309,7 @@ func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 func setupRoutesHandler(t *testing.T, cfg *config.Config, provider providers.Provider) http.Handler {
 	t.Helper()
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
+	handler, err := proxy.SetupRoutes(cfg, provider, "backend-key", nil)
 	require.NoError(t, err)
 	return handler
 }
@@ -313,18 +325,23 @@ func newLiveKeyPoolsHandler(
 	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
 	require.NoError(t, err)
 
-	handler, err := SetupRoutesWithLiveKeyPools(&RoutesOptions{
-		ConfigProvider:    runtimeCfg,
-		Provider:          provider,
-		ProviderInfosFunc: func() []router.ProviderInfo { return providerInfos },
-		ProviderRouter:    routerInstance,
-		ProviderKey:       "",
-		Pool:              nil,
-		GetProviderPools:  nil,
-		GetProviderKeys:   nil,
-		AllProviders:      []providers.Provider{provider},
-		HealthTracker:     nil,
-		SignatureCache:    nil,
+	handler, err := proxy.SetupRoutesWithLiveKeyPools(&proxy.RoutesOptions{
+		ConfigProvider:     runtimeCfg,
+		Provider:           provider,
+		ProviderInfosFunc:  func() []router.ProviderInfo { return providerInfos },
+		ProviderRouter:     routerInstance,
+		ProviderKey:        "",
+		Pool:               nil,
+		GetProviderPools:   nil,
+		GetProviderKeys:    nil,
+		AllProviders:       []providers.Provider{provider},
+		HealthTracker:      nil,
+		SignatureCache:     nil,
+		ProviderPools:      nil,
+		ProviderKeys:       nil,
+		GetAllProviders:    nil,
+		ConcurrencyLimiter: nil,
+		ProviderInfos:      nil,
 	})
 	require.NoError(t, err)
 
@@ -337,9 +354,9 @@ func TestSetupRoutesInvalidProviderBaseURL(t *testing.T) {
 	cfg := newTestConfig(testAPIKey)
 
 	// Create provider with invalid base URL
-	provider := newTestProvider("://invalid-url")
+	provider := proxy.NewTestProvider("://invalid-url")
 
-	handler, err := SetupRoutes(cfg, provider, "backend-key", nil)
+	handler, err := proxy.SetupRoutes(cfg, provider, "backend-key", nil)
 	if err == nil {
 		t.Fatal("expected error for invalid provider base URL, got nil")
 	}
@@ -353,13 +370,13 @@ func TestSetupRoutes404ForUnknownPath(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig("")
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Unknown path should return 404
 	req := httptest.NewRequest("GET", "/unknown", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown path, got %d", rec.Code)
@@ -370,13 +387,13 @@ func TestSetupRoutesMessagesPathMustBeExact(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig("")
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// /v1/messages/extra should not match the route
 	req := httptest.NewRequest("POST", "/v1/messages/extra", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected 404 for non-exact path, got %d", rec.Code)
@@ -388,18 +405,20 @@ func TestSetupRoutesMessagesPathMustBeExact(t *testing.T) {
 func TestSetupRoutesMultiAuthWithBearerToken(t *testing.T) {
 	t.Parallel()
 
-	backend := newBackendServer(t, `{"status":"ok"}`)
+	backend := proxy.NewBackendServer(t, `{"status":"ok"}`)
 
 	handler := newAuthHandler(t, backend, config.AuthConfig{
-		AllowBearer:  true,
-		BearerSecret: "test-bearer-token",
+		APIKey:            "",
+		AllowBearer:       true,
+		BearerSecret:      "test-bearer-token",
+		AllowSubscription: false,
 	})
 
 	// Request with valid Bearer token should pass
-	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: "Authorization", value: "Bearer test-bearer-token"},
+	req := proxy.NewMessagesRequestWithHeaders("{}",
+		proxy.HeaderPair{Key: "Authorization", Value: "Bearer test-bearer-token"},
 	)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code == http.StatusUnauthorized {
 		t.Errorf("expected auth to pass with Bearer token, got 401: %s", rec.Body.String())
@@ -410,15 +429,17 @@ func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 	t.Parallel()
 
 	handler := newAuthHandler(t, newOKBackend(t), config.AuthConfig{
-		AllowBearer:  true,
-		BearerSecret: "correct-token",
+		APIKey:            "",
+		AllowBearer:       true,
+		BearerSecret:      "correct-token",
+		AllowSubscription: false,
 	})
 
 	// Request with invalid Bearer token should fail
-	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: "Authorization", value: "Bearer wrong-token"},
+	req := proxy.NewMessagesRequestWithHeaders("{}",
+		proxy.HeaderPair{Key: "Authorization", Value: "Bearer wrong-token"},
 	)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for invalid Bearer token, got %d", rec.Code)
@@ -431,18 +452,19 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	backend := newOKBackend(t)
 
 	handler := newAuthHandler(t, backend, config.AuthConfig{
-		APIKey:       "test-api-key",
-		AllowBearer:  true,
-		BearerSecret: "test-bearer-token",
+		APIKey:            "test-api-key",
+		AllowBearer:       true,
+		BearerSecret:      "test-bearer-token",
+		AllowSubscription: false,
 	})
 
 	// Test 1: Bearer token should work
 	t.Run("bearer token works", func(t *testing.T) {
 		t.Parallel()
-		req := newMessagesRequestWithHeaders("{}",
-			headerPair{key: "Authorization", value: "Bearer test-bearer-token"},
+		req := proxy.NewMessagesRequestWithHeaders("{}",
+			proxy.HeaderPair{Key: "Authorization", Value: "Bearer test-bearer-token"},
 		)
-		rec := serveRequest(t, handler, req)
+		rec := proxy.ServeRequest(t, handler, req)
 
 		if rec.Code == http.StatusUnauthorized {
 			t.Errorf("expected Bearer auth to pass, got 401: %s", rec.Body.String())
@@ -452,10 +474,10 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	// Test 2: API key should work
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
-		req := newMessagesRequestWithHeaders("{}",
-			headerPair{key: apiKeyHeader, value: "test-api-key"},
+		req := proxy.NewMessagesRequestWithHeaders("{}",
+			proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: "test-api-key"},
 		)
-		rec := serveRequest(t, handler, req)
+		rec := proxy.ServeRequest(t, handler, req)
 
 		if rec.Code == http.StatusUnauthorized {
 			t.Errorf("expected API key auth to pass, got 401: %s", rec.Body.String())
@@ -465,8 +487,8 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	// Test 3: No credentials should fail
 	t.Run("no credentials fails", func(t *testing.T) {
 		t.Parallel()
-		req := newMessagesRequestWithHeaders("{}")
-		rec := serveRequest(t, handler, req)
+		req := proxy.NewMessagesRequestWithHeaders("{}")
+		rec := proxy.ServeRequest(t, handler, req)
 
 		if rec.Code != http.StatusUnauthorized {
 			t.Errorf("expected 401 with no credentials, got %d", rec.Code)
@@ -480,15 +502,17 @@ func TestSetupRoutesMultiAuthBearerWithoutSecret(t *testing.T) {
 	backend := newOKBackend(t)
 
 	handler := newAuthHandler(t, backend, config.AuthConfig{
-		AllowBearer:  true,
-		BearerSecret: "", // Any token accepted
+		APIKey:            "",
+		AllowBearer:       true,
+		BearerSecret:      "", // Any token accepted
+		AllowSubscription: false,
 	})
 
 	// Any Bearer token should work when no secret is configured
-	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: "Authorization", value: "Bearer any-random-token"},
+	req := proxy.NewMessagesRequestWithHeaders("{}",
+		proxy.HeaderPair{Key: "Authorization", Value: "Bearer any-random-token"},
 	)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code == http.StatusUnauthorized {
 		t.Errorf("expected any Bearer token to pass when no secret, got 401: %s", rec.Body.String())
@@ -502,15 +526,15 @@ func TestSetupRoutesLegacyAPIKeyFallback(t *testing.T) {
 
 	// Use legacy Server.APIKey without Auth config
 	cfg := newTestConfig("legacy-key")
-	provider := newTestProvider(backend.URL)
+	provider := proxy.NewTestProvider(backend.URL)
 
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Legacy API key should still work
-	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: apiKeyHeader, value: "legacy-key"},
+	req := proxy.NewMessagesRequestWithHeaders("{}",
+		proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: "legacy-key"},
 	)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code == http.StatusUnauthorized {
 		t.Errorf("expected legacy API key to work, got 401: %s", rec.Body.String())
@@ -527,7 +551,7 @@ func TestSetupRoutesModelsEndpoint(t *testing.T) {
 	// Create providers with models
 	anthropicProvider := providers.NewAnthropicProviderWithModels(
 		"anthropic-primary",
-		anthropicBaseURL,
+		proxy.AnthropicBaseURL,
 		[]string{"claude-sonnet-4-5-20250514"},
 	)
 	zaiProvider := providers.NewZAIProviderWithModels(
@@ -538,14 +562,14 @@ func TestSetupRoutesModelsEndpoint(t *testing.T) {
 
 	allProviders := []providers.Provider{anthropicProvider, zaiProvider}
 
-	handler, err := SetupRoutesWithProviders(cfg, anthropicProvider, "backend-key", nil, allProviders)
+	handler, err := proxy.SetupRoutesWithProviders(cfg, anthropicProvider, "backend-key", nil, allProviders)
 	if err != nil {
-		t.Fatalf("SetupRoutesWithProviders failed: %v", err)
+		t.Fatalf("proxy.SetupRoutesWithProviders failed: %v", err)
 	}
 
 	// Models endpoint should work without auth (no auth required for discovery)
 	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -566,25 +590,21 @@ func TestSetupRoutesModelsEndpoint(t *testing.T) {
 func TestSetupRoutesModelsEndpointOnlyGET(t *testing.T) {
 	t.Parallel()
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			APIKey: "",
-		},
-	}
+	cfg := proxy.TestConfig("")
 	provider := providers.NewAnthropicProviderWithModels(
 		"test",
-		anthropicBaseURL,
+		proxy.AnthropicBaseURL,
 		[]string{"claude-sonnet-4-5-20250514"},
 	)
 
-	handler, err := SetupRoutesWithProviders(cfg, provider, "backend-key", nil, []providers.Provider{provider})
+	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, "backend-key", nil, []providers.Provider{provider})
 	if err != nil {
-		t.Fatalf("SetupRoutesWithProviders failed: %v", err)
+		t.Fatalf("proxy.SetupRoutesWithProviders failed: %v", err)
 	}
 
 	// POST to /v1/models should not be handled
 	req := httptest.NewRequest("POST", "/v1/models", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	// Should return 405 Method Not Allowed
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -596,16 +616,16 @@ func TestSetupRoutesModelsEndpointEmptyProviders(t *testing.T) {
 	t.Parallel()
 
 	cfg := newTestConfig("")
-	provider := newTestProvider(anthropicBaseURL)
+	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	// Call with empty allProviders
-	handler, err := SetupRoutesWithProviders(cfg, provider, "backend-key", nil, nil)
+	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, "backend-key", nil, nil)
 	if err != nil {
-		t.Fatalf("SetupRoutesWithProviders failed: %v", err)
+		t.Fatalf("proxy.SetupRoutesWithProviders failed: %v", err)
 	}
 
 	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rec.Code)
@@ -619,15 +639,17 @@ func TestSetupRoutesSubscriptionTokenAuth(t *testing.T) {
 
 	// Test that allow_subscription works as an alias for allow_bearer
 	handler := newAuthHandler(t, backend, config.AuthConfig{
+		APIKey:            "",
+		BearerSecret:      "",
+		AllowBearer:       false,
 		AllowSubscription: true, // User-friendly config option
-		// BearerSecret empty = passthrough mode (any token accepted)
 	})
 
 	// Subscription token (sent as Bearer) should work
-	req := newMessagesRequestWithHeaders("{}",
-		headerPair{key: "Authorization", value: "Bearer claude-subscription-token-abc123"},
+	req := proxy.NewMessagesRequestWithHeaders("{}",
+		proxy.HeaderPair{Key: "Authorization", Value: "Bearer claude-subscription-token-abc123"},
 	)
-	rec := serveRequest(t, handler, req)
+	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code == http.StatusUnauthorized {
 		t.Errorf("expected subscription token to pass with allow_subscription, got 401: %s", rec.Body.String())
@@ -642,16 +664,18 @@ func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	// Test that both subscription and API key auth work together
 	handler := newAuthHandler(t, backend, config.AuthConfig{
 		APIKey:            "test-api-key",
+		BearerSecret:      "",
+		AllowBearer:       false,
 		AllowSubscription: true,
 	})
 
 	// Test 1: Subscription token should work
 	t.Run("subscription token works", func(t *testing.T) {
 		t.Parallel()
-		req := newMessagesRequestWithHeaders("{}",
-			headerPair{key: "Authorization", value: "Bearer subscription-token"},
+		req := proxy.NewMessagesRequestWithHeaders("{}",
+			proxy.HeaderPair{Key: "Authorization", Value: "Bearer subscription-token"},
 		)
-		rec := serveRequest(t, handler, req)
+		rec := proxy.ServeRequest(t, handler, req)
 
 		if rec.Code == http.StatusUnauthorized {
 			t.Errorf("expected subscription token to pass, got 401: %s", rec.Body.String())
@@ -661,10 +685,10 @@ func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	// Test 2: API key should work
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
-		req := newMessagesRequestWithHeaders("{}",
-			headerPair{key: apiKeyHeader, value: "test-api-key"},
+		req := proxy.NewMessagesRequestWithHeaders("{}",
+			proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: "test-api-key"},
 		)
-		rec := serveRequest(t, handler, req)
+		rec := proxy.ServeRequest(t, handler, req)
 
 		if rec.Code == http.StatusUnauthorized {
 			t.Errorf("expected API key to pass, got 401: %s", rec.Body.String())

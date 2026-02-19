@@ -1,148 +1,207 @@
-package proxy
+package proxy_test
 
 import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/providers"
+
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
-// TestNewProviderProxy_ValidProvider tests creating a ProviderProxy with valid provider.
+// parseTestURL parses a URL string and fails the test if it is invalid.
+// This satisfies the gosec G704 linter by ensuring tainted URLs are validated.
+func parseTestURL(t *testing.T, rawURL string) string {
+	t.Helper()
+	parsedURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+	return parsedURL.String()
+}
+
+// TestNewProviderProxyValidProvider tests creating a ProviderProxy with valid provider.
 func TestNewProviderProxyValidProvider(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
 
-	pp, err := NewProviderProxy(provider, "test-key", nil, config.DebugOptions{}, nil)
+	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
-	require.NotNil(t, pp)
+	require.NotNil(t, providerProxy)
 
-	assert.Equal(t, provider, pp.Provider)
-	assert.Equal(t, "test-key", pp.APIKey)
-	assert.Nil(t, pp.KeyPool)
-	assert.NotNil(t, pp.Proxy)
+	assert.Equal(t, provider, providerProxy.Provider)
+	assert.Equal(t, "test-key", providerProxy.APIKey)
+	assert.Nil(t, providerProxy.KeyPool)
+	assert.NotNil(t, providerProxy.Proxy)
 }
 
-// TestNewProviderProxy_InvalidURL tests that invalid URL returns error.
+// TestNewProviderProxyInvalidURL tests that invalid URL returns error.
 func TestNewProviderProxyInvalidURL(t *testing.T) {
 	t.Parallel()
 
 	provider := &mockProvider{baseURL: "://invalid-url"}
 
-	_, err := NewProviderProxy(provider, "test-key", nil, config.DebugOptions{}, nil)
+	_, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid provider base URL")
 }
 
-// TestProviderProxy_SetsCorrectTargetURL tests that proxy routes to correct URL.
+// TestProviderProxySetsCorrectTargetURL tests that proxy routes to correct URL.
 func TestProviderProxySetsCorrectTargetURL(t *testing.T) {
 	t.Parallel()
 
 	var receivedHost string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHost = r.Host
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedHost = request.Host
+		writer.WriteHeader(http.StatusOK)
+		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	pp, err := NewProviderProxy(provider, "test-key", nil, config.DebugOptions{}, nil)
+	backendURL := parseTestURL(t, backend.URL)
+	provider := providers.NewAnthropicProvider("test", backendURL)
+	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	// Verify target URL is set correctly
-	assert.Equal(t, backend.URL, pp.GetTargetURL().String())
+	assert.Equal(t, backendURL, providerProxy.GetTargetURL().String())
 
 	// Make a request through the proxy
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
 	// Host should be the backend server
 	assert.NotEmpty(t, receivedHost)
 }
 
-// TestProviderProxy_UsesCorrectAuth tests that provider's Authenticate is called.
-func TestProviderProxyUsesCorrectAuth(t *testing.T) {
-	t.Parallel()
-
-	var receivedAPIKey string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAPIKey = r.Header.Get("x-api-key")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
-	}))
-	defer backend.Close()
-
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	pp, err := NewProviderProxy(provider, "my-configured-key", nil, config.DebugOptions{}, nil)
-	require.NoError(t, err)
-
-	// Make request without client auth (should use configured key)
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
-	// Set the X-Selected-Key header (simulating handler setting it)
-	req.Header.Set("X-Selected-Key", "my-configured-key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "my-configured-key", receivedAPIKey)
+// testProviderProxyAuthBehaviorTestCase is a test case for TestProviderProxyAuthBehavior.
+type testProviderProxyAuthBehaviorTestCase struct {
+	name            string
+	providerName    string
+	providerFactory func(string) providers.Provider
+	configuredKey   string
+	requestHeaders  map[string]string
+	expectedAPIKey  string
+	expectedAuth    string
+	description     string
 }
 
-// TestProviderProxy_TransparentModeForwardsClientAuth tests transparent auth mode.
-func TestProviderProxyTransparentModeForwardsClientAuth(t *testing.T) {
-	t.Parallel()
-
-	var receivedAuth string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAuth = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
-	}))
-	defer backend.Close()
-
-	// Anthropic provider supports transparent auth
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	pp, err := NewProviderProxy(provider, "fallback-key", nil, config.DebugOptions{}, nil)
-	require.NoError(t, err)
-
-	// Make request with client auth
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer client-token")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	// Client auth should be forwarded unchanged
-	assert.Equal(t, "Bearer client-token", receivedAuth)
+// testProviderProxyAuthBehaviorTestCases returns test cases for auth behavior tests.
+func testProviderProxyAuthBehaviorTestCases() []testProviderProxyAuthBehaviorTestCase {
+	const (
+		testConfiguredKey = "my-configured-key"
+		testFallbackKey   = "fallback-key"
+		testClientToken   = "Bearer client-token"
+	)
+	return []testProviderProxyAuthBehaviorTestCase{
+		{
+			name:         "configured_key_used_when_set",
+			providerName: "test",
+			providerFactory: func(backendURL string) providers.Provider {
+				return providers.NewAnthropicProvider("test", backendURL)
+			},
+			configuredKey: testConfiguredKey,
+			requestHeaders: map[string]string{
+				"X-Selected-Key": testConfiguredKey,
+			},
+			expectedAPIKey: testConfiguredKey,
+			expectedAuth:   "",
+			description:    "provider uses configured key when X-Selected-Key is set",
+		},
+		{
+			name:         "transparent_auth_forwards_client_auth",
+			providerName: "test",
+			providerFactory: func(backendURL string) providers.Provider {
+				return providers.NewAnthropicProvider("test", backendURL)
+			},
+			configuredKey: testFallbackKey,
+			requestHeaders: map[string]string{
+				"Authorization": testClientToken,
+			},
+			expectedAPIKey: "",
+			expectedAuth:   testClientToken,
+			description:    "transparent provider forwards client auth unchanged",
+		},
+	}
 }
 
-// TestProviderProxy_NonTransparentProviderUsesConfiguredKey tests that non-transparent
+// TestProviderProxyAuthBehavior tests authentication forwarding behavior.
+// It covers both configured key usage and transparent auth forwarding.
+func TestProviderProxyAuthBehavior(t *testing.T) {
+	t.Parallel()
+	tests := testProviderProxyAuthBehaviorTestCases()
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var receivedAPIKey string
+			var receivedAuth string
+			backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				receivedAPIKey = request.Header.Get("x-api-key")
+				receivedAuth = request.Header.Get("Authorization")
+				writer.WriteHeader(http.StatusOK)
+				if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
+					return
+				}
+			}))
+			defer backend.Close()
+
+			backendURL := parseTestURL(t, backend.URL)
+			provider := testCase.providerFactory(backendURL)
+			providerProxy, err := proxy.NewProviderProxy(
+				provider, testCase.configuredKey, nil, proxy.TestDebugOptions(), nil,
+			)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+			for headerKey, headerValue := range testCase.requestHeaders {
+				req.Header.Set(headerKey, headerValue)
+			}
+			recorder := httptest.NewRecorder()
+			providerProxy.Proxy.ServeHTTP(recorder, req)
+
+			assert.Equal(t, http.StatusOK, recorder.Code, testCase.description)
+			if testCase.expectedAPIKey != "" {
+				assert.Equal(t, testCase.expectedAPIKey, receivedAPIKey, testCase.description)
+			}
+			if testCase.expectedAuth != "" {
+				assert.Equal(t, testCase.expectedAuth, receivedAuth, testCase.description)
+			}
+		})
+	}
+}
+
+// TestProviderProxyNonTransparentProviderUsesConfiguredKey tests that non-transparent
 // providers use configured keys even when client sends auth.
 func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 	t.Parallel()
 
 	var receivedAPIKey string
 	var receivedAuth string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAPIKey = r.Header.Get("x-api-key")
-		receivedAuth = r.Header.Get("Authorization")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedAPIKey = request.Header.Get("x-api-key")
+		receivedAuth = request.Header.Get("Authorization")
+		writer.WriteHeader(http.StatusOK)
+		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
+	backendURL := parseTestURL(t, backend.URL)
 	// Z.AI provider does NOT support transparent auth
-	provider := providers.NewZAIProvider("test-zai", backend.URL)
-	pp, err := NewProviderProxy(provider, "zai-key", nil, config.DebugOptions{}, nil)
+	provider := providers.NewZAIProvider("test-zai", backendURL)
+	providerProxy, err := proxy.NewProviderProxy(provider, "zai-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	// Make request with client auth (but provider doesn't support transparent)
@@ -150,73 +209,76 @@ func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer client-token")
 	// Handler sets X-Selected-Key since provider doesn't support transparent auth
 	req.Header.Set("X-Selected-Key", "zai-key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
 	// Client auth should NOT be forwarded
 	assert.Empty(t, receivedAuth)
 	// Our configured key should be used
 	assert.Equal(t, "zai-key", receivedAPIKey)
 }
 
-// TestProviderProxy_ForwardsAnthropicHeaders tests anthropic-* header forwarding.
+// TestProviderProxyForwardsAnthropicHeaders tests anthropic-* header forwarding.
 func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
 	var receivedVersion string
 	var receivedBeta string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedVersion = r.Header.Get("Anthropic-Version")
-		receivedBeta = r.Header.Get("Anthropic-Beta")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedVersion = request.Header.Get("Anthropic-Version")
+		receivedBeta = request.Header.Get("Anthropic-Beta")
+		writer.WriteHeader(http.StatusOK)
+		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	backendURL := parseTestURL(t, backend.URL)
+	provider := providers.NewAnthropicProvider("test", backendURL)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer token")
-	req.Header.Set("Anthropic-Version", anthropicVersion2024)
+	req.Header.Set("Anthropic-Version", proxy.AnthropicVersion2024)
 	req.Header.Set("Anthropic-Beta", "extended-thinking")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, anthropicVersion2024, receivedVersion)
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, proxy.AnthropicVersion2024, receivedVersion)
 	assert.Equal(t, "extended-thinking", receivedBeta)
 }
 
-// TestProviderProxy_SSEHeadersSet tests that SSE headers are set for streaming responses.
+// TestProviderProxySSEHeadersSet tests that SSE headers are set for streaming responses.
 func TestProviderProxySSEHeadersSet(t *testing.T) {
 	t.Parallel()
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: hello\n\n"))
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/event-stream")
+		writer.WriteHeader(http.StatusOK)
+		if _, writeErr := writer.Write([]byte("data: hello\n\n")); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	backendURL := parseTestURL(t, backend.URL)
+	provider := providers.NewAnthropicProvider("test", backendURL)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
 	// Check SSE headers were added
-	assert.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
-	assert.Equal(t, "no-cache, no-transform", w.Header().Get("Cache-Control"))
-	assert.Equal(t, "no", w.Header().Get("X-Accel-Buffering"))
+	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, "no-cache, no-transform", recorder.Header().Get("Cache-Control"))
+	assert.Equal(t, "no", recorder.Header().Get("X-Accel-Buffering"))
 }
 
-// TestProviderProxy_ModifyResponseHookCalled tests that the hook is called.
+// TestProviderProxyModifyResponseHookCalled tests that the hook is called.
 func TestProviderProxyModifyResponseHookCalled(t *testing.T) {
 	t.Parallel()
 
@@ -226,57 +288,59 @@ func TestProviderProxyModifyResponseHookCalled(t *testing.T) {
 		return nil
 	}
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
-	provider := providers.NewAnthropicProvider("test", backend.URL)
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, hook)
+	backendURL := parseTestURL(t, backend.URL)
+	provider := providers.NewAnthropicProvider("test", backendURL)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), hook)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.True(t, hookCalled, "modifyResponse hook should be called")
 }
 
-// TestProviderProxy_ErrorHandlerReturnsAnthropicFormat tests error response format.
+// TestProviderProxyErrorHandlerReturnsAnthropicFormat tests error response format.
 func TestProviderProxyErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 	t.Parallel()
 
 	// Create a provider with unreachable backend
 	provider := providers.NewAnthropicProvider("test", "http://localhost:1")
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
 	// Should return 502 Bad Gateway
-	assert.Equal(t, http.StatusBadGateway, w.Code)
+	assert.Equal(t, http.StatusBadGateway, recorder.Code)
 
 	// Should be Anthropic-format error
-	body, _ := io.ReadAll(w.Body)
+	body, readErr := io.ReadAll(recorder.Body)
+	require.NoError(t, readErr)
 	assert.Contains(t, string(body), "upstream connection failed")
 }
 
-// TestProviderProxy_FlushIntervalSetForSSE tests that FlushInterval is -1.
+// TestProviderProxyFlushIntervalSetForSSE tests that FlushInterval is -1.
 func TestProviderProxyFlushIntervalSetForSSE(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	// FlushInterval -1 means flush after every write (important for SSE)
-	assert.Equal(t, int64(-1), int64(pp.Proxy.FlushInterval))
+	assert.Equal(t, int64(-1), int64(providerProxy.Proxy.FlushInterval))
 }
 
 // mockCloudProvider simulates a cloud provider that requires body transformation.
@@ -314,78 +378,84 @@ func (m *mockCloudProvider) RequiresBodyTransform() bool {
 	return true // This is the key difference from standard providers
 }
 
-// TestProviderProxy_TransformRequest_CalledForCloudProviders tests that TransformRequest
+// TestProviderProxyTransformRequestCalledForCloudProviders tests that TransformRequest
 // is called for providers that require body transformation.
 func TestProviderProxyTransformRequestCalledForCloudProviders(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody string
 	var receivedPath string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		receivedBody = string(body)
-		receivedPath = r.URL.Path
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		bodyBytes, readErr := io.ReadAll(request.Body)
+		require.NoError(t, readErr)
+		receivedBody = string(bodyBytes)
+		receivedPath = request.URL.Path
+		writer.WriteHeader(http.StatusOK)
+		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
+	backendURL := parseTestURL(t, backend.URL)
 	// Cloud provider transforms URL to include model in path
 	provider := &mockCloudProvider{
-		baseURL:      backend.URL,
-		transformURL: backend.URL + "/model/claude-3/invoke",
+		baseURL:      backendURL,
+		transformURL: backendURL + "/model/claude-3/invoke",
 	}
 
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	// Send request with original body
 	req := httptest.NewRequest("POST", "/v1/messages",
 		strings.NewReader(`{"model":"claude-3","max_tokens":100}`))
 	req.Header.Set("X-Selected-Key", "key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
 	// Body should be transformed
 	assert.Equal(t, `{"transformed":true}`, receivedBody)
 	// URL should include model in path
 	assert.Equal(t, "/model/claude-3/invoke", receivedPath)
 }
 
-// TestProviderProxy_TransformRequest_NotCalledForStandardProviders tests that
+// TestProviderProxyTransformRequestNotCalledForStandardProviders tests that
 // TransformRequest is NOT called for standard providers.
 func TestProviderProxyTransformRequestNotCalledForStandardProviders(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		receivedBody = string(body)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"test"}`))
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		bodyBytes, readErr := io.ReadAll(request.Body)
+		require.NoError(t, readErr)
+		receivedBody = string(bodyBytes)
+		writer.WriteHeader(http.StatusOK)
+		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
+	backendURL := parseTestURL(t, backend.URL)
 	// Anthropic provider does NOT require body transform
-	provider := providers.NewAnthropicProvider("test", backend.URL)
+	provider := providers.NewAnthropicProvider("test", backendURL)
 	assert.False(t, provider.RequiresBodyTransform())
 
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	originalBody := `{"model":"claude-3","max_tokens":100}`
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(originalBody))
 	req.Header.Set("X-Selected-Key", "key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
 	// Body should NOT be transformed - sent as-is
 	assert.Equal(t, originalBody, receivedBody)
 }
 
-// TestProviderProxy_EventStreamConversion tests Bedrock Event Stream handling.
+// TestProviderProxyEventStreamConversion tests Bedrock Event Stream handling.
 func TestProviderProxyEventStreamConversion(t *testing.T) {
 	t.Parallel()
 
@@ -394,42 +464,44 @@ func TestProviderProxyEventStreamConversion(t *testing.T) {
 		baseURL: "https://bedrock.example.com",
 	}
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		// Return Event Stream content type (like Bedrock)
-		w.Header().Set("Content-Type", providers.ContentTypeEventStream)
-		w.WriteHeader(http.StatusOK)
+		writer.Header().Set("Content-Type", providers.ContentTypeEventStream)
+		writer.WriteHeader(http.StatusOK)
 		// In real scenario, this would be Event Stream binary data
-		_, _ = w.Write([]byte("event-stream-data"))
+		if _, writeErr := writer.Write([]byte("event-stream-data")); writeErr != nil {
+			return
+		}
 	}))
 	defer backend.Close()
 
-	provider.baseURL = backend.URL
+	backendURL := parseTestURL(t, backend.URL)
+	provider.baseURL = backendURL
 
-	pp, err := NewProviderProxy(provider, "key", nil, config.DebugOptions{}, nil)
+	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
-	w := httptest.NewRecorder()
-	pp.Proxy.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
+	recorder := httptest.NewRecorder()
+	providerProxy.Proxy.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
 	// Content-Type should be converted to SSE
-	assert.Equal(t, providers.ContentTypeSSE, w.Header().Get("Content-Type"))
+	assert.Equal(t, providers.ContentTypeSSE, recorder.Header().Get("Content-Type"))
 	// SSE headers should be set
-	assert.Equal(t, "no-cache, no-transform", w.Header().Get("Cache-Control"))
+	assert.Equal(t, "no-cache, no-transform", recorder.Header().Get("Cache-Control"))
 }
 
 func TestEventStreamToSSEBodyNoProgress(t *testing.T) {
 	t.Parallel()
 
-	body := newEventStreamToSSEBody(&stallingReadCloser{})
+	body := proxy.NewEventStreamToSSEBody(&stallingReadCloser{})
 	buf := make([]byte, 8)
 
-	n, err := body.Read(buf)
+	bytesRead, readErr := body.Read(buf)
 
-	assert.Equal(t, 0, n)
-	assert.ErrorIs(t, err, ErrStreamClosed)
+	assert.Equal(t, 0, bytesRead)
+	assert.ErrorIs(t, readErr, proxy.ErrStreamClosed)
 }
 
 // mockEventStreamProvider simulates a Bedrock-like provider.

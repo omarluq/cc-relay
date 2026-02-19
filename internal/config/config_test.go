@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"errors"
@@ -6,64 +6,228 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omarluq/cc-relay/internal/cache"
+	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/rs/zerolog"
+	"github.com/samber/mo"
 )
 
+// assertOption is a generic helper for testing mo.Option methods.
+// It eliminates duplication across tests for GetMaxBodyLogSizeOption,
+// GetMaxConcurrentOption, GetMaxBodyBytesOption, GetITPMLimitOption,
+// and GetOTPMLimitOption.
+func assertOption[T comparable](
+	t *testing.T, name string, get func() mo.Option[T], wantSome bool, wantValue T,
+) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		t.Parallel()
+		opt := get()
+		if opt.IsPresent() != wantSome {
+			t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), wantSome)
+		}
+		if wantSome {
+			if got := opt.MustGet(); got != wantValue {
+				t.Errorf("MustGet() = %v, want %v", got, wantValue)
+			}
+		}
+	})
+}
+
+// zeroServerConfig returns a ServerConfig with all fields zeroed.
+func zeroServerConfig() config.ServerConfig {
+	return config.ServerConfig{
+		Listen: "",
+		APIKey: "",
+		Auth: config.AuthConfig{
+			APIKey: "", BearerSecret: "",
+			AllowBearer: false, AllowSubscription: false,
+		},
+		TimeoutMS: 0, MaxConcurrent: 0, MaxBodyBytes: 0, EnableHTTP2: false,
+	}
+}
+
+// zeroRoutingConfig returns a RoutingConfig with all fields zeroed.
+func zeroRoutingConfig() config.RoutingConfig {
+	return config.RoutingConfig{
+		ModelMapping: nil, Strategy: "", DefaultProvider: "",
+		FailoverTimeout: 0, Debug: false,
+	}
+}
+
+// zeroProviderConfig returns a ProviderConfig with all fields zeroed.
+func zeroProviderConfig() config.ProviderConfig {
+	return config.ProviderConfig{
+		ModelMapping: nil, AWSRegion: "", GCPProjectID: "",
+		AzureAPIVersion: "", Name: "", Type: "", BaseURL: "",
+		AzureDeploymentID: "", AWSAccessKeyID: "", AzureResourceName: "",
+		AWSSecretAccessKey: "", GCPRegion: "",
+		Keys: nil, Models: nil,
+		Pooling: config.PoolingConfig{Strategy: "", Enabled: false},
+		Enabled: false,
+	}
+}
+
+// zeroAuthConfig returns an AuthConfig with all fields zeroed.
+func zeroAuthConfig() config.AuthConfig {
+	return config.AuthConfig{
+		APIKey: "", BearerSecret: "",
+		AllowBearer: false, AllowSubscription: false,
+	}
+}
+
+// zeroDebugOptions returns a DebugOptions with all fields zeroed.
+func zeroDebugOptions() config.DebugOptions {
+	return config.DebugOptions{
+		LogRequestBody: false, LogResponseHeaders: false,
+		LogTLSMetrics: false, MaxBodyLogSize: 0,
+	}
+}
+
+// zeroKeyConfig returns a KeyConfig with all fields zeroed.
+func zeroKeyConfig() config.KeyConfig {
+	return config.KeyConfig{
+		Key: "", RPMLimit: 0, ITPMLimit: 0, OTPMLimit: 0,
+		Priority: 0, Weight: 0, TPMLimit: 0,
+	}
+}
+
+// zeroLoggingConfig returns a LoggingConfig with all fields zeroed.
+func zeroLoggingConfig() config.LoggingConfig {
+	return config.LoggingConfig{
+		Level: "", Format: "", Output: "", Pretty: false,
+		DebugOptions: zeroDebugOptions(),
+	}
+}
+
+// providerWithKeys creates a zero ProviderConfig with specified keys and pooling.
+func providerWithKeys(
+	keys []config.KeyConfig, poolingEnabled bool,
+) config.ProviderConfig {
+	prov := zeroProviderConfig()
+	prov.Keys = keys
+	prov.Pooling.Enabled = poolingEnabled
+	return prov
+}
+
+// providerWithPooling creates a zero ProviderConfig with specified pooling strategy.
+func providerWithPooling(strategy string) config.ProviderConfig {
+	prov := zeroProviderConfig()
+	prov.Pooling.Strategy = strategy
+	return prov
+}
+
+// providerWithType creates a zero ProviderConfig with specified type and cloud fields.
+func providerWithType(
+	pType, awsRegion, gcpProject, gcpRegion, azureResource string,
+) config.ProviderConfig {
+	prov := zeroProviderConfig()
+	prov.Type = pType
+	prov.AWSRegion = awsRegion
+	prov.GCPProjectID = gcpProject
+	prov.GCPRegion = gcpRegion
+	prov.AzureResourceName = azureResource
+	return prov
+}
+
+// serverWithTimeout returns a zero ServerConfig with the given TimeoutMS.
+func serverWithTimeout(ms int) config.ServerConfig {
+	s := zeroServerConfig()
+	s.TimeoutMS = ms
+	return s
+}
+
+// serverWithMaxConcurrent returns a zero ServerConfig with the given MaxConcurrent.
+func serverWithMaxConcurrent(n int) config.ServerConfig {
+	s := zeroServerConfig()
+	s.MaxConcurrent = n
+	return s
+}
+
+// serverWithMaxBodyBytes returns a zero ServerConfig with the given MaxBodyBytes.
+func serverWithMaxBodyBytes(n int64) config.ServerConfig {
+	s := zeroServerConfig()
+	s.MaxBodyBytes = n
+	return s
+}
+
+// serverWithAPIKeys returns a zero ServerConfig with legacy and auth API keys.
+func serverWithAPIKeys(legacy, auth string) config.ServerConfig {
+	s := zeroServerConfig()
+	s.APIKey = legacy
+	s.Auth.APIKey = auth
+	return s
+}
+
+// keyWithField creates a key config with a specific field set.
+func keyWithField(key, field string, value int) config.KeyConfig {
+	keyCfg := zeroKeyConfig()
+	keyCfg.Key = key
+	switch field {
+	case "RPMLimit":
+		keyCfg.RPMLimit = value
+	case "ITPMLimit":
+		keyCfg.ITPMLimit = value
+	case "OTPMLimit":
+		keyCfg.OTPMLimit = value
+	case "Priority":
+		keyCfg.Priority = value
+	case "Weight":
+		keyCfg.Weight = value
+	case "TPMLimit":
+		keyCfg.TPMLimit = value
+	}
+	return keyCfg
+}
+
+// routingWithStrategy returns a zero RoutingConfig with the given strategy.
+func routingWithStrategy(s string) config.RoutingConfig {
+	r := zeroRoutingConfig()
+	r.Strategy = s
+	return r
+}
+
+// routingWithTimeout returns a zero RoutingConfig with the given failover timeout.
+func routingWithTimeout(ms int) config.RoutingConfig {
+	r := zeroRoutingConfig()
+	r.FailoverTimeout = ms
+	return r
+}
+
+// routingWithDebug returns a zero RoutingConfig with the given debug setting.
+func routingWithDebug(debug bool) config.RoutingConfig {
+	r := zeroRoutingConfig()
+	r.Debug = debug
+	return r
+}
+
 func TestLoggingConfigParseLevel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		level    string
 		expected zerolog.Level
 	}{
-		{
-			name:     "debug level",
-			level:    "debug",
-			expected: zerolog.DebugLevel,
-		},
-		{
-			name:     "info level",
-			level:    "info",
-			expected: zerolog.InfoLevel,
-		},
-		{
-			name:     "warn level",
-			level:    "warn",
-			expected: zerolog.WarnLevel,
-		},
-		{
-			name:     "error level",
-			level:    "error",
-			expected: zerolog.ErrorLevel,
-		},
-		{
-			name:     "uppercase DEBUG",
-			level:    "DEBUG",
-			expected: zerolog.DebugLevel,
-		},
-		{
-			name:     "mixed case Info",
-			level:    "Info",
-			expected: zerolog.InfoLevel,
-		},
-		{
-			name:     "invalid level defaults to info",
-			level:    "invalid",
-			expected: zerolog.InfoLevel,
-		},
-		{
-			name:     "empty level defaults to info",
-			level:    "",
-			expected: zerolog.InfoLevel,
-		},
+		{"debug level", "debug", zerolog.DebugLevel},
+		{"info level", "info", zerolog.InfoLevel},
+		{"warn level", "warn", zerolog.WarnLevel},
+		{"error level", "error", zerolog.ErrorLevel},
+		{"uppercase DEBUG", "DEBUG", zerolog.DebugLevel},
+		{"mixed case Info", "Info", zerolog.InfoLevel},
+		{"invalid level defaults to info", "invalid", zerolog.InfoLevel},
+		{"empty level defaults to info", "", zerolog.InfoLevel},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := LoggingConfig{Level: tt.level}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := zeroLoggingConfig()
+			cfg.Level = testCase.level
 
 			got := cfg.ParseLevel()
-			if got != tt.expected {
-				t.Errorf("ParseLevel() = %v, want %v", got, tt.expected)
+			if got != testCase.expected {
+				t.Errorf("ParseLevel() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
@@ -74,53 +238,53 @@ func TestAuthConfigIsEnabled(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   AuthConfig
+		config   config.AuthConfig
 		expected bool
 	}{
+		{"no auth configured", zeroAuthConfig(), false},
 		{
-			name:     "no auth configured",
-			config:   AuthConfig{},
-			expected: false,
+			"api key only",
+			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+				AllowBearer: false, AllowSubscription: false},
+			true,
 		},
 		{
-			name:     "api key only",
-			config:   AuthConfig{APIKey: "test-key"},
-			expected: true,
+			"bearer only",
+			config.AuthConfig{APIKey: "", BearerSecret: "",
+				AllowBearer: true, AllowSubscription: false},
+			true,
 		},
 		{
-			name:     "bearer only",
-			config:   AuthConfig{AllowBearer: true},
-			expected: true,
+			"both configured",
+			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+				AllowBearer: true, AllowSubscription: false},
+			true,
 		},
 		{
-			name:     "both configured",
-			config:   AuthConfig{APIKey: "test-key", AllowBearer: true},
-			expected: true,
+			"bearer secret without allow bearer",
+			config.AuthConfig{APIKey: "", BearerSecret: "secret",
+				AllowBearer: false, AllowSubscription: false},
+			false,
 		},
 		{
-			name:     "bearer secret without allow bearer",
-			config:   AuthConfig{BearerSecret: "secret"},
-			expected: false,
+			"subscription only",
+			config.AuthConfig{APIKey: "", BearerSecret: "",
+				AllowBearer: false, AllowSubscription: true},
+			true,
 		},
 		{
-			name:     "subscription only",
-			config:   AuthConfig{AllowSubscription: true},
-			expected: true,
-		},
-		{
-			name:     "subscription and api key",
-			config:   AuthConfig{APIKey: "test-key", AllowSubscription: true},
-			expected: true,
+			"subscription and api key",
+			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+				AllowBearer: false, AllowSubscription: true},
+			true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.config.IsEnabled()
-			if got != tt.expected {
-				t.Errorf("IsEnabled() = %v, want %v", got, tt.expected)
+			if got := testCase.config.IsEnabled(); got != testCase.expected {
+				t.Errorf("IsEnabled() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
@@ -131,48 +295,47 @@ func TestAuthConfigIsBearerEnabled(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   AuthConfig
+		config   config.AuthConfig
 		expected bool
 	}{
+		{"no bearer configured", zeroAuthConfig(), false},
 		{
-			name:     "no bearer configured",
-			config:   AuthConfig{},
-			expected: false,
+			"allow_bearer true",
+			config.AuthConfig{APIKey: "", BearerSecret: "",
+				AllowBearer: true, AllowSubscription: false},
+			true,
 		},
 		{
-			name:     "allow_bearer true",
-			config:   AuthConfig{AllowBearer: true},
-			expected: true,
+			"allow_subscription true",
+			config.AuthConfig{APIKey: "", BearerSecret: "",
+				AllowBearer: false, AllowSubscription: true},
+			true,
 		},
 		{
-			name:     "allow_subscription true",
-			config:   AuthConfig{AllowSubscription: true},
-			expected: true,
+			"both bearer and subscription",
+			config.AuthConfig{APIKey: "", BearerSecret: "",
+				AllowBearer: true, AllowSubscription: true},
+			true,
 		},
 		{
-			name:     "both bearer and subscription",
-			config:   AuthConfig{AllowBearer: true, AllowSubscription: true},
-			expected: true,
+			"api key only does not enable bearer",
+			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+				AllowBearer: false, AllowSubscription: false},
+			false,
 		},
 		{
-			name:     "api key only does not enable bearer",
-			config:   AuthConfig{APIKey: "test-key"},
-			expected: false,
-		},
-		{
-			name:     "bearer secret without allow flag",
-			config:   AuthConfig{BearerSecret: "secret"},
-			expected: false,
+			"bearer secret without allow flag",
+			config.AuthConfig{APIKey: "", BearerSecret: "secret",
+				AllowBearer: false, AllowSubscription: false},
+			false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.config.IsBearerEnabled()
-			if got != tt.expected {
-				t.Errorf("IsBearerEnabled() = %v, want %v", got, tt.expected)
+			if got := testCase.config.IsBearerEnabled(); got != testCase.expected {
+				t.Errorf("IsBearerEnabled() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
@@ -184,37 +347,19 @@ func TestServerConfigGetEffectiveAPIKey(t *testing.T) {
 	tests := []struct {
 		name     string
 		expected string
-		config   ServerConfig
+		config   config.ServerConfig
 	}{
-		{
-			name:     "no api key",
-			config:   ServerConfig{},
-			expected: "",
-		},
-		{
-			name:     "legacy api key only",
-			config:   ServerConfig{APIKey: "legacy-key"},
-			expected: "legacy-key",
-		},
-		{
-			name:     "auth api key only",
-			config:   ServerConfig{Auth: AuthConfig{APIKey: "auth-key"}},
-			expected: "auth-key",
-		},
-		{
-			name:     "both - auth takes precedence",
-			config:   ServerConfig{APIKey: "legacy-key", Auth: AuthConfig{APIKey: "auth-key"}},
-			expected: "auth-key",
-		},
+		{"no api key", "", zeroServerConfig()},
+		{"legacy api key only", "legacy-key", serverWithAPIKeys("legacy-key", "")},
+		{"auth api key only", "auth-key", serverWithAPIKeys("", "auth-key")},
+		{"both - auth takes precedence", "auth-key", serverWithAPIKeys("legacy-key", "auth-key")},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.config.GetEffectiveAPIKey()
-			if got != tt.expected {
-				t.Errorf("GetEffectiveAPIKey() = %q, want %q", got, tt.expected)
+			if got := testCase.config.GetEffectiveAPIKey(); got != testCase.expected {
+				t.Errorf("GetEffectiveAPIKey() = %q, want %q", got, testCase.expected)
 			}
 		})
 	}
@@ -223,24 +368,14 @@ func TestServerConfigGetEffectiveAPIKey(t *testing.T) {
 func TestLoggingConfigEnableAllDebugOptions(t *testing.T) {
 	t.Parallel()
 
-	cfg := LoggingConfig{
-		Level: "info",
-		DebugOptions: DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-	}
+	cfg := zeroLoggingConfig()
+	cfg.Level = "info"
 
 	cfg.EnableAllDebugOptions()
 
-	// Verify level is set to debug
-	if cfg.Level != LevelDebug {
-		t.Errorf("Expected level '%s', got %q", LevelDebug, cfg.Level)
+	if cfg.Level != config.LevelDebug {
+		t.Errorf("Expected level '%s', got %q", config.LevelDebug, cfg.Level)
 	}
-
-	// Verify all debug options are enabled
 	if !cfg.DebugOptions.LogRequestBody {
 		t.Error("Expected LogRequestBody to be true")
 	}
@@ -260,38 +395,22 @@ func TestDebugOptionsGetMaxBodyLogSize(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		opts     DebugOptions
+		size     int
 		expected int
 	}{
-		{
-			name:     "default value when zero",
-			opts:     DebugOptions{MaxBodyLogSize: 0},
-			expected: 1000,
-		},
-		{
-			name:     "default value when negative",
-			opts:     DebugOptions{MaxBodyLogSize: -1},
-			expected: 1000,
-		},
-		{
-			name:     "custom value",
-			opts:     DebugOptions{MaxBodyLogSize: 5000},
-			expected: 5000,
-		},
-		{
-			name:     "small custom value",
-			opts:     DebugOptions{MaxBodyLogSize: 100},
-			expected: 100,
-		},
+		{"default value when zero", 0, 1000},
+		{"default value when negative", -1, 1000},
+		{"custom value", 5000, 5000},
+		{"small custom value", 100, 100},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.opts.GetMaxBodyLogSize()
-			if got != tt.expected {
-				t.Errorf("GetMaxBodyLogSize() = %d, want %d", got, tt.expected)
+			opts := zeroDebugOptions()
+			opts.MaxBodyLogSize = testCase.size
+			if got := opts.GetMaxBodyLogSize(); got != testCase.expected {
+				t.Errorf("GetMaxBodyLogSize() = %d, want %d", got, testCase.expected)
 			}
 		})
 	}
@@ -302,50 +421,57 @@ func TestDebugOptionsIsEnabled(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		opts     DebugOptions
+		opts     config.DebugOptions
 		expected bool
 	}{
+		{"all disabled", zeroDebugOptions(), false},
 		{
-			name:     "all disabled",
-			opts:     DebugOptions{},
-			expected: false,
+			"only LogRequestBody",
+			config.DebugOptions{
+				LogRequestBody: true, LogResponseHeaders: false,
+				LogTLSMetrics: false, MaxBodyLogSize: 0},
+			true,
 		},
 		{
-			name:     "only LogRequestBody",
-			opts:     DebugOptions{LogRequestBody: true},
-			expected: true,
+			"only LogResponseHeaders",
+			config.DebugOptions{
+				LogRequestBody: false, LogResponseHeaders: true,
+				LogTLSMetrics: false, MaxBodyLogSize: 0},
+			true,
 		},
 		{
-			name:     "only LogResponseHeaders",
-			opts:     DebugOptions{LogResponseHeaders: true},
-			expected: true,
+			"only LogTLSMetrics",
+			config.DebugOptions{
+				LogRequestBody: false, LogResponseHeaders: false,
+				LogTLSMetrics: true, MaxBodyLogSize: 0},
+			true,
 		},
 		{
-			name:     "only LogTLSMetrics",
-			opts:     DebugOptions{LogTLSMetrics: true},
-			expected: true,
-		},
-		{
-			name:     "all enabled",
-			opts:     DebugOptions{LogRequestBody: true, LogResponseHeaders: true, LogTLSMetrics: true},
-			expected: true,
-		},
-		{
-			name:     "MaxBodyLogSize alone does not enable",
-			opts:     DebugOptions{MaxBodyLogSize: 5000},
-			expected: false,
+			"all enabled",
+			config.DebugOptions{
+				LogRequestBody: true, LogResponseHeaders: true,
+				LogTLSMetrics: true, MaxBodyLogSize: 0},
+			true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.opts.IsEnabled()
-			if got != tt.expected {
-				t.Errorf("IsEnabled() = %v, want %v", got, tt.expected)
+			if got := testCase.opts.IsEnabled(); got != testCase.expected {
+				t.Errorf("IsEnabled() = %v, want %v", got, testCase.expected)
 			}
 		})
+	}
+}
+
+func TestDebugOptionsIsEnabledMaxBodyLogSizeAlone(t *testing.T) {
+	t.Parallel()
+
+	opts := zeroDebugOptions()
+	opts.MaxBodyLogSize = 5000
+	if opts.IsEnabled() {
+		t.Error("MaxBodyLogSize alone should not enable debug options")
 	}
 }
 
@@ -354,210 +480,144 @@ func TestKeyConfigGetEffectiveTPM(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		config       KeyConfig
+		config       config.KeyConfig
 		expectedITPM int
 		expectedOTPM int
 	}{
 		{
-			name: "ITPM and OTPM set",
-			config: KeyConfig{
-				ITPMLimit: 30000,
-				OTPMLimit: 10000,
-			},
-			expectedITPM: 30000,
-			expectedOTPM: 10000,
+			"ITPM and OTPM set",
+			config.KeyConfig{Key: "", RPMLimit: 0, ITPMLimit: 30000,
+				OTPMLimit: 10000, Priority: 0, Weight: 0, TPMLimit: 0},
+			30000, 10000,
 		},
 		{
-			name: "only ITPM set",
-			config: KeyConfig{
-				ITPMLimit: 30000,
-			},
-			expectedITPM: 30000,
-			expectedOTPM: 0,
+			"only ITPM set",
+			config.KeyConfig{Key: "", RPMLimit: 0, ITPMLimit: 30000,
+				OTPMLimit: 0, Priority: 0, Weight: 0, TPMLimit: 0},
+			30000, 0,
 		},
 		{
-			name: "only OTPM set",
-			config: KeyConfig{
-				OTPMLimit: 10000,
-			},
-			expectedITPM: 0,
-			expectedOTPM: 10000,
+			"only OTPM set",
+			config.KeyConfig{Key: "", RPMLimit: 0, ITPMLimit: 0,
+				OTPMLimit: 10000, Priority: 0, Weight: 0, TPMLimit: 0},
+			0, 10000,
 		},
 		{
-			name: "legacy TPMLimit",
-			config: KeyConfig{
-				TPMLimit: 40000,
-			},
-			expectedITPM: 20000,
-			expectedOTPM: 20000,
+			"legacy TPMLimit",
+			config.KeyConfig{Key: "", RPMLimit: 0, ITPMLimit: 0,
+				OTPMLimit: 0, Priority: 0, Weight: 0, TPMLimit: 40000},
+			20000, 20000,
 		},
 		{
-			name: "ITPM/OTPM preferred over TPMLimit",
-			config: KeyConfig{
-				ITPMLimit: 30000,
-				OTPMLimit: 10000,
-				TPMLimit:  40000,
-			},
-			expectedITPM: 30000,
-			expectedOTPM: 10000,
+			"ITPM/OTPM preferred",
+			config.KeyConfig{Key: "", RPMLimit: 0, ITPMLimit: 30000,
+				OTPMLimit: 10000, Priority: 0, Weight: 0, TPMLimit: 40000},
+			30000, 10000,
 		},
-		{
-			name:         "no limits set",
-			config:       KeyConfig{},
-			expectedITPM: 0,
-			expectedOTPM: 0,
-		},
+		{"no limits set", zeroKeyConfig(), 0, 0},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			itpm, otpm := tt.config.GetEffectiveTPM()
-			if itpm != tt.expectedITPM {
-				t.Errorf("GetEffectiveTPM() ITPM = %d, want %d", itpm, tt.expectedITPM)
+			itpm, otpm := testCase.config.GetEffectiveTPM()
+			if itpm != testCase.expectedITPM {
+				t.Errorf("ITPM = %d, want %d", itpm, testCase.expectedITPM)
 			}
-			if otpm != tt.expectedOTPM {
-				t.Errorf("GetEffectiveTPM() OTPM = %d, want %d", otpm, tt.expectedOTPM)
+			if otpm != testCase.expectedOTPM {
+				t.Errorf("OTPM = %d, want %d", otpm, testCase.expectedOTPM)
 			}
 		})
 	}
 }
 
-func TestKeyConfigValidate(t *testing.T) {
+// runKeyValidation is a helper to test KeyConfig.Validate.
+func runKeyValidation(
+	t *testing.T, name string, cfg config.KeyConfig,
+	wantErr bool, check func(t *testing.T, err error),
+) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		t.Parallel()
+		err := cfg.Validate()
+		if wantErr {
+			if err == nil {
+				t.Error("Validate() expected error, got nil")
+				return
+			}
+			if check != nil {
+				check(t, err)
+			}
+		} else if err != nil {
+			t.Errorf("Validate() expected no error, got %v", err)
+		}
+	})
+}
+
+func TestKeyConfigValidateValid(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		checkFunc func(t *testing.T, err error)
-		name      string
-		config    KeyConfig
-		wantError bool
-	}{
-		{
-			name: "valid key with all fields",
-			config: KeyConfig{
-				Key:       "sk-test123",
-				RPMLimit:  50,
-				ITPMLimit: 30000,
-				OTPMLimit: 10000,
-				Priority:  2,
-				Weight:    5,
-			},
-			wantError: false,
-		},
-		{
-			name: "valid key with defaults",
-			config: KeyConfig{
-				Key: "sk-test123",
-			},
-			wantError: false,
-		},
-		{
-			name: "empty key",
-			config: KeyConfig{
-				Key: "",
-			},
-			wantError: true,
-			checkFunc: func(t *testing.T, err error) {
-				if !errors.Is(err, ErrKeyRequired) {
-					t.Errorf("Expected ErrKeyRequired, got %v", err)
-				}
-			},
-		},
-		{
-			name: "invalid priority too high",
-			config: KeyConfig{
-				Key:      "sk-test123",
-				Priority: 3,
-			},
-			wantError: true,
-			checkFunc: func(t *testing.T, err error) {
-				var priorityErr InvalidPriorityError
-				if !errors.As(err, &priorityErr) {
-					t.Errorf("Expected InvalidPriorityError, got %T", err)
-				}
-			},
-		},
-		{
-			name: "invalid priority negative",
-			config: KeyConfig{
-				Key:      "sk-test123",
-				Priority: -1,
-			},
-			wantError: true,
-			checkFunc: func(t *testing.T, err error) {
-				var priorityErr InvalidPriorityError
-				if !errors.As(err, &priorityErr) {
-					t.Errorf("Expected InvalidPriorityError, got %T", err)
-				}
-			},
-		},
-		{
-			name: "negative weight",
-			config: KeyConfig{
-				Key:    "sk-test123",
-				Weight: -1,
-			},
-			wantError: true,
-			checkFunc: func(t *testing.T, err error) {
-				var weightErr InvalidWeightError
-				if !errors.As(err, &weightErr) {
-					t.Errorf("Expected InvalidWeightError, got %T", err)
-				}
-			},
-		},
-		{
-			name: "valid priority 0 (low)",
-			config: KeyConfig{
-				Key:      "sk-test123",
-				Priority: 0,
-			},
-			wantError: false,
-		},
-		{
-			name: "valid priority 1 (normal)",
-			config: KeyConfig{
-				Key:      "sk-test123",
-				Priority: 1,
-			},
-			wantError: false,
-		},
-		{
-			name: "valid priority 2 (high)",
-			config: KeyConfig{
-				Key:      "sk-test123",
-				Priority: 2,
-			},
-			wantError: false,
-		},
-		{
-			name: "zero weight is valid",
-			config: KeyConfig{
-				Key:    "sk-test123",
-				Weight: 0,
-			},
-			wantError: false,
-		},
+	runKeyValidation(t, "valid key with all fields", config.KeyConfig{
+		Key: "sk-test123", RPMLimit: 50, ITPMLimit: 30000,
+		OTPMLimit: 10000, Priority: 2, Weight: 5, TPMLimit: 0,
+	}, false, nil)
+
+	runKeyValidation(t, "valid key with defaults", config.KeyConfig{
+		Key: "sk-test123", RPMLimit: 0, ITPMLimit: 0,
+		OTPMLimit: 0, Priority: 0, Weight: 0, TPMLimit: 0,
+	}, false, nil)
+
+	for _, p := range []int{0, 1, 2} {
+		k := zeroKeyConfig()
+		k.Key = "sk-test123"
+		k.Priority = p
+		runKeyValidation(t, "valid priority "+strings.Repeat("I", p), k, false, nil)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	k := zeroKeyConfig()
+	k.Key = "sk-test123"
+	runKeyValidation(t, "zero weight is valid", k, false, nil)
+}
 
-			err := tt.config.Validate()
-			if tt.wantError {
-				if err == nil {
-					t.Error("Validate() expected error, got nil")
-					return
-				}
-				if tt.checkFunc != nil {
-					tt.checkFunc(t, err)
-				}
-			} else if err != nil {
-				t.Errorf("Validate() expected no error, got %v", err)
+func TestKeyConfigValidateErrors(t *testing.T) {
+	t.Parallel()
+
+	runKeyValidation(t, "empty key", zeroKeyConfig(), true, func(t *testing.T, err error) {
+		t.Helper()
+		if !errors.Is(err, config.ErrKeyRequired) {
+			t.Errorf("Expected ErrKeyRequired, got %v", err)
+		}
+	})
+
+	priorityHigh := keyWithField("sk-test123", "Priority", 3)
+	runKeyValidation(t, "priority too high", priorityHigh, true,
+		func(t *testing.T, err error) {
+			t.Helper()
+			var priorityErr config.InvalidPriorityError
+			if !errors.As(err, &priorityErr) {
+				t.Errorf("Expected InvalidPriorityError, got %T", err)
 			}
 		})
-	}
+
+	priorityNeg := keyWithField("sk-test123", "Priority", -1)
+	runKeyValidation(t, "priority negative", priorityNeg, true,
+		func(t *testing.T, err error) {
+			t.Helper()
+			var priorityErr config.InvalidPriorityError
+			if !errors.As(err, &priorityErr) {
+				t.Errorf("Expected InvalidPriorityError, got %T", err)
+			}
+		})
+
+	weightNeg := keyWithField("sk-test123", "Weight", -1)
+	runKeyValidation(t, "negative weight", weightNeg, true,
+		func(t *testing.T, err error) {
+			t.Helper()
+			var weightErr config.InvalidWeightError
+			if !errors.As(err, &weightErr) {
+				t.Errorf("Expected InvalidWeightError, got %T", err)
+			}
+		})
 }
 
 func TestProviderConfigGetEffectiveStrategy(t *testing.T) {
@@ -566,58 +626,20 @@ func TestProviderConfigGetEffectiveStrategy(t *testing.T) {
 	tests := []struct {
 		name     string
 		expected string
-		config   ProviderConfig
+		config   config.ProviderConfig
 	}{
-		{
-			name: "configured strategy least_loaded",
-			config: ProviderConfig{
-				Pooling: PoolingConfig{
-					Strategy: "least_loaded",
-				},
-			},
-			expected: "least_loaded",
-		},
-		{
-			name: "configured strategy round_robin",
-			config: ProviderConfig{
-				Pooling: PoolingConfig{
-					Strategy: "round_robin",
-				},
-			},
-			expected: "round_robin",
-		},
-		{
-			name: "configured strategy weighted",
-			config: ProviderConfig{
-				Pooling: PoolingConfig{
-					Strategy: "weighted",
-				},
-			},
-			expected: "weighted",
-		},
-		{
-			name:     "no strategy configured - defaults to least_loaded",
-			config:   ProviderConfig{},
-			expected: "least_loaded",
-		},
-		{
-			name: "empty strategy - defaults to least_loaded",
-			config: ProviderConfig{
-				Pooling: PoolingConfig{
-					Strategy: "",
-				},
-			},
-			expected: "least_loaded",
-		},
+		{"least_loaded", "least_loaded", providerWithPooling("least_loaded")},
+		{"round_robin", "round_robin", providerWithPooling("round_robin")},
+		{"weighted", "weighted", providerWithPooling("weighted")},
+		{"no strategy defaults", "least_loaded", zeroProviderConfig()},
+		{"empty strategy defaults", "least_loaded", providerWithPooling("")},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.config.GetEffectiveStrategy()
-			if got != tt.expected {
-				t.Errorf("GetEffectiveStrategy() = %q, want %q", got, tt.expected)
+			if got := testCase.config.GetEffectiveStrategy(); got != testCase.expected {
+				t.Errorf("GetEffectiveStrategy() = %q, want %q", got, testCase.expected)
 			}
 		})
 	}
@@ -626,439 +648,172 @@ func TestProviderConfigGetEffectiveStrategy(t *testing.T) {
 func TestProviderConfigIsPoolingEnabled(t *testing.T) {
 	t.Parallel()
 
+	const testKey1, testKey2, testKey3 = "key1", "key2", "key3"
+
+	oneKey := []config.KeyConfig{zeroKeyConfig()}
+	oneKey[0].Key = testKey1
+
+	twoKeys := []config.KeyConfig{zeroKeyConfig(), zeroKeyConfig()}
+	twoKeys[0].Key = testKey1
+	twoKeys[1].Key = testKey2
+
+	threeKeys := []config.KeyConfig{zeroKeyConfig(), zeroKeyConfig(), zeroKeyConfig()}
+	threeKeys[0].Key = testKey1
+	threeKeys[1].Key = testKey2
+	threeKeys[2].Key = testKey3
+
 	tests := []struct {
 		name     string
-		config   ProviderConfig
+		config   config.ProviderConfig
 		expected bool
 	}{
-		{
-			name: "explicitly enabled",
-			config: ProviderConfig{
-				Pooling: PoolingConfig{
-					Enabled: true,
-				},
-				Keys: []KeyConfig{{Key: "key1"}},
-			},
-			expected: true,
-		},
-		{
-			name: "explicitly enabled with multiple keys",
-			config: ProviderConfig{
-				Pooling: PoolingConfig{
-					Enabled: true,
-				},
-				Keys: []KeyConfig{
-					{Key: "key1"},
-					{Key: "key2"},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "not explicitly enabled but multiple keys",
-			config: ProviderConfig{
-				Keys: []KeyConfig{
-					{Key: "key1"},
-					{Key: "key2"},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "not explicitly enabled with three keys",
-			config: ProviderConfig{
-				Keys: []KeyConfig{
-					{Key: "key1"},
-					{Key: "key2"},
-					{Key: "key3"},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "not enabled with single key",
-			config: ProviderConfig{
-				Keys: []KeyConfig{{Key: "key1"}},
-			},
-			expected: false,
-		},
-		{
-			name: "not enabled with no keys",
-			config: ProviderConfig{
-				Keys: []KeyConfig{},
-			},
-			expected: false,
-		},
-		{
-			name: "explicitly enabled overrides single key",
-			config: ProviderConfig{
-				Pooling: PoolingConfig{
-					Enabled: true,
-				},
-				Keys: []KeyConfig{{Key: "key1"}},
-			},
-			expected: true,
-		},
+		{"explicitly enabled single key", providerWithKeys(oneKey, true), true},
+		{"explicitly enabled multi keys", providerWithKeys(twoKeys, true), true},
+		{"multi keys auto-enabled", providerWithKeys(twoKeys, false), true},
+		{"three keys auto-enabled", providerWithKeys(threeKeys, false), true},
+		{"single key not enabled", providerWithKeys(oneKey, false), false},
+		{"no keys not enabled", providerWithKeys([]config.KeyConfig{}, false), false},
+		{"explicitly enabled overrides single", providerWithKeys(oneKey, true), true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.config.IsPoolingEnabled()
-			if got != tt.expected {
-				t.Errorf("IsPoolingEnabled() = %v, want %v", got, tt.expected)
+			if got := testCase.config.IsPoolingEnabled(); got != testCase.expected {
+				t.Errorf("IsPoolingEnabled() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
 }
 
-// Tests for mo.Option helper methods
+// Tests for mo.Option helper methods.
 
 func TestDebugOptionsGetMaxBodyLogSizeOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		opts      DebugOptions
-		wantSome  bool
-		wantValue int
-	}{
-		{
-			name:     "zero returns None",
-			opts:     DebugOptions{MaxBodyLogSize: 0},
-			wantSome: false,
-		},
-		{
-			name:     "negative returns None",
-			opts:     DebugOptions{MaxBodyLogSize: -1},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some",
-			opts:      DebugOptions{MaxBodyLogSize: 5000},
-			wantSome:  true,
-			wantValue: 5000,
-		},
-	}
+	opts1 := zeroDebugOptions()
+	assertOption(t, "zero returns None", opts1.GetMaxBodyLogSizeOption, false, 0)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	opts2 := zeroDebugOptions()
+	opts2.MaxBodyLogSize = -1
+	assertOption(t, "negative returns None", opts2.GetMaxBodyLogSizeOption, false, 0)
 
-			opt := tt.opts.GetMaxBodyLogSizeOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	opts3 := zeroDebugOptions()
+	opts3.MaxBodyLogSize = 5000
+	assertOption(t, "positive returns Some", opts3.GetMaxBodyLogSizeOption, true, 5000)
 }
 
 func TestServerConfigGetTimeoutOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		config    ServerConfig
-		wantSome  bool
-		wantValue time.Duration
-	}{
-		{
-			name:     "zero returns None",
-			config:   ServerConfig{TimeoutMS: 0},
-			wantSome: false,
-		},
-		{
-			name:     "negative returns None",
-			config:   ServerConfig{TimeoutMS: -1},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some with converted duration",
-			config:    ServerConfig{TimeoutMS: 5000},
-			wantSome:  true,
-			wantValue: 5 * time.Second,
-		},
-	}
+	cfg0 := serverWithTimeout(0)
+	assertOption(t, "zero returns None", cfg0.GetTimeoutOption, false, time.Duration(0))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	cfgNeg := serverWithTimeout(-1)
+	assertOption(t, "negative returns None", cfgNeg.GetTimeoutOption, false, time.Duration(0))
 
-			opt := tt.config.GetTimeoutOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %v, want %v", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	cfgPos := serverWithTimeout(5000)
+	assertOption(t, "positive returns Some", cfgPos.GetTimeoutOption, true, 5*time.Second)
 }
 
 func TestServerConfigGetMaxConcurrentOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		config    ServerConfig
-		wantSome  bool
-		wantValue int
-	}{
-		{
-			name:     "zero returns None",
-			config:   ServerConfig{MaxConcurrent: 0},
-			wantSome: false,
-		},
-		{
-			name:     "negative returns None",
-			config:   ServerConfig{MaxConcurrent: -1},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some",
-			config:    ServerConfig{MaxConcurrent: 100},
-			wantSome:  true,
-			wantValue: 100,
-		},
-	}
+	cfg0 := serverWithMaxConcurrent(0)
+	assertOption(t, "zero returns None", cfg0.GetMaxConcurrentOption, false, 0)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	cfgNeg := serverWithMaxConcurrent(-1)
+	assertOption(t, "negative returns None", cfgNeg.GetMaxConcurrentOption, false, 0)
 
-			opt := tt.config.GetMaxConcurrentOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	cfgPos := serverWithMaxConcurrent(100)
+	assertOption(t, "positive returns Some", cfgPos.GetMaxConcurrentOption, true, 100)
 }
 
 func TestServerConfigGetMaxBodyBytesOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		config    ServerConfig
-		wantSome  bool
-		wantValue int64
-	}{
-		{
-			name:     "zero returns None",
-			config:   ServerConfig{MaxBodyBytes: 0},
-			wantSome: false,
-		},
-		{
-			name:     "negative returns None",
-			config:   ServerConfig{MaxBodyBytes: -1},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some",
-			config:    ServerConfig{MaxBodyBytes: 10485760}, // 10MB
-			wantSome:  true,
-			wantValue: 10485760,
-		},
-	}
+	cfg0 := serverWithMaxBodyBytes(0)
+	assertOption(t, "zero returns None", cfg0.GetMaxBodyBytesOption, false, int64(0))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	cfgNeg := serverWithMaxBodyBytes(-1)
+	assertOption(t, "negative returns None", cfgNeg.GetMaxBodyBytesOption, false, int64(0))
 
-			opt := tt.config.GetMaxBodyBytesOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	cfgPos := serverWithMaxBodyBytes(10485760)
+	assertOption(t, "positive returns Some", cfgPos.GetMaxBodyBytesOption, true, int64(10485760))
 }
 
 func TestKeyConfigGetRPMLimitOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		config    KeyConfig
-		wantSome  bool
-		wantValue int
-	}{
-		{
-			name:     "zero returns None",
-			config:   KeyConfig{Key: "test", RPMLimit: 0},
-			wantSome: false,
-		},
-		{
-			name:     "negative returns None",
-			config:   KeyConfig{Key: "test", RPMLimit: -1},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some",
-			config:    KeyConfig{Key: "test", RPMLimit: 50},
-			wantSome:  true,
-			wantValue: 50,
-		},
-	}
+	cfg0 := keyWithField("test", "RPMLimit", 0)
+	assertOption(t, "zero returns None", cfg0.GetRPMLimitOption, false, 0)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	cfgNeg := keyWithField("test", "RPMLimit", -1)
+	assertOption(t, "negative returns None", cfgNeg.GetRPMLimitOption, false, 0)
 
-			opt := tt.config.GetRPMLimitOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	cfgPos := keyWithField("test", "RPMLimit", 50)
+	assertOption(t, "positive returns Some", cfgPos.GetRPMLimitOption, true, 50)
 }
 
 func TestKeyConfigGetITPMLimitOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		config    KeyConfig
-		wantSome  bool
-		wantValue int
-	}{
-		{
-			name:     "zero returns None",
-			config:   KeyConfig{Key: "test", ITPMLimit: 0},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some",
-			config:    KeyConfig{Key: "test", ITPMLimit: 30000},
-			wantSome:  true,
-			wantValue: 30000,
-		},
-	}
+	cfg0 := keyWithField("test", "ITPMLimit", 0)
+	assertOption(t, "zero returns None", cfg0.GetITPMLimitOption, false, 0)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			opt := tt.config.GetITPMLimitOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	cfgPos := keyWithField("test", "ITPMLimit", 30000)
+	assertOption(t, "positive returns Some", cfgPos.GetITPMLimitOption, true, 30000)
 }
 
 func TestKeyConfigGetOTPMLimitOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		config    KeyConfig
-		wantSome  bool
-		wantValue int
-	}{
-		{
-			name:     "zero returns None",
-			config:   KeyConfig{Key: "test", OTPMLimit: 0},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some",
-			config:    KeyConfig{Key: "test", OTPMLimit: 10000},
-			wantSome:  true,
-			wantValue: 10000,
-		},
-	}
+	cfg0 := keyWithField("test", "OTPMLimit", 0)
+	assertOption(t, "zero returns None", cfg0.GetOTPMLimitOption, false, 0)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			opt := tt.config.GetOTPMLimitOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %d, want %d", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	cfgPos := keyWithField("test", "OTPMLimit", 10000)
+	assertOption(t, "positive returns Some", cfgPos.GetOTPMLimitOption, true, 10000)
 }
 
 // Test Option usage with OrElse pattern.
-func TestOptionOrElsePattern(t *testing.T) {
+
+func TestOptionOrElseTimeout(t *testing.T) {
 	t.Parallel()
 
-	t.Run("timeout with OrElse", func(t *testing.T) {
-		t.Parallel()
+	defaultTimeout := 30 * time.Second
 
-		defaultTimeout := 30 * time.Second
+	cfg0 := serverWithTimeout(0)
+	timeout := cfg0.GetTimeoutOption().OrElse(defaultTimeout)
+	if timeout != defaultTimeout {
+		t.Errorf("Expected default timeout %v, got %v", defaultTimeout, timeout)
+	}
 
-		// Zero timeout uses default
-		cfg := ServerConfig{TimeoutMS: 0}
-		timeout := cfg.GetTimeoutOption().OrElse(defaultTimeout)
-		if timeout != defaultTimeout {
-			t.Errorf("Expected default timeout %v, got %v", defaultTimeout, timeout)
-		}
-
-		// Explicit timeout uses config value
-		cfg2 := ServerConfig{TimeoutMS: 5000}
-		timeout2 := cfg2.GetTimeoutOption().OrElse(defaultTimeout)
-		if timeout2 != 5*time.Second {
-			t.Errorf("Expected 5s timeout, got %v", timeout2)
-		}
-	})
-
-	t.Run("max concurrent with OrElse", func(t *testing.T) {
-		t.Parallel()
-
-		defaultMax := 1000
-
-		// Zero uses default (unlimited represented as high value)
-		cfg := ServerConfig{MaxConcurrent: 0}
-		maxConc := cfg.GetMaxConcurrentOption().OrElse(defaultMax)
-		if maxConc != defaultMax {
-			t.Errorf("Expected default %d, got %d", defaultMax, maxConc)
-		}
-
-		// Explicit limit uses config value
-		cfg2 := ServerConfig{MaxConcurrent: 50}
-		maxConc2 := cfg2.GetMaxConcurrentOption().OrElse(defaultMax)
-		if maxConc2 != 50 {
-			t.Errorf("Expected 50, got %d", maxConc2)
-		}
-	})
+	cfg1 := serverWithTimeout(5000)
+	timeout2 := cfg1.GetTimeoutOption().OrElse(defaultTimeout)
+	if timeout2 != 5*time.Second {
+		t.Errorf("Expected 5s timeout, got %v", timeout2)
+	}
 }
 
-// Tests for RoutingConfig
+func TestOptionOrElseMaxConcurrent(t *testing.T) {
+	t.Parallel()
+
+	defaultMax := 1000
+
+	cfg0 := serverWithMaxConcurrent(0)
+	maxConc := cfg0.GetMaxConcurrentOption().OrElse(defaultMax)
+	if maxConc != defaultMax {
+		t.Errorf("Expected default %d, got %d", defaultMax, maxConc)
+	}
+
+	cfg1 := serverWithMaxConcurrent(50)
+	maxConc2 := cfg1.GetMaxConcurrentOption().OrElse(defaultMax)
+	if maxConc2 != 50 {
+		t.Errorf("Expected 50, got %d", maxConc2)
+	}
+}
+
+// Tests for RoutingConfig.
 
 func TestRoutingConfigGetEffectiveStrategy(t *testing.T) {
 	t.Parallel()
@@ -1066,47 +821,21 @@ func TestRoutingConfigGetEffectiveStrategy(t *testing.T) {
 	tests := []struct {
 		name     string
 		expected string
-		config   RoutingConfig
+		config   config.RoutingConfig
 	}{
-		{
-			name:     "empty strategy defaults to failover",
-			config:   RoutingConfig{Strategy: ""},
-			expected: "failover",
-		},
-		{
-			name:     "zero value defaults to failover",
-			config:   RoutingConfig{},
-			expected: "failover",
-		},
-		{
-			name:     "configured failover",
-			config:   RoutingConfig{Strategy: "failover"},
-			expected: "failover",
-		},
-		{
-			name:     "configured round_robin",
-			config:   RoutingConfig{Strategy: "round_robin"},
-			expected: "round_robin",
-		},
-		{
-			name:     "configured weighted_round_robin",
-			config:   RoutingConfig{Strategy: "weighted_round_robin"},
-			expected: "weighted_round_robin",
-		},
-		{
-			name:     "configured shuffle",
-			config:   RoutingConfig{Strategy: "shuffle"},
-			expected: "shuffle",
-		},
+		{"empty defaults to failover", "failover", routingWithStrategy("")},
+		{"zero value defaults to failover", "failover", zeroRoutingConfig()},
+		{"configured failover", "failover", routingWithStrategy("failover")},
+		{"configured round_robin", "round_robin", routingWithStrategy("round_robin")},
+		{"configured weighted_round_robin", "weighted_round_robin", routingWithStrategy("weighted_round_robin")},
+		{"configured shuffle", "shuffle", routingWithStrategy("shuffle")},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.config.GetEffectiveStrategy()
-			if got != tt.expected {
-				t.Errorf("GetEffectiveStrategy() = %q, want %q", got, tt.expected)
+			if got := testCase.config.GetEffectiveStrategy(); got != testCase.expected {
+				t.Errorf("GetEffectiveStrategy() = %q, want %q", got, testCase.expected)
 			}
 		})
 	}
@@ -1115,51 +844,17 @@ func TestRoutingConfigGetEffectiveStrategy(t *testing.T) {
 func TestRoutingConfigGetFailoverTimeoutOption(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		config    RoutingConfig
-		wantSome  bool
-		wantValue time.Duration
-	}{
-		{
-			name:     "zero returns None",
-			config:   RoutingConfig{FailoverTimeout: 0},
-			wantSome: false,
-		},
-		{
-			name:     "negative returns None",
-			config:   RoutingConfig{FailoverTimeout: -100},
-			wantSome: false,
-		},
-		{
-			name:      "positive returns Some with milliseconds",
-			config:    RoutingConfig{FailoverTimeout: 5000},
-			wantSome:  true,
-			wantValue: 5 * time.Second,
-		},
-		{
-			name:      "small value returns correct duration",
-			config:    RoutingConfig{FailoverTimeout: 100},
-			wantSome:  true,
-			wantValue: 100 * time.Millisecond,
-		},
-	}
+	r0 := routingWithTimeout(0)
+	assertOption(t, "zero returns None", r0.GetFailoverTimeoutOption, false, time.Duration(0))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	rNeg := routingWithTimeout(-100)
+	assertOption(t, "negative returns None", rNeg.GetFailoverTimeoutOption, false, time.Duration(0))
 
-			opt := tt.config.GetFailoverTimeoutOption()
-			if opt.IsPresent() != tt.wantSome {
-				t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), tt.wantSome)
-			}
-			if tt.wantSome {
-				if got := opt.MustGet(); got != tt.wantValue {
-					t.Errorf("MustGet() = %v, want %v", got, tt.wantValue)
-				}
-			}
-		})
-	}
+	rPos := routingWithTimeout(5000)
+	assertOption(t, "positive returns Some", rPos.GetFailoverTimeoutOption, true, 5*time.Second)
+
+	rSmall := routingWithTimeout(100)
+	assertOption(t, "small value returns correct duration", rSmall.GetFailoverTimeoutOption, true, 100*time.Millisecond)
 }
 
 func TestRoutingConfigIsDebugEnabled(t *testing.T) {
@@ -1167,179 +862,163 @@ func TestRoutingConfigIsDebugEnabled(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   RoutingConfig
+		config   config.RoutingConfig
 		expected bool
 	}{
-		{
-			name:     "default is false",
-			config:   RoutingConfig{},
-			expected: false,
-		},
-		{
-			name:     "explicit false",
-			config:   RoutingConfig{Debug: false},
-			expected: false,
-		},
-		{
-			name:     "explicit true",
-			config:   RoutingConfig{Debug: true},
-			expected: true,
-		},
+		{"default is false", zeroRoutingConfig(), false},
+		{"explicit false", routingWithDebug(false), false},
+		{"explicit true", routingWithDebug(true), true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			got := tt.config.IsDebugEnabled()
-			if got != tt.expected {
-				t.Errorf("IsDebugEnabled() = %v, want %v", got, tt.expected)
+			if got := testCase.config.IsDebugEnabled(); got != testCase.expected {
+				t.Errorf("IsDebugEnabled() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
 }
 
-// Test Option usage with OrElse pattern for RoutingConfig.
 func TestRoutingConfigOptionOrElsePattern(t *testing.T) {
 	t.Parallel()
 
-	t.Run("failover timeout with OrElse", func(t *testing.T) {
-		t.Parallel()
+	defaultTimeout := 5 * time.Second
 
-		defaultTimeout := 5 * time.Second
+	r0 := routingWithTimeout(0)
+	timeout := r0.GetFailoverTimeoutOption().OrElse(defaultTimeout)
+	if timeout != defaultTimeout {
+		t.Errorf("Expected default timeout %v, got %v", defaultTimeout, timeout)
+	}
 
-		// Zero timeout uses default
-		cfg := RoutingConfig{FailoverTimeout: 0}
-		timeout := cfg.GetFailoverTimeoutOption().OrElse(defaultTimeout)
-		if timeout != defaultTimeout {
-			t.Errorf("Expected default timeout %v, got %v", defaultTimeout, timeout)
-		}
-
-		// Explicit timeout uses config value
-		cfg2 := RoutingConfig{FailoverTimeout: 10000}
-		timeout2 := cfg2.GetFailoverTimeoutOption().OrElse(defaultTimeout)
-		if timeout2 != 10*time.Second {
-			t.Errorf("Expected 10s timeout, got %v", timeout2)
-		}
-	})
+	r1 := routingWithTimeout(10000)
+	timeout2 := r1.GetFailoverTimeoutOption().OrElse(defaultTimeout)
+	if timeout2 != 10*time.Second {
+		t.Errorf("Expected 10s timeout, got %v", timeout2)
+	}
 }
 
 func TestProviderConfigGetAzureAPIVersion(t *testing.T) {
 	t.Parallel()
 
+	configured := zeroProviderConfig()
+	configured.AzureAPIVersion = "2023-12-01"
+
 	tests := []struct {
 		name     string
 		expected string
-		config   ProviderConfig
+		config   config.ProviderConfig
 	}{
-		{
-			name:     "returns default when empty",
-			config:   ProviderConfig{},
-			expected: "2024-06-01",
-		},
-		{
-			name:     "returns configured version",
-			config:   ProviderConfig{AzureAPIVersion: "2023-12-01"},
-			expected: "2023-12-01",
-		},
+		{"returns default when empty", "2024-06-01", zeroProviderConfig()},
+		{"returns configured version", "2023-12-01", configured},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			result := tt.config.GetAzureAPIVersion()
-			if result != tt.expected {
-				t.Errorf("GetAzureAPIVersion() = %v, want %v", result, tt.expected)
+			if got := testCase.config.GetAzureAPIVersion(); got != testCase.expected {
+				t.Errorf("GetAzureAPIVersion() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
 }
 
-func TestProviderConfigValidateCloudConfig(t *testing.T) {
+func TestProviderConfigValidateCloudConfigNonCloud(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		errMsg  string
-		config  ProviderConfig
-		wantErr bool
-	}{
-		{
-			name:    "non-cloud provider passes",
-			config:  ProviderConfig{Type: "anthropic"},
-			wantErr: false,
-		},
-		{
-			name:    "bedrock with region passes",
-			config:  ProviderConfig{Type: "bedrock", AWSRegion: "us-east-1"},
-			wantErr: false,
-		},
-		{
-			name:    "bedrock without region fails",
-			config:  ProviderConfig{Type: "bedrock"},
-			wantErr: true,
-			errMsg:  "aws_region required",
-		},
-		{
-			name: "vertex with all fields passes",
-			config: ProviderConfig{
-				Type:         "vertex",
-				GCPProjectID: "my-project",
-				GCPRegion:    "us-central1",
-			},
-			wantErr: false,
-		},
-		{
-			name:    "vertex without project ID fails",
-			config:  ProviderConfig{Type: "vertex", GCPRegion: "us-central1"},
-			wantErr: true,
-			errMsg:  "gcp_project_id required",
-		},
-		{
-			name:    "vertex without region fails",
-			config:  ProviderConfig{Type: "vertex", GCPProjectID: "my-project"},
-			wantErr: true,
-			errMsg:  "gcp_region required",
-		},
-		{
-			name:    "azure with resource name passes",
-			config:  ProviderConfig{Type: "azure", AzureResourceName: "my-resource"},
-			wantErr: false,
-		},
-		{
-			name:    "azure without resource name fails",
-			config:  ProviderConfig{Type: "azure"},
-			wantErr: true,
-			errMsg:  "azure_resource_name required",
-		},
-		{
-			name:    "zai provider passes",
-			config:  ProviderConfig{Type: "zai"},
-			wantErr: false,
-		},
-		{
-			name:    "ollama provider passes",
-			config:  ProviderConfig{Type: "ollama"},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, pType := range []string{"anthropic", "zai", "ollama"} {
+		p := providerWithType(pType, "", "", "", "")
+		t.Run(pType+" passes", func(t *testing.T) {
 			t.Parallel()
-			err := tt.config.ValidateCloudConfig()
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("ValidateCloudConfig() expected error, got nil")
-				} else if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
-					t.Errorf("ValidateCloudConfig() error = %v, want containing %v", err, tt.errMsg)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("ValidateCloudConfig() unexpected error: %v", err)
-				}
+			if err := p.ValidateCloudConfig(); err != nil {
+				t.Errorf("unexpected error: %v", err)
 			}
 		})
 	}
 }
+
+func TestProviderConfigValidateCloudConfigBedrock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with region passes", func(t *testing.T) {
+		t.Parallel()
+		p := providerWithType("bedrock", "us-east-1", "", "", "")
+		if err := p.ValidateCloudConfig(); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("without region fails", func(t *testing.T) {
+		t.Parallel()
+		p := providerWithType("bedrock", "", "", "", "")
+		err := p.ValidateCloudConfig()
+		if err == nil {
+			t.Error("expected error, got nil")
+		} else if !strings.Contains(err.Error(), "aws_region required") {
+			t.Errorf("error = %v, want containing 'aws_region required'", err)
+		}
+	})
+}
+
+func TestProviderConfigValidateCloudConfigVertex(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with all fields passes", func(t *testing.T) {
+		t.Parallel()
+		p := providerWithType("vertex", "", "my-project", "us-central1", "")
+		if err := p.ValidateCloudConfig(); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("without project ID fails", func(t *testing.T) {
+		t.Parallel()
+		p := providerWithType("vertex", "", "", "us-central1", "")
+		err := p.ValidateCloudConfig()
+		if err == nil {
+			t.Error("expected error, got nil")
+		} else if !strings.Contains(err.Error(), "gcp_project_id required") {
+			t.Errorf("error = %v, want containing 'gcp_project_id required'", err)
+		}
+	})
+
+	t.Run("without region fails", func(t *testing.T) {
+		t.Parallel()
+		p := providerWithType("vertex", "", "my-project", "", "")
+		err := p.ValidateCloudConfig()
+		if err == nil {
+			t.Error("expected error, got nil")
+		} else if !strings.Contains(err.Error(), "gcp_region required") {
+			t.Errorf("error = %v, want containing 'gcp_region required'", err)
+		}
+	})
+}
+
+func TestProviderConfigValidateCloudConfigAzure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with resource name passes", func(t *testing.T) {
+		t.Parallel()
+		p := providerWithType("azure", "", "", "", "my-resource")
+		if err := p.ValidateCloudConfig(); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("without resource name fails", func(t *testing.T) {
+		t.Parallel()
+		p := providerWithType("azure", "", "", "", "")
+		err := p.ValidateCloudConfig()
+		if err == nil {
+			t.Error("expected error, got nil")
+		} else if !strings.Contains(err.Error(), "azure_resource_name required") {
+			t.Errorf("error = %v, want containing 'azure_resource_name required'", err)
+		}
+	})
+}
+
+// Ensure unused imports are referenced.
+var (
+	_ cache.Config
+	_ health.Config
+)

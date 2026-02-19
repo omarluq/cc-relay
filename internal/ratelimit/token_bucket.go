@@ -54,6 +54,7 @@ func NewTokenBucketLimiter(rpm, tpm int) *TokenBucketLimiter {
 		tokenLimiter:   rate.NewLimiter(rate.Limit(float64(tpm)/60.0), tpm),
 		rpmLimit:       rpm,
 		tpmLimit:       tpm,
+		mu:             sync.RWMutex{},
 	}
 }
 

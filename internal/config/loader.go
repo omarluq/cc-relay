@@ -47,6 +47,8 @@ func detectFormat(path string) (Format, error) {
 // The format (YAML or TOML) is detected from the file extension.
 // Environment variables in the format ${VAR_NAME} are expanded before parsing.
 func Load(path string) (*Config, error) {
+	// Clean the path to avoid directory traversal issues
+	path = filepath.Clean(path)
 	format, err := detectFormat(path)
 	if err != nil {
 		return nil, err

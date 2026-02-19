@@ -35,13 +35,18 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
-func runStatus(_ *cobra.Command, _ []string) error {
+func runStatus(cmd *cobra.Command, _ []string) error {
 	// Load config to get server listen address
 	configPath := cfgFile
 	if configPath == "" {
 		configPath = findConfigFileForStatus()
 	}
 
+	return checkStatusWithConfig(cmd, configPath)
+}
+
+// checkStatusWithConfig checks server health using the config at the given path.
+func checkStatusWithConfig(cmd *cobra.Command, configPath string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -49,17 +54,16 @@ func runStatus(_ *cobra.Command, _ []string) error {
 
 	err = checkHealth(cfg.Server.Listen)
 	if err != nil {
-		fmt.Printf("✗ cc-relay is not running (%s)\n", cfg.Server.Listen)
+		cmd.Printf("✗ cc-relay is not running (%s)\n", cfg.Server.Listen)
 		return err
 	}
 
-	fmt.Printf("✓ cc-relay is running (%s)\n", cfg.Server.Listen)
+	cmd.Printf("✓ cc-relay is running (%s)\n", cfg.Server.Listen)
 	return nil
 }
 
 // findConfigFileForStatus is a copy of findConfigFile from serve.go.
 // Duplicated to avoid shared state between subcommands.
-//
 
 func findConfigFileForStatus() string {
 	// Check current directory
@@ -77,6 +81,7 @@ func findConfigFileForStatus() string {
 
 	return defaultConfigFile
 }
+
 
 // checkHealth performs an HTTP health check against the server's listen address.
 // Sends a raw HTTP GET request to /health endpoint without using http.Client.

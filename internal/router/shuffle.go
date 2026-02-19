@@ -26,7 +26,12 @@ type ShuffleRouter struct {
 
 // NewShuffleRouter creates a new shuffle router.
 func NewShuffleRouter() *ShuffleRouter {
-	return &ShuffleRouter{}
+	return &ShuffleRouter{
+		shuffledOrder: nil,
+		position:      0,
+		lastLen:       0,
+		mu:            sync.Mutex{},
+	}
 }
 
 // Select picks the next healthy provider from the shuffled deck.
@@ -67,13 +72,13 @@ func (r *ShuffleRouter) Select(_ context.Context, providers []ProviderInfo) (Pro
 	return healthy[idx], nil
 }
 
-// reshuffle creates a new shuffled order for n providers.
+// reshuffle creates a new shuffled order for numProviders providers.
 // Must be called with lock held.
-func (r *ShuffleRouter) reshuffle(n int) {
-	// Create index slice [0, 1, 2, ..., n-1]
-	r.shuffledOrder = make([]int, n)
-	for i := 0; i < n; i++ {
-		r.shuffledOrder[i] = i
+func (r *ShuffleRouter) reshuffle(numProviders int) {
+	// Create index slice [0, 1, 2, ..., numProviders-1]
+	r.shuffledOrder = make([]int, numProviders)
+	for idx := 0; idx < numProviders; idx++ {
+		r.shuffledOrder[idx] = idx
 	}
 
 	// Fisher-Yates shuffle using lo/mutable
@@ -81,7 +86,7 @@ func (r *ShuffleRouter) reshuffle(n int) {
 
 	// Reset position and update length tracking
 	r.position = 0
-	r.lastLen = n
+	r.lastLen = numProviders
 }
 
 // Name returns the strategy name for logging and configuration.

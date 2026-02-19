@@ -22,6 +22,7 @@ func NewTracker(cfg CircuitBreakerConfig, logger *zerolog.Logger) *Tracker {
 		circuits: make(map[string]*CircuitBreaker),
 		config:   cfg,
 		logger:   logger,
+		mu:       sync.RWMutex{},
 	}
 }
 
@@ -40,11 +41,11 @@ func (t *Tracker) Reset(cfg CircuitBreakerConfig, logger *zerolog.Logger) {
 func (t *Tracker) GetOrCreateCircuit(providerName string) *CircuitBreaker {
 	// Fast path: check if circuit exists with read lock
 	t.mu.RLock()
-	cb, exists := t.circuits[providerName]
+	breaker, exists := t.circuits[providerName]
 	t.mu.RUnlock()
 
 	if exists {
-		return cb
+		return breaker
 	}
 
 	// Slow path: create circuit with write lock
@@ -52,13 +53,13 @@ func (t *Tracker) GetOrCreateCircuit(providerName string) *CircuitBreaker {
 	defer t.mu.Unlock()
 
 	// Double-check after acquiring write lock
-	if cb, exists = t.circuits[providerName]; exists {
-		return cb
+	if breaker, exists = t.circuits[providerName]; exists {
+		return breaker
 	}
 
 	// Create new circuit breaker
-	cb = NewCircuitBreaker(providerName, t.config, t.logger)
-	t.circuits[providerName] = cb
+	breaker = NewCircuitBreaker(providerName, t.config, t.logger)
+	t.circuits[providerName] = breaker
 
 	if t.logger != nil {
 		t.logger.Debug().
@@ -66,7 +67,7 @@ func (t *Tracker) GetOrCreateCircuit(providerName string) *CircuitBreaker {
 			Msg("created circuit breaker")
 	}
 
-	return cb
+	return breaker
 }
 
 // IsHealthyFunc returns a closure that checks if a provider is healthy.
@@ -79,9 +80,9 @@ func (t *Tracker) GetOrCreateCircuit(providerName string) *CircuitBreaker {
 // A provider is unhealthy only if the circuit is OPEN.
 func (t *Tracker) IsHealthyFunc(providerName string) func() bool {
 	return func() bool {
-		cb := t.GetOrCreateCircuit(providerName)
+		breaker := t.GetOrCreateCircuit(providerName)
 		// OPEN = unhealthy, CLOSED/HALF-OPEN = healthy
-		return cb.State() != StateOpen
+		return breaker.State() != StateOpen
 	}
 }
 
@@ -89,33 +90,33 @@ func (t *Tracker) IsHealthyFunc(providerName string) func() bool {
 // Returns StateClosed if no circuit exists for the provider (healthy by default).
 func (t *Tracker) GetState(providerName string) State {
 	t.mu.RLock()
-	cb, exists := t.circuits[providerName]
+	breaker, exists := t.circuits[providerName]
 	t.mu.RUnlock()
 
 	if !exists {
 		return StateClosed
 	}
-	return cb.State()
+	return breaker.State()
 }
 
 // RecordSuccess records a successful operation for a provider.
 // When the circuit is OPEN, the success is not recorded (gobreaker limitation)
 // and a debug log is emitted to make this visible.
 func (t *Tracker) RecordSuccess(providerName string) {
-	cb := t.GetOrCreateCircuit(providerName)
-	recorded := cb.ReportSuccess()
+	breaker := t.GetOrCreateCircuit(providerName)
+	recorded := breaker.ReportSuccess()
 
 	if t.logger != nil {
 		if recorded {
 			t.logger.Debug().
 				Str("provider", providerName).
-				Str("state", cb.State().String()).
+				Str("state", breaker.State().String()).
 				Msg("recorded success")
 		} else {
 			// Circuit is OPEN - success not recorded, waiting for timeout
 			t.logger.Debug().
 				Str("provider", providerName).
-				Str("state", cb.State().String()).
+				Str("state", breaker.State().String()).
 				Msg("success not recorded (circuit open, waiting for timeout)")
 		}
 	}
@@ -124,20 +125,20 @@ func (t *Tracker) RecordSuccess(providerName string) {
 // RecordFailure records a failed operation for a provider.
 // When the circuit is OPEN, the failure is not recorded (already open).
 func (t *Tracker) RecordFailure(providerName string, err error) {
-	cb := t.GetOrCreateCircuit(providerName)
-	recorded := cb.ReportFailure(err)
+	breaker := t.GetOrCreateCircuit(providerName)
+	recorded := breaker.ReportFailure(err)
 
 	if t.logger != nil {
 		if recorded {
 			t.logger.Debug().
 				Str("provider", providerName).
-				Str("state", cb.State().String()).
+				Str("state", breaker.State().String()).
 				Err(err).
 				Msg("recorded failure")
 		} else {
 			t.logger.Debug().
 				Str("provider", providerName).
-				Str("state", cb.State().String()).
+				Str("state", breaker.State().String()).
 				Err(err).
 				Msg("failure not recorded (circuit already open)")
 		}

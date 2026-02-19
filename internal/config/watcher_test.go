@@ -1,7 +1,9 @@
-package config
+package config_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/config"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,16 +23,23 @@ func TestNewWatcherPathResolution(t *testing.T) {
 
 	// Create watcher with relative path
 	relPath := filepath.Join(tmpDir, "config.yaml")
-	w, err := NewWatcher(relPath)
+	watcher, err := config.NewWatcher(relPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	// Path should be absolute
-	absPath, _ := filepath.Abs(relPath)
-	if w.Path() != absPath {
-		t.Errorf("Expected path %s, got %s", absPath, w.Path())
+	absPath, err := filepath.Abs(relPath)
+	if err != nil {
+		t.Fatalf("filepath.Abs failed: %v", err)
+	}
+	if watcher.Path() != absPath {
+		t.Errorf("Expected path %s, got %s", absPath, watcher.Path())
 	}
 }
 
@@ -38,9 +47,11 @@ func TestNewWatcherInvalidPath(t *testing.T) {
 	t.Parallel()
 
 	// Path with non-existent directory should fail
-	w, err := NewWatcher("/nonexistent/path/to/config.yaml")
+	watcher, err := config.NewWatcher("/nonexistent/path/to/config.yaml")
 	if err == nil {
-		w.Close()
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
 		t.Fatal("Expected error for non-existent path")
 	}
 }
@@ -52,16 +63,20 @@ func TestWatcherOnReload(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	writeTestConfig(t, configPath)
 
-	w, err := NewWatcher(configPath)
+	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	var callCount atomic.Int32
 	callbackDone := make(chan struct{}, 1)
 
-	w.OnReload(func(_ *Config) error {
+	watcher.OnReload(func(_ *config.Config) error {
 		callCount.Add(1)
 		select {
 		case callbackDone <- struct{}{}:
@@ -73,7 +88,9 @@ func TestWatcherOnReload(t *testing.T) {
 	// Start watching
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		_ = w.Watch(ctx)
+		if watchErr := watcher.Watch(ctx); watchErr != nil && !errors.Is(watchErr, context.Canceled) {
+			t.Errorf("watcher.Watch failed: %v", watchErr)
+		}
 	}()
 
 	// Allow watcher to initialize
@@ -105,15 +122,19 @@ func TestWatcherDebounce(t *testing.T) {
 	writeTestConfig(t, configPath)
 
 	// Use 200ms debounce to make test more reliable
-	w, err := NewWatcher(configPath, WithDebounceDelay(200*time.Millisecond))
+	watcher, err := config.NewWatcher(configPath, config.WithDebounceDelay(200*time.Millisecond))
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	var callCount atomic.Int32
 
-	w.OnReload(func(_ *Config) error {
+	watcher.OnReload(func(_ *config.Config) error {
 		callCount.Add(1)
 		return nil
 	})
@@ -121,7 +142,9 @@ func TestWatcherDebounce(t *testing.T) {
 	// Start watching
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		_ = w.Watch(ctx)
+		if watchErr := watcher.Watch(ctx); watchErr != nil && !errors.Is(watchErr, context.Canceled) {
+			t.Errorf("watcher.Watch failed: %v", watchErr)
+		}
 	}()
 
 	// Allow watcher to initialize
@@ -155,17 +178,23 @@ func TestWatcherContextCancellation(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	writeTestConfig(t, configPath)
 
-	w, err := NewWatcher(configPath)
+	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	watchDone := make(chan struct{})
 
 	go func() {
-		_ = w.Watch(ctx)
+		if err := watcher.Watch(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("watcher.Watch failed: %v", err)
+		}
 		close(watchDone)
 	}()
 
@@ -192,15 +221,19 @@ func TestWatcherIgnoresOtherFiles(t *testing.T) {
 	otherPath := filepath.Join(tmpDir, "other.yaml")
 	writeTestConfig(t, configPath)
 
-	w, err := NewWatcher(configPath)
+	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	var callCount atomic.Int32
 
-	w.OnReload(func(_ *Config) error {
+	watcher.OnReload(func(_ *config.Config) error {
 		callCount.Add(1)
 		return nil
 	})
@@ -208,7 +241,9 @@ func TestWatcherIgnoresOtherFiles(t *testing.T) {
 	// Start watching
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		_ = w.Watch(ctx)
+		if watchErr := watcher.Watch(ctx); watchErr != nil && !errors.Is(watchErr, context.Canceled) {
+			t.Errorf("watcher.Watch failed: %v", watchErr)
+		}
 	}()
 
 	// Allow watcher to initialize
@@ -234,15 +269,19 @@ func TestWatcherInvalidConfigDoesNotCallback(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	writeTestConfig(t, configPath)
 
-	w, err := NewWatcher(configPath)
+	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	var callCount atomic.Int32
 
-	w.OnReload(func(_ *Config) error {
+	watcher.OnReload(func(_ *config.Config) error {
 		callCount.Add(1)
 		return nil
 	})
@@ -250,14 +289,16 @@ func TestWatcherInvalidConfigDoesNotCallback(t *testing.T) {
 	// Start watching
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		_ = w.Watch(ctx)
+		if watchErr := watcher.Watch(ctx); watchErr != nil && !errors.Is(watchErr, context.Canceled) {
+			t.Errorf("watcher.Watch failed: %v", watchErr)
+		}
 	}()
 
 	// Allow watcher to initialize
 	time.Sleep(50 * time.Millisecond)
 
 	// Write invalid YAML
-	err = os.WriteFile(configPath, []byte("invalid: yaml: :::"), 0o644)
+	err = os.WriteFile(configPath, []byte("invalid: yaml: :::"), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write invalid config: %v", err)
 	}
@@ -280,46 +321,41 @@ func TestWatcherMultipleCallbacks(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	writeTestConfig(t, configPath)
 
-	w, err := NewWatcher(configPath)
+	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	var cb1Count, cb2Count, cb3Count atomic.Int32
 	allDone := make(chan struct{}, 3)
 
-	w.OnReload(func(_ *Config) error {
-		cb1Count.Add(1)
-		select {
-		case allDone <- struct{}{}:
-		default:
+	// Create a callback helper that counts and signals
+	makeCallback := func(counter *atomic.Int32) func(*config.Config) error {
+		return func(_ *config.Config) error {
+			counter.Add(1)
+			select {
+			case allDone <- struct{}{}:
+			default:
+			}
+			return nil
 		}
-		return nil
-	})
+	}
 
-	w.OnReload(func(_ *Config) error {
-		cb2Count.Add(1)
-		select {
-		case allDone <- struct{}{}:
-		default:
-		}
-		return nil
-	})
-
-	w.OnReload(func(_ *Config) error {
-		cb3Count.Add(1)
-		select {
-		case allDone <- struct{}{}:
-		default:
-		}
-		return nil
-	})
+	watcher.OnReload(makeCallback(&cb1Count))
+	watcher.OnReload(makeCallback(&cb2Count))
+	watcher.OnReload(makeCallback(&cb3Count))
 
 	// Start watching
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		_ = w.Watch(ctx)
+		if watchErr := watcher.Watch(ctx); watchErr != nil && !errors.Is(watchErr, context.Canceled) {
+			t.Errorf("watcher.Watch failed: %v", watchErr)
+		}
 	}()
 
 	// Allow watcher to initialize
@@ -341,15 +377,9 @@ func TestWatcherMultipleCallbacks(t *testing.T) {
 	cancel()
 
 	// All three callbacks should have been called
-	if cb1Count.Load() < 1 {
-		t.Errorf("Callback 1 not invoked")
-	}
-	if cb2Count.Load() < 1 {
-		t.Errorf("Callback 2 not invoked")
-	}
-	if cb3Count.Load() < 1 {
-		t.Errorf("Callback 3 not invoked")
-	}
+	assertCallbackInvoked(t, &cb1Count, "Callback 1")
+	assertCallbackInvoked(t, &cb2Count, "Callback 2")
+	assertCallbackInvoked(t, &cb3Count, "Callback 3")
 }
 
 func TestWatcherClose(t *testing.T) {
@@ -359,13 +389,13 @@ func TestWatcherClose(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	writeTestConfig(t, configPath)
 
-	w, err := NewWatcher(configPath)
+	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
 
 	// Close should not error
-	if err := w.Close(); err != nil {
+	if err := watcher.Close(); err != nil {
 		t.Errorf("Close failed: %v", err)
 	}
 }
@@ -377,24 +407,28 @@ func TestWatcherConcurrentCallbackRegistration(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	writeTestConfig(t, configPath)
 
-	w, err := NewWatcher(configPath)
+	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			t.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	}()
 
 	// Concurrent registration should be safe
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 	for range 10 {
-		wg.Add(1)
+		waitGroup.Add(1)
 		go func() {
-			defer wg.Done()
-			w.OnReload(func(_ *Config) error {
+			defer waitGroup.Done()
+			watcher.OnReload(func(_ *config.Config) error {
 				return nil
 			})
 		}()
 	}
-	wg.Wait()
+	waitGroup.Wait()
 }
 
 func TestWithDebounceDelay(t *testing.T) {
@@ -405,17 +439,26 @@ func TestWithDebounceDelay(t *testing.T) {
 	writeTestConfig(t, configPath)
 
 	customDelay := 500 * time.Millisecond
-	w, err := NewWatcher(configPath, WithDebounceDelay(customDelay))
+	watcher, err := config.NewWatcher(configPath, config.WithDebounceDelay(customDelay))
 	if err != nil {
-		t.Fatalf("NewWatcher failed: %v", err)
+		t.Fatalf("config.NewWatcher failed: %v", err)
 	}
 
 	// Verify the delay was set (internal check via timing behavior)
 	// We can't directly access the field, but the debounce test validates behavior
-	w.Close()
+	if err := watcher.Close(); err != nil {
+		t.Errorf("Close failed: %v", err)
+	}
 }
 
 // Helper functions
+
+func assertCallbackInvoked(t *testing.T, counter *atomic.Int32, name string) {
+	t.Helper()
+	if counter.Load() < 1 {
+		t.Errorf("%s not invoked", name)
+	}
+}
 
 func writeTestConfig(t *testing.T, path string) {
 	t.Helper()
@@ -437,7 +480,7 @@ logging:
   level: "info"
   format: "json"
 `
-	err := os.WriteFile(path, []byte(content), 0o644)
+	err := os.WriteFile(path, []byte(content), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
@@ -464,7 +507,7 @@ logging:
   format: "json"
 `, 60000+variant)
 
-	err := os.WriteFile(path, []byte(content), 0o644)
+	err := os.WriteFile(path, []byte(content), 0o600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}

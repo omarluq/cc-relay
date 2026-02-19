@@ -1,13 +1,15 @@
-package cache
+package cache_test
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/samber/ro"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +27,12 @@ type mockCache struct {
 
 func newMockCache() *mockCache {
 	return &mockCache{
-		data: make(map[string][]byte),
+		setErr: nil,
+		getErr: nil,
+		delErr: nil,
+		data:   make(map[string][]byte),
+		mu:     sync.RWMutex{},
+		closed: false,
 	}
 }
 
@@ -36,11 +43,11 @@ func (m *mockCache) Get(_ context.Context, key string) ([]byte, error) {
 		return nil, m.getErr
 	}
 	if m.closed {
-		return nil, ErrClosed
+		return nil, cache.ErrClosed
 	}
 	val, ok := m.data[key]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, cache.ErrNotFound
 	}
 	return val, nil
 }
@@ -56,7 +63,7 @@ func (m *mockCache) SetWithTTL(_ context.Context, key string, value []byte, _ ti
 		return m.setErr
 	}
 	if m.closed {
-		return ErrClosed
+		return cache.ErrClosed
 	}
 	m.data[key] = value
 	return nil
@@ -69,7 +76,7 @@ func (m *mockCache) Delete(_ context.Context, key string) error {
 		return m.delErr
 	}
 	if m.closed {
-		return ErrClosed
+		return cache.ErrClosed
 	}
 	delete(m.data, key)
 	return nil
@@ -79,7 +86,7 @@ func (m *mockCache) Exists(_ context.Context, key string) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
-		return false, ErrClosed
+		return false, cache.ErrClosed
 	}
 	_, ok := m.data[key]
 	return ok, nil
@@ -98,7 +105,7 @@ func TestNewROCache(t *testing.T) {
 	mock := newMockCache()
 	ttl := 5 * time.Minute
 
-	roCache := NewROCache(mock, ttl)
+	roCache := cache.NewROCache(mock, ttl)
 
 	assert.NotNil(t, roCache)
 	assert.Equal(t, ttl, roCache.GetTTL())
@@ -112,7 +119,7 @@ func TestROCacheGet(t *testing.T) {
 	mock := newMockCache()
 	mock.data["key1"] = []byte("value1")
 
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	t.Run("cache hit", func(t *testing.T) {
 		t.Parallel()
@@ -125,7 +132,7 @@ func TestROCacheGet(t *testing.T) {
 		t.Parallel()
 		_, err := ro.Collect(roCache.Get(ctx, "nonexistent"))
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrNotFound))
+		assert.True(t, errors.Is(err, cache.ErrNotFound))
 	})
 }
 
@@ -134,14 +141,13 @@ func TestROCacheSet(t *testing.T) {
 
 	ctx := context.Background()
 	mock := newMockCache()
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	t.Run("set success", func(t *testing.T) {
 		t.Parallel()
 		_, err := ro.Collect(roCache.Set(ctx, "key1", []byte("value1")))
 		require.NoError(t, err)
 
-		// Verify the value was stored
 		val, err := mock.Get(ctx, "key1")
 		require.NoError(t, err)
 		assert.Equal(t, []byte("value1"), val)
@@ -165,7 +171,7 @@ func TestROCacheExists(t *testing.T) {
 	mock := newMockCache()
 	mock.data["exists"] = []byte("value")
 
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	t.Run("key exists", func(t *testing.T) {
 		t.Parallel()
@@ -189,14 +195,13 @@ func TestROCacheInvalidate(t *testing.T) {
 	mock := newMockCache()
 	mock.data["key1"] = []byte("value1")
 
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	_, err := ro.Collect(roCache.Invalidate(ctx, "key1"))
 	require.NoError(t, err)
 
-	// Verify key was deleted
 	_, err = mock.Get(ctx, "key1")
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, errors.Is(err, cache.ErrNotFound))
 }
 
 func TestROCacheInvalidateMany(t *testing.T) {
@@ -208,19 +213,17 @@ func TestROCacheInvalidateMany(t *testing.T) {
 	mock.data["key2"] = []byte("value2")
 	mock.data["key3"] = []byte("value3")
 
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	keys := []string{"key1", "key2", "nonexistent"}
 	results, err := ro.Collect(roCache.InvalidateMany(ctx, keys))
 	require.NoError(t, err)
 	assert.Equal(t, keys, results)
 
-	// Verify keys were deleted
 	_, err = mock.Get(ctx, "key1")
-	assert.True(t, errors.Is(err, ErrNotFound))
+	assert.True(t, errors.Is(err, cache.ErrNotFound))
 	_, err = mock.Get(ctx, "key2")
-	assert.True(t, errors.Is(err, ErrNotFound))
-	// key3 should still exist
+	assert.True(t, errors.Is(err, cache.ErrNotFound))
 	val, err := mock.Get(ctx, "key3")
 	require.NoError(t, err)
 	assert.Equal(t, []byte("value3"), val)
@@ -235,7 +238,7 @@ func TestROCacheGetOrFetch(t *testing.T) {
 		t.Parallel()
 		mock := newMockCache()
 		mock.data["key"] = []byte("cached")
-		roCache := NewROCache(mock, time.Minute)
+		roCache := cache.NewROCache(mock, time.Minute)
 
 		fetchCalled := false
 		fetch := func() ro.Observable[[]byte] {
@@ -252,7 +255,7 @@ func TestROCacheGetOrFetch(t *testing.T) {
 	t.Run("cache miss - fetches and caches", func(t *testing.T) {
 		t.Parallel()
 		mock := newMockCache()
-		roCache := NewROCache(mock, time.Minute)
+		roCache := cache.NewROCache(mock, time.Minute)
 
 		fetch := func() ro.Observable[[]byte] {
 			return ro.Just([]byte("fetched"))
@@ -262,7 +265,6 @@ func TestROCacheGetOrFetch(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, [][]byte{[]byte("fetched")}, results)
 
-		// Verify value was cached
 		val, err := mock.Get(ctx, "key")
 		require.NoError(t, err)
 		assert.Equal(t, []byte("fetched"), val)
@@ -271,7 +273,7 @@ func TestROCacheGetOrFetch(t *testing.T) {
 	t.Run("fetch error propagates", func(t *testing.T) {
 		t.Parallel()
 		mock := newMockCache()
-		roCache := NewROCache(mock, time.Minute)
+		roCache := cache.NewROCache(mock, time.Minute)
 
 		fetchErr := errors.New("fetch failed")
 		fetch := func() ro.Observable[[]byte] {
@@ -284,89 +286,91 @@ func TestROCacheGetOrFetch(t *testing.T) {
 	})
 }
 
-func TestGetOrFetchTyped(t *testing.T) {
+type testUser struct {
+	Name string `json:"name"`
+	ID   int    `json:"id"`
+}
+
+func TestGetOrFetchTypedCacheHit(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+	mock := newMockCache()
+	cachedUser := testUser{ID: 1, Name: "Cached"}
+	data, err := json.Marshal(cachedUser)
+	require.NoError(t, err)
+	mock.data["user:1"] = data
 
-	type User struct {
-		Name string `json:"name"`
-		ID   int    `json:"id"`
+	roCache := cache.NewROCache(mock, time.Minute)
+
+	fetch := func() ro.Observable[testUser] {
+		return ro.Just(testUser{ID: 1, Name: "Fetched"})
 	}
 
-	t.Run("cache hit - deserializes cached value", func(t *testing.T) {
-		t.Parallel()
-		mock := newMockCache()
-		cachedUser := User{ID: 1, Name: "Cached"}
-		data, _ := json.Marshal(cachedUser)
-		mock.data["user:1"] = data
+	results, err := ro.Collect(cache.GetOrFetchTyped(ctx, roCache, "user:1", fetch))
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, cachedUser, results[0])
+}
 
-		roCache := NewROCache(mock, time.Minute)
+func TestGetOrFetchTypedCacheMiss(t *testing.T) {
+	t.Parallel()
 
-		fetch := func() ro.Observable[User] {
-			return ro.Just(User{ID: 1, Name: "Fetched"})
-		}
+	ctx := context.Background()
+	mock := newMockCache()
+	roCache := cache.NewROCache(mock, time.Minute)
 
-		results, err := ro.Collect(GetOrFetchTyped(ctx, roCache, "user:1", fetch))
-		require.NoError(t, err)
-		assert.Len(t, results, 1)
-		assert.Equal(t, cachedUser, results[0])
-	})
+	fetchedUser := testUser{ID: 2, Name: "Fetched"}
+	fetch := func() ro.Observable[testUser] {
+		return ro.Just(fetchedUser)
+	}
 
-	t.Run("cache miss - fetches and caches typed value", func(t *testing.T) {
-		t.Parallel()
-		mock := newMockCache()
-		roCache := NewROCache(mock, time.Minute)
+	results, err := ro.Collect(cache.GetOrFetchTyped(ctx, roCache, "user:2", fetch))
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, fetchedUser, results[0])
 
-		fetchedUser := User{ID: 2, Name: "Fetched"}
-		fetch := func() ro.Observable[User] {
-			return ro.Just(fetchedUser)
-		}
+	data, err := mock.Get(ctx, "user:2")
+	require.NoError(t, err)
+	var cached testUser
+	require.NoError(t, json.Unmarshal(data, &cached))
+	assert.Equal(t, fetchedUser, cached)
+}
 
-		results, err := ro.Collect(GetOrFetchTyped(ctx, roCache, "user:2", fetch))
-		require.NoError(t, err)
-		assert.Len(t, results, 1)
-		assert.Equal(t, fetchedUser, results[0])
+func TestGetOrFetchTypedInvalidJSON(t *testing.T) {
+	t.Parallel()
 
-		// Verify it was cached
-		data, err := mock.Get(ctx, "user:2")
-		require.NoError(t, err)
-		var cachedUser User
-		require.NoError(t, json.Unmarshal(data, &cachedUser))
-		assert.Equal(t, fetchedUser, cachedUser)
-	})
+	ctx := context.Background()
+	mock := newMockCache()
+	mock.data["user:3"] = []byte("invalid json")
 
-	t.Run("invalid cached JSON - refetches", func(t *testing.T) {
-		t.Parallel()
-		mock := newMockCache()
-		mock.data["user:3"] = []byte("invalid json")
+	roCache := cache.NewROCache(mock, time.Minute)
 
-		roCache := NewROCache(mock, time.Minute)
+	fetchedUser := testUser{ID: 3, Name: "Refetched"}
+	fetch := func() ro.Observable[testUser] {
+		return ro.Just(fetchedUser)
+	}
 
-		fetchedUser := User{ID: 3, Name: "Refetched"}
-		fetch := func() ro.Observable[User] {
-			return ro.Just(fetchedUser)
-		}
+	results, err := ro.Collect(cache.GetOrFetchTyped(ctx, roCache, "user:3", fetch))
+	require.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.Equal(t, fetchedUser, results[0])
+}
 
-		results, err := ro.Collect(GetOrFetchTyped(ctx, roCache, "user:3", fetch))
-		require.NoError(t, err)
-		assert.Len(t, results, 1)
-		assert.Equal(t, fetchedUser, results[0])
-	})
+func TestGetOrFetchTypedNoValue(t *testing.T) {
+	t.Parallel()
 
-	t.Run("fetch returns no value - error", func(t *testing.T) {
-		t.Parallel()
-		mock := newMockCache()
-		roCache := NewROCache(mock, time.Minute)
+	ctx := context.Background()
+	mock := newMockCache()
+	roCache := cache.NewROCache(mock, time.Minute)
 
-		fetch := func() ro.Observable[User] {
-			return ro.Empty[User]()
-		}
+	fetch := func() ro.Observable[testUser] {
+		return ro.Empty[testUser]()
+	}
 
-		_, err := ro.Collect(GetOrFetchTyped(ctx, roCache, "user:4", fetch))
-		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrCacheFetchFailed))
-	})
+	_, err := ro.Collect(cache.GetOrFetchTyped(ctx, roCache, "user:4", fetch))
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, cache.ErrCacheFetchFailed))
 }
 
 func TestStream(t *testing.T) {
@@ -380,7 +384,7 @@ func TestStream(t *testing.T) {
 	}
 
 	mock := newMockCache()
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	items := []Item{
 		{ID: 1, Value: "one"},
@@ -389,24 +393,23 @@ func TestStream(t *testing.T) {
 	}
 
 	source := ro.FromSlice(items)
-	keyFunc := func(i Item) string {
-		return "item:" + string(rune('0'+i.ID))
+	keyFunc := func(item Item) string {
+		return fmt.Sprintf("item:%d", item.ID)
 	}
 
-	cached := Stream(ctx, roCache, source, keyFunc)
+	cached := cache.Stream(ctx, roCache, source, keyFunc)
 
 	results, err := ro.Collect(cached)
 	require.NoError(t, err)
 	assert.Equal(t, items, results)
 
-	// Verify all items were cached
 	for _, item := range items {
 		data, err := mock.Get(ctx, keyFunc(item))
 		require.NoError(t, err)
 
-		var cached Item
-		require.NoError(t, json.Unmarshal(data, &cached))
-		assert.Equal(t, item, cached)
+		var cachedItem Item
+		require.NoError(t, json.Unmarshal(data, &cachedItem))
+		assert.Equal(t, item, cachedItem)
 	}
 }
 
@@ -419,7 +422,7 @@ func TestROCacheErrorHandling(t *testing.T) {
 		t.Parallel()
 		mock := newMockCache()
 		mock.getErr = errors.New("get error")
-		roCache := NewROCache(mock, time.Minute)
+		roCache := cache.NewROCache(mock, time.Minute)
 
 		_, err := ro.Collect(roCache.Get(ctx, "key"))
 		assert.Error(t, err)
@@ -429,7 +432,7 @@ func TestROCacheErrorHandling(t *testing.T) {
 		t.Parallel()
 		mock := newMockCache()
 		mock.setErr = errors.New("set error")
-		roCache := NewROCache(mock, time.Minute)
+		roCache := cache.NewROCache(mock, time.Minute)
 
 		_, err := ro.Collect(roCache.Set(ctx, "key", []byte("value")))
 		assert.Error(t, err)
@@ -439,11 +442,31 @@ func TestROCacheErrorHandling(t *testing.T) {
 		t.Parallel()
 		mock := newMockCache()
 		mock.delErr = errors.New("delete error")
-		roCache := NewROCache(mock, time.Minute)
+		roCache := cache.NewROCache(mock, time.Minute)
 
 		_, err := ro.Collect(roCache.Invalidate(ctx, "key"))
 		assert.Error(t, err)
 	})
+}
+
+func runROCacheSetOps(ctx context.Context, t *testing.T, roCache *cache.ROCache, goroutineID, numOps int) {
+	t.Helper()
+	for opIdx := 0; opIdx < numOps; opIdx++ {
+		key := fmt.Sprintf("key-%d", goroutineID)
+		if _, err := ro.Collect(roCache.Set(ctx, key, []byte("value"))); err != nil {
+			t.Errorf("Set() error = %v", err)
+		}
+	}
+}
+
+func runROCacheGetOps(ctx context.Context, t *testing.T, roCache *cache.ROCache, goroutineID, numOps int) {
+	t.Helper()
+	for opIdx := 0; opIdx < numOps; opIdx++ {
+		key := fmt.Sprintf("key-%d", goroutineID)
+		if _, err := ro.Collect(roCache.Get(ctx, key)); err != nil && !errors.Is(err, cache.ErrNotFound) {
+			t.Errorf("Get() unexpected error = %v", err)
+		}
+	}
 }
 
 func TestROCacheConcurrentAccess(t *testing.T) {
@@ -451,49 +474,41 @@ func TestROCacheConcurrentAccess(t *testing.T) {
 
 	ctx := context.Background()
 	mock := newMockCache()
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
-	var wg sync.WaitGroup
 	const numGoroutines = 10
 	const numOps = 100
 
-	// Concurrent sets
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < numOps; j++ {
-				key := "key-" + string(rune('0'+id))
-				_, _ = ro.Collect(roCache.Set(ctx, key, []byte("value")))
-			}
-		}(i)
+	// Run both Set and Get operations concurrently
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(2 * numGoroutines)
+
+	for goroutineID := 0; goroutineID < numGoroutines; goroutineID++ {
+		go func(gID int) {
+			defer waitGroup.Done()
+			runROCacheSetOps(ctx, t, roCache, gID, numOps)
+		}(goroutineID)
+
+		go func(gID int) {
+			defer waitGroup.Done()
+			runROCacheGetOps(ctx, t, roCache, gID, numOps)
+		}(goroutineID)
 	}
 
-	// Concurrent gets
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < numOps; j++ {
-				key := "key-" + string(rune('0'+id))
-				_, _ = ro.Collect(roCache.Get(ctx, key))
-			}
-		}(i)
-	}
-
-	wg.Wait()
-	// Test passes if no race conditions detected
+	waitGroup.Wait()
 }
 
 func BenchmarkROCacheGet(b *testing.B) {
 	ctx := context.Background()
 	mock := newMockCache()
 	mock.data["key"] = []byte("value")
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ro.Collect(roCache.Get(ctx, "key"))
+		if _, err := ro.Collect(roCache.Get(ctx, "key")); err != nil {
+			b.Fatalf("Get() error = %v", err)
+		}
 	}
 }
 
@@ -501,7 +516,7 @@ func BenchmarkROCacheGetOrFetchCacheHit(b *testing.B) {
 	ctx := context.Background()
 	mock := newMockCache()
 	mock.data["key"] = []byte("cached")
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	fetch := func() ro.Observable[[]byte] {
 		return ro.Just([]byte("fetched"))
@@ -509,21 +524,25 @@ func BenchmarkROCacheGetOrFetchCacheHit(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ro.Collect(roCache.GetOrFetch(ctx, "key", fetch))
+		if _, err := ro.Collect(roCache.GetOrFetch(ctx, "key", fetch)); err != nil {
+			b.Fatalf("GetOrFetch() error = %v", err)
+		}
 	}
 }
 
 func BenchmarkROCacheGetOrFetchCacheMiss(b *testing.B) {
 	ctx := context.Background()
 	mock := newMockCache()
-	roCache := NewROCache(mock, time.Minute)
+	roCache := cache.NewROCache(mock, time.Minute)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		fetch := func() ro.Observable[[]byte] {
 			return ro.Just([]byte("fetched"))
 		}
-		key := "key-" + string(rune('0'+i%10))
-		_, _ = ro.Collect(roCache.GetOrFetch(ctx, key, fetch))
+		key := fmt.Sprintf("key-%d", i%10)
+		if _, err := ro.Collect(roCache.GetOrFetch(ctx, key, fetch)); err != nil {
+			b.Fatalf("GetOrFetch() error = %v", err)
+		}
 	}
 }

@@ -37,24 +37,24 @@ func parseBindAddr(addr string) (h string, p int) {
 // It applies environment presets and HA clustering settings.
 func buildOlricConfig(cfg *OlricConfig) *olricconfig.Config {
 	env := getEnvironment(cfg.Environment)
-	c := olricconfig.New(env)
+	olricCfg := olricconfig.New(env)
 
 	// Parse and apply bind address
 	bindAddr, bindPort := parseBindAddr(cfg.BindAddr)
-	c.BindAddr = bindAddr
-	applyBindPort(c, bindPort)
+	olricCfg.BindAddr = bindAddr
+	applyBindPort(olricCfg, bindPort)
 
 	// Configure memberlist
-	configureMemberlist(c, bindAddr, bindPort)
+	configureMemberlist(olricCfg, bindAddr, bindPort)
 
 	// Set peers and HA clustering settings
-	applyClusterSettings(c, cfg)
+	applyClusterSettings(olricCfg, cfg)
 
 	// Suppress verbose Olric logging
-	c.LogOutput = io.Discard
-	c.Logger = log.New(io.Discard, "", 0)
+	olricCfg.LogOutput = io.Discard
+	olricCfg.Logger = log.New(io.Discard, "", 0)
 
-	return c
+	return olricCfg
 }
 
 // getEnvironment returns the environment or default to local.
@@ -77,37 +77,37 @@ func applyBindPort(c *olricconfig.Config, port int) {
 // which can cause issues in tests and containers.
 // Note: Olric uses two ports - one for client connections (BindPort)
 // and one for memberlist discovery (BindPort + 2 by default).
-func configureMemberlist(c *olricconfig.Config, bindAddr string, bindPort int) {
-	if c.MemberlistConfig == nil {
-		c.MemberlistConfig = memberlist.DefaultLocalConfig()
+func configureMemberlist(olricCfg *olricconfig.Config, bindAddr string, bindPort int) {
+	if olricCfg.MemberlistConfig == nil {
+		olricCfg.MemberlistConfig = memberlist.DefaultLocalConfig()
 	}
-	c.MemberlistConfig.BindAddr = bindAddr
+	olricCfg.MemberlistConfig.BindAddr = bindAddr
 	if bindPort > 0 {
 		// Memberlist uses Olric port + 2 (matching Olric defaults: 3320 + 2 = 3322)
-		c.MemberlistConfig.BindPort = bindPort + 2
-		c.MemberlistConfig.AdvertisePort = bindPort + 2
+		olricCfg.MemberlistConfig.BindPort = bindPort + 2
+		olricCfg.MemberlistConfig.AdvertisePort = bindPort + 2
 	}
 }
 
 // applyClusterSettings applies HA clustering settings (only if non-zero to preserve Olric defaults).
-func applyClusterSettings(c *olricconfig.Config, cfg *OlricConfig) {
+func applyClusterSettings(olricCfg *olricconfig.Config, cfg *OlricConfig) {
 	if len(cfg.Peers) > 0 {
-		c.Peers = cfg.Peers
+		olricCfg.Peers = cfg.Peers
 	}
 	if cfg.ReplicaCount > 0 {
-		c.ReplicaCount = cfg.ReplicaCount
+		olricCfg.ReplicaCount = cfg.ReplicaCount
 	}
 	if cfg.ReadQuorum > 0 {
-		c.ReadQuorum = cfg.ReadQuorum
+		olricCfg.ReadQuorum = cfg.ReadQuorum
 	}
 	if cfg.WriteQuorum > 0 {
-		c.WriteQuorum = cfg.WriteQuorum
+		olricCfg.WriteQuorum = cfg.WriteQuorum
 	}
 	if cfg.MemberCountQuorum > 0 {
-		c.MemberCountQuorum = cfg.MemberCountQuorum
+		olricCfg.MemberCountQuorum = cfg.MemberCountQuorum
 	}
 	if cfg.LeaveTimeout > 0 {
-		c.LeaveTimeout = cfg.LeaveTimeout
+		olricCfg.LeaveTimeout = cfg.LeaveTimeout
 	}
 }
 
@@ -155,30 +155,30 @@ func newOlricCache(ctx context.Context, cfg *OlricConfig) (*olricCache, error) {
 
 // newEmbeddedOlricCache starts an embedded Olric node.
 func newEmbeddedOlricCache(
-	ctx context.Context, cfg *OlricConfig, dmapName string, lg *zerolog.Logger,
+	ctx context.Context, cfg *OlricConfig, dmapName string, olricLog *zerolog.Logger,
 ) (*olricCache, error) {
 	// Create embedded config with HA settings
-	c := buildOlricConfig(cfg)
+	olricCfg := buildOlricConfig(cfg)
 
 	// Channel to signal when Olric is ready
 	// This must be set BEFORE calling olric.New()
 	ready := make(chan struct{})
-	c.Started = func() {
+	olricCfg.Started = func() {
 		close(ready)
 	}
 
 	// Create the Olric instance
-	db, err := olric.New(c)
+	olricDB, err := olric.New(olricCfg)
 	if err != nil {
-		lg.Error().Err(err).Msg("olric: failed to create embedded instance")
+		olricLog.Error().Err(err).Msg("olric: failed to create embedded instance")
 		return nil, err
 	}
 
 	// Start the node in the background
 	startErr := make(chan error, 1)
 	go func() {
-		if err := db.Start(); err != nil {
-			startErr <- err
+		if startupErr := olricDB.Start(); startupErr != nil {
+			startErr <- startupErr
 		}
 	}()
 
@@ -189,27 +189,27 @@ func newEmbeddedOlricCache(
 
 	select {
 	case <-ready:
-		lg.Debug().Msg("olric: embedded node ready")
-	case err := <-startErr:
-		lg.Error().Err(err).Msg("olric: embedded node failed to start")
-		return nil, err
+		olricLog.Debug().Msg("olric: embedded node ready")
+	case startupErr := <-startErr:
+		olricLog.Error().Err(startupErr).Msg("olric: embedded node failed to start")
+		return nil, startupErr
 	case <-startupCtx.Done():
 		// Timeout - the node is still starting but should be usable soon
 		// Give it a tiny bit more time for the embedded client to be ready
-		lg.Debug().Msg("olric: embedded node startup timeout, proceeding")
+		olricLog.Debug().Msg("olric: embedded node startup timeout, proceeding")
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Get the embedded client
-	client := db.NewEmbeddedClient()
+	client := olricDB.NewEmbeddedClient()
 
 	// Get or create the DMap
-	dm, err := client.NewDMap(dmapName)
+	dmap, err := client.NewDMap(dmapName)
 	if err != nil {
-		lg.Error().Err(err).Str("dmap", dmapName).Msg("olric: failed to create dmap")
+		olricLog.Error().Err(err).Str("dmap", dmapName).Msg("olric: failed to create dmap")
 		// Failed to create DMap, shutdown the embedded node
-		if shutdownErr := db.Shutdown(context.Background()); shutdownErr != nil {
-			lg.Error().Err(shutdownErr).Msg("olric: failed to shutdown after dmap creation error")
+		if shutdownErr := olricDB.Shutdown(context.Background()); shutdownErr != nil {
+			olricLog.Error().Err(shutdownErr).Msg("olric: failed to shutdown after dmap creation error")
 		}
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func newEmbeddedOlricCache(
 		env = EnvLocal
 	}
 
-	lg.Info().
+	olricLog.Info().
 		Str("bind_addr", cfg.BindAddr).
 		Str("dmap", dmapName).
 		Int("peers", len(cfg.Peers)).
@@ -232,51 +232,55 @@ func newEmbeddedOlricCache(
 
 	return &olricCache{
 		client: client,
-		dmap:   dm,
-		db:     db,
+		dmap:   dmap,
+		db:     olricDB,
 		name:   dmapName,
-		log:    lg,
+		log:    olricLog,
+		mu:     sync.RWMutex{},
+		closed: atomic.Bool{},
 	}, nil
 }
 
 // newClientOlricCache connects to an external Olric cluster.
 func newClientOlricCache(
-	ctx context.Context, cfg *OlricConfig, dmapName string, lg *zerolog.Logger,
+	ctx context.Context, cfg *OlricConfig, dmapName string, olricLog *zerolog.Logger,
 ) (*olricCache, error) {
 	if len(cfg.Addresses) == 0 {
-		lg.Error().Msg("olric: addresses required for client mode")
+		olricLog.Error().Msg("olric: addresses required for client mode")
 		return nil, errors.New("cache: olric addresses required for client mode")
 	}
 
 	// Create cluster client
 	client, err := olric.NewClusterClient(cfg.Addresses)
 	if err != nil {
-		lg.Error().Err(err).Strs("addresses", cfg.Addresses).Msg("olric: failed to connect to cluster")
+		olricLog.Error().Err(err).Strs("addresses", cfg.Addresses).Msg("olric: failed to connect to cluster")
 		return nil, err
 	}
 
 	// Get or create the DMap
-	dm, err := client.NewDMap(dmapName)
+	dmap, err := client.NewDMap(dmapName)
 	if err != nil {
-		lg.Error().Err(err).Str("dmap", dmapName).Msg("olric: failed to create dmap")
+		olricLog.Error().Err(err).Str("dmap", dmapName).Msg("olric: failed to create dmap")
 		// Failed to create DMap, close the client connection
 		if closeErr := client.Close(ctx); closeErr != nil {
-			lg.Error().Err(closeErr).Msg("olric: failed to close client after dmap creation error")
+			olricLog.Error().Err(closeErr).Msg("olric: failed to close client after dmap creation error")
 		}
 		return nil, err
 	}
 
-	lg.Info().
+	olricLog.Info().
 		Strs("addresses", cfg.Addresses).
 		Str("dmap", dmapName).
 		Msg("olric cluster cache created")
 
 	return &olricCache{
 		client: client,
-		dmap:   dm,
+		dmap:   dmap,
 		db:     nil, // nil for client mode
 		name:   dmapName,
-		log:    lg,
+		log:    olricLog,
+		mu:     sync.RWMutex{},
+		closed: atomic.Bool{},
 	}, nil
 }
 
@@ -548,14 +552,26 @@ func (o *olricCache) Close() error {
 // for detailed cluster statistics.
 func (o *olricCache) Stats() Stats {
 	if o.closed.Load() {
-		return Stats{}
+		return Stats{
+			Hits:      0,
+			Misses:    0,
+			KeyCount:  0,
+			BytesUsed: 0,
+			Evictions: 0,
+		}
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
 	if o.closed.Load() {
-		return Stats{}
+		return Stats{
+			Hits:      0,
+			Misses:    0,
+			KeyCount:  0,
+			BytesUsed: 0,
+			Evictions: 0,
+		}
 	}
 
 	// Olric's Stats() requires a member address and returns different
@@ -566,7 +582,13 @@ func (o *olricCache) Stats() Stats {
 	// For now, return empty stats. The cache is still fully functional;
 	// this just means stats won't be available through this interface.
 	// Use client.Stats(ctx, addr) directly for detailed Olric stats.
-	return Stats{}
+	return Stats{
+		Hits:      0,
+		Misses:    0,
+		KeyCount:  0,
+		BytesUsed: 0,
+		Evictions: 0,
+	}
 }
 
 // Ping verifies the cache connection is alive.

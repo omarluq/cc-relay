@@ -1,12 +1,14 @@
-package di
+package di_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/omarluq/cc-relay/internal/router"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/omarluq/cc-relay/internal/di"
+	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // TestRouterService_CachesRoundRobinState verifies that RouterService caches
@@ -21,24 +23,22 @@ func TestRouterServiceCachesRoundRobinState(t *testing.T) {
 	t.Parallel()
 
 	// Create a config service with round_robin strategy
-	cfg := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: "round_robin",
-		},
-	}
-	cfgSvc := &ConfigService{
-		Config: cfg,
-	}
-	cfgSvc.config.Store(cfg)
+	cfg := di.MustTestConfig()
+	cfg.Routing = di.MustTestRoutingConfig("round_robin")
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg)
 
 	// Create router service
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	// Create test providers with unique weights for identification
-	providers := []router.ProviderInfo{
-		{Weight: 1, Priority: 0, IsHealthy: func() bool { return true }},
-		{Weight: 2, Priority: 0, IsHealthy: func() bool { return true }},
-		{Weight: 3, Priority: 0, IsHealthy: func() bool { return true }},
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
+	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com")
+
+	providerInfos := []router.ProviderInfo{
+		di.MustTestProviderInfo(p1, 1, 0),
+		di.MustTestProviderInfo(p2, 2, 0),
+		di.MustTestProviderInfo(p3, 3, 0),
 	}
 
 	// Get router multiple times and verify it's the same cached instance
@@ -53,7 +53,7 @@ func TestRouterServiceCachesRoundRobinState(t *testing.T) {
 	// Perform selections and verify round-robin distributes across providers
 	selectedWeights := make([]int, 0, 6)
 	for i := 0; i < 6; i++ {
-		selected, err := rr1.Select(context.Background(), providers)
+		selected, err := rr1.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		selectedWeights = append(selectedWeights, selected.Weight)
 	}
@@ -69,29 +69,21 @@ func TestRouterServiceCachesRoundRobinState(t *testing.T) {
 func TestRouterServiceRebuildsOnConfigChange(t *testing.T) {
 	t.Parallel()
 
-	cfg1 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: "round_robin",
-		},
-	}
-	cfgSvc := &ConfigService{
-		Config: cfg1,
-	}
-	cfgSvc.config.Store(cfg1)
+	cfg1 := di.MustTestConfig()
+	cfg1.Routing = di.MustTestRoutingConfig("round_robin")
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg1)
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	// Get initial router
 	rr1 := routerSvc.GetRouter()
 	assert.Equal(t, "round_robin", rr1.Name())
 
 	// Update config with different strategy - should rebuild
-	cfg2 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: "failover",
-		},
-	}
-	cfgSvc.config.Store(cfg2)
+	cfg2 := di.MustTestConfig()
+	cfg2.Routing = di.MustTestRoutingConfig("failover")
+	cfgSvc.GetConfigAtomic().Store(&cfg2)
+	cfgSvc.Config = &cfg2
 
 	rr2 := routerSvc.GetRouter()
 	assert.Equal(t, "failover", rr2.Name())
@@ -108,29 +100,21 @@ func TestRouterServiceRebuildsOnConfigChange(t *testing.T) {
 func TestRouterServiceRebuildsOnTimeoutChange(t *testing.T) {
 	t.Parallel()
 
-	cfg1 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        "failover",
-			FailoverTimeout: 5000, // 5 seconds
-		},
-	}
-	cfgSvc := &ConfigService{
-		Config: cfg1,
-	}
-	cfgSvc.config.Store(cfg1)
+	cfg1 := di.MustTestConfig()
+	cfg1.Routing = di.MustTestRoutingConfig("failover")
+	cfg1.Routing.FailoverTimeout = 5000
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg1)
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	rr1 := routerSvc.GetRouter()
 
 	// Update timeout
-	cfg2 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        "failover",
-			FailoverTimeout: 10000, // 10 seconds
-		},
-	}
-	cfgSvc.config.Store(cfg2)
+	cfg2 := di.MustTestConfig()
+	cfg2.Routing = di.MustTestRoutingConfig("failover")
+	cfg2.Routing.FailoverTimeout = 10000
+	cfgSvc.GetConfigAtomic().Store(&cfg2)
+	cfgSvc.Config = &cfg2
 
 	rr2 := routerSvc.GetRouter()
 	assert.NotSame(t, rr1, rr2, "Router should be rebuilt when timeout changes")
@@ -147,29 +131,27 @@ func TestLiveRouterDoesNotResetRoundRobinState(t *testing.T) {
 	t.Parallel()
 
 	// Create a live router that always calls GetRouter()
-	cfg := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: "round_robin",
-		},
-	}
-	cfgSvc := &ConfigService{
-		Config: cfg,
-	}
-	cfgSvc.config.Store(cfg)
+	cfg := di.MustTestConfig()
+	cfg.Routing = di.MustTestRoutingConfig("round_robin")
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg)
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouter)
 
-	providers := []router.ProviderInfo{
-		{Weight: 1, Priority: 0, IsHealthy: func() bool { return true }},
-		{Weight: 2, Priority: 0, IsHealthy: func() bool { return true }},
-		{Weight: 3, Priority: 0, IsHealthy: func() bool { return true }},
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
+	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com")
+
+	providerInfos := []router.ProviderInfo{
+		di.MustTestProviderInfo(p1, 1, 0),
+		di.MustTestProviderInfo(p2, 2, 0),
+		di.MustTestProviderInfo(p3, 3, 0),
 	}
 
 	// Perform multiple selections via LiveRouter
 	selectedWeights := make([]int, 0, 6)
 	for i := 0; i < 6; i++ {
-		selected, err := liveRouter.Select(context.Background(), providers)
+		selected, err := liveRouter.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		selectedWeights = append(selectedWeights, selected.Weight)
 	}
@@ -185,17 +167,11 @@ func TestLiveRouterDoesNotResetRoundRobinState(t *testing.T) {
 func TestRouterServiceConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	cfg := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: "round_robin",
-		},
-	}
-	cfgSvc := &ConfigService{
-		Config: cfg,
-	}
-	cfgSvc.config.Store(cfg)
+	cfg := di.MustTestConfig()
+	cfg.Routing = di.MustTestRoutingConfig("round_robin")
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg)
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	// Concurrently access router
 	done := make(chan struct{})
@@ -214,16 +190,19 @@ func TestRouterServiceConcurrentAccess(t *testing.T) {
 	<-done
 
 	// Router should still work correctly
-	rr := routerSvc.GetRouter()
-	providers := []router.ProviderInfo{
-		{Weight: 1, Priority: 0, IsHealthy: func() bool { return true }},
-		{Weight: 2, Priority: 0, IsHealthy: func() bool { return true }},
+	roundRobin := routerSvc.GetRouter()
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
+
+	providerInfos := []router.ProviderInfo{
+		di.MustTestProviderInfo(p1, 1, 0),
+		di.MustTestProviderInfo(p2, 2, 0),
 	}
 
 	// Verify round-robin state is preserved
 	selectedWeights := make([]int, 0, 4)
 	for i := 0; i < 4; i++ {
-		selected, err := rr.Select(context.Background(), providers)
+		selected, err := roundRobin.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		selectedWeights = append(selectedWeights, selected.Weight)
 	}

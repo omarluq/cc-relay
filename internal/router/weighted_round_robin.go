@@ -26,7 +26,11 @@ type WeightedRoundRobinRouter struct {
 
 // NewWeightedRoundRobinRouter creates a new weighted round-robin router.
 func NewWeightedRoundRobinRouter() *WeightedRoundRobinRouter {
-	return &WeightedRoundRobinRouter{}
+	return &WeightedRoundRobinRouter{
+		currentWeights:  nil,
+		lastProviderIDs: nil,
+		mu:              sync.Mutex{},
+	}
 }
 
 // Select chooses a provider using the Nginx smooth weighted round-robin algorithm.

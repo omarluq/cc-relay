@@ -15,99 +15,41 @@ import (
 )
 
 const (
-	serveConfigFileName  = "config.yaml"
-	serveRestoreWdErrFmt = "failed to restore working directory: %v"
+	serveConfigFileName = "config.yaml"
 )
 
 func TestFindConfigFile(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Save original working directory and HOME
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	origHome := os.Getenv("HOME")
-
-	defer func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(serveRestoreWdErrFmt, err)
-		}
-		os.Setenv("HOME", origHome)
-	}()
+	t.Parallel()
 
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
-
 	configPath := filepath.Join(tmpDir, serveConfigFileName)
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Set HOME to empty temp dir to prevent finding real config
-	os.Setenv("HOME", t.TempDir())
-
-	// Change to temp directory
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test finding config in current directory
-	found := findConfigFile()
-	if found != serveConfigFileName {
-		t.Errorf("Expected %q, got %q", serveConfigFileName, found)
+	// Test finding config in given directory
+	found := findConfigIn(tmpDir)
+	if found != filepath.Join(tmpDir, defaultConfigFile) {
+		t.Errorf("Expected config in tmpDir, got %q", found)
 	}
 }
 
 func TestFindConfigFileNotFound(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Save original working directory and HOME
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	origHome := os.Getenv("HOME")
-
-	defer func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(serveRestoreWdErrFmt, err)
-		}
-		os.Setenv("HOME", origHome)
-	}()
-
-	// Change to temp directory without config.yaml
+	// Empty temp directory - no config file
 	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
 
-	// Set HOME to temp dir so it won't find user's config
-	os.Setenv("HOME", tmpDir)
-
-	// Should return default even if not found
-	found := findConfigFile()
-	if found != serveConfigFileName {
-		t.Errorf("Expected %q default, got %q", serveConfigFileName, found)
+	// Should return default when not found
+	found := findConfigIn(tmpDir)
+	if found != defaultConfigFile {
+		t.Errorf("Expected %q default, got %q", defaultConfigFile, found)
 	}
 }
 
 func TestFindConfigFileInHomeDir(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Save original working directory and HOME
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	origHome := os.Getenv("HOME")
-
-	defer func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(serveRestoreWdErrFmt, err)
-		}
-		os.Setenv("HOME", origHome)
-	}()
+	t.Parallel()
 
 	// Create temp directories
 	tmpDir := t.TempDir()
@@ -115,74 +57,71 @@ func TestFindConfigFileInHomeDir(t *testing.T) {
 
 	// Create config in HOME/.config/cc-relay/
 	configDir := filepath.Join(tmpDir, ".config", "cc-relay")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	configPath := filepath.Join(configDir, serveConfigFileName)
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Set HOME and change to work directory
-	os.Setenv("HOME", tmpDir)
-	if err := os.Chdir(workDir); err != nil {
+	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	// Should find config in HOME/.config/cc-relay/
-	found := findConfigFile()
+	found := findConfigInWithHome(workDir, tmpDir)
 	if found != configPath {
 		t.Errorf("Expected %q, got %q", configPath, found)
 	}
 }
 
 func TestRunServeInvalidConfigPath(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	// Set cfgFile to a non-existent path
-	cfgFile = "/nonexistent/path/" + serveConfigFileName
-
-	// runServe should return error for invalid config path
-	err := runServe(nil, nil)
+	_, err := di.NewContainer("/nonexistent/path/" + serveConfigFileName)
 	if err == nil {
 		t.Error("Expected error for invalid config path")
 	}
 }
 
 func TestRunServeInvalidConfig(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	// Create temp config file with invalid content
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "invalid.yaml")
-	if err := os.WriteFile(configPath, []byte("invalid: yaml: content"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("invalid: yaml: content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for invalid config
-	err := runServe(nil, nil)
+	_, err := di.NewContainer(configPath)
 	if err == nil {
 		t.Error("Expected error for invalid config content")
 	}
 }
 
-func TestRunServeNoEnabledProvider(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+// assertServerServiceFails creates a container from the given config content
+// and asserts that resolving the server service fails.
+func assertServerServiceFails(t *testing.T, configContent, errMsg string) {
+	t.Helper()
 
-	// Create temp config file with no enabled providers
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, serveConfigFileName)
-	configContent := `
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	container, err := di.NewContainer(configPath)
+	if err != nil {
+		t.Fatalf("Unexpected error creating container: %v", err)
+	}
+	_, err = di.Invoke[*di.ServerService](container)
+	if err == nil {
+		t.Errorf("Expected error for %s", errMsg)
+	}
+}
+
+func TestRunServeNoEnabledProvider(t *testing.T) {
+	t.Parallel()
+
+	assertServerServiceFails(t, `
 server:
   listen: "127.0.0.1:18787"
   api_key: "test-key"
@@ -193,31 +132,13 @@ providers:
     base_url: "https://api.anthropic.com"
     keys:
       - key: "test-key"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for no enabled provider
-	err := runServe(nil, nil)
-	if err == nil {
-		t.Error("Expected error for no enabled provider")
-	}
+`, "no enabled provider")
 }
 
 func TestRunServeUnsupportedProviderType(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Create temp config file with unsupported provider type
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, serveConfigFileName)
-	configContent := `
+	assertServerServiceFails(t, `
 server:
   listen: "127.0.0.1:18787"
   api_key: "test-key"
@@ -228,51 +149,18 @@ providers:
     base_url: "https://api.openai.com"
     keys:
       - key: "test-key"
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for unsupported provider type
-	err := runServe(nil, nil)
-	if err == nil {
-		t.Error("Expected error for unsupported provider type")
-	}
+`, "unsupported provider type")
 }
 
 func TestRunServeEmptyProviders(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Create temp config file with empty providers
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, serveConfigFileName)
-	configContent := `
+	assertServerServiceFails(t, `
 server:
   listen: "127.0.0.1:18787"
   api_key: "test-key"
 providers: []
-`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runServe should return error for empty providers
-	err := runServe(nil, nil)
-	if err == nil {
-		t.Error("Expected error for empty providers")
-	}
+`, "empty providers")
 }
 
 // validServeConfig is a minimal valid configuration for serve tests.
@@ -304,7 +192,9 @@ func createServeTestConfig(t *testing.T) string {
 }
 
 func TestDIContainerInitialization(t *testing.T) {
+	t.Parallel()
 	t.Run("creates container with valid config", func(t *testing.T) {
+		t.Parallel()
 		configPath := createServeTestConfig(t)
 
 		container, err := di.NewContainer(configPath)
@@ -326,6 +216,7 @@ func TestDIContainerInitialization(t *testing.T) {
 	})
 
 	t.Run("fails with invalid config", func(t *testing.T) {
+		t.Parallel()
 		dir := t.TempDir()
 		path := filepath.Join(dir, "invalid.yaml")
 		err := os.WriteFile(path, []byte("invalid: yaml: content"), 0o600)
@@ -338,7 +229,9 @@ func TestDIContainerInitialization(t *testing.T) {
 }
 
 func TestRunWithGracefulShutdown(t *testing.T) {
+	t.Parallel()
 	t.Run("shutdown on SIGTERM", func(t *testing.T) {
+		t.Parallel()
 		configPath := createServeTestConfig(t)
 
 		container, err := di.NewContainer(configPath)
@@ -373,12 +266,18 @@ func TestRunWithGracefulShutdown(t *testing.T) {
 }
 
 func TestServerIntegration(t *testing.T) {
+	t.Parallel()
 	t.Run("server starts and responds to health check", func(t *testing.T) {
+		t.Parallel()
 		configPath := createServeTestConfig(t)
 
 		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
-		defer container.Shutdown()
+		defer func() {
+			if shutdownErr := container.Shutdown(); shutdownErr != nil {
+				t.Logf("container shutdown error: %v", shutdownErr)
+			}
+		}()
 
 		serverSvc, err := di.Invoke[*di.ServerService](container)
 		require.NoError(t, err)
@@ -412,7 +311,9 @@ func TestServerIntegration(t *testing.T) {
 }
 
 func TestConfigWatcherLifecycle(t *testing.T) {
+	t.Parallel()
 	t.Run("watcher starts and stops with server", func(t *testing.T) {
+		t.Parallel()
 		configPath := createServeTestConfig(t)
 
 		container, err := di.NewContainer(configPath)
@@ -444,6 +345,7 @@ func TestConfigWatcherLifecycle(t *testing.T) {
 	})
 
 	t.Run("graceful shutdown with watchCancel", func(t *testing.T) {
+		t.Parallel()
 		configPath := createServeTestConfig(t)
 
 		container, err := di.NewContainer(configPath)

@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/proxy"
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
@@ -41,28 +42,29 @@ func (m *mockProviderForFilter) StreamingContentType() string {
 	return providers.ContentTypeSSE
 }
 
-func TestFilterProvidersByModel(t *testing.T) {
-	t.Parallel()
-
+func filterTestProviders() (infos []router.ProviderInfo, mapping map[string]string) {
 	anthropic := &mockProviderForFilter{name: "anthropic"}
 	zai := &mockProviderForFilter{name: "zai"}
 	ollama := &mockProviderForFilter{name: "ollama"}
 
-	providerInfos := []router.ProviderInfo{
-		{Provider: anthropic, IsHealthy: func() bool { return true }},
-		{Provider: zai, IsHealthy: func() bool { return true }},
-		{Provider: ollama, IsHealthy: func() bool { return true }},
+	infos = []router.ProviderInfo{
+		proxy.TestProviderInfoWithHealth(anthropic, func() bool { return true }),
+		proxy.TestProviderInfoWithHealth(zai, func() bool { return true }),
+		proxy.TestProviderInfoWithHealth(ollama, func() bool { return true }),
 	}
 
-	modelMapping := map[string]string{
-		"claude-opus":   "anthropic",
-		"claude-sonnet": "anthropic",
-		"claude-haiku":  "anthropic",
-		"glm-4":         "zai",
-		"glm-3":         "zai",
-		"qwen":          "ollama",
-		"llama":         "ollama",
+	mapping = map[string]string{
+		"claude-opus": "anthropic", "claude-sonnet": "anthropic", "claude-haiku": "anthropic",
+		"glm-4": "zai", "glm-3": "zai",
+		"qwen": "ollama", "llama": "ollama",
 	}
+	return
+}
+
+func TestFilterProvidersByModel(t *testing.T) {
+	t.Parallel()
+
+	providerInfos, modelMapping := filterTestProviders()
 
 	tests := []struct {
 		name            string
@@ -71,29 +73,34 @@ func TestFilterProvidersByModel(t *testing.T) {
 		expectedNames   []string
 	}{
 		{
-			name:          "claude model routes to anthropic",
-			model:         "claude-opus-4",
-			expectedNames: []string{"anthropic"},
+			name:            "claude model routes to anthropic",
+			model:           "claude-opus-4",
+			defaultProvider: "",
+			expectedNames:   []string{"anthropic"},
 		},
 		{
-			name:          "claude-sonnet routes to anthropic",
-			model:         "claude-sonnet-4-20250514",
-			expectedNames: []string{"anthropic"},
+			name:            "claude-sonnet routes to anthropic",
+			model:           "claude-sonnet-4-20250514",
+			defaultProvider: "",
+			expectedNames:   []string{"anthropic"},
 		},
 		{
-			name:          "glm model routes to zai",
-			model:         "glm-4.7",
-			expectedNames: []string{"zai"},
+			name:            "glm model routes to zai",
+			model:           "glm-4.7",
+			defaultProvider: "",
+			expectedNames:   []string{"zai"},
 		},
 		{
-			name:          "qwen routes to ollama",
-			model:         "qwen3:8b",
-			expectedNames: []string{"ollama"},
+			name:            "qwen routes to ollama",
+			model:           "qwen3:8b",
+			defaultProvider: "",
+			expectedNames:   []string{"ollama"},
 		},
 		{
-			name:          "llama routes to ollama",
-			model:         "llama-3.3-70b",
-			expectedNames: []string{"ollama"},
+			name:            "llama routes to ollama",
+			model:           "llama-3.3-70b",
+			defaultProvider: "",
+			expectedNames:   []string{"ollama"},
 		},
 		{
 			name:            "unknown model uses default",
@@ -102,31 +109,44 @@ func TestFilterProvidersByModel(t *testing.T) {
 			expectedNames:   []string{"anthropic"},
 		},
 		{
-			name:          "unknown model without default returns all",
-			model:         "unknown-model",
-			expectedNames: []string{"anthropic", "zai", "ollama"},
+			name:            "unknown model without default returns all",
+			model:           "unknown-model",
+			defaultProvider: "",
+			expectedNames:   []string{"anthropic", "zai", "ollama"},
 		},
 		{
-			name:          "empty model returns all",
-			model:         "",
-			expectedNames: []string{"anthropic", "zai", "ollama"},
+			name:            "empty model returns all",
+			model:           "",
+			defaultProvider: "",
+			expectedNames:   []string{"anthropic", "zai", "ollama"},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-
-			result := FilterProvidersByModel(tt.model, providerInfos, modelMapping, tt.defaultProvider)
-
-			resultNames := make([]string, 0, len(result))
-			for _, p := range result {
-				resultNames = append(resultNames, p.Provider.Name())
-			}
-
-			assert.ElementsMatch(t, tt.expectedNames, resultNames)
+			RunFilterTestCase(t, testCase, providerInfos, modelMapping)
 		})
 	}
+}
+
+// runFilterTestCase executes a single filter test case.
+// This helper reduces the line count of TestFilterProvidersByModel.
+func RunFilterTestCase(t *testing.T, testCase struct {
+	name            string
+	model           string
+	defaultProvider string
+	expectedNames   []string
+}, providerInfos []router.ProviderInfo, modelMapping map[string]string) {
+	t.Helper()
+	result := proxy.FilterProvidersByModel(testCase.model, providerInfos, modelMapping, testCase.defaultProvider)
+
+	resultNames := make([]string, 0, len(result))
+	for _, p := range result {
+		resultNames = append(resultNames, p.Provider.Name())
+	}
+
+	assert.ElementsMatch(t, testCase.expectedNames, resultNames)
 }
 
 func TestFilterProvidersByModelEmptyMapping(t *testing.T) {
@@ -134,15 +154,15 @@ func TestFilterProvidersByModelEmptyMapping(t *testing.T) {
 
 	anthropic := &mockProviderForFilter{name: "anthropic"}
 	providerInfos := []router.ProviderInfo{
-		{Provider: anthropic},
+		proxy.TestProviderInfo(anthropic),
 	}
 
 	// Empty mapping should return all providers
-	result := FilterProvidersByModel("claude-opus-4", providerInfos, nil, "")
+	result := proxy.FilterProvidersByModel("claude-opus-4", providerInfos, nil, "")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "anthropic", result[0].Provider.Name())
 
-	result = FilterProvidersByModel("claude-opus-4", providerInfos, map[string]string{}, "")
+	result = proxy.FilterProvidersByModel("claude-opus-4", providerInfos, map[string]string{}, "")
 	assert.Len(t, result, 1)
 }
 
@@ -153,8 +173,8 @@ func TestFilterProvidersByModelLongestPrefixMatch(t *testing.T) {
 	anthropicSpecial := &mockProviderForFilter{name: "anthropic-special"}
 
 	providerInfos := []router.ProviderInfo{
-		{Provider: anthropic},
-		{Provider: anthropicSpecial},
+		proxy.TestProviderInfo(anthropic),
+		proxy.TestProviderInfo(anthropicSpecial),
 	}
 
 	// "claude-opus-special" should match "claude-opus-special" (longer) not "claude-opus"
@@ -163,12 +183,12 @@ func TestFilterProvidersByModelLongestPrefixMatch(t *testing.T) {
 		"claude-opus-special": "anthropic-special",
 	}
 
-	result := FilterProvidersByModel("claude-opus-special-4", providerInfos, modelMapping, "")
+	result := proxy.FilterProvidersByModel("claude-opus-special-4", providerInfos, modelMapping, "")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "anthropic-special", result[0].Provider.Name())
 
 	// "claude-opus-4" should match "claude-opus" (only match)
-	result = FilterProvidersByModel("claude-opus-4", providerInfos, modelMapping, "")
+	result = proxy.FilterProvidersByModel("claude-opus-4", providerInfos, modelMapping, "")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "anthropic", result[0].Provider.Name())
 }
@@ -178,7 +198,7 @@ func TestFilterProvidersByModelGracefulDegradation(t *testing.T) {
 
 	anthropic := &mockProviderForFilter{name: "anthropic"}
 	providerInfos := []router.ProviderInfo{
-		{Provider: anthropic},
+		proxy.TestProviderInfo(anthropic),
 	}
 
 	// Model maps to non-existent provider - should return all providers
@@ -186,7 +206,7 @@ func TestFilterProvidersByModelGracefulDegradation(t *testing.T) {
 		"claude-opus": "nonexistent",
 	}
 
-	result := FilterProvidersByModel("claude-opus-4", providerInfos, modelMapping, "")
+	result := proxy.FilterProvidersByModel("claude-opus-4", providerInfos, modelMapping, "")
 	assert.Len(t, result, 1)
 	assert.Equal(t, "anthropic", result[0].Provider.Name())
 }
@@ -216,7 +236,7 @@ func TestFindProviderForModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := findProviderForModel(tt.model, modelMapping)
+			result := proxy.FindProviderForModel(tt.model, modelMapping)
 			assert.Equal(t, tt.isPresent, result.IsPresent())
 			assert.Equal(t, tt.expected, result.OrEmpty())
 		})

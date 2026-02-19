@@ -13,7 +13,9 @@ type RoundRobinRouter struct {
 
 // NewRoundRobinRouter creates a new round-robin router.
 func NewRoundRobinRouter() *RoundRobinRouter {
-	return &RoundRobinRouter{}
+	return &RoundRobinRouter{
+		index: 0,
+	}
 }
 
 // Select picks the next healthy provider in round-robin order.

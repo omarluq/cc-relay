@@ -5,44 +5,25 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/spf13/cobra"
 )
 
 const (
-	ccRelayProxyURL         = "http://127.0.0.1:8787"
-	ccRelayProxyURLDesc     = "cc-relay proxy URL"
-	ccRelayProxyURLFlag     = "proxy-url"
-	claudeDirName           = ".claude"
-	settingsFileName        = "settings.json"
-	runConfigCCInitErrFmt   = "runConfigCCInit failed: %v"
-	readSettingsErrFmt      = "Failed to read settings.json: %v"
-	parseSettingsErrFmt     = "Failed to parse settings.json: %v"
-	expectedEnvKeyMsg       = "Expected env key in settings"
-	managedByCCRelayToken   = "managed-by-cc-relay"
-	otherEnvValue           = "other-value"
-	themePreservedErrFmt    = "Expected theme to be preserved, got %v"
-	otherVarPreservedErrFmt = "Expected OTHER_VAR to be preserved, got %v"
+	ccRelayProxyURL          = "http://127.0.0.1:8787"
+	claudeDirName            = ".claude"
+	settingsFileName         = "settings.json"
+	applyCCRelayConfigErrFmt = "applyCCRelayConfig failed: %v"
+	readSettingsErrFmt       = "Failed to read settings.json: %v"
+	parseSettingsErrFmt      = "Failed to parse settings.json: %v"
+	expectedEnvKeyMsg        = "Expected env key in settings"
+	managedByCCRelayValue    = "managed-by-cc-relay"
+	otherEnvValue            = "other-value"
+	themePreservedErrFmt     = "Expected theme to be preserved, got %v"
+	otherVarPreservedErrFmt  = "Expected OTHER_VAR to be preserved, got %v"
+	themeDark                = "dark"
 )
-
-func withTempHome(t *testing.T) string {
-	t.Helper()
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	return tmpDir
-}
 
 func settingsPathForHome(home string) string {
 	return filepath.Join(home, claudeDirName, settingsFileName)
-}
-
-func newConfigCCCommand(proxyURL string, setFlag bool) *cobra.Command {
-	cmd := &cobra.Command{}
-	cmd.Flags().String(ccRelayProxyURLFlag, proxyURL, ccRelayProxyURLDesc)
-	if setFlag {
-		_ = cmd.Flags().Set(ccRelayProxyURLFlag, proxyURL)
-	}
-	return cmd
 }
 
 func readSettings(t *testing.T, home string) map[string]interface{} {
@@ -76,25 +57,20 @@ func writeSettings(t *testing.T, home string, settings map[string]interface{}) {
 	}
 }
 
-func TestRunConfigCCInitNewSettings(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	tmpDir := withTempHome(t)
+func TestApplyCCRelayConfigNewSettings(t *testing.T) {
+	t.Parallel()
 
-	// Create a mock command with the proxy-url flag
-	cmd := newConfigCCCommand(ccRelayProxyURL, false)
+	tmpDir := t.TempDir()
 
-	// runConfigCCInit should create settings file
-	err := runConfigCCInit(cmd, nil)
+	settingsPath, err := applyCCRelayConfig(tmpDir, ccRelayProxyURL)
 	if err != nil {
-		t.Fatalf(runConfigCCInitErrFmt, err)
+		t.Fatalf(applyCCRelayConfigErrFmt, err)
 	}
 
-	// Verify settings file was created
-	if _, err := os.Stat(settingsPathForHome(tmpDir)); os.IsNotExist(err) {
-		t.Error("Expected settings.json to be created")
+	if _, err := os.Stat(settingsPath); err != nil {
+		t.Errorf("Expected settings.json to be created: %v", err)
 	}
 
-	// Verify content
 	settings := readSettings(t, tmpDir)
 
 	env, ok := settings["env"].(map[string]interface{})
@@ -106,37 +82,32 @@ func TestRunConfigCCInitNewSettings(t *testing.T) {
 		t.Errorf("Expected ANTHROPIC_BASE_URL to be %s, got %v", ccRelayProxyURL, env["ANTHROPIC_BASE_URL"])
 	}
 
-	if env["ANTHROPIC_AUTH_TOKEN"] != managedByCCRelayToken {
-		t.Errorf("Expected ANTHROPIC_AUTH_TOKEN to be %s, got %v", managedByCCRelayToken, env["ANTHROPIC_AUTH_TOKEN"])
+	if env["ANTHROPIC_AUTH_TOKEN"] != managedByCCRelayValue {
+		t.Errorf("Expected ANTHROPIC_AUTH_TOKEN to be %s, got %v", managedByCCRelayValue, env["ANTHROPIC_AUTH_TOKEN"])
 	}
 }
 
-func TestRunConfigCCInitExistingSettings(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	tmpDir := withTempHome(t)
+func TestApplyCCRelayConfigExistingSettings(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
 
 	existingSettings := map[string]interface{}{
-		"theme": "dark",
+		"theme": themeDark,
 		"env": map[string]interface{}{
 			"OTHER_VAR": otherEnvValue,
 		},
 	}
 	writeSettings(t, tmpDir, existingSettings)
 
-	// Create a mock command with the proxy-url flag and set it
-	cmd := newConfigCCCommand(ccRelayProxyURL, true)
-
-	// runConfigCCInit should update settings file
-	err := runConfigCCInit(cmd, nil)
+	_, err := applyCCRelayConfig(tmpDir, ccRelayProxyURL)
 	if err != nil {
-		t.Fatalf(runConfigCCInitErrFmt, err)
+		t.Fatalf(applyCCRelayConfigErrFmt, err)
 	}
 
-	// Verify content preserves existing settings
 	settings := readSettings(t, tmpDir)
 
-	// Check theme is preserved
-	if settings["theme"] != "dark" {
+	if settings["theme"] != themeDark {
 		t.Errorf(themePreservedErrFmt, settings["theme"])
 	}
 
@@ -145,63 +116,64 @@ func TestRunConfigCCInitExistingSettings(t *testing.T) {
 		t.Fatal(expectedEnvKeyMsg)
 	}
 
-	// Check existing env var is preserved
 	if env["OTHER_VAR"] != otherEnvValue {
 		t.Errorf(otherVarPreservedErrFmt, env["OTHER_VAR"])
 	}
 
-	// Check new env vars are added
 	if env["ANTHROPIC_BASE_URL"] != ccRelayProxyURL {
 		t.Errorf("Expected ANTHROPIC_BASE_URL to be set, got %v", env["ANTHROPIC_BASE_URL"])
 	}
 }
 
-func TestRunConfigCCInitCustomProxyURL(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	tmpDir := withTempHome(t)
+func TestApplyCCRelayConfigCustomProxyURL(t *testing.T) {
+	t.Parallel()
 
-	// Create a mock command with a custom proxy-url
-	cmd := newConfigCCCommand("http://custom.host:9999", false)
+	tmpDir := t.TempDir()
 
-	err := runConfigCCInit(cmd, nil)
+	customURL := "http://custom.host:9999"
+	_, err := applyCCRelayConfig(tmpDir, customURL)
 	if err != nil {
-		t.Fatalf(runConfigCCInitErrFmt, err)
+		t.Fatalf(applyCCRelayConfigErrFmt, err)
 	}
 
-	// Verify custom URL was used
 	settings := readSettings(t, tmpDir)
 
-	env := settings["env"].(map[string]interface{})
-	if env["ANTHROPIC_BASE_URL"] != "http://custom.host:9999" {
+	env, ok := settings["env"].(map[string]interface{})
+	if !ok {
+		t.Fatal(expectedEnvKeyMsg)
+	}
+	if env["ANTHROPIC_BASE_URL"] != customURL {
 		t.Errorf("Expected custom ANTHROPIC_BASE_URL, got %v", env["ANTHROPIC_BASE_URL"])
 	}
 }
 
-func TestRunConfigCCRemoveExistingSettings(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	tmpDir := withTempHome(t)
+func TestRemoveCCRelayConfigExistingSettings(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
 
 	existingSettings := map[string]interface{}{
-		"theme": "dark",
+		"theme": themeDark,
 		"env": map[string]interface{}{
 			"ANTHROPIC_BASE_URL":   ccRelayProxyURL,
-			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayToken,
+			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayValue,
 			"OTHER_VAR":            otherEnvValue,
 		},
 	}
 	writeSettings(t, tmpDir, existingSettings)
 
-	// runConfigCCRemove should remove cc-relay env vars
-	err := runConfigCCRemove(nil, nil)
+	removed, _, err := removeCCRelayConfig(tmpDir)
 	if err != nil {
-		t.Fatalf("runConfigCCRemove failed: %v", err)
+		t.Fatalf("removeCCRelayConfig failed: %v", err)
 	}
 
-	// Verify content
+	if removed == nil {
+		t.Fatal("Expected cc-relay config to be removed, got nil")
+	}
+
 	settings := readSettings(t, tmpDir)
 
-	// Check theme is preserved
-	if settings["theme"] != "dark" {
+	if settings["theme"] != themeDark {
 		t.Errorf(themePreservedErrFmt, settings["theme"])
 	}
 
@@ -210,7 +182,6 @@ func TestRunConfigCCRemoveExistingSettings(t *testing.T) {
 		t.Fatal(expectedEnvKeyMsg)
 	}
 
-	// Check cc-relay env vars are removed
 	if _, exists := env["ANTHROPIC_BASE_URL"]; exists {
 		t.Error("Expected ANTHROPIC_BASE_URL to be removed")
 	}
@@ -218,42 +189,50 @@ func TestRunConfigCCRemoveExistingSettings(t *testing.T) {
 		t.Error("Expected ANTHROPIC_AUTH_TOKEN to be removed")
 	}
 
-	// Check other env var is preserved
 	if env["OTHER_VAR"] != otherEnvValue {
 		t.Errorf(otherVarPreservedErrFmt, env["OTHER_VAR"])
 	}
 }
 
-func TestRunConfigCCRemoveNoSettings(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	_ = withTempHome(t)
+func TestRemoveCCRelayConfigNoSettings(t *testing.T) {
+	t.Parallel()
 
-	// runConfigCCRemove should succeed (nothing to remove)
-	err := runConfigCCRemove(nil, nil)
+	tmpDir := t.TempDir()
+
+	removed, _, err := removeCCRelayConfig(tmpDir)
 	if err != nil {
 		t.Errorf("Expected success when no settings file exists, got error: %v", err)
 	}
+
+	if removed != nil {
+		t.Errorf("Expected nil removed when no settings, got %v", removed)
+	}
 }
 
-func TestRunConfigCCRemoveNoEnvSection(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	tmpDir := withTempHome(t)
+func TestRemoveCCRelayConfigNoEnvSection(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
 
 	existingSettings := map[string]interface{}{
-		"theme": "dark",
+		"theme": themeDark,
 	}
 	writeSettings(t, tmpDir, existingSettings)
 
-	// runConfigCCRemove should succeed (nothing to remove)
-	err := runConfigCCRemove(nil, nil)
+	removed, _, err := removeCCRelayConfig(tmpDir)
 	if err != nil {
 		t.Errorf("Expected success when no env section exists, got error: %v", err)
 	}
+
+	if removed != nil {
+		t.Errorf("Expected nil removed when no env section, got %v", removed)
+	}
 }
 
-func TestRunConfigCCRemoveNoCCRelayConfig(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	tmpDir := withTempHome(t)
+func TestRemoveCCRelayConfigNoCCRelayConfig(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
 
 	existingSettings := map[string]interface{}{
 		"env": map[string]interface{}{
@@ -262,53 +241,58 @@ func TestRunConfigCCRemoveNoCCRelayConfig(t *testing.T) {
 	}
 	writeSettings(t, tmpDir, existingSettings)
 
-	// runConfigCCRemove should succeed (nothing cc-relay specific to remove)
-	err := runConfigCCRemove(nil, nil)
+	removed, _, err := removeCCRelayConfig(tmpDir)
 	if err != nil {
 		t.Errorf("Expected success when no cc-relay config exists, got error: %v", err)
 	}
 
-	// Verify other env vars are preserved
+	if removed != nil {
+		t.Errorf("Expected nil removed when no cc-relay config, got %v", removed)
+	}
+
 	settings := readSettings(t, tmpDir)
 
-	env := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]interface{})
+	if !ok {
+		t.Fatal(expectedEnvKeyMsg)
+	}
 	if env["OTHER_VAR"] != otherEnvValue {
 		t.Errorf(otherVarPreservedErrFmt, env["OTHER_VAR"])
 	}
 }
 
-func TestRunConfigCCRemoveRemovesEmptyEnv(t *testing.T) {
-	// Note: Cannot use t.Parallel() because we modify HOME env var
-	tmpDir := withTempHome(t)
+func TestRemoveCCRelayConfigRemovesEmptyEnv(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
 
 	existingSettings := map[string]interface{}{
-		"theme": "dark",
+		"theme": themeDark,
 		"env": map[string]interface{}{
 			"ANTHROPIC_BASE_URL":   ccRelayProxyURL,
-			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayToken,
+			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayValue,
 		},
 	}
 	writeSettings(t, tmpDir, existingSettings)
 
-	// runConfigCCRemove should remove cc-relay vars and empty env section
-	err := runConfigCCRemove(nil, nil)
+	removed, _, err := removeCCRelayConfig(tmpDir)
 	if err != nil {
-		t.Fatalf("runConfigCCRemove failed: %v", err)
+		t.Fatalf("removeCCRelayConfig failed: %v", err)
 	}
 
-	// Verify env section is removed when empty
+	if removed == nil {
+		t.Fatal("Expected cc-relay config to be removed, got nil")
+	}
+
 	settings := readSettings(t, tmpDir)
 
-	// After removal, the env section should not exist (was empty)
-	// or if it does, it should be empty
 	if env, exists := settings["env"]; exists {
 		if envMap, ok := env.(map[string]interface{}); ok && len(envMap) > 0 {
 			t.Errorf("Expected env section to be removed or empty, got %v", envMap)
 		}
 	}
 
-	// Check theme is still there
-	if settings["theme"] != "dark" {
+	if settings["theme"] != themeDark {
 		t.Errorf(themePreservedErrFmt, settings["theme"])
 	}
 }

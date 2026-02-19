@@ -1,4 +1,4 @@
-package keypool
+package keypool_test
 
 import (
 	"context"
@@ -8,17 +8,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // Test helpers
 
-func newTestPool(numKeys int, strategy string) *KeyPool {
-	keys := make([]KeyConfig, numKeys)
-	for i := 0; i < numKeys; i++ {
-		keys[i] = KeyConfig{
-			APIKey:    fmt.Sprintf("sk-test-key-%d", i),
+func newTestPool(numKeys int, strategy string) *keypool.KeyPool {
+	keys := make([]keypool.KeyConfig, numKeys)
+	for idx := 0; idx < numKeys; idx++ {
+		keys[idx] = keypool.KeyConfig{
+			APIKey:    fmt.Sprintf("sk-test-key-%d", idx),
 			RPMLimit:  50,
 			ITPMLimit: 30000,
 			OTPMLimit: 30000,
@@ -27,12 +28,12 @@ func newTestPool(numKeys int, strategy string) *KeyPool {
 		}
 	}
 
-	cfg := PoolConfig{
+	cfg := keypool.PoolConfig{
 		Strategy: strategy,
 		Keys:     keys,
 	}
 
-	pool, err := NewKeyPool("test-provider", cfg)
+	pool, err := keypool.NewKeyPool("test-provider", cfg)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create test pool: %v", err))
 	}
@@ -51,24 +52,27 @@ func newTestHeaders(remaining int, reset time.Time) http.Header {
 // Tests
 
 func TestNewKeyPool(t *testing.T) {
+	t.Parallel()
 	t.Run("creates pool with valid config", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 
 		assert.NotNil(t, pool)
-		assert.Equal(t, "test-provider", pool.provider)
-		assert.Len(t, pool.keys, 3)
-		assert.Len(t, pool.keyMap, 3)
-		assert.Len(t, pool.limiters, 3)
-		assert.NotNil(t, pool.selector)
+		assert.Equal(t, "test-provider", pool.GetProvider())
+		assert.Len(t, pool.GetKeys(), 3)
+		assert.Len(t, pool.GetKeyMap(), 3)
+		assert.Equal(t, 3, pool.GetLimitersLen())
+		assert.NotNil(t, pool.GetSelector())
 	})
 
 	t.Run("returns error with no keys", func(t *testing.T) {
-		cfg := PoolConfig{
+		t.Parallel()
+		cfg := keypool.PoolConfig{
 			Strategy: "least_loaded",
-			Keys:     []KeyConfig{},
+			Keys:     []keypool.KeyConfig{},
 		}
 
-		pool, err := NewKeyPool("test-provider", cfg)
+		pool, err := keypool.NewKeyPool("test-provider", cfg)
 
 		assert.Nil(t, pool)
 		assert.Error(t, err)
@@ -76,20 +80,22 @@ func TestNewKeyPool(t *testing.T) {
 	})
 
 	t.Run("creates selector matching strategy", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "round_robin")
 
-		assert.NotNil(t, pool.selector)
-		assert.Equal(t, "round_robin", pool.selector.Name())
+		assert.NotNil(t, pool.GetSelector())
+		assert.Equal(t, "round_robin", pool.GetSelector().Name())
 	})
 
 	t.Run("initializes all keys with limiters", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 
-		for _, key := range pool.keys {
+		for _, key := range pool.GetKeys() {
 			assert.NotEmpty(t, key.ID)
 			assert.NotEmpty(t, key.APIKey)
 
-			limiter, ok := pool.limiters[key.ID]
+			limiter, ok := pool.GetLimiters()[key.ID]
 			assert.True(t, ok)
 			assert.NotNil(t, limiter)
 		}
@@ -97,7 +103,9 @@ func TestNewKeyPool(t *testing.T) {
 }
 
 func TestGetKeySuccess(t *testing.T) {
+	t.Parallel()
 	t.Run("returns key when capacity available", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 		ctx := context.Background()
 
@@ -110,6 +118,7 @@ func TestGetKeySuccess(t *testing.T) {
 	})
 
 	t.Run("returns keyID and apiKey", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 		ctx := context.Background()
 
@@ -118,17 +127,18 @@ func TestGetKeySuccess(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify keyID matches one of the keys in pool
-		key, ok := pool.keyMap[keyID]
+		key, ok := pool.GetKeyMap()[keyID]
 		require.True(t, ok)
 		assert.Equal(t, key.APIKey, apiKey)
 	})
 
 	t.Run("selector strategy is respected", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 		ctx := context.Background()
 
 		// Deplete first key
-		firstKey := pool.keys[0]
+		firstKey := pool.GetKeys()[0]
 		headers := newTestHeaders(0, time.Now().Add(time.Minute))
 		err := pool.UpdateKeyFromHeaders(firstKey.ID, headers)
 		require.NoError(t, err)
@@ -141,136 +151,162 @@ func TestGetKeySuccess(t *testing.T) {
 }
 
 func TestGetKeyAllExhausted(t *testing.T) {
+	t.Parallel()
 	t.Run("all keys at capacity returns error", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 		ctx := context.Background()
 
 		// Exhaust rate limiters by consuming all capacity
 		// Each key has burst=50, so 2 keys * 50 = 100 total capacity
-		for i := 0; i < 100; i++ {
-			_, _, _ = pool.GetKey(ctx)
+		for iteration := 0; iteration < 100; iteration++ {
+			if _, _, exhaustErr := pool.GetKey(ctx); exhaustErr != nil {
+				break
+			}
 		}
 
 		// Next request should fail (all keys exhausted)
 		_, _, err := pool.GetKey(ctx)
-		assert.ErrorIs(t, err, ErrAllKeysExhausted)
+		assert.ErrorIs(t, err, keypool.ErrAllKeysExhausted)
 	})
 
 	t.Run("all keys unhealthy returns error", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 		ctx := context.Background()
 
 		// Mark all keys unhealthy
-		for _, key := range pool.keys {
+		for _, key := range pool.GetKeys() {
 			key.MarkUnhealthy(fmt.Errorf("test error"))
 		}
 
 		_, _, err := pool.GetKey(ctx)
-		assert.ErrorIs(t, err, ErrAllKeysExhausted)
+		assert.ErrorIs(t, err, keypool.ErrAllKeysExhausted)
 	})
 
 	t.Run("all keys in cooldown returns error", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 		ctx := context.Background()
 
 		// Put all keys in cooldown
-		for _, key := range pool.keys {
+		for _, key := range pool.GetKeys() {
 			pool.MarkKeyExhausted(key.ID, 10*time.Second)
 		}
 
 		_, _, err := pool.GetKey(ctx)
-		assert.ErrorIs(t, err, ErrAllKeysExhausted)
+		assert.ErrorIs(t, err, keypool.ErrAllKeysExhausted)
 	})
 }
 
 func TestGetKeySkipsUnavailable(t *testing.T) {
+	t.Parallel()
 	t.Run("skips unhealthy keys", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 		ctx := context.Background()
 
 		// Mark first two keys unhealthy
-		pool.keys[0].MarkUnhealthy(fmt.Errorf("test error 1"))
-		pool.keys[1].MarkUnhealthy(fmt.Errorf("test error 2"))
+		pool.GetKeys()[0].MarkUnhealthy(fmt.Errorf("test error 1"))
+		pool.GetKeys()[1].MarkUnhealthy(fmt.Errorf("test error 2"))
 
 		// Should return third key
 		keyID, _, err := pool.GetKey(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, pool.keys[2].ID, keyID)
+		assert.Equal(t, pool.GetKeys()[2].ID, keyID)
 	})
 
 	t.Run("skips cooldown keys", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 		ctx := context.Background()
 
 		// Put first key in cooldown
-		pool.MarkKeyExhausted(pool.keys[0].ID, 10*time.Second)
+		pool.MarkKeyExhausted(pool.GetKeys()[0].ID, 10*time.Second)
 
 		// Should skip first key
 		keyID, _, err := pool.GetKey(ctx)
 		require.NoError(t, err)
-		assert.NotEqual(t, pool.keys[0].ID, keyID)
+		assert.NotEqual(t, pool.GetKeys()[0].ID, keyID)
 	})
 
 	t.Run("skips rate-limited keys", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 		ctx := context.Background()
 
 		// Exhaust first key
-		firstKey := pool.keys[0]
-		for i := 0; i < 60; i++ { // Exhaust burst capacity
-			limiter := pool.limiters[firstKey.ID]
+		firstKey := pool.GetKeys()[0]
+		for iteration := 0; iteration < 60; iteration++ { // Exhaust burst capacity
+			limiter := pool.GetLimiters()[firstKey.ID]
 			_ = limiter.Allow(ctx)
 		}
 
 		// Should pick second key
 		keyID, _, err := pool.GetKey(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, pool.keys[1].ID, keyID)
+		assert.Equal(t, pool.GetKeys()[1].ID, keyID)
 	})
 }
 
 func TestUpdateKeyFromHeaders(t *testing.T) {
-	t.Run("updates key limits from headers", func(t *testing.T) {
-		pool := newTestPool(1, "least_loaded")
-		key := pool.keys[0]
+	t.Parallel()
 
-		headers := http.Header{}
-		headers.Set("anthropic-ratelimit-requests-limit", "100")
-		headers.Set("anthropic-ratelimit-input-tokens-limit", "50000")
-		headers.Set("anthropic-ratelimit-output-tokens-limit", "50000")
+	headerUpdateTests := []struct {
+		setHeaders func(http.Header)
+		assertions func(*testing.T, *keypool.KeyMetadata)
+		name       string
+	}{
+		{
+			name: "updates key limits from headers",
+			setHeaders: func(headers http.Header) {
+				headers.Set("anthropic-ratelimit-requests-limit", "100")
+				headers.Set("anthropic-ratelimit-input-tokens-limit", "50000")
+				headers.Set("anthropic-ratelimit-output-tokens-limit", "50000")
+			},
+			assertions: func(t *testing.T, key *keypool.KeyMetadata) {
+				t.Helper()
+				assert.Equal(t, 100, key.GetRPMLimit())
+				assert.Equal(t, 50000, key.GetITPMLimit())
+				assert.Equal(t, 50000, key.GetOTPMLimit())
+			},
+		},
+		{
+			name: "updates remaining capacity from headers",
+			setHeaders: func(headers http.Header) {
+				headers.Set("anthropic-ratelimit-requests-remaining", "42")
+				headers.Set("anthropic-ratelimit-input-tokens-remaining", "27000")
+				headers.Set("anthropic-ratelimit-output-tokens-remaining", "27000")
+			},
+			assertions: func(t *testing.T, key *keypool.KeyMetadata) {
+				t.Helper()
+				assert.Equal(t, 42, key.GetRPMRemaining())
+				assert.Equal(t, 27000, key.GetITPMRemaining())
+				assert.Equal(t, 27000, key.GetOTPMRemaining())
+			},
+		},
+	}
 
-		err := pool.UpdateKeyFromHeaders(key.ID, headers)
-		require.NoError(t, err)
+	for _, headerTest := range headerUpdateTests {
+		t.Run(headerTest.name, func(t *testing.T) {
+			t.Parallel()
+			pool := newTestPool(1, "least_loaded")
+			key := pool.GetKeys()[0]
 
-		key.mu.RLock()
-		assert.Equal(t, 100, key.RPMLimit)
-		assert.Equal(t, 50000, key.ITPMLimit)
-		assert.Equal(t, 50000, key.OTPMLimit)
-		key.mu.RUnlock()
-	})
+			headers := http.Header{}
+			headerTest.setHeaders(headers)
 
-	t.Run("updates remaining capacity from headers", func(t *testing.T) {
-		pool := newTestPool(1, "least_loaded")
-		key := pool.keys[0]
+			err := pool.UpdateKeyFromHeaders(key.ID, headers)
+			require.NoError(t, err)
 
-		headers := http.Header{}
-		headers.Set("anthropic-ratelimit-requests-remaining", "42")
-		headers.Set("anthropic-ratelimit-input-tokens-remaining", "27000")
-		headers.Set("anthropic-ratelimit-output-tokens-remaining", "27000")
-
-		err := pool.UpdateKeyFromHeaders(key.ID, headers)
-		require.NoError(t, err)
-
-		key.mu.RLock()
-		assert.Equal(t, 42, key.RPMRemaining)
-		assert.Equal(t, 27000, key.ITPMRemaining)
-		assert.Equal(t, 27000, key.OTPMRemaining)
-		key.mu.RUnlock()
-	})
+			headerTest.assertions(t, key)
+		})
+	}
 
 	t.Run("updates reset time from headers", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(1, "least_loaded")
-		key := pool.keys[0]
+		key := pool.GetKeys()[0]
 
 		resetTime := time.Now().Add(time.Minute)
 		headers := http.Header{}
@@ -279,41 +315,41 @@ func TestUpdateKeyFromHeaders(t *testing.T) {
 		err := pool.UpdateKeyFromHeaders(key.ID, headers)
 		require.NoError(t, err)
 
-		key.mu.RLock()
-		assert.WithinDuration(t, resetTime, key.RPMResetAt, time.Second)
-		key.mu.RUnlock()
+		assert.WithinDuration(t, resetTime, key.GetRPMResetAt(), time.Second)
 	})
 
 	t.Run("returns error for unknown keyID", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(1, "least_loaded")
 
 		headers := http.Header{}
 		err := pool.UpdateKeyFromHeaders("unknown-key-id", headers)
 
-		assert.ErrorIs(t, err, ErrKeyNotFound)
+		assert.ErrorIs(t, err, keypool.ErrKeyNotFound)
 	})
 }
 
 func TestMarkKeyExhausted(t *testing.T) {
+	t.Parallel()
 	t.Run("sets cooldown period", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(1, "least_loaded")
-		key := pool.keys[0]
+		key := pool.GetKeys()[0]
 
 		retryAfter := 30 * time.Second
 		pool.MarkKeyExhausted(key.ID, retryAfter)
 
-		key.mu.RLock()
-		cooldown := key.CooldownUntil
-		key.mu.RUnlock()
+		cooldown := key.GetCooldownUntil()
 
 		assert.WithinDuration(t, time.Now().Add(retryAfter), cooldown, time.Second)
 	})
 
 	t.Run("key becomes unavailable during cooldown", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 		ctx := context.Background()
 
-		firstKey := pool.keys[0]
+		firstKey := pool.GetKeys()[0]
 		pool.MarkKeyExhausted(firstKey.ID, 10*time.Second)
 
 		// Should skip exhausted key
@@ -323,10 +359,11 @@ func TestMarkKeyExhausted(t *testing.T) {
 	})
 
 	t.Run("key becomes available after cooldown expires", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(1, "least_loaded")
 		ctx := context.Background()
 
-		key := pool.keys[0]
+		key := pool.GetKeys()[0]
 		pool.MarkKeyExhausted(key.ID, 100*time.Millisecond)
 
 		// Should be unavailable immediately
@@ -346,7 +383,9 @@ func TestMarkKeyExhausted(t *testing.T) {
 }
 
 func TestGetEarliestResetTime(t *testing.T) {
+	t.Parallel()
 	t.Run("returns time to earliest reset", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 
 		// Set different reset times
@@ -356,8 +395,8 @@ func TestGetEarliestResetTime(t *testing.T) {
 			time.Now().Add(90 * time.Second),
 		}
 
-		for i, key := range pool.keys {
-			headers := newTestHeaders(25, resetTimes[i])
+		for idx, key := range pool.GetKeys() {
+			headers := newTestHeaders(25, resetTimes[idx])
 			err := pool.UpdateKeyFromHeaders(key.ID, headers)
 			require.NoError(t, err)
 		}
@@ -369,6 +408,7 @@ func TestGetEarliestResetTime(t *testing.T) {
 	})
 
 	t.Run("returns 60s default when no reset times set", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 
 		duration := pool.GetEarliestResetTime()
@@ -378,7 +418,9 @@ func TestGetEarliestResetTime(t *testing.T) {
 }
 
 func TestGetStats(t *testing.T) {
+	t.Parallel()
 	t.Run("returns correct counts", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 
 		stats := pool.GetStats()
@@ -390,13 +432,14 @@ func TestGetStats(t *testing.T) {
 	})
 
 	t.Run("updates after key state changes", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(3, "least_loaded")
 
 		// Mark one key unhealthy
-		pool.keys[0].MarkUnhealthy(fmt.Errorf("test error"))
+		pool.GetKeys()[0].MarkUnhealthy(fmt.Errorf("test error"))
 
 		// Put one key in cooldown
-		pool.MarkKeyExhausted(pool.keys[1].ID, 10*time.Second)
+		pool.MarkKeyExhausted(pool.GetKeys()[1].ID, 10*time.Second)
 
 		stats := pool.GetStats()
 
@@ -406,11 +449,12 @@ func TestGetStats(t *testing.T) {
 	})
 
 	t.Run("tracks remaining capacity", func(t *testing.T) {
+		t.Parallel()
 		pool := newTestPool(2, "least_loaded")
 
 		// Update one key's remaining capacity
 		headers := newTestHeaders(25, time.Now().Add(time.Minute))
-		err := pool.UpdateKeyFromHeaders(pool.keys[0].ID, headers)
+		err := pool.UpdateKeyFromHeaders(pool.GetKeys()[0].ID, headers)
 		require.NoError(t, err)
 
 		stats := pool.GetStats()
@@ -420,139 +464,149 @@ func TestGetStats(t *testing.T) {
 	})
 }
 
-func TestConcurrency(t *testing.T) {
-	t.Run("multiple goroutines calling GetKey", func(_ *testing.T) {
-		pool := newTestPool(5, "least_loaded")
-		ctx := context.Background()
+func TestConcurrencyGetKey(t *testing.T) {
+	t.Parallel()
+	pool := newTestPool(5, "least_loaded")
+	ctx := context.Background()
 
-		const numGoroutines = 50
-		const requestsPerGoroutine = 10
+	const numGoroutines = 50
+	const requestsPerGoroutine = 10
 
-		var wg sync.WaitGroup
-		wg.Add(numGoroutines)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
-			go func() {
-				defer wg.Done()
-				for j := 0; j < requestsPerGoroutine; j++ {
-					_, _, _ = pool.GetKey(ctx)
+	for idx := 0; idx < numGoroutines; idx++ {
+		go func() {
+			defer waitGroup.Done()
+			for iteration := 0; iteration < requestsPerGoroutine; iteration++ {
+				if _, _, getKeyErr := pool.GetKey(ctx); getKeyErr != nil {
+					continue
 				}
-			}()
-		}
+			}
+		}()
+	}
 
-		wg.Wait()
-		// If we got here without data races, test passed
-	})
+	waitGroup.Wait()
+	// If we got here without data races, test passed
+}
 
-	t.Run("multiple goroutines calling UpdateKeyFromHeaders", func(_ *testing.T) {
-		pool := newTestPool(3, "least_loaded")
+func TestConcurrencyUpdateHeaders(t *testing.T) {
+	t.Parallel()
+	pool := newTestPool(3, "least_loaded")
 
-		const numGoroutines = 30
+	const numGoroutines = 30
 
-		var wg sync.WaitGroup
-		wg.Add(numGoroutines)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
-			go func(iteration int) {
-				defer wg.Done()
+	for idx := 0; idx < numGoroutines; idx++ {
+		go func(iteration int) {
+			defer waitGroup.Done()
 
-				keyIdx := iteration % len(pool.keys)
-				key := pool.keys[keyIdx]
+			keyIdx := iteration % len(pool.GetKeys())
+			key := pool.GetKeys()[keyIdx]
+
+			headers := newTestHeaders(25, time.Now().Add(time.Minute))
+			if updateErr := pool.UpdateKeyFromHeaders(key.ID, headers); updateErr != nil {
+				return
+			}
+		}(idx)
+	}
+
+	waitGroup.Wait()
+	// If we got here without data races, test passed
+}
+
+func TestConcurrencyNoRace(t *testing.T) {
+	t.Parallel()
+	pool := newTestPool(5, "least_loaded")
+	ctx := context.Background()
+
+	const numGoroutines = 20
+
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(numGoroutines * 2)
+
+	// Half reading, half writing
+	for idx := 0; idx < numGoroutines; idx++ {
+		// Reader goroutine
+		go func() {
+			defer waitGroup.Done()
+			for iteration := 0; iteration < 10; iteration++ {
+				if _, _, getErr := pool.GetKey(ctx); getErr != nil {
+					continue
+				}
+				pool.GetStats()
+				pool.Keys()
+			}
+		}()
+
+		// Writer goroutine
+		go func(iteration int) {
+			defer waitGroup.Done()
+			for writerIter := 0; writerIter < 10; writerIter++ {
+				keyIdx := iteration % len(pool.GetKeys())
+				key := pool.GetKeys()[keyIdx]
 
 				headers := newTestHeaders(25, time.Now().Add(time.Minute))
-				_ = pool.UpdateKeyFromHeaders(key.ID, headers)
-			}(i)
-		}
-
-		wg.Wait()
-		// If we got here without data races, test passed
-	})
-
-	t.Run("no race conditions", func(_ *testing.T) {
-		pool := newTestPool(5, "least_loaded")
-		ctx := context.Background()
-
-		const numGoroutines = 20
-
-		var wg sync.WaitGroup
-		wg.Add(numGoroutines * 2)
-
-		// Half reading, half writing
-		for i := 0; i < numGoroutines; i++ {
-			// Reader goroutine
-			go func() {
-				defer wg.Done()
-				for j := 0; j < 10; j++ {
-					pool.GetKey(ctx)
-					pool.GetStats()
-					pool.Keys()
+				if updateErr := pool.UpdateKeyFromHeaders(key.ID, headers); updateErr != nil {
+					continue
 				}
-			}()
+				pool.MarkKeyExhausted(key.ID, 1*time.Millisecond)
+			}
+		}(idx)
+	}
 
-			// Writer goroutine
-			go func(iteration int) {
-				defer wg.Done()
-				for j := 0; j < 10; j++ {
-					keyIdx := iteration % len(pool.keys)
-					key := pool.keys[keyIdx]
+	waitGroup.Wait()
+	// Run with -race flag to verify no data races
+}
 
-					headers := newTestHeaders(25, time.Now().Add(time.Minute))
-					pool.UpdateKeyFromHeaders(key.ID, headers)
-					pool.MarkKeyExhausted(key.ID, 1*time.Millisecond)
-				}
-			}(i)
-		}
+func TestConcurrencyFairDistribution(t *testing.T) {
+	t.Parallel()
+	pool := newTestPool(3, "round_robin")
+	ctx := context.Background()
 
-		wg.Wait()
-		// Run with -race flag to verify no data races
-	})
+	keyUsage := make(map[string]int)
+	var keyUsageMu sync.Mutex
 
-	t.Run("fair distribution under load", func(t *testing.T) {
-		pool := newTestPool(3, "round_robin")
-		ctx := context.Background()
+	// Use fewer requests to avoid exhausting rate limiters
+	// Each key has burst=50, so 3 keys * 50 = 150 capacity
+	const numRequests = 120 // Stay under total capacity
 
-		keyUsage := make(map[string]int)
-		var mu sync.Mutex
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(numRequests)
 
-		// Use fewer requests to avoid exhausting rate limiters
-		// Each key has burst=50, so 3 keys * 50 = 150 capacity
-		const numRequests = 120 // Stay under total capacity
+	for idx := 0; idx < numRequests; idx++ {
+		go func() {
+			defer waitGroup.Done()
+			keyID, _, err := pool.GetKey(ctx)
+			if err == nil {
+				keyUsageMu.Lock()
+				keyUsage[keyID]++
+				keyUsageMu.Unlock()
+			}
+		}()
+	}
 
-		var wg sync.WaitGroup
-		wg.Add(numRequests)
+	waitGroup.Wait()
 
-		for i := 0; i < numRequests; i++ {
-			go func() {
-				defer wg.Done()
-				keyID, _, err := pool.GetKey(ctx)
-				if err == nil {
-					mu.Lock()
-					keyUsage[keyID]++
-					mu.Unlock()
-				}
-			}()
-		}
+	// With round-robin, distribution should be relatively fair
+	// Each key should get roughly 40 requests (120/3)
+	totalUsed := 0
+	for _, count := range keyUsage {
+		totalUsed += count
+	}
 
-		wg.Wait()
+	// All requests should succeed (no rate limiting)
+	assert.Equal(t, numRequests, totalUsed, "Some requests failed due to rate limiting")
 
-		// With round-robin, distribution should be relatively fair
-		// Each key should get roughly 40 requests (120/3)
-		totalUsed := 0
-		for _, count := range keyUsage {
-			totalUsed += count
-		}
-
-		// All requests should succeed (no rate limiting)
-		assert.Equal(t, numRequests, totalUsed, "Some requests failed due to rate limiting")
-
-		// Each key should get roughly equal usage (±50% tolerance due to concurrency)
-		expectedPerKey := numRequests / 3
-		tolerance := float64(expectedPerKey) * 0.5
-		for keyID, count := range keyUsage {
-			assert.InDelta(t, expectedPerKey, count, tolerance,
-				"Key %s usage out of expected range", keyID)
-		}
-	})
+	// Each key should get roughly equal usage (±50% tolerance due to concurrency)
+	expectedPerKey := numRequests / 3
+	tolerance := float64(expectedPerKey) * 0.5
+	for keyID, count := range keyUsage {
+		assert.InDelta(t, expectedPerKey, count, tolerance,
+			"Key %s usage out of expected range", keyID)
+	}
 }
 
 // Tests for mo.Result-based methods
@@ -560,7 +614,7 @@ func TestConcurrency(t *testing.T) {
 func TestKeyPoolGetKeyResult(t *testing.T) {
 	t.Parallel()
 
-	t.Run("returns Ok with KeySelection on success", func(t *testing.T) {
+	t.Run("returns Ok with keypool.KeySelection on success", func(t *testing.T) {
 		t.Parallel()
 
 		pool := newTestPool(2, "least_loaded")
@@ -592,7 +646,7 @@ func TestKeyPoolGetKeyResult(t *testing.T) {
 		require.True(t, result.IsError(), "Expected Err when all keys exhausted")
 
 		err := result.Error()
-		assert.ErrorIs(t, err, ErrAllKeysExhausted)
+		assert.ErrorIs(t, err, keypool.ErrAllKeysExhausted)
 	})
 
 	t.Run("supports Map transformation", func(t *testing.T) {
@@ -602,7 +656,7 @@ func TestKeyPoolGetKeyResult(t *testing.T) {
 		ctx := context.Background()
 
 		// Use Map to add prefix to APIKey
-		transformed := pool.GetKeyResult(ctx).Map(func(s KeySelection) (KeySelection, error) {
+		transformed := pool.GetKeyResult(ctx).Map(func(s keypool.KeySelection) (keypool.KeySelection, error) {
 			s.APIKey = "transformed:" + s.APIKey
 			return s, nil
 		})
@@ -625,7 +679,7 @@ func TestKeyPoolGetKeyResult(t *testing.T) {
 			key.SetCooldown(time.Now().Add(1 * time.Minute))
 		}
 
-		defaultSelection := KeySelection{KeyID: "default-id", APIKey: "default-key"}
+		defaultSelection := keypool.KeySelection{KeyID: "default-id", APIKey: "default-key"}
 		selection := pool.GetKeyResult(ctx).OrElse(defaultSelection)
 
 		assert.Equal(t, "default-id", selection.KeyID)
@@ -642,7 +696,8 @@ func TestKeyPoolUpdateKeyFromHeadersResult(t *testing.T) {
 		pool := newTestPool(1, "least_loaded")
 
 		// Get the key ID first
-		keyID, _, _ := pool.GetKey(context.Background())
+		keyID, _, keyErr := pool.GetKey(context.Background())
+		require.NoError(t, keyErr)
 
 		headers := http.Header{}
 		headers.Set("anthropic-ratelimit-requests-limit", "100")
@@ -661,7 +716,7 @@ func TestKeyPoolUpdateKeyFromHeadersResult(t *testing.T) {
 		result := pool.UpdateKeyFromHeadersResult("unknown-key-id", headers)
 
 		require.True(t, result.IsError(), "Expected Err for unknown key")
-		assert.ErrorIs(t, result.Error(), ErrKeyNotFound)
+		assert.ErrorIs(t, result.Error(), keypool.ErrKeyNotFound)
 	})
 }
 
@@ -671,12 +726,14 @@ func TestKeySelection(t *testing.T) {
 	t.Run("struct fields accessible", func(t *testing.T) {
 		t.Parallel()
 
-		selection := KeySelection{
-			KeyID:  "test-key-id",
-			APIKey: "sk-test-api-key",
+		testKeyValue := "test-value-for-unit-test"       // #nosec G101 -- test data, not a real credential
+		testKeyIdentifier := "test-key-id-for-unit-test" // #nosec G101 -- test data
+		selection := keypool.KeySelection{
+			KeyID:  testKeyIdentifier,
+			APIKey: testKeyValue,
 		}
 
-		assert.Equal(t, "test-key-id", selection.KeyID)
-		assert.Equal(t, "sk-test-api-key", selection.APIKey)
+		assert.Equal(t, testKeyIdentifier, selection.KeyID)
+		assert.Equal(t, testKeyValue, selection.APIKey)
 	})
 }

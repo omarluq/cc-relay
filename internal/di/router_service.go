@@ -44,17 +44,17 @@ func (s *RouterService) GetRouter() router.ProviderRouter {
 	}
 
 	// Create new router for updated config
-	r, err := router.NewRouter(strategy, timeout)
+	rtr, err := router.NewRouter(strategy, timeout)
 	if err != nil {
 		// Fallback to failover if strategy is invalid
 		var fallbackErr error
-		r, fallbackErr = router.NewRouter(router.StrategyFailover, timeout)
+		rtr, fallbackErr = router.NewRouter(router.StrategyFailover, timeout)
 		// If even failover fails, we have a configuration problem
 		if fallbackErr != nil {
 			// Return a failover router with default timeout as last resort
 			// At this point we log the error but continue with a known-good fallback
 			log.Error().Err(fallbackErr).Msg("failed to create failover router, using default")
-			r, err = router.NewRouter(router.StrategyFailover, 5*time.Second)
+			rtr, err = router.NewRouter(router.StrategyFailover, 5*time.Second)
 			if err != nil {
 				// This should never happen unless there's a code bug
 				panic("router: failed to create default failover router")
@@ -64,13 +64,13 @@ func (s *RouterService) GetRouter() router.ProviderRouter {
 
 	// Atomically store new router (racing updates may overwrite, last wins)
 	newEntry := &routerCacheEntry{
-		router:   r,
+		router:   rtr,
 		strategy: strategy,
 		timeout:  timeout,
 	}
 	s.router.Store(newEntry)
 
-	return r
+	return rtr
 }
 
 // GetRouterFunc returns a function that fetches the current router.
@@ -90,5 +90,14 @@ func (s *RouterService) GetRouterAsFunc() router.ProviderRouterFunc {
 // The router is created dynamically per-request based on current config.
 func NewRouter(i do.Injector) (*RouterService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
-	return &RouterService{cfgSvc: cfgSvc}, nil
+	svc := &RouterService{
+		cfgSvc: cfgSvc,
+		router: atomic.Pointer[routerCacheEntry]{},
+	}
+	svc.router.Store(&routerCacheEntry{
+		router:   nil,
+		strategy: "",
+		timeout:  0,
+	})
+	return svc, nil
 }

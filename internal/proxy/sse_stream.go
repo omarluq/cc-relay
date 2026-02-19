@@ -112,7 +112,10 @@ type sseParser struct {
 }
 
 func newSSEParser() *sseParser {
-	return &sseParser{}
+	return &sseParser{
+		dataLines: nil,
+		event:     SSEEvent{Event: "", ID: "", Data: nil, Retry: 0},
+	}
 }
 
 // parseStream reads and parses SSE events from the reader.
@@ -158,7 +161,7 @@ func (p *sseParser) emitEventIfReady(observer ro.Observer[SSEEvent]) {
 
 	p.event.Data = bytes.Join(p.dataLines, []byte("\n"))
 	observer.Next(p.event)
-	p.event = SSEEvent{}
+	p.event = SSEEvent{Event: "", ID: "", Data: nil, Retry: 0}
 	p.dataLines = nil
 }
 
@@ -237,18 +240,18 @@ func (p *sseParser) setRetry(value []byte) {
 // Example:
 //
 //	events := StreamSSE(upstreamResp.Body)
-//	err := ForwardSSE(events, w)
+//	err := ForwardSSE(events, writer)
 //	if err != nil {
 //	    // Handle error
 //	}
-func ForwardSSE(events ro.Observable[SSEEvent], w http.ResponseWriter) error {
+func ForwardSSE(events ro.Observable[SSEEvent], writer http.ResponseWriter) error {
 	// Set SSE headers
-	w.Header().Set("Content-Type", providers.ContentTypeSSE)
-	w.Header().Set("Cache-Control", "no-cache, no-transform")
-	w.Header().Set("X-Accel-Buffering", "no")
-	w.Header().Set("Connection", "keep-alive")
+	writer.Header().Set("Content-Type", providers.ContentTypeSSE)
+	writer.Header().Set("Cache-Control", "no-cache, no-transform")
+	writer.Header().Set("X-Accel-Buffering", "no")
+	writer.Header().Set("Connection", "keep-alive")
 
-	flusher, ok := w.(http.Flusher)
+	flusher, ok := writer.(http.Flusher)
 	if !ok {
 		return ErrNotFlushable
 	}
@@ -257,7 +260,7 @@ func ForwardSSE(events ro.Observable[SSEEvent], w http.ResponseWriter) error {
 
 	events.Subscribe(ro.NewObserver(
 		func(event SSEEvent) {
-			if _, err := w.Write(event.Bytes()); err != nil {
+			if _, err := writer.Write(event.Bytes()); err != nil {
 				errCh <- err
 				return
 			}
@@ -283,16 +286,16 @@ func ForwardSSE(events ro.Observable[SSEEvent], w http.ResponseWriter) error {
 // Example:
 //
 //	event := SSEEvent{Event: "message", Data: []byte("Hello")}
-//	if err := WriteSSEEvent(w, event); err != nil {
+//	if err := WriteSSEEvent(writer, event); err != nil {
 //	    // Handle error
 //	}
-func WriteSSEEvent(w http.ResponseWriter, event SSEEvent) error {
-	flusher, ok := w.(http.Flusher)
+func WriteSSEEvent(writer http.ResponseWriter, event SSEEvent) error {
+	flusher, ok := writer.(http.Flusher)
 	if !ok {
 		return ErrNotFlushable
 	}
 
-	if _, err := w.Write(event.Bytes()); err != nil {
+	if _, err := writer.Write(event.Bytes()); err != nil {
 		return err
 	}
 	flusher.Flush()

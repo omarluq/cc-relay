@@ -74,8 +74,10 @@ func NewConfig(i do.Injector) (*ConfigService, error) {
 	}
 
 	svc := &ConfigService{
-		Config: cfg,
-		path:   path,
+		config:  atomic.Pointer[config.Config]{},
+		watcher: nil,
+		Config:  cfg,
+		path:    path,
 	}
 
 	// Store initial config in atomic pointer

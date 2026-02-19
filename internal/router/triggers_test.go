@@ -1,4 +1,4 @@
-package router
+package router_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // mockNetError implements net.Error for testing.
@@ -18,13 +20,13 @@ func (e *mockNetError) Error() string   { return "mock network error" }
 func (e *mockNetError) Timeout() bool   { return e.timeout }
 func (e *mockNetError) Temporary() bool { return e.temporary }
 
-// Ensure mockNetError implements net.Error.
-var _ net.Error = (*mockNetError)(nil)
+// Ensure mockNetError implements net.Error at compile time.
+var _ net.Error = &mockNetError{timeout: false, temporary: false}
 
 func TestStatusCodeTriggerShouldFailover(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewStatusCodeTrigger(429, 500, 502, 503, 504)
+	trigger := router.NewStatusCodeTrigger(429, 500, 502, 503, 504)
 
 	tests := []struct {
 		name       string
@@ -48,12 +50,13 @@ func TestStatusCodeTriggerShouldFailover(t *testing.T) {
 		{name: "0 no status", statusCode: 0, want: false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := trigger.ShouldFailover(nil, tt.statusCode)
-			if got != tt.want {
-				t.Errorf("ShouldFailover(nil, %d) = %v, want %v", tt.statusCode, got, tt.want)
+			got := trigger.ShouldFailover(nil, testCase.statusCode)
+			if got != testCase.want {
+				t.Errorf("router.ShouldFailover(nil, %d) = %v, want %v",
+					testCase.statusCode, got, testCase.want)
 			}
 		})
 	}
@@ -62,7 +65,7 @@ func TestStatusCodeTriggerShouldFailover(t *testing.T) {
 func TestStatusCodeTriggerName(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewStatusCodeTrigger(429)
+	trigger := router.NewStatusCodeTrigger(429)
 	if got := trigger.Name(); got != "status_code" {
 		t.Errorf("Name() = %q, want %q", got, "status_code")
 	}
@@ -71,7 +74,7 @@ func TestStatusCodeTriggerName(t *testing.T) {
 func TestStatusCodeTriggerEmpty(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewStatusCodeTrigger() // No codes configured
+	trigger := router.NewStatusCodeTrigger() // No codes configured
 	if trigger.ShouldFailover(nil, 500) {
 		t.Error("Empty trigger should not fire on any status code")
 	}
@@ -80,7 +83,7 @@ func TestStatusCodeTriggerEmpty(t *testing.T) {
 func TestTimeoutTriggerShouldFailover(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewTimeoutTrigger()
+	trigger := router.NewTimeoutTrigger()
 
 	wrappedDeadline := errors.Join(errors.New("request failed"), context.DeadlineExceeded)
 	tests := []struct {
@@ -96,12 +99,13 @@ func TestTimeoutTriggerShouldFailover(t *testing.T) {
 		{name: "io.EOF", err: errors.New("EOF"), want: false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := trigger.ShouldFailover(tt.err, 0)
-			if got != tt.want {
-				t.Errorf("ShouldFailover(%v, 0) = %v, want %v", tt.err, got, tt.want)
+			got := trigger.ShouldFailover(testCase.err, 0)
+			if got != testCase.want {
+				t.Errorf("router.ShouldFailover(%v, 0) = %v, want %v",
+					testCase.err, got, testCase.want)
 			}
 		})
 	}
@@ -110,7 +114,7 @@ func TestTimeoutTriggerShouldFailover(t *testing.T) {
 func TestTimeoutTriggerName(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewTimeoutTrigger()
+	trigger := router.NewTimeoutTrigger()
 	if got := trigger.Name(); got != "timeout" {
 		t.Errorf("Name() = %q, want %q", got, "timeout")
 	}
@@ -119,29 +123,29 @@ func TestTimeoutTriggerName(t *testing.T) {
 func TestTimeoutTriggerIgnoresStatusCode(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewTimeoutTrigger()
+	trigger := router.NewTimeoutTrigger()
 	// Status code should be ignored
 	if trigger.ShouldFailover(nil, 504) {
-		t.Error("TimeoutTrigger should not fire on 504 status code alone")
+		t.Error("router.TimeoutTrigger should not fire on 504 status code alone")
 	}
 	if !trigger.ShouldFailover(context.DeadlineExceeded, 200) {
-		t.Error("TimeoutTrigger should fire on DeadlineExceeded regardless of status code")
+		t.Error("router.TimeoutTrigger should fire on DeadlineExceeded regardless of status code")
 	}
 }
 
 func TestConnectionTriggerShouldFailover(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewConnectionTrigger()
+	trigger := router.NewConnectionTrigger()
 
 	tests := []struct {
 		err  error
 		name string
 		want bool
 	}{
-		{name: "net.Error timeout", err: &mockNetError{timeout: true}, want: true},
-		{name: "net.Error temporary", err: &mockNetError{temporary: true}, want: true},
-		{name: "net.Error basic", err: &mockNetError{}, want: true},
+		{name: "net.Error timeout", err: &mockNetError{timeout: true, temporary: false}, want: true},
+		{name: "net.Error temporary", err: &mockNetError{timeout: false, temporary: true}, want: true},
+		{name: "net.Error basic", err: &mockNetError{timeout: false, temporary: false}, want: true},
 		{name: "nil error", err: nil, want: false},
 		{name: "generic error", err: errors.New("not a network error"), want: false},
 		// Note: context.DeadlineExceeded satisfies net.Error interface in Go stdlib
@@ -149,12 +153,13 @@ func TestConnectionTriggerShouldFailover(t *testing.T) {
 		{name: "context.Canceled", err: context.Canceled, want: false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := trigger.ShouldFailover(tt.err, 0)
-			if got != tt.want {
-				t.Errorf("ShouldFailover(%v, 0) = %v, want %v", tt.err, got, tt.want)
+			got := trigger.ShouldFailover(testCase.err, 0)
+			if got != testCase.want {
+				t.Errorf("router.ShouldFailover(%v, 0) = %v, want %v",
+					testCase.err, got, testCase.want)
 			}
 		})
 	}
@@ -163,7 +168,7 @@ func TestConnectionTriggerShouldFailover(t *testing.T) {
 func TestConnectionTriggerName(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewConnectionTrigger()
+	trigger := router.NewConnectionTrigger()
 	if got := trigger.Name(); got != "connection" {
 		t.Errorf("Name() = %q, want %q", got, "connection")
 	}
@@ -172,33 +177,36 @@ func TestConnectionTriggerName(t *testing.T) {
 func TestConnectionTriggerWrappedNetError(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewConnectionTrigger()
-	wrappedErr := errors.Join(errors.New("connection failed"), &mockNetError{timeout: true})
+	trigger := router.NewConnectionTrigger()
+	wrappedErr := errors.Join(
+		errors.New("connection failed"),
+		&mockNetError{timeout: true, temporary: false},
+	)
 
 	if !trigger.ShouldFailover(wrappedErr, 0) {
-		t.Error("ConnectionTrigger should fire on wrapped net.Error")
+		t.Error("router.ConnectionTrigger should fire on wrapped net.Error")
 	}
 }
 
 func TestDefaultTriggers(t *testing.T) {
 	t.Parallel()
 
-	triggers := DefaultTriggers()
+	triggers := router.DefaultTriggers()
 
 	if len(triggers) != 3 {
-		t.Fatalf("DefaultTriggers() returned %d triggers, want 3", len(triggers))
+		t.Fatalf("router.DefaultTriggers() returned %d triggers, want 3", len(triggers))
 	}
 
 	// Verify each trigger type is present
 	names := make(map[string]bool)
-	for _, tr := range triggers {
-		names[tr.Name()] = true
+	for _, trigger := range triggers {
+		names[trigger.Name()] = true
 	}
 
 	expectedNames := []string{"status_code", "timeout", "connection"}
 	for _, name := range expectedNames {
 		if !names[name] {
-			t.Errorf("DefaultTriggers() missing %q trigger", name)
+			t.Errorf("router.DefaultTriggers() missing %q trigger", name)
 		}
 	}
 }
@@ -206,26 +214,26 @@ func TestDefaultTriggers(t *testing.T) {
 func TestDefaultTriggersStatusCodes(t *testing.T) {
 	t.Parallel()
 
-	triggers := DefaultTriggers()
+	triggers := router.DefaultTriggers()
 
 	// Find the status code trigger
-	var statusTrigger FailoverTrigger
-	for _, tr := range triggers {
-		if tr.Name() == "status_code" {
-			statusTrigger = tr
+	var statusTrigger router.FailoverTrigger
+	for _, trigger := range triggers {
+		if trigger.Name() == "status_code" {
+			statusTrigger = trigger
 			break
 		}
 	}
 
 	if statusTrigger == nil {
-		t.Fatal("DefaultTriggers() missing status_code trigger")
+		t.Fatal("router.DefaultTriggers() missing status_code trigger")
 	}
 
 	// Verify expected status codes trigger failover
 	expectedCodes := []int{429, 500, 502, 503, 504}
 	for _, code := range expectedCodes {
 		if !statusTrigger.ShouldFailover(nil, code) {
-			t.Errorf("DefaultTriggers status_code should fire on %d", code)
+			t.Errorf("router.DefaultTriggers status_code should fire on %d", code)
 		}
 	}
 }
@@ -233,7 +241,7 @@ func TestDefaultTriggersStatusCodes(t *testing.T) {
 func TestShouldFailoverStatusCode(t *testing.T) {
 	t.Parallel()
 
-	triggers := DefaultTriggers()
+	triggers := router.DefaultTriggers()
 
 	tests := []struct {
 		err        error
@@ -247,13 +255,13 @@ func TestShouldFailoverStatusCode(t *testing.T) {
 		{name: "404 not found", err: nil, statusCode: 404, want: false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := ShouldFailover(triggers, tt.err, tt.statusCode)
-			if got != tt.want {
-				t.Errorf("ShouldFailover(triggers, %v, %d) = %v, want %v",
-					tt.err, tt.statusCode, got, tt.want)
+			got := router.ShouldFailover(triggers, testCase.err, testCase.statusCode)
+			if got != testCase.want {
+				t.Errorf("router.ShouldFailover(triggers, %v, %d) = %v, want %v",
+					testCase.err, testCase.statusCode, got, testCase.want)
 			}
 		})
 	}
@@ -262,42 +270,42 @@ func TestShouldFailoverStatusCode(t *testing.T) {
 func TestShouldFailoverTimeout(t *testing.T) {
 	t.Parallel()
 
-	triggers := DefaultTriggers()
+	triggers := router.DefaultTriggers()
 
-	if !ShouldFailover(triggers, context.DeadlineExceeded, 0) {
-		t.Error("ShouldFailover should return true for DeadlineExceeded")
+	if !router.ShouldFailover(triggers, context.DeadlineExceeded, 0) {
+		t.Error("router.ShouldFailover should return true for DeadlineExceeded")
 	}
 
-	if ShouldFailover(triggers, context.Canceled, 0) {
-		t.Error("ShouldFailover should return false for Canceled")
+	if router.ShouldFailover(triggers, context.Canceled, 0) {
+		t.Error("router.ShouldFailover should return false for Canceled")
 	}
 }
 
 func TestShouldFailoverConnection(t *testing.T) {
 	t.Parallel()
 
-	triggers := DefaultTriggers()
+	triggers := router.DefaultTriggers()
 
-	netErr := &mockNetError{timeout: true}
-	if !ShouldFailover(triggers, netErr, 0) {
-		t.Error("ShouldFailover should return true for net.Error")
+	netErr := &mockNetError{timeout: true, temporary: false}
+	if !router.ShouldFailover(triggers, netErr, 0) {
+		t.Error("router.ShouldFailover should return true for net.Error")
 	}
 
 	genericErr := errors.New("generic error")
-	if ShouldFailover(triggers, genericErr, 200) {
-		t.Error("ShouldFailover should return false for generic error with 200 status")
+	if router.ShouldFailover(triggers, genericErr, 200) {
+		t.Error("router.ShouldFailover should return false for generic error with 200 status")
 	}
 }
 
 func TestShouldFailoverEmptyTriggers(t *testing.T) {
 	t.Parallel()
 
-	if ShouldFailover(nil, context.DeadlineExceeded, 500) {
-		t.Error("ShouldFailover should return false for nil triggers")
+	if router.ShouldFailover(nil, context.DeadlineExceeded, 500) {
+		t.Error("router.ShouldFailover should return false for nil triggers")
 	}
 
-	if ShouldFailover([]FailoverTrigger{}, context.DeadlineExceeded, 500) {
-		t.Error("ShouldFailover should return false for empty triggers")
+	if router.ShouldFailover([]router.FailoverTrigger{}, context.DeadlineExceeded, 500) {
+		t.Error("router.ShouldFailover should return false for empty triggers")
 	}
 }
 
@@ -305,21 +313,21 @@ func TestShouldFailoverShortCircuit(t *testing.T) {
 	t.Parallel()
 
 	// Create triggers where first one fires
-	triggers := []FailoverTrigger{
-		NewStatusCodeTrigger(429),
-		NewTimeoutTrigger(),
+	triggers := []router.FailoverTrigger{
+		router.NewStatusCodeTrigger(429),
+		router.NewTimeoutTrigger(),
 	}
 
 	// 429 should trigger immediately (first trigger)
-	if !ShouldFailover(triggers, nil, 429) {
-		t.Error("ShouldFailover should return true on first matching trigger")
+	if !router.ShouldFailover(triggers, nil, 429) {
+		t.Error("router.ShouldFailover should return true on first matching trigger")
 	}
 }
 
 func TestFindMatchingTrigger(t *testing.T) {
 	t.Parallel()
 
-	triggers := DefaultTriggers()
+	triggers := router.DefaultTriggers()
 
 	tests := []struct {
 		err           error
@@ -330,15 +338,16 @@ func TestFindMatchingTrigger(t *testing.T) {
 	}{
 		{
 			name: "429 finds status_code", err: nil,
-			statusCode: 429, wantName: TriggerStatusCode, wantNilResult: false,
+			statusCode: 429, wantName: router.TriggerStatusCode, wantNilResult: false,
 		},
 		{
 			name: "DeadlineExceeded finds timeout", err: context.DeadlineExceeded,
-			statusCode: 0, wantName: TriggerTimeout, wantNilResult: false,
+			statusCode: 0, wantName: router.TriggerTimeout, wantNilResult: false,
 		},
 		{
-			name: "net.Error finds connection", err: &mockNetError{},
-			statusCode: 0, wantName: TriggerConnection, wantNilResult: false,
+			name: "net.Error finds connection",
+			err:  &mockNetError{timeout: false, temporary: false},
+			statusCode: 0, wantName: router.TriggerConnection, wantNilResult: false,
 		},
 		{
 			name: "200 OK finds nothing", err: nil,
@@ -350,23 +359,24 @@ func TestFindMatchingTrigger(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := FindMatchingTrigger(triggers, tt.err, tt.statusCode)
+			got := router.FindMatchingTrigger(triggers, testCase.err, testCase.statusCode)
 
-			if tt.wantNilResult {
+			if testCase.wantNilResult {
 				if got != nil {
-					t.Errorf("FindMatchingTrigger() = %v, want nil", got.Name())
+					t.Errorf("router.FindMatchingTrigger() = %v, want nil", got.Name())
 				}
 				return
 			}
 
 			if got == nil {
-				t.Fatal("FindMatchingTrigger() = nil, want non-nil")
+				t.Fatal("router.FindMatchingTrigger() = nil, want non-nil")
 			}
-			if got.Name() != tt.wantName {
-				t.Errorf("FindMatchingTrigger().Name() = %q, want %q", got.Name(), tt.wantName)
+			if got.Name() != testCase.wantName {
+				t.Errorf("router.FindMatchingTrigger().Name() = %q, want %q",
+					got.Name(), testCase.wantName)
 			}
 		})
 	}
@@ -375,12 +385,14 @@ func TestFindMatchingTrigger(t *testing.T) {
 func TestFindMatchingTriggerEmpty(t *testing.T) {
 	t.Parallel()
 
-	if got := FindMatchingTrigger(nil, context.DeadlineExceeded, 500); got != nil {
-		t.Errorf("FindMatchingTrigger(nil, ...) = %v, want nil", got)
+	if got := router.FindMatchingTrigger(nil, context.DeadlineExceeded, 500); got != nil {
+		t.Errorf("router.FindMatchingTrigger(nil, ...) = %v, want nil", got)
 	}
 
-	if got := FindMatchingTrigger([]FailoverTrigger{}, context.DeadlineExceeded, 500); got != nil {
-		t.Errorf("FindMatchingTrigger([], ...) = %v, want nil", got)
+	if got := router.FindMatchingTrigger(
+		[]router.FailoverTrigger{}, context.DeadlineExceeded, 500,
+	); got != nil {
+		t.Errorf("router.FindMatchingTrigger([], ...) = %v, want nil", got)
 	}
 }
 
@@ -388,14 +400,14 @@ func TestFindMatchingTriggerEmpty(t *testing.T) {
 func TestRealNetworkError(t *testing.T) {
 	t.Parallel()
 
-	trigger := NewConnectionTrigger()
+	trigger := router.NewConnectionTrigger()
 
 	// Create a real dial error by trying to connect to an invalid address
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	var d net.Dialer
-	_, err := d.DialContext(ctx, "tcp", "192.0.2.1:1") // TEST-NET-1, guaranteed unreachable
+	var dialer net.Dialer
+	_, err := dialer.DialContext(ctx, "tcp", "192.0.2.1:1") // TEST-NET-1, guaranteed unreachable
 
 	if err == nil {
 		t.Skip("Connection unexpectedly succeeded")
@@ -403,6 +415,6 @@ func TestRealNetworkError(t *testing.T) {
 
 	// The error should be a net.Error (either timeout or connection refused)
 	if !trigger.ShouldFailover(err, 0) {
-		t.Errorf("ConnectionTrigger should fire on real dial error: %v", err)
+		t.Errorf("router.ConnectionTrigger should fire on real dial error: %v", err)
 	}
 }

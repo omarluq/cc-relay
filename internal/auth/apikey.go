@@ -39,6 +39,7 @@ func (a *APIKeyAuthenticator) Validate(r *http.Request) Result {
 			Valid: false,
 			Type:  TypeAPIKey,
 			Error: "missing x-api-key header",
+			Token: "",
 		}
 	}
 
@@ -49,12 +50,15 @@ func (a *APIKeyAuthenticator) Validate(r *http.Request) Result {
 			Valid: false,
 			Type:  TypeAPIKey,
 			Error: "invalid x-api-key",
+			Token: "",
 		}
 	}
 
 	return Result{
 		Valid: true,
 		Type:  TypeAPIKey,
+		Error: "",
+		Token: "",
 		// Don't include the actual key in the result for security
 	}
 }

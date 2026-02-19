@@ -8,7 +8,48 @@ import (
 	"testing"
 
 	"github.com/omarluq/cc-relay/internal/auth"
+	"github.com/samber/mo"
 )
+
+// assertValidateResultOk is a test helper that validates a successful mo.Result[auth.Result].
+// It checks that the result is Ok, Valid=true, and the auth Type matches.
+func assertValidateResultOk(t *testing.T, result mo.Result[auth.Result], expectedType auth.Type) {
+	t.Helper()
+
+	if result.IsError() {
+		t.Errorf("Expected Ok, got Err: %v", result.Error())
+	}
+
+	authResult, getErr := result.Get()
+	if getErr != nil {
+		t.Fatalf("Expected Get() to return nil error, got %v", getErr)
+	}
+
+	if !authResult.Valid {
+		t.Error("Expected Valid=true in Ok result")
+	}
+
+	if authResult.Type != expectedType {
+		t.Errorf("Expected Type=%s, got %q", expectedType, authResult.Type)
+	}
+}
+
+// assertAuthResult is a test helper that validates an auth.Result.
+func assertAuthResult(t *testing.T, result auth.Result, wantValid bool, wantType auth.Type, wantErrMsg string) {
+	t.Helper()
+
+	if result.Valid != wantValid {
+		t.Errorf("Valid = %v, want %v", result.Valid, wantValid)
+	}
+
+	if result.Type != wantType {
+		t.Errorf("Type = %q, want %q", result.Type, wantType)
+	}
+
+	if wantErrMsg != "" && result.Error != wantErrMsg {
+		t.Errorf("Error = %q, want %q", result.Error, wantErrMsg)
+	}
+}
 
 // TestAuthTypes verifies auth type constants are defined.
 func TestAuthTypes(t *testing.T) {
@@ -24,12 +65,12 @@ func TestAuthTypes(t *testing.T) {
 		{"none type", auth.TypeNone, "none"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			if string(tt.authType) != tt.want {
-				t.Errorf("auth type = %q, want %q", tt.authType, tt.want)
+			if string(testCase.authType) != testCase.want {
+				t.Errorf("auth type = %q, want %q", testCase.authType, testCase.want)
 			}
 		})
 	}
@@ -49,10 +90,11 @@ func TestAPIKeyAuthenticatorValidate(t *testing.T) {
 		wantValid  bool
 	}{
 		{
-			name:      "valid api key",
-			apiKey:    "test-api-key-12345",
-			wantValid: true,
-			wantType:  auth.TypeAPIKey,
+			name:       "valid api key",
+			apiKey:     "test-api-key-12345",
+			wantValid:  true,
+			wantType:   auth.TypeAPIKey,
+			wantErrMsg: "",
 		},
 		{
 			name:       "invalid api key",
@@ -70,28 +112,17 @@ func TestAPIKeyAuthenticatorValidate(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
-			if tt.apiKey != "" {
-				req.Header.Set("x-api-key", tt.apiKey)
+			if testCase.apiKey != "" {
+				req.Header.Set("x-api-key", testCase.apiKey)
 			}
 
 			result := authenticator.Validate(req)
-
-			if result.Valid != tt.wantValid {
-				t.Errorf("Valid = %v, want %v", result.Valid, tt.wantValid)
-			}
-
-			if result.Type != tt.wantType {
-				t.Errorf("Type = %q, want %q", result.Type, tt.wantType)
-			}
-
-			if tt.wantErrMsg != "" && result.Error != tt.wantErrMsg {
-				t.Errorf("Error = %q, want %q", result.Error, tt.wantErrMsg)
-			}
+			assertAuthResult(t, result, testCase.wantValid, testCase.wantType, testCase.wantErrMsg)
 		})
 	}
 }
@@ -120,84 +151,56 @@ func TestBearerAuthenticatorValidate(t *testing.T) {
 		wantValid  bool
 	}{
 		{
-			name:       "valid bearer token with secret",
-			secret:     "my-secret-token",
+			name: "valid bearer token with secret", secret: "my-secret-token",
 			authHeader: "Bearer my-secret-token",
-			wantValid:  true,
-			wantType:   auth.TypeBearer,
+			wantValid: true, wantType: auth.TypeBearer, wantErrMsg: "",
 		},
 		{
-			name:       "invalid bearer token with secret",
-			secret:     "my-secret-token",
+			name: "invalid bearer token with secret", secret: "my-secret-token",
 			authHeader: "Bearer wrong-token",
-			wantValid:  false,
-			wantType:   auth.TypeBearer,
-			wantErrMsg: "invalid bearer token",
+			wantValid: false, wantType: auth.TypeBearer, wantErrMsg: "invalid bearer token",
 		},
 		{
-			name:       "any bearer token without secret validation",
-			secret:     "",
+			name: "any bearer token without secret", secret: "",
 			authHeader: "Bearer any-token-works",
-			wantValid:  true,
-			wantType:   auth.TypeBearer,
+			wantValid: true, wantType: auth.TypeBearer, wantErrMsg: "",
 		},
 		{
-			name:       "missing authorization header",
-			secret:     "",
-			authHeader: "",
-			wantValid:  false,
-			wantType:   auth.TypeBearer,
+			name: "missing authorization header", secret: "", authHeader: "",
+			wantValid: false, wantType: auth.TypeBearer,
 			wantErrMsg: "missing authorization header",
 		},
 		{
-			name:       "authorization header without bearer prefix",
-			secret:     "",
+			name: "without bearer prefix", secret: "",
 			authHeader: "Basic dXNlcjpwYXNz",
-			wantValid:  false,
-			wantType:   auth.TypeBearer,
+			wantValid: false, wantType: auth.TypeBearer,
 			wantErrMsg: "invalid authorization scheme",
 		},
 		{
-			name:       "bearer prefix only, no token",
-			secret:     "",
+			name: "bearer prefix only, no token", secret: "",
 			authHeader: "Bearer ",
-			wantValid:  false,
-			wantType:   auth.TypeBearer,
-			wantErrMsg: "empty bearer token",
+			wantValid: false, wantType: auth.TypeBearer, wantErrMsg: "empty bearer token",
 		},
 		{
-			name:       "bearer prefix case insensitive",
-			secret:     "",
+			name: "bearer prefix case insensitive", secret: "",
 			authHeader: "bearer token-123",
-			wantValid:  true,
-			wantType:   auth.TypeBearer,
+			wantValid: true, wantType: auth.TypeBearer, wantErrMsg: "",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			authenticator := auth.NewBearerAuthenticator(tt.secret)
+			authenticator := auth.NewBearerAuthenticator(testCase.secret)
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
-			if tt.authHeader != "" {
-				req.Header.Set("Authorization", tt.authHeader)
+			if testCase.authHeader != "" {
+				req.Header.Set("Authorization", testCase.authHeader)
 			}
 
 			result := authenticator.Validate(req)
-
-			if result.Valid != tt.wantValid {
-				t.Errorf("Valid = %v, want %v", result.Valid, tt.wantValid)
-			}
-
-			if result.Type != tt.wantType {
-				t.Errorf("Type = %q, want %q", result.Type, tt.wantType)
-			}
-
-			if tt.wantErrMsg != "" && result.Error != tt.wantErrMsg {
-				t.Errorf("Error = %q, want %q", result.Error, tt.wantErrMsg)
-			}
+			assertAuthResult(t, result, testCase.wantValid, testCase.wantType, testCase.wantErrMsg)
 		})
 	}
 }
@@ -228,19 +231,24 @@ func TestChainAuthenticatorValidate(t *testing.T) {
 		authHeader string
 		name       string
 		wantType   auth.Type
+		wantErrMsg string
 		wantValid  bool
 	}{
 		{
 			name:       "valid bearer token",
+			apiKey:     "",
 			authHeader: "Bearer secret-token",
 			wantValid:  true,
 			wantType:   auth.TypeBearer,
+			wantErrMsg: "",
 		},
 		{
-			name:      "valid api key",
-			apiKey:    "secret-key",
-			wantValid: true,
-			wantType:  auth.TypeAPIKey,
+			name:       "valid api key",
+			apiKey:     "secret-key",
+			authHeader: "",
+			wantValid:  true,
+			wantType:   auth.TypeAPIKey,
+			wantErrMsg: "",
 		},
 		{
 			name:       "both headers, bearer takes precedence",
@@ -248,6 +256,7 @@ func TestChainAuthenticatorValidate(t *testing.T) {
 			authHeader: "Bearer secret-token",
 			wantValid:  true,
 			wantType:   auth.TypeBearer,
+			wantErrMsg: "",
 		},
 		{
 			name:       "invalid bearer falls through to api key",
@@ -255,34 +264,38 @@ func TestChainAuthenticatorValidate(t *testing.T) {
 			authHeader: "Bearer wrong-token",
 			wantValid:  true,
 			wantType:   auth.TypeAPIKey,
+			wantErrMsg: "",
 		},
 		{
-			name:      "no credentials",
-			wantValid: false,
-			wantType:  auth.TypeNone,
+			name:       "no credentials",
+			apiKey:     "",
+			authHeader: "",
+			wantValid:  false,
+			wantType:   auth.TypeNone,
+			wantErrMsg: "no authentication configured",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
-			if tt.apiKey != "" {
-				req.Header.Set("x-api-key", tt.apiKey)
+			if testCase.apiKey != "" {
+				req.Header.Set("x-api-key", testCase.apiKey)
 			}
-			if tt.authHeader != "" {
-				req.Header.Set("Authorization", tt.authHeader)
+			if testCase.authHeader != "" {
+				req.Header.Set("Authorization", testCase.authHeader)
 			}
 
 			result := chainAuth.Validate(req)
 
-			if result.Valid != tt.wantValid {
-				t.Errorf("Valid = %v, want %v", result.Valid, tt.wantValid)
+			if result.Valid != testCase.wantValid {
+				t.Errorf("Valid = %v, want %v", result.Valid, testCase.wantValid)
 			}
 
-			if result.Type != tt.wantType {
-				t.Errorf("Type = %q, want %q", result.Type, tt.wantType)
+			if result.Type != testCase.wantType {
+				t.Errorf("Type = %q, want %q", result.Type, testCase.wantType)
 			}
 		})
 	}
@@ -335,17 +348,7 @@ func TestAPIKeyAuthenticatorValidateResult(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key-12345")
 
-		result := authenticator.ValidateResult(req)
-		if result.IsError() {
-			t.Errorf("Expected Ok, got Err: %v", result.Error())
-		}
-		authResult, _ := result.Get()
-		if !authResult.Valid {
-			t.Error("Expected Valid=true in Ok result")
-		}
-		if authResult.Type != auth.TypeAPIKey {
-			t.Errorf("Expected Type=api_key, got %q", authResult.Type)
-		}
+		assertValidateResultOk(t, authenticator.ValidateResult(req), auth.TypeAPIKey)
 	})
 
 	t.Run("invalid key returns Err with ValidationError", func(t *testing.T) {
@@ -359,14 +362,17 @@ func TestAPIKeyAuthenticatorValidateResult(t *testing.T) {
 			t.Error("Expected Err, got Ok")
 		}
 
-		err := result.Error()
-		if err == nil {
+		resultErr := result.Error()
+		if resultErr == nil {
 			t.Error("Expected error, got nil")
 		}
-		authErr := &auth.ValidationError{}
-		ok := errors.As(err, &authErr)
+		authErr := &auth.ValidationError{
+			Type:    auth.TypeAPIKey,
+			Message: "",
+		}
+		ok := errors.As(resultErr, &authErr)
 		if !ok {
-			t.Errorf("Expected *ValidationError, got %T", err)
+			t.Errorf("Expected *ValidationError, got %T", resultErr)
 		}
 		if authErr.Type != auth.TypeAPIKey {
 			t.Errorf("Expected Type=api_key, got %q", authErr.Type)
@@ -400,17 +406,7 @@ func TestBearerAuthenticatorValidateResult(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer my-secret-token")
 
-		result := authenticator.ValidateResult(req)
-		if result.IsError() {
-			t.Errorf("Expected Ok, got Err: %v", result.Error())
-		}
-		authResult, _ := result.Get()
-		if !authResult.Valid {
-			t.Error("Expected Valid=true in Ok result")
-		}
-		if authResult.Type != auth.TypeBearer {
-			t.Errorf("Expected Type=bearer, got %q", authResult.Type)
-		}
+		assertValidateResultOk(t, authenticator.ValidateResult(req), auth.TypeBearer)
 	})
 
 	t.Run("invalid bearer returns Err with ValidationError", func(t *testing.T) {
@@ -424,11 +420,14 @@ func TestBearerAuthenticatorValidateResult(t *testing.T) {
 			t.Error("Expected Err, got Ok")
 		}
 
-		err := result.Error()
-		authErr := &auth.ValidationError{}
-		ok := errors.As(err, &authErr)
+		resultErr := result.Error()
+		authErr := &auth.ValidationError{
+			Type:    auth.TypeAPIKey,
+			Message: "",
+		}
+		ok := errors.As(resultErr, &authErr)
 		if !ok {
-			t.Errorf("Expected *ValidationError, got %T", err)
+			t.Errorf("Expected *ValidationError, got %T", resultErr)
 		}
 		if authErr.Type != auth.TypeBearer {
 			t.Errorf("Expected Type=bearer, got %q", authErr.Type)
@@ -450,14 +449,7 @@ func TestChainAuthenticatorValidateResult(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer secret-token")
 
-		result := chainAuth.ValidateResult(req)
-		if result.IsError() {
-			t.Errorf("Expected Ok, got Err: %v", result.Error())
-		}
-		authResult, _ := result.Get()
-		if authResult.Type != auth.TypeBearer {
-			t.Errorf("Expected Type=bearer, got %q", authResult.Type)
-		}
+		assertValidateResultOk(t, chainAuth.ValidateResult(req), auth.TypeBearer)
 	})
 
 	t.Run("valid api key returns Ok", func(t *testing.T) {
@@ -466,14 +458,7 @@ func TestChainAuthenticatorValidateResult(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "secret-key")
 
-		result := chainAuth.ValidateResult(req)
-		if result.IsError() {
-			t.Errorf("Expected Ok, got Err: %v", result.Error())
-		}
-		authResult, _ := result.Get()
-		if authResult.Type != auth.TypeAPIKey {
-			t.Errorf("Expected Type=api_key, got %q", authResult.Type)
-		}
+		assertValidateResultOk(t, chainAuth.ValidateResult(req), auth.TypeAPIKey)
 	})
 
 	t.Run("no credentials returns Err", func(t *testing.T) {
@@ -486,11 +471,14 @@ func TestChainAuthenticatorValidateResult(t *testing.T) {
 			t.Error("Expected Err, got Ok")
 		}
 
-		err := result.Error()
-		authErr := &auth.ValidationError{}
-		ok := errors.As(err, &authErr)
+		resultErr := result.Error()
+		authErr := &auth.ValidationError{
+			Type:    auth.TypeAPIKey,
+			Message: "",
+		}
+		ok := errors.As(resultErr, &authErr)
 		if !ok {
-			t.Errorf("Expected *ValidationError, got %T", err)
+			t.Errorf("Expected *ValidationError, got %T", resultErr)
 		}
 		if authErr.Type != auth.TypeNone {
 			t.Errorf("Expected Type=none, got %q", authErr.Type)
@@ -547,7 +535,10 @@ func TestValidateResultRailwayPattern(t *testing.T) {
 			t.Errorf("Expected Ok, got Err: %v", transformed.Error())
 		}
 
-		result, _ := transformed.Get()
+		result, getErr := transformed.Get()
+		if getErr != nil {
+			t.Fatalf("Expected Get() to return nil error, got %v", getErr)
+		}
 		if result.Token != "transformed" {
 			t.Errorf("Expected Token='transformed', got %q", result.Token)
 		}
@@ -559,7 +550,7 @@ func TestValidateResultRailwayPattern(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
 		// No credentials - will fail
 
-		defaultResult := auth.Result{Valid: false, Type: auth.TypeNone, Error: "default"}
+		defaultResult := auth.Result{Valid: false, Type: auth.TypeNone, Error: "default", Token: ""}
 		result := apiKeyAuth.ValidateResult(req).OrElse(defaultResult)
 
 		if result.Error != "default" {

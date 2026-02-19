@@ -1,41 +1,82 @@
-package health
+package health_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/health"
 	"testing"
 	"time"
 )
 
-func TestCircuitBreakerConfigGetFailureThreshold(t *testing.T) {
+func TestCircuitBreakerConfigUint32Getters(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name     string
-		config   CircuitBreakerConfig
-		expected uint32
-	}{
+	type uint32GetterTestCase struct {
+		getter     func(health.CircuitBreakerConfig) uint32
+		name       string
+		getterName string
+		config     health.CircuitBreakerConfig
+		expected   uint32
+	}
+
+	getFailureThreshold := func(cfg health.CircuitBreakerConfig) uint32 {
+		return cfg.GetFailureThreshold()
+	}
+	getHalfOpenProbes := func(cfg health.CircuitBreakerConfig) uint32 {
+		return cfg.GetHalfOpenProbes()
+	}
+
+	tests := []uint32GetterTestCase{
+		// FailureThreshold tests
 		{
-			name:     "zero value returns default 5",
-			config:   CircuitBreakerConfig{},
-			expected: 5,
+			getter:     getFailureThreshold,
+			name:       "FailureThreshold zero value returns default 5",
+			getterName: "GetFailureThreshold",
+			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0},
+			expected:   5,
 		},
 		{
-			name:     "custom value 10 returns 10",
-			config:   CircuitBreakerConfig{FailureThreshold: 10},
-			expected: 10,
+			getter:     getFailureThreshold,
+			name:       "FailureThreshold custom value 10",
+			getterName: "GetFailureThreshold",
+			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 10, HalfOpenProbes: 0},
+			expected:   10,
 		},
 		{
-			name:     "custom value 1 returns 1",
-			config:   CircuitBreakerConfig{FailureThreshold: 1},
-			expected: 1,
+			getter:     getFailureThreshold,
+			name:       "FailureThreshold custom value 1",
+			getterName: "GetFailureThreshold",
+			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 1, HalfOpenProbes: 0},
+			expected:   1,
+		},
+		// HalfOpenProbes tests
+		{
+			getter:     getHalfOpenProbes,
+			name:       "HalfOpenProbes zero value returns default 3",
+			getterName: "GetHalfOpenProbes",
+			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0},
+			expected:   3,
+		},
+		{
+			getter:     getHalfOpenProbes,
+			name:       "HalfOpenProbes custom value 5",
+			getterName: "GetHalfOpenProbes",
+			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 5},
+			expected:   5,
+		},
+		{
+			getter:     getHalfOpenProbes,
+			name:       "HalfOpenProbes custom value 1",
+			getterName: "GetHalfOpenProbes",
+			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 1},
+			expected:   1,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.config.GetFailureThreshold()
-			if got != tt.expected {
-				t.Errorf("GetFailureThreshold() = %v, want %v", got, tt.expected)
+			got := testCase.getter(testCase.config)
+			if got != testCase.expected {
+				t.Errorf("%s() = %v, want %v", testCase.getterName, got, testCase.expected)
 			}
 		})
 	}
@@ -46,73 +87,45 @@ func TestCircuitBreakerConfigGetOpenDuration(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   CircuitBreakerConfig
+		config   health.CircuitBreakerConfig
 		expected time.Duration
 	}{
 		{
-			name:     "zero value returns default 30s",
-			config:   CircuitBreakerConfig{},
+			name: "zero value returns default 30s",
+			config: health.CircuitBreakerConfig{
+				OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0,
+			},
 			expected: 30 * time.Second,
 		},
 		{
-			name:     "custom value 60000ms returns 60s",
-			config:   CircuitBreakerConfig{OpenDurationMS: 60000},
+			name: "custom value 60000ms returns 60s",
+			config: health.CircuitBreakerConfig{
+				OpenDurationMS: 60000, FailureThreshold: 0, HalfOpenProbes: 0,
+			},
 			expected: 60 * time.Second,
 		},
 		{
-			name:     "custom value 5000ms returns 5s",
-			config:   CircuitBreakerConfig{OpenDurationMS: 5000},
+			name: "custom value 5000ms returns 5s",
+			config: health.CircuitBreakerConfig{
+				OpenDurationMS: 5000, FailureThreshold: 0, HalfOpenProbes: 0,
+			},
 			expected: 5 * time.Second,
 		},
 		{
-			name:     "negative value returns default 30s",
-			config:   CircuitBreakerConfig{OpenDurationMS: -100},
+			name: "negative value returns default 30s",
+			config: health.CircuitBreakerConfig{
+				OpenDurationMS: -100, FailureThreshold: 0, HalfOpenProbes: 0,
+			},
 			expected: 30 * time.Second,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.config.GetOpenDuration()
-			if got != tt.expected {
-				t.Errorf("GetOpenDuration() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestCircuitBreakerConfigGetHalfOpenProbes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		config   CircuitBreakerConfig
-		expected uint32
-	}{
-		{
-			name:     "zero value returns default 3",
-			config:   CircuitBreakerConfig{},
-			expected: 3,
-		},
-		{
-			name:     "custom value 5 returns 5",
-			config:   CircuitBreakerConfig{HalfOpenProbes: 5},
-			expected: 5,
-		},
-		{
-			name:     "custom value 1 returns 1",
-			config:   CircuitBreakerConfig{HalfOpenProbes: 1},
-			expected: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := tt.config.GetHalfOpenProbes()
-			if got != tt.expected {
-				t.Errorf("GetHalfOpenProbes() = %v, want %v", got, tt.expected)
+			got := testCase.config.GetOpenDuration()
+			if got != testCase.expected {
+				t.Errorf("GetOpenDuration() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
@@ -123,37 +136,37 @@ func TestCheckConfigGetInterval(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   CheckConfig
+		config   health.CheckConfig
 		expected time.Duration
 	}{
 		{
 			name:     "zero value returns default 10s",
-			config:   CheckConfig{},
+			config:   health.CheckConfig{Enabled: nil, IntervalMS: 0},
 			expected: 10 * time.Second,
 		},
 		{
 			name:     "custom value 5000ms returns 5s",
-			config:   CheckConfig{IntervalMS: 5000},
+			config:   health.CheckConfig{Enabled: nil, IntervalMS: 5000},
 			expected: 5 * time.Second,
 		},
 		{
 			name:     "custom value 30000ms returns 30s",
-			config:   CheckConfig{IntervalMS: 30000},
+			config:   health.CheckConfig{Enabled: nil, IntervalMS: 30000},
 			expected: 30 * time.Second,
 		},
 		{
 			name:     "negative value returns default 10s",
-			config:   CheckConfig{IntervalMS: -500},
+			config:   health.CheckConfig{Enabled: nil, IntervalMS: -500},
 			expected: 10 * time.Second,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.config.GetInterval()
-			if got != tt.expected {
-				t.Errorf("GetInterval() = %v, want %v", got, tt.expected)
+			got := testCase.config.GetInterval()
+			if got != testCase.expected {
+				t.Errorf("GetInterval() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
@@ -166,32 +179,32 @@ func TestCheckConfigIsEnabled(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   CheckConfig
+		config   health.CheckConfig
 		expected bool
 	}{
 		{
 			name:     "default (nil) returns true",
-			config:   CheckConfig{},
+			config:   health.CheckConfig{Enabled: nil, IntervalMS: 0},
 			expected: true,
 		},
 		{
 			name:     "explicit true returns true",
-			config:   CheckConfig{Enabled: boolPtr(true)},
+			config:   health.CheckConfig{Enabled: boolPtr(true), IntervalMS: 0},
 			expected: true,
 		},
 		{
 			name:     "explicit false returns false",
-			config:   CheckConfig{Enabled: boolPtr(false)},
+			config:   health.CheckConfig{Enabled: boolPtr(false), IntervalMS: 0},
 			expected: false,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.config.IsEnabled()
-			if got != tt.expected {
-				t.Errorf("IsEnabled() = %v, want %v", got, tt.expected)
+			got := testCase.config.IsEnabled()
+			if got != testCase.expected {
+				t.Errorf("IsEnabled() = %v, want %v", got, testCase.expected)
 			}
 		})
 	}
@@ -201,13 +214,14 @@ func TestConfigStructComposition(t *testing.T) {
 	t.Parallel()
 
 	// Test that Config properly composes CircuitBreakerConfig and CheckConfig
-	cfg := Config{
-		CircuitBreaker: CircuitBreakerConfig{
+	cfg := health.Config{
+		CircuitBreaker: health.CircuitBreakerConfig{
 			FailureThreshold: 10,
 			OpenDurationMS:   60000,
 			HalfOpenProbes:   5,
 		},
-		HealthCheck: CheckConfig{
+		HealthCheck: health.CheckConfig{
+			Enabled:    nil,
 			IntervalMS: 15000,
 		},
 	}
@@ -236,18 +250,18 @@ func TestDefaults(t *testing.T) {
 		expected any
 		name     string
 	}{
-		{got: DefaultFailureThreshold, expected: 5, name: "DefaultFailureThreshold"},
-		{got: DefaultOpenDurationMS, expected: 30000, name: "DefaultOpenDurationMS"},
-		{got: DefaultHalfOpenProbes, expected: 3, name: "DefaultHalfOpenProbes"},
-		{got: DefaultHealthCheckMS, expected: 10000, name: "DefaultHealthCheckMS"},
-		{got: DefaultHealthEnabled, expected: true, name: "DefaultHealthEnabled"},
+		{got: health.DefaultFailureThreshold, expected: 5, name: "health.DefaultFailureThreshold"},
+		{got: health.DefaultOpenDurationMS, expected: 30000, name: "health.DefaultOpenDurationMS"},
+		{got: health.DefaultHalfOpenProbes, expected: 3, name: "health.DefaultHalfOpenProbes"},
+		{got: health.DefaultHealthCheckMS, expected: 10000, name: "health.DefaultHealthCheckMS"},
+		{got: health.DefaultHealthEnabled, expected: true, name: "health.DefaultHealthEnabled"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			if tt.got != tt.expected {
-				t.Errorf("%s = %v, want %v", tt.name, tt.got, tt.expected)
+			if testCase.got != testCase.expected {
+				t.Errorf("%s = %v, want %v", testCase.name, testCase.got, testCase.expected)
 			}
 		})
 	}

@@ -21,16 +21,24 @@ const (
 )
 
 func TestRunConfigInitDefaultPath(t *testing.T) {
+	t.Parallel(
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
+	)
 
 	// Create a temp directory to use as HOME
 	tmpDir := t.TempDir()
 
 	// Save original HOME
 	origHome := os.Getenv("HOME")
-	defer func() { os.Setenv("HOME", origHome) }()
+	defer func() {
+		if err := os.Setenv("HOME", origHome); err != nil {
+			t.Logf("failed to restore HOME: %v", err)
+		}
+	}()
 
-	os.Setenv("HOME", tmpDir)
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a mock command with the output and force flags
 	cmd := &cobra.Command{}
@@ -45,12 +53,12 @@ func TestRunConfigInitDefaultPath(t *testing.T) {
 
 	// Verify config file was created
 	configPath := filepath.Join(tmpDir, ".config", "cc-relay", initConfigFileName)
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(configPath); os.IsNotExist(statErr) {
 		t.Error("Expected config.yaml to be created")
 	}
 
 	// Verify content has expected structure
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(filepath.Clean(configPath))
 	if err != nil {
 		t.Fatalf("Failed to read %s: %v", initConfigFileName, err)
 	}
@@ -65,7 +73,9 @@ func TestRunConfigInitDefaultPath(t *testing.T) {
 }
 
 func TestRunConfigInitCustomPath(t *testing.T) {
+	t.Parallel(
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
+	)
 
 	// Create a temp directory
 	tmpDir := t.TempDir()
@@ -75,7 +85,9 @@ func TestRunConfigInitCustomPath(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
 	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
-	_ = cmd.Flags().Set(initConfigOutputFlag, customPath)
+	if err := cmd.Flags().Set(initConfigOutputFlag, customPath); err != nil {
+		t.Fatal(err)
+	}
 
 	// runConfigInit should create config file at custom path
 	err := runConfigInit(cmd, nil)
@@ -90,12 +102,14 @@ func TestRunConfigInitCustomPath(t *testing.T) {
 }
 
 func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
+	t.Parallel(
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
+	)
 
 	// Create a temp directory with an existing config file
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, initConfigFileName)
-	if err := os.WriteFile(configPath, []byte(existingConfigContent), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(existingConfigContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -103,7 +117,9 @@ func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
 	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
-	_ = cmd.Flags().Set(initConfigOutputFlag, configPath)
+	if err := cmd.Flags().Set(initConfigOutputFlag, configPath); err != nil {
+		t.Fatal(err)
+	}
 
 	// runConfigInit should fail
 	err := runConfigInit(cmd, nil)
@@ -116,12 +132,14 @@ func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
 }
 
 func TestRunConfigInitExistingFileWithForce(t *testing.T) {
+	t.Parallel(
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
+	)
 
 	// Create a temp directory with an existing config file
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, initConfigFileName)
-	if err := os.WriteFile(configPath, []byte(existingConfigContent), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(existingConfigContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -129,8 +147,12 @@ func TestRunConfigInitExistingFileWithForce(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
 	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
-	_ = cmd.Flags().Set(initConfigOutputFlag, configPath)
-	_ = cmd.Flags().Set(initConfigForceFlag, "true")
+	if err := cmd.Flags().Set(initConfigOutputFlag, configPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Flags().Set(initConfigForceFlag, "true"); err != nil {
+		t.Fatal(err)
+	}
 
 	// runConfigInit should succeed and overwrite
 	err := runConfigInit(cmd, nil)
@@ -139,7 +161,7 @@ func TestRunConfigInitExistingFileWithForce(t *testing.T) {
 	}
 
 	// Verify content was overwritten (not "existing: content")
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(filepath.Clean(configPath))
 	if err != nil {
 		t.Fatalf("Failed to read %s: %v", initConfigFileName, err)
 	}
@@ -154,7 +176,9 @@ func TestRunConfigInitExistingFileWithForce(t *testing.T) {
 }
 
 func TestRunConfigInitCreatesDirectory(t *testing.T) {
+	t.Parallel(
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
+	)
 
 	// Create a temp directory
 	tmpDir := t.TempDir()
@@ -164,7 +188,9 @@ func TestRunConfigInitCreatesDirectory(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
 	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
-	_ = cmd.Flags().Set(initConfigOutputFlag, nestedPath)
+	if err := cmd.Flags().Set(initConfigOutputFlag, nestedPath); err != nil {
+		t.Fatal(err)
+	}
 
 	// runConfigInit should create nested directories
 	err := runConfigInit(cmd, nil)

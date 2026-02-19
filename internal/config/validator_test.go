@@ -1,10 +1,12 @@
-package config
+package config_test
 
 import (
 	"errors"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/omarluq/cc-relay/internal/config"
 )
 
 const (
@@ -13,32 +15,35 @@ const (
 	testProviderName  = "test"
 	testProviderType  = "anthropic"
 	testKeyValue      = "key"
+	testTypeBedrock   = "bedrock"
+	testTypeVertex    = "vertex"
+	testTypeAzure     = "azure"
+	logLevelInfo      = "info"
+	logFormatJSON     = "json"
 )
 
-func configWithListen(listen string) *Config {
-	return &Config{
-		Server: ServerConfig{
-			Listen: listen,
-		},
-	}
-}
-
-func configWithProvider(provider *ProviderConfig) *Config {
-	cfg := configWithListen(defaultListenAddr)
-	cfg.Providers = []ProviderConfig{*provider}
+func configWithListen(listen string) *config.Config {
+	cfg := config.MakeTestConfig()
+	cfg.Server.Listen = listen
 	return cfg
 }
 
-func configWithSingleProvider(listen string) *Config {
+func configWithProvider(provider *config.ProviderConfig) *config.Config {
+	cfg := configWithListen(defaultListenAddr)
+	cfg.Providers = []config.ProviderConfig{*provider}
+	return cfg
+}
+
+func configWithSingleProvider(listen string) *config.Config {
 	cfg := configWithListen(listen)
-	cfg.Providers = []ProviderConfig{
-		{
-			Name:    testProviderName,
-			Type:    testProviderType,
-			Enabled: true,
-			Keys:    []KeyConfig{{Key: testKeyValue}},
-		},
-	}
+
+	prov := config.MakeTestProviderConfig()
+	prov.Name = testProviderName
+	prov.Type = testProviderType
+	prov.Enabled = true
+	prov.Keys = []config.KeyConfig{config.MakeTestKeyConfig(testKeyValue)}
+
+	cfg.Providers = []config.ProviderConfig{prov}
 	return cfg
 }
 
@@ -59,24 +64,28 @@ func TestValidateValidFullConfig(t *testing.T) {
 	cfg := configWithListen("0.0.0.0:8787")
 	cfg.Server.TimeoutMS = 60000
 	cfg.Server.MaxConcurrent = 100
-	cfg.Providers = []ProviderConfig{
-		{
-			Name:    "anthropic-primary",
-			Type:    "anthropic",
-			Enabled: true,
-			Keys: []KeyConfig{
-				{Key: "sk-ant-test", RPMLimit: 60, TPMLimit: 100000},
-			},
-		},
-	}
-	cfg.Routing = RoutingConfig{
-		Strategy:        "failover",
-		FailoverTimeout: 5000,
-	}
-	cfg.Logging = LoggingConfig{
-		Level:  "info",
-		Format: "json",
-	}
+
+	key := config.MakeTestKeyConfig("sk-ant-test")
+	key.RPMLimit = 60
+	key.TPMLimit = 100000
+
+	prov := config.MakeTestProviderConfig()
+	prov.Name = "anthropic-primary"
+	prov.Type = testProviderType
+	prov.Enabled = true
+	prov.Keys = []config.KeyConfig{key}
+
+	cfg.Providers = []config.ProviderConfig{prov}
+
+	routing := config.MakeTestRoutingConfig()
+	routing.Strategy = "failover"
+	routing.FailoverTimeout = 5000
+	cfg.Routing = routing
+
+	logging := config.MakeTestLoggingConfig()
+	logging.Level = "info"
+	logging.Format = "json"
+	cfg.Logging = logging
 
 	err := cfg.Validate()
 	if err != nil {
@@ -87,7 +96,9 @@ func TestValidateValidFullConfig(t *testing.T) {
 func TestValidateMissingServerListen(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{Server: ServerConfig{TimeoutMS: 60000}}
+	cfg := config.MakeTestConfig()
+	cfg.Server.Listen = ""
+	cfg.Server.TimeoutMS = 60000
 
 	err := cfg.Validate()
 	if err == nil {
@@ -111,14 +122,14 @@ func TestValidateInvalidListenFormat(t *testing.T) {
 		{"empty_port", "127.0.0.1:"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := configWithListen(tt.listen)
+			cfg := configWithListen(testCase.listen)
 
 			err := cfg.Validate()
 			if err == nil {
-				t.Fatalf("Expected error for listen=%q", tt.listen)
+				t.Fatalf("Expected error for listen=%q", testCase.listen)
 			}
 
 			if !strings.Contains(err.Error(), "server.listen") {
@@ -142,14 +153,14 @@ func TestValidateValidListenFormats(t *testing.T) {
 		{"ipv6", "[::1]:8787"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := configWithListen(tt.listen)
+			cfg := configWithListen(testCase.listen)
 
 			err := cfg.Validate()
 			if err != nil {
-				t.Errorf("Expected valid listen=%q, got error: %v", tt.listen, err)
+				t.Errorf("Expected valid listen=%q, got error: %v", testCase.listen, err)
 			}
 		})
 	}
@@ -158,10 +169,13 @@ func TestValidateValidListenFormats(t *testing.T) {
 func TestValidateInvalidProviderType(t *testing.T) {
 	t.Parallel()
 
-	cfg := configWithProvider(&ProviderConfig{
-		Name: "test",
-		Type: "invalid-type",
-	})
+	prov := config.MakeTestProviderConfig()
+	prov.Name = testProviderName
+	prov.Type = "invalid-type"
+	prov.Keys = nil
+	prov.Enabled = false
+
+	cfg := configWithProvider(&prov)
 
 	err := cfg.Validate()
 	if err == nil {
@@ -176,25 +190,27 @@ func TestValidateInvalidProviderType(t *testing.T) {
 func TestValidateValidProviderTypes(t *testing.T) {
 	t.Parallel()
 
-	validTypes := []string{"anthropic", "zai", "ollama", "bedrock", "vertex", "azure"}
+	validTypes := []string{testProviderType, "zai", "ollama", testTypeBedrock, testTypeVertex, testTypeAzure}
 
 	for _, provType := range validTypes {
 		t.Run(provType, func(t *testing.T) {
 			t.Parallel()
-			cfg := configWithProvider(&ProviderConfig{
-				Name: "test",
-				Type: provType,
-				Keys: []KeyConfig{{Key: "test-key"}},
-			})
+
+			prov := config.MakeTestProviderConfig()
+			prov.Name = testProviderName
+			prov.Type = provType
+			prov.Keys = []config.KeyConfig{config.MakeTestKeyConfig("test-key")}
+
+			cfg := configWithProvider(&prov)
 
 			// Add required cloud provider fields
 			switch provType {
-			case "bedrock":
+			case testTypeBedrock:
 				cfg.Providers[0].AWSRegion = "us-east-1"
-			case "vertex":
+			case testTypeVertex:
 				cfg.Providers[0].GCPProjectID = "test-project"
 				cfg.Providers[0].GCPRegion = "us-central1"
-			case "azure":
+			case testTypeAzure:
 				cfg.Providers[0].AzureResourceName = "test-resource"
 			}
 
@@ -209,9 +225,11 @@ func TestValidateValidProviderTypes(t *testing.T) {
 func TestValidateMissingProviderName(t *testing.T) {
 	t.Parallel()
 
-	cfg := configWithProvider(&ProviderConfig{
-		Type: "anthropic",
-	})
+	prov := config.MakeTestProviderConfig()
+	prov.Name = ""
+	prov.Type = testProviderType
+
+	cfg := configWithProvider(&prov)
 
 	err := cfg.Validate()
 	if err == nil {
@@ -226,9 +244,11 @@ func TestValidateMissingProviderName(t *testing.T) {
 func TestValidateMissingProviderType(t *testing.T) {
 	t.Parallel()
 
-	cfg := configWithProvider(&ProviderConfig{
-		Name: "test",
-	})
+	prov := config.MakeTestProviderConfig()
+	prov.Name = testProviderName
+	prov.Type = ""
+
+	cfg := configWithProvider(&prov)
 
 	err := cfg.Validate()
 	if err == nil {
@@ -244,10 +264,18 @@ func TestValidateDuplicateProviderNames(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithListen(defaultListenAddr)
-	cfg.Providers = []ProviderConfig{
-		{Name: "anthropic", Type: "anthropic", Keys: []KeyConfig{{Key: "key1"}}},
-		{Name: "anthropic", Type: "anthropic", Keys: []KeyConfig{{Key: "key2"}}},
-	}
+
+	prov1 := config.MakeTestProviderConfig()
+	prov1.Name = testProviderType
+	prov1.Type = testProviderType
+	prov1.Keys = []config.KeyConfig{config.MakeTestKeyConfig("key1")}
+
+	prov2 := config.MakeTestProviderConfig()
+	prov2.Name = testProviderType
+	prov2.Type = testProviderType
+	prov2.Keys = []config.KeyConfig{config.MakeTestKeyConfig("key2")}
+
+	cfg.Providers = []config.ProviderConfig{prov1, prov2}
 
 	err := cfg.Validate()
 	if err == nil {
@@ -263,9 +291,10 @@ func TestValidateInvalidRoutingStrategy(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithListen(defaultListenAddr)
-	cfg.Routing = RoutingConfig{
-		Strategy: "invalid-strategy",
-	}
+
+	routing := config.MakeTestRoutingConfig()
+	routing.Strategy = "invalid-strategy"
+	cfg.Routing = routing
 
 	err := cfg.Validate()
 	if err == nil {
@@ -289,13 +318,14 @@ func TestValidateValidRoutingStrategies(t *testing.T) {
 		t.Run(strategy, func(t *testing.T) {
 			t.Parallel()
 			cfg := configWithListen(defaultListenAddr)
-			cfg.Routing = RoutingConfig{
-				Strategy: strategy,
-			}
+
+			routing := config.MakeTestRoutingConfig()
+			routing.Strategy = strategy
+			cfg.Routing = routing
 
 			// model_based requires model_mapping
 			if strategy == "model_based" {
-				cfg.Routing.ModelMapping = map[string]string{"claude": "anthropic"}
+				cfg.Routing.ModelMapping = map[string]string{"claude": testProviderType}
 			}
 
 			err := cfg.Validate()
@@ -310,9 +340,11 @@ func TestValidateModelBasedRequiresMapping(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithListen(defaultListenAddr)
-	cfg.Routing = RoutingConfig{
-		Strategy: "model_based",
-	}
+
+	routing := config.MakeTestRoutingConfig()
+	routing.Strategy = "model_based"
+	routing.ModelMapping = nil
+	cfg.Routing = routing
 
 	err := cfg.Validate()
 	if err == nil {
@@ -328,9 +360,10 @@ func TestValidateInvalidLoggingLevel(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithListen(defaultListenAddr)
-	cfg.Logging = LoggingConfig{
-		Level: "verbose",
-	}
+
+	logging := config.MakeTestLoggingConfig()
+	logging.Level = "verbose"
+	cfg.Logging = logging
 
 	err := cfg.Validate()
 	if err == nil {
@@ -346,9 +379,10 @@ func TestValidateInvalidLoggingFormat(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithListen(defaultListenAddr)
-	cfg.Logging = LoggingConfig{
-		Format: "xml",
-	}
+
+	logging := config.MakeTestLoggingConfig()
+	logging.Format = "xml"
+	cfg.Logging = logging
 
 	err := cfg.Validate()
 	if err == nil {
@@ -363,46 +397,68 @@ func TestValidateInvalidLoggingFormat(t *testing.T) {
 func TestValidateCloudProviderMissingFields(t *testing.T) {
 	t.Parallel()
 
+	bedrockMissingRegion := config.MakeTestProviderConfig()
+	bedrockMissingRegion.Name = testTypeBedrock
+	bedrockMissingRegion.Type = testTypeBedrock
+	bedrockMissingRegion.AWSRegion = ""
+
+	vertexMissingProject := config.MakeTestProviderConfig()
+	vertexMissingProject.Name = testTypeVertex
+	vertexMissingProject.Type = testTypeVertex
+	vertexMissingProject.GCPRegion = "us-central1"
+	vertexMissingProject.GCPProjectID = ""
+
+	vertexMissingRegion := config.MakeTestProviderConfig()
+	vertexMissingRegion.Name = testTypeVertex
+	vertexMissingRegion.Type = testTypeVertex
+	vertexMissingRegion.GCPProjectID = "test"
+	vertexMissingRegion.GCPRegion = ""
+
+	azureMissingResource := config.MakeTestProviderConfig()
+	azureMissingResource.Name = testTypeAzure
+	azureMissingResource.Type = testTypeAzure
+	azureMissingResource.AzureResourceName = ""
+
 	tests := []struct {
 		name     string
 		missing  string
-		provider ProviderConfig
+		provider config.ProviderConfig
 	}{
 		{
 			name:     "bedrock_missing_region",
-			provider: ProviderConfig{Name: "bedrock", Type: "bedrock"},
+			provider: bedrockMissingRegion,
 			missing:  "aws_region",
 		},
 		{
 			name:     "vertex_missing_project",
-			provider: ProviderConfig{Name: "vertex", Type: "vertex", GCPRegion: "us-central1"},
+			provider: vertexMissingProject,
 			missing:  "gcp_project_id",
 		},
 		{
 			name:     "vertex_missing_region",
-			provider: ProviderConfig{Name: "vertex", Type: "vertex", GCPProjectID: "test"},
+			provider: vertexMissingRegion,
 			missing:  "gcp_region",
 		},
 		{
 			name:     "azure_missing_resource",
-			provider: ProviderConfig{Name: "azure", Type: "azure"},
+			provider: azureMissingResource,
 			missing:  "azure_resource_name",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			provider := tt.provider
+			provider := testCase.provider
 			cfg := configWithProvider(&provider)
 
 			err := cfg.Validate()
 			if err == nil {
-				t.Fatalf("Expected error for missing %s", tt.missing)
+				t.Fatalf("Expected error for missing %s", testCase.missing)
 			}
 
-			if !strings.Contains(err.Error(), tt.missing) {
-				t.Errorf("Expected %s in error, got: %v", tt.missing, err)
+			if !strings.Contains(err.Error(), testCase.missing) {
+				t.Errorf("Expected %s in error, got: %v", testCase.missing, err)
 			}
 		})
 	}
@@ -411,30 +467,28 @@ func TestValidateCloudProviderMissingFields(t *testing.T) {
 func TestValidateMultipleErrors(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{
-		Server: ServerConfig{
-			// Missing listen
-			TimeoutMS: -1, // Invalid
-		},
-		Providers: []ProviderConfig{
-			{
-				// Missing name
-				Type: "invalid-type",
-			},
-		},
-		Logging: LoggingConfig{
-			Level: "verbose",
-		},
-	}
+	cfg := config.MakeTestConfig()
+	cfg.Server.Listen = ""   // Missing listen
+	cfg.Server.TimeoutMS = -1 // Invalid
+
+	invalidProv := config.MakeTestProviderConfig()
+	invalidProv.Name = "" // Missing name
+	invalidProv.Type = "invalid-type"
+
+	cfg.Providers = []config.ProviderConfig{invalidProv}
+
+	logging := config.MakeTestLoggingConfig()
+	logging.Level = "verbose"
+	cfg.Logging = logging
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Expected multiple validation errors")
 	}
 
-	var validationErr *ValidationError
+	var validationErr *config.ValidationError
 	if !errors.As(err, &validationErr) {
-		t.Fatalf("Expected ValidationError, got %T", err)
+		t.Fatalf("Expected config.ValidationError, got %T", err)
 	}
 
 	// Should have at least 4 errors:
@@ -451,7 +505,10 @@ func TestValidateInvalidKeyPriority(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithSingleProvider(defaultListenAddr)
-	cfg.Providers[0].Keys = []KeyConfig{{Key: "test", Priority: 5}}
+
+	key := config.MakeTestKeyConfig("test")
+	key.Priority = 5
+	cfg.Providers[0].Keys = []config.KeyConfig{key}
 
 	err := cfg.Validate()
 	if err == nil {
@@ -467,7 +524,10 @@ func TestValidateMissingKeyValue(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithSingleProvider(defaultListenAddr)
-	cfg.Providers[0].Keys = []KeyConfig{{RPMLimit: 60}}
+
+	key := config.MakeTestKeyConfig("")
+	key.RPMLimit = 60
+	cfg.Providers[0].Keys = []config.KeyConfig{key}
 
 	err := cfg.Validate()
 	if err == nil {
@@ -482,7 +542,7 @@ func TestValidateMissingKeyValue(t *testing.T) {
 func TestValidationErrorSingleError(t *testing.T) {
 	t.Parallel()
 
-	verr := &ValidationError{}
+	verr := config.MakeTestValidationError()
 	verr.Add("test error")
 
 	expected := "config validation failed: test error"
@@ -494,7 +554,7 @@ func TestValidationErrorSingleError(t *testing.T) {
 func TestValidationErrorMultipleErrors(t *testing.T) {
 	t.Parallel()
 
-	verr := &ValidationError{}
+	verr := config.MakeTestValidationError()
 	verr.Add("error 1")
 	verr.Add("error 2")
 	verr.Add("error 3")
@@ -504,9 +564,9 @@ func TestValidationErrorMultipleErrors(t *testing.T) {
 		t.Errorf("Expected '3 errors' in message, got: %s", result)
 	}
 
-	for i := 1; i <= 3; i++ {
-		if !strings.Contains(result, "error "+strconv.Itoa(i)) {
-			t.Errorf("Expected 'error %d' in message, got: %s", i, result)
+	for idx := 1; idx <= 3; idx++ {
+		if !strings.Contains(result, "error "+strconv.Itoa(idx)) {
+			t.Errorf("Expected 'error %d' in message, got: %s", idx, result)
 		}
 	}
 }
@@ -514,7 +574,7 @@ func TestValidationErrorMultipleErrors(t *testing.T) {
 func TestValidationErrorEmpty(t *testing.T) {
 	t.Parallel()
 
-	verr := &ValidationError{}
+	verr := config.MakeTestValidationError()
 
 	if verr.HasErrors() {
 		t.Error("Expected HasErrors() to be false for empty error")
@@ -525,98 +585,66 @@ func TestValidationErrorEmpty(t *testing.T) {
 	}
 }
 
-func TestValidateMaxConcurrent(t *testing.T) {
+func TestValidateServerFields(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name          string
-		maxConcurrent int
-		wantErr       bool
-	}{
-		{
-			name:          "zero is valid (unlimited)",
-			maxConcurrent: 0,
-			wantErr:       false,
-		},
-		{
-			name:          "positive is valid",
-			maxConcurrent: 100,
-			wantErr:       false,
-		},
-		{
-			name:          "negative is invalid",
-			maxConcurrent: -1,
-			wantErr:       true,
-		},
-	}
+	t.Run("max_concurrent/zero_is_valid", func(t *testing.T) {
+		t.Parallel()
+		cfg := configWithSingleProvider(testListenAddr)
+		cfg.Server.MaxConcurrent = 0
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Unexpected validation error: %v", err)
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	t.Run("max_concurrent/positive_is_valid", func(t *testing.T) {
+		t.Parallel()
+		cfg := configWithSingleProvider(testListenAddr)
+		cfg.Server.MaxConcurrent = 100
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Unexpected validation error: %v", err)
+		}
+	})
 
-			cfg := configWithSingleProvider(testListenAddr)
-			cfg.Server.MaxConcurrent = tt.maxConcurrent
+	t.Run("max_concurrent/negative_is_invalid", func(t *testing.T) {
+		t.Parallel()
+		cfg := configWithSingleProvider(testListenAddr)
+		cfg.Server.MaxConcurrent = -1
+		err := cfg.Validate()
+		if err == nil {
+			t.Error("Expected validation error for negative max_concurrent")
+		} else if !strings.Contains(err.Error(), "max_concurrent") {
+			t.Errorf("Expected 'max_concurrent' in error, got: %v", err)
+		}
+	})
 
-			err := cfg.Validate()
-			if tt.wantErr {
-				if err == nil {
-					t.Error("Expected validation error for negative max_concurrent")
-				} else if !strings.Contains(err.Error(), "max_concurrent") {
-					t.Errorf("Expected 'max_concurrent' in error, got: %v", err)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected validation error: %v", err)
-				}
-			}
-		})
-	}
-}
+	t.Run("max_body_bytes/zero_is_valid", func(t *testing.T) {
+		t.Parallel()
+		cfg := configWithSingleProvider(testListenAddr)
+		cfg.Server.MaxBodyBytes = 0
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Unexpected validation error: %v", err)
+		}
+	})
 
-func TestValidateMaxBodyBytes(t *testing.T) {
-	t.Parallel()
+	t.Run("max_body_bytes/positive_is_valid", func(t *testing.T) {
+		t.Parallel()
+		cfg := configWithSingleProvider(testListenAddr)
+		cfg.Server.MaxBodyBytes = 10485760 // 10MB
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Unexpected validation error: %v", err)
+		}
+	})
 
-	tests := []struct {
-		name         string
-		maxBodyBytes int64
-		wantErr      bool
-	}{
-		{
-			name:         "zero is valid (unlimited)",
-			maxBodyBytes: 0,
-			wantErr:      false,
-		},
-		{
-			name:         "positive is valid",
-			maxBodyBytes: 10485760, // 10MB
-			wantErr:      false,
-		},
-		{
-			name:         "negative is invalid",
-			maxBodyBytes: -1,
-			wantErr:      true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := configWithSingleProvider(testListenAddr)
-			cfg.Server.MaxBodyBytes = tt.maxBodyBytes
-
-			err := cfg.Validate()
-			if tt.wantErr {
-				if err == nil {
-					t.Error("Expected validation error for negative max_body_bytes")
-				} else if !strings.Contains(err.Error(), "max_body_bytes") {
-					t.Errorf("Expected 'max_body_bytes' in error, got: %v", err)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected validation error: %v", err)
-				}
-			}
-		})
-	}
+	t.Run("max_body_bytes/negative_is_invalid", func(t *testing.T) {
+		t.Parallel()
+		cfg := configWithSingleProvider(testListenAddr)
+		cfg.Server.MaxBodyBytes = -1
+		err := cfg.Validate()
+		if err == nil {
+			t.Error("Expected validation error for negative max_body_bytes")
+		} else if !strings.Contains(err.Error(), "max_body_bytes") {
+			t.Errorf("Expected 'max_body_bytes' in error, got: %v", err)
+		}
+	})
 }

@@ -56,25 +56,25 @@ func (s *ProviderInfoService) RebuildFrom(cfg *config.Config) {
 	providerMap := s.providerSvc.GetProviders()
 
 	for idx := range cfg.Providers {
-		pc := &cfg.Providers[idx]
-		if !pc.Enabled {
+		providerCfg := &cfg.Providers[idx]
+		if !providerCfg.Enabled {
 			continue
 		}
 
-		prov, ok := providerMap[pc.Name]
+		prov, ok := providerMap[providerCfg.Name]
 		if !ok {
 			continue
 		}
 
 		// Get weight and priority from first key (provider-level defaults)
 		var weight, priority int
-		if len(pc.Keys) > 0 {
-			weight = pc.Keys[0].Weight
-			priority = pc.Keys[0].Priority
+		if len(providerCfg.Keys) > 0 {
+			weight = providerCfg.Keys[0].Weight
+			priority = providerCfg.Keys[0].Priority
 		}
 
 		// Wire IsHealthy from tracker
-		providerName := pc.Name
+		providerName := providerCfg.Name
 		providerInfos = append(providerInfos, router.ProviderInfo{
 			Provider:  prov,
 			Weight:    weight,
@@ -112,6 +112,7 @@ func NewProviderInfo(i do.Injector) (*ProviderInfoService, error) {
 	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
 
 	svc := &ProviderInfoService{
+		infos:       atomic.Pointer[[]router.ProviderInfo]{},
 		cfgSvc:      cfgSvc,
 		providerSvc: providerSvc,
 		trackerSvc:  trackerSvc,

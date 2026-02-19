@@ -33,18 +33,18 @@ func ExtractModelFromRequest(r *http.Request) mo.Option[string] {
 //   - bodyTooLarge=true if reading failed due to http.MaxBytesReader limit
 //
 // The request body is always restored for downstream use.
-func ExtractModelWithBodyCheck(r *http.Request) (model mo.Option[string], bodyTooLarge bool) {
-	if r.Body == nil {
+func ExtractModelWithBodyCheck(request *http.Request) (model mo.Option[string], bodyTooLarge bool) {
+	if request.Body == nil {
 		return mo.None[string](), false
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
-	closeBody(r.Body)
+	bodyBytes, err := io.ReadAll(request.Body)
+	closeBody(request.Body)
 
 	// Always restore body for downstream use, even on partial read error
 	// io.ReadAll may return partial bytes alongside an error
-	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	r.ContentLength = int64(len(bodyBytes))
+	request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	request.ContentLength = int64(len(bodyBytes))
 
 	if err != nil {
 		// Check if this is a body too large error

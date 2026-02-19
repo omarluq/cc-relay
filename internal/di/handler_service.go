@@ -16,16 +16,16 @@ type HandlerService struct {
 }
 
 // NewProxyHandler creates the HTTP handler with all middleware.
-func NewProxyHandler(i do.Injector) (*HandlerService, error) {
-	cfgSvc := do.MustInvoke[*ConfigService](i)
-	providerSvc := do.MustInvoke[*ProviderMapService](i)
-	poolSvc := do.MustInvoke[*KeyPoolService](i)
-	poolMapSvc := do.MustInvoke[*KeyPoolMapService](i)
-	routerSvc := do.MustInvoke[*RouterService](i)
-	providerInfoSvc := do.MustInvoke[*ProviderInfoService](i)
-	trackerSvc := do.MustInvoke[*HealthTrackerService](i)
-	sigCacheSvc := do.MustInvoke[*SignatureCacheService](i)
-	concurrencySvc := do.MustInvoke[*ConcurrencyService](i)
+func NewProxyHandler(injector do.Injector) (*HandlerService, error) {
+	cfgSvc := do.MustInvoke[*ConfigService](injector)
+	providerSvc := do.MustInvoke[*ProviderMapService](injector)
+	poolSvc := do.MustInvoke[*KeyPoolService](injector)
+	poolMapSvc := do.MustInvoke[*KeyPoolMapService](injector)
+	routerSvc := do.MustInvoke[*RouterService](injector)
+	providerInfoSvc := do.MustInvoke[*ProviderInfoService](injector)
+	trackerSvc := do.MustInvoke[*HealthTrackerService](injector)
+	sigCacheSvc := do.MustInvoke[*SignatureCacheService](injector)
+	concurrencySvc := do.MustInvoke[*ConcurrencyService](injector)
 
 	// Use SetupRoutesWithLiveKeyPools for full hot-reload support:
 	// - Live provider info (enabled/disabled, weights, priorities)
@@ -47,6 +47,9 @@ func NewProxyHandler(i do.Injector) (*HandlerService, error) {
 		HealthTracker:      trackerSvc.Tracker,
 		SignatureCache:     sigCacheSvc.Cache,
 		ConcurrencyLimiter: concurrencySvc.Limiter, // Hot-reloadable concurrency limit
+		ProviderPools:      nil,
+		ProviderKeys:       nil,
+		ProviderInfos:      nil,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup proxy handler: %w", err)

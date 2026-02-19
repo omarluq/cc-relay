@@ -50,9 +50,12 @@ func NewChecker(i do.Injector) (*CheckerService, error) {
 	loggerSvc := do.MustInvoke[*LoggerService](i)
 
 	checkerSvc := &CheckerService{
-		cfgSvc:  cfgSvc,
-		tracker: trackerSvc,
-		logger:  loggerSvc,
+		Checker:   nil,
+		cfgSvc:    cfgSvc,
+		tracker:   trackerSvc,
+		logger:    loggerSvc,
+		started:   false,
+		startedMu: sync.Mutex{},
 	}
 
 	if err := checkerSvc.rebuildFrom(cfgSvc.Config); err != nil {
@@ -117,16 +120,16 @@ func (h *CheckerService) rebuildFrom(cfg *config.Config) error {
 
 func (h *CheckerService) registerProviders(checker *health.Checker, cfg *config.Config) {
 	for idx := range cfg.Providers {
-		pc := &cfg.Providers[idx]
-		if !pc.Enabled {
+		providerConfig := &cfg.Providers[idx]
+		if !providerConfig.Enabled {
 			continue
 		}
 
-		baseURL := providerHealthBaseURL(pc)
-		healthCheck := health.NewProviderHealthCheck(pc.Name, baseURL, nil)
+		baseURL := providerHealthBaseURL(providerConfig)
+		healthCheck := health.NewProviderHealthCheck(providerConfig.Name, baseURL, nil)
 		checker.RegisterProvider(healthCheck)
 		h.logger.Logger.Debug().
-			Str("provider", pc.Name).
+			Str("provider", providerConfig.Name).
 			Str("base_url", baseURL).
 			Msg("registered health check")
 	}
@@ -145,23 +148,23 @@ func (h *CheckerService) swapChecker(checker *health.Checker) {
 	}
 }
 
-func providerHealthBaseURL(pc *config.ProviderConfig) string {
-	baseURL := pc.BaseURL
-	switch pc.Type {
-	case "bedrock":
+func providerHealthBaseURL(providerConfig *config.ProviderConfig) string {
+	baseURL := providerConfig.BaseURL
+	switch providerConfig.Type {
+	case ProviderTypeBedrock:
 		// Bedrock base URL: https://bedrock-runtime.{region}.amazonaws.com
-		if pc.AWSRegion != "" {
-			baseURL = fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", pc.AWSRegion)
+		if providerConfig.AWSRegion != "" {
+			baseURL = fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", providerConfig.AWSRegion)
 		}
-	case "vertex":
+	case ProviderTypeVertex:
 		// Vertex base URL: https://{region}-aiplatform.googleapis.com
-		if pc.GCPRegion != "" {
-			baseURL = fmt.Sprintf("https://%s-aiplatform.googleapis.com", pc.GCPRegion)
+		if providerConfig.GCPRegion != "" {
+			baseURL = fmt.Sprintf("https://%s-aiplatform.googleapis.com", providerConfig.GCPRegion)
 		}
-	case "azure":
+	case ProviderTypeAzure:
 		// Azure base URL: https://{resource}.services.ai.azure.com
-		if pc.AzureResourceName != "" {
-			baseURL = fmt.Sprintf("https://%s.services.ai.azure.com", pc.AzureResourceName)
+		if providerConfig.AzureResourceName != "" {
+			baseURL = fmt.Sprintf("https://%s.services.ai.azure.com", providerConfig.AzureResourceName)
 		}
 	}
 	return baseURL

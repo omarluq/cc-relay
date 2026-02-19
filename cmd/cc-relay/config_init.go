@@ -46,24 +46,24 @@ func runConfigInit(cmd *cobra.Command, _ []string) error {
 
 	// Create directory if needed
 	dir := filepath.Dir(output)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
 	// Write default config
 	defaultConfig := defaultConfigTemplate
 
-	if err := os.WriteFile(output, []byte(defaultConfig), 0600); err != nil {
+	if err := os.WriteFile(output, []byte(defaultConfig), 0o600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	fmt.Printf("✓ Config file created at %s\n", output)
-	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Set ANTHROPIC_API_KEY environment variable")
-	fmt.Println("  2. Edit the config file to customize providers and routing")
-	fmt.Println("  3. Validate with: cc-relay config validate")
-	fmt.Println("  4. Start the proxy: cc-relay serve")
-	fmt.Println("  5. Configure Claude Code: cc-relay config cc init")
+	cmd.Printf("✓ Config file created at %s\n", output)
+	cmd.Println("\nNext steps:")
+	cmd.Println("  1. Set ANTHROPIC_API_KEY environment variable")
+	cmd.Println("  2. Edit the config file to customize providers and routing")
+	cmd.Println("  3. Validate with: cc-relay config validate")
+	cmd.Println("  4. Start the proxy: cc-relay serve")
+	cmd.Println("  5. Configure Claude Code: cc-relay config cc init")
 
 	return nil
 }

@@ -146,12 +146,12 @@ func (c *ROCache) GetOrFetch(
 //	)
 func GetOrFetchTyped[T any](
 	ctx context.Context,
-	c *ROCache,
+	roCache *ROCache,
 	key string,
 	fetch func() ro.Observable[T],
 ) ro.Observable[T] {
 	return ro.NewObservable(func(observer ro.Observer[T]) ro.Teardown {
-		result, ok, err := getCachedTyped[T](ctx, c, key)
+		result, ok, err := getCachedTyped[T](ctx, roCache, key)
 		if err != nil && !errors.Is(err, ErrCacheCorrupt) {
 			observer.Error(err)
 			return nil
@@ -172,7 +172,7 @@ func GetOrFetchTyped[T any](
 			return nil
 		}
 
-		cacheTyped(ctx, c, key, fetched)
+		cacheTyped(ctx, roCache, key, fetched)
 		observer.Next(fetched)
 		observer.Complete()
 		return nil
@@ -362,7 +362,7 @@ func (c *ROCache) Underlying() Cache {
 //	})
 func Stream[T any](
 	ctx context.Context,
-	c *ROCache,
+	roCache *ROCache,
 	source ro.Observable[T],
 	keyFunc func(T) string,
 ) ro.Observable[T] {
@@ -371,7 +371,7 @@ func Stream[T any](
 		ro.DoOnNext(func(item T) {
 			data, err := json.Marshal(item)
 			if err == nil {
-				if err := c.cache.SetWithTTL(ctx, keyFunc(item), data, c.ttl); err != nil {
+				if err := roCache.cache.SetWithTTL(ctx, keyFunc(item), data, roCache.ttl); err != nil {
 					ignoreCacheErr(err)
 				}
 			}

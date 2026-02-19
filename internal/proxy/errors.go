@@ -44,7 +44,7 @@ type ErrorDetail struct {
 }
 
 // WriteError writes a JSON error response in Anthropic API format.
-func WriteError(w http.ResponseWriter, statusCode int, errorType, message string) {
+func WriteError(writer http.ResponseWriter, statusCode int, errorType, message string) {
 	response := ErrorResponse{
 		Type: "error",
 		Error: ErrorDetail{
@@ -53,25 +53,25 @@ func WriteError(w http.ResponseWriter, statusCode int, errorType, message string
 		},
 	}
 
-	writeJSON(w, statusCode, response)
+	writeJSON(writer, statusCode, response)
 }
 
 // WriteRateLimitError writes a 429 Too Many Requests response in Anthropic format.
 // The retryAfter parameter specifies when capacity will be available.
-func WriteRateLimitError(w http.ResponseWriter, retryAfter time.Duration) {
+func WriteRateLimitError(writer http.ResponseWriter, retryAfter time.Duration) {
 	// Set Retry-After header (RFC 6585)
 	seconds := int(retryAfter.Seconds())
 	if seconds < 1 {
 		seconds = 1 // Minimum 1 second
 	}
-	w.Header().Set("Retry-After", strconv.Itoa(seconds))
+	writer.Header().Set("Retry-After", strconv.Itoa(seconds))
 
 	log.Warn().
 		Dur("retry_after", retryAfter).
 		Int("retry_after_seconds", seconds).
 		Msg("Returning 429 rate limit error")
 
-	WriteError(w, http.StatusTooManyRequests, "rate_limit_error",
+	WriteError(writer, http.StatusTooManyRequests, "rate_limit_error",
 		"All API keys are currently at rate limit capacity. Please retry after the specified time.")
 }
 

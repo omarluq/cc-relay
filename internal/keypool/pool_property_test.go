@@ -1,4 +1,4 @@
-package keypool
+package keypool_test
 
 import (
 	"context"
@@ -8,35 +8,32 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/omarluq/cc-relay/internal/keypool"
 )
 
-// Property-based tests for KeyPool
+// Property-based tests for KeyPool - split into focused test functions to reduce cognitive complexity.
 
-func TestKeyPoolProperties(t *testing.T) {
+func TestKeyPoolTerminationProperty(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
 
-	// Property 1: GetKey always terminates (returns key or error, never hangs)
 	properties.Property("GetKey terminates", prop.ForAll(
 		func(keyCount int) bool {
 			if keyCount <= 0 {
-				return true // Skip invalid cases
+				return true
 			}
 
 			pool := createTestPoolWithNKeys(keyCount)
 			ctx := context.Background()
 
-			// Should complete without hanging
 			_, _, err := pool.GetKey(ctx)
-
-			// Either we get a key or an error - both are valid termination
 			return err != nil || true
 		},
 		gen.IntRange(1, 20),
 	))
 
-	// Property 2: Selected key is always in the pool
 	properties.Property("selected key belongs to pool", prop.ForAll(
 		func(keyCount int) bool {
 			if keyCount <= 0 {
@@ -48,16 +45,14 @@ func TestKeyPoolProperties(t *testing.T) {
 
 			keyID, _, err := pool.GetKey(ctx)
 			if err != nil {
-				return true // No key selected, property holds vacuously
+				return true
 			}
 
-			// Verify the key ID exists in the pool
-			return pool.containsKeyID(keyID)
+			return pool.ContainsKeyID(keyID)
 		},
 		gen.IntRange(1, 20),
 	))
 
-	// Property 3: GetKey returns valid API key (non-empty) on success
 	properties.Property("GetKey returns non-empty API key on success", prop.ForAll(
 		func(keyCount int) bool {
 			if keyCount <= 0 {
@@ -67,17 +62,25 @@ func TestKeyPoolProperties(t *testing.T) {
 			pool := createTestPoolWithNKeys(keyCount)
 			ctx := context.Background()
 
-			_, apiKey, err := pool.GetKey(ctx)
+			_, resultAPIKey, err := pool.GetKey(ctx)
 			if err != nil {
-				return true // Error is fine
+				return true
 			}
 
-			return apiKey != ""
+			return resultAPIKey != ""
 		},
 		gen.IntRange(1, 20),
 	))
 
-	// Property 4: GetStats totals are correct
+	properties.TestingRun(t)
+}
+
+func TestKeyPoolStatsProperties(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
 	properties.Property("stats total equals key count", prop.ForAll(
 		func(keyCount int) bool {
 			if keyCount <= 0 {
@@ -92,7 +95,6 @@ func TestKeyPoolProperties(t *testing.T) {
 		gen.IntRange(1, 50),
 	))
 
-	// Property 5: Available + Exhausted = Total
 	properties.Property("available plus exhausted equals total", prop.ForAll(
 		func(keyCount int) bool {
 			if keyCount <= 0 {
@@ -107,21 +109,28 @@ func TestKeyPoolProperties(t *testing.T) {
 		gen.IntRange(1, 50),
 	))
 
-	// Property 6: Empty pool returns error
+	properties.TestingRun(t)
+}
+
+func TestKeyPoolConfigValidationProperties(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
 	properties.Property("empty pool config returns error", prop.ForAll(
 		func(_ bool) bool {
-			cfg := PoolConfig{
+			cfg := keypool.PoolConfig{
 				Strategy: "least_loaded",
-				Keys:     []KeyConfig{},
+				Keys:     []keypool.KeyConfig{},
 			}
 
-			pool, err := NewKeyPool("test", cfg)
+			pool, err := keypool.NewKeyPool("test", cfg)
 			return pool == nil && err != nil
 		},
 		gen.Bool(),
 	))
 
-	// Property 7: All healthy keys have non-zero capacity score
 	properties.Property("healthy keys have positive capacity", prop.ForAll(
 		func(keyCount int) bool {
 			if keyCount <= 0 {
@@ -144,12 +153,27 @@ func TestKeyPoolProperties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestKeyPoolConcurrentAccessProperties(t *testing.T) {
+// safeGetKey calls pool.GetKey in a goroutine and reports panic via done channel.
+func safeGetKey(pool *keypool.KeyPool, done chan<- bool) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			done <- false
+			return
+		}
+		done <- true
+	}()
+	ctx := context.Background()
+	if _, _, getKeyErr := pool.GetKey(ctx); getKeyErr != nil {
+		return
+	}
+}
+
+func TestKeyPoolConcurrentGetKeyProperty(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)
 
-	// Property: Concurrent GetKey calls don't panic
 	properties.Property("concurrent GetKey is safe", prop.ForAll(
 		func(goroutines int) bool {
 			if goroutines <= 0 || goroutines > 100 {
@@ -157,25 +181,13 @@ func TestKeyPoolConcurrentAccessProperties(t *testing.T) {
 			}
 
 			pool := createTestPoolWithNKeys(5)
-			ctx := context.Background()
-
 			done := make(chan bool, goroutines)
 
-			for i := 0; i < goroutines; i++ {
-				go func() {
-					defer func() {
-						if r := recover(); r != nil {
-							done <- false
-							return
-						}
-						done <- true
-					}()
-					_, _, _ = pool.GetKey(ctx)
-				}()
+			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+				go safeGetKey(pool, done)
 			}
 
-			// Wait for all goroutines
-			for i := 0; i < goroutines; i++ {
+			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
 				if !<-done {
 					return false
 				}
@@ -186,7 +198,15 @@ func TestKeyPoolConcurrentAccessProperties(t *testing.T) {
 		gen.IntRange(1, 50),
 	))
 
-	// Property: Concurrent GetStats doesn't panic
+	properties.TestingRun(t)
+}
+
+func TestKeyPoolConcurrentGetStatsProperty(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
+	properties := gopter.NewProperties(parameters)
+
 	properties.Property("concurrent GetStats is safe", prop.ForAll(
 		func(goroutines int) bool {
 			if goroutines <= 0 || goroutines > 100 {
@@ -196,10 +216,10 @@ func TestKeyPoolConcurrentAccessProperties(t *testing.T) {
 			pool := createTestPoolWithNKeys(5)
 			done := make(chan bool, goroutines)
 
-			for i := 0; i < goroutines; i++ {
+			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
 				go func() {
 					defer func() {
-						if r := recover(); r != nil {
+						if recovered := recover(); recovered != nil {
 							done <- false
 							return
 						}
@@ -209,7 +229,7 @@ func TestKeyPoolConcurrentAccessProperties(t *testing.T) {
 				}()
 			}
 
-			for i := 0; i < goroutines; i++ {
+			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
 				if !<-done {
 					return false
 				}
@@ -225,11 +245,11 @@ func TestKeyPoolConcurrentAccessProperties(t *testing.T) {
 
 // Helper functions
 
-func createTestPoolWithNKeys(n int) *KeyPool {
-	keys := make([]KeyConfig, n)
-	for i := 0; i < n; i++ {
-		keys[i] = KeyConfig{
-			APIKey:    fmt.Sprintf("sk-test-property-%d", i),
+func createTestPoolWithNKeys(numKeys int) *keypool.KeyPool {
+	keys := make([]keypool.KeyConfig, numKeys)
+	for idx := 0; idx < numKeys; idx++ {
+		keys[idx] = keypool.KeyConfig{
+			APIKey:    fmt.Sprintf("sk-test-property-%d", idx),
 			RPMLimit:  100, // High limit to avoid rate limiting in tests
 			ITPMLimit: 100000,
 			OTPMLimit: 100000,
@@ -238,24 +258,15 @@ func createTestPoolWithNKeys(n int) *KeyPool {
 		}
 	}
 
-	cfg := PoolConfig{
+	cfg := keypool.PoolConfig{
 		Strategy: "least_loaded",
 		Keys:     keys,
 	}
 
-	pool, err := NewKeyPool("test-property", cfg)
+	pool, err := keypool.NewKeyPool("test-property", cfg)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create property test pool: %v", err))
 	}
 
 	return pool
-}
-
-// containsKeyID checks if a key ID exists in the pool (for property tests).
-func (p *KeyPool) containsKeyID(keyID string) bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	_, ok := p.keyMap[keyID]
-	return ok
 }

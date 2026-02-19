@@ -1,6 +1,7 @@
-package health
+package health_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/health"
 	"errors"
 	"sync"
 	"testing"
@@ -10,65 +11,69 @@ import (
 )
 
 func TestNewTracker(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 5,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   3,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	if tracker == nil {
-		t.Fatal("expected non-nil Tracker")
+		t.Fatal("expected non-nil health.Tracker")
 	}
-	if tracker.circuits == nil {
+	if !tracker.HasCircuits() {
 		t.Error("expected initialized circuits map")
 	}
 }
 
 func TestTrackerGetOrCreateCircuitCreatesOnDemand(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 5,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   3,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
-	cb := tracker.GetOrCreateCircuit("provider-a")
-	if cb == nil {
-		t.Fatal("expected non-nil CircuitBreaker")
+	breaker := tracker.GetOrCreateCircuit("provider-a")
+	if breaker == nil {
+		t.Fatal("expected non-nil health.CircuitBreaker")
 	}
-	if cb.Name() != "provider-a" {
-		t.Errorf("expected name 'provider-a', got %q", cb.Name())
+	if breaker.Name() != "provider-a" {
+		t.Errorf("expected name 'provider-a', got %q", breaker.Name())
 	}
 }
 
 func TestTrackerGetOrCreateCircuitReturnsSame(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{}
+	cfg := health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
-	cb1 := tracker.GetOrCreateCircuit("provider-a")
-	cb2 := tracker.GetOrCreateCircuit("provider-a")
+	breaker1 := tracker.GetOrCreateCircuit("provider-a")
+	breaker2 := tracker.GetOrCreateCircuit("provider-a")
 
-	if cb1 != cb2 {
-		t.Error("expected same CircuitBreaker instance for same provider")
+	if breaker1 != breaker2 {
+		t.Error("expected same health.CircuitBreaker instance for same provider")
 	}
 }
 
 func TestTrackerIsHealthyFuncReturnsTrueWhenClosed(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 5,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   3,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 	isHealthy := tracker.IsHealthyFunc("provider-a")
 
 	// Circuit starts closed, should be healthy
@@ -78,14 +83,15 @@ func TestTrackerIsHealthyFuncReturnsTrueWhenClosed(t *testing.T) {
 }
 
 func TestTrackerIsHealthyFuncReturnsFalseWhenOpen(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   1,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 	testErr := errors.New("test error")
 
 	// Open the circuit
@@ -100,14 +106,15 @@ func TestTrackerIsHealthyFuncReturnsFalseWhenOpen(t *testing.T) {
 }
 
 func TestTrackerIsHealthyFuncReturnsTrueWhenHalfOpen(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   50, // Short timeout for testing
 		HalfOpenProbes:   1,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 	testErr := errors.New("test error")
 
 	// Open the circuit
@@ -118,8 +125,13 @@ func TestTrackerIsHealthyFuncReturnsTrueWhenHalfOpen(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Trigger transition to half-open by calling Allow
-	cb := tracker.GetOrCreateCircuit("provider-a")
-	_, _ = cb.Allow() // Discard done func - leave in half-open state
+	breaker := tracker.GetOrCreateCircuit("provider-a")
+	done, allowErr := breaker.Allow()
+	if allowErr != nil {
+		t.Fatalf("expected Allow to succeed in half-open state, got: %v", allowErr)
+	}
+	// Leave done uncalled to keep in half-open state; report success to not affect state adversely
+	done(nil)
 
 	isHealthy := tracker.IsHealthyFunc("provider-a")
 
@@ -130,53 +142,56 @@ func TestTrackerIsHealthyFuncReturnsTrueWhenHalfOpen(t *testing.T) {
 }
 
 func TestTrackerRecordSuccess(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 5,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   3,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	// RecordSuccess should not panic and circuit should stay closed
 	tracker.RecordSuccess("provider-a")
 
 	state := tracker.GetState("provider-a")
-	if state != StateClosed {
+	if state != health.StateClosed {
 		t.Errorf("expected state CLOSED after RecordSuccess, got %s", state.String())
 	}
 }
 
 func TestTrackerRecordFailure(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   1,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 	testErr := errors.New("test error")
 
 	tracker.RecordFailure("provider-a", testErr)
 	tracker.RecordFailure("provider-a", testErr)
 
 	state := tracker.GetState("provider-a")
-	if state != StateOpen {
+	if state != health.StateOpen {
 		t.Errorf("expected state OPEN after threshold failures, got %s", state.String())
 	}
 }
 
 func TestTrackerAllStates(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   1,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 	testErr := errors.New("test error")
 
 	// Create circuits for multiple providers
@@ -189,45 +204,47 @@ func TestTrackerAllStates(t *testing.T) {
 	if len(states) != 2 {
 		t.Errorf("expected 2 states, got %d", len(states))
 	}
-	if states["provider-a"] != StateClosed {
+	if states["provider-a"] != health.StateClosed {
 		t.Errorf("expected provider-a state CLOSED, got %s", states["provider-a"].String())
 	}
-	if states["provider-b"] != StateOpen {
+	if states["provider-b"] != health.StateOpen {
 		t.Errorf("expected provider-b state OPEN, got %s", states["provider-b"].String())
 	}
 }
 
 func TestTrackerGetStateReturnsClosedForUnknown(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{}
+	cfg := health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	state := tracker.GetState("unknown-provider")
-	if state != StateClosed {
-		t.Errorf("expected StateClosed for unknown provider, got %s", state.String())
+	if state != health.StateClosed {
+		t.Errorf("expected health.StateClosed for unknown provider, got %s", state.String())
 	}
 }
 
 func TestTrackerConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 100, // High threshold to avoid opening
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   3,
 	}
 
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	const numGoroutines = 100
 	const numOperations = 100
 
-	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(numGoroutines)
 
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
-			defer wg.Done()
+			defer waitGroup.Done()
 			providerName := "provider"
 			testErr := errors.New("test error")
 
@@ -249,7 +266,7 @@ func TestTrackerConcurrentAccess(t *testing.T) {
 		}()
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	// If we get here without deadlock or panic, the test passes
 	states := tracker.AllStates()

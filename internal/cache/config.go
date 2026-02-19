@@ -168,11 +168,15 @@ func DefaultRistrettoConfig() RistrettoConfig {
 func DefaultOlricConfig() OlricConfig {
 	return OlricConfig{
 		DMapName:          "cc-relay",
+		BindAddr:          "",
 		Environment:       "local",
+		Addresses:         nil,
+		Peers:             nil,
 		ReplicaCount:      1,
 		ReadQuorum:        1,
 		WriteQuorum:       1,
 		MemberCountQuorum: 1,
 		LeaveTimeout:      5 * time.Second,
+		Embedded:          false,
 	}
 }

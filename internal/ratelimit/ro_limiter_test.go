@@ -1,6 +1,7 @@
-package ratelimit
+package ratelimit_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/ratelimit"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,7 +15,7 @@ import (
 func TestROLimiterConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg := ROLimiterConfig{
+	cfg := ratelimit.ROLimiterConfig{
 		Count:    100,
 		Interval: 30 * time.Second,
 	}
@@ -27,14 +28,14 @@ func TestNormalizeInterval(t *testing.T) {
 
 	t.Run("non-zero interval unchanged", func(t *testing.T) {
 		t.Parallel()
-		result := normalizeInterval(30 * time.Second)
+		result := ratelimit.NormalizeInterval(30 * time.Second)
 		assert.Equal(t, 30*time.Second, result)
 	})
 
 	t.Run("zero interval defaults to minute", func(t *testing.T) {
 		t.Parallel()
-		result := normalizeInterval(0)
-		assert.Equal(t, DefaultInterval, result)
+		result := ratelimit.NormalizeInterval(0)
+		assert.Equal(t, ratelimit.DefaultInterval, result)
 	})
 }
 
@@ -45,7 +46,7 @@ func TestLimitGlobal(t *testing.T) {
 	source := ro.FromSlice(items)
 
 	// High rate to allow all items quickly
-	limited := LimitGlobal(source, 1000, time.Second)
+	limited := ratelimit.LimitGlobal(source, 1000, time.Second)
 
 	results, err := ro.Collect(limited)
 	require.NoError(t, err)
@@ -56,21 +57,21 @@ func TestLimitWithKeyGetter(t *testing.T) {
 	t.Parallel()
 
 	type Request struct {
-		APIKey string
-		ID     int
+		PartitionKey string
+		ID           int
 	}
 
 	items := []Request{
-		{ID: 1, APIKey: "key-a"},
-		{ID: 2, APIKey: "key-b"},
-		{ID: 3, APIKey: "key-a"},
-		{ID: 4, APIKey: "key-b"},
+		{ID: 1, PartitionKey: "key-a"},
+		{ID: 2, PartitionKey: "key-b"},
+		{ID: 3, PartitionKey: "key-a"},
+		{ID: 4, PartitionKey: "key-b"},
 	}
 
 	source := ro.FromSlice(items)
 
-	limited := Limit(source, 1000, time.Second, func(r Request) string {
-		return r.APIKey
+	limited := ratelimit.Limit(source, 1000, time.Second, func(r Request) string {
+		return r.PartitionKey
 	})
 
 	results, err := ro.Collect(limited)
@@ -81,10 +82,10 @@ func TestLimitWithKeyGetter(t *testing.T) {
 func TestLimitWithConfig(t *testing.T) {
 	t.Parallel()
 
-	cfg := ROLimiterConfig{Count: 1000, Interval: time.Second}
+	cfg := ratelimit.ROLimiterConfig{Count: 1000, Interval: time.Second}
 	source := ro.FromSlice([]int{1, 2, 3})
 
-	limited := LimitWithConfig(source, cfg, func(_ int) string { return "" })
+	limited := ratelimit.LimitWithConfig(source, cfg, func(_ int) string { return "" })
 
 	results, err := ro.Collect(limited)
 	require.NoError(t, err)
@@ -94,7 +95,7 @@ func TestLimitWithConfig(t *testing.T) {
 func TestNewLimitOperator(t *testing.T) {
 	t.Parallel()
 
-	op := NewLimitOperator[int](1000, time.Second, func(_ int) string { return "" })
+	op := ratelimit.NewLimitOperator[int](1000, time.Second, func(_ int) string { return "" })
 
 	source := ro.FromSlice([]int{1, 2, 3})
 	limited := ro.Pipe1(source, op)
@@ -107,7 +108,7 @@ func TestNewLimitOperator(t *testing.T) {
 func TestNewGlobalLimitOperator(t *testing.T) {
 	t.Parallel()
 
-	op := NewGlobalLimitOperator[int](1000, time.Second)
+	op := ratelimit.NewGlobalLimitOperator[int](1000, time.Second)
 
 	source := ro.FromSlice([]int{1, 2, 3})
 	limited := ro.Pipe1(source, op)
@@ -120,38 +121,38 @@ func TestNewGlobalLimitOperator(t *testing.T) {
 func TestLimitConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	ch := make(chan int)
-	source := ro.FromChannel(ch)
+	itemChan := make(chan int)
+	source := ro.FromChannel(itemChan)
 
 	var received atomic.Int32
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 
 	// Subscribe to limited stream
-	limited := LimitGlobal(source, 1000, time.Second)
+	limited := ratelimit.LimitGlobal(source, 1000, time.Second)
 	limited.Subscribe(ro.NewObserver(
 		func(_ int) {
 			received.Add(1)
 		},
 		func(_ error) {},
 		func() {
-			wg.Done()
+			waitGroup.Done()
 		},
 	))
 
 	// Send items from multiple goroutines
-	wg.Add(1)
-	var sendWg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		sendWg.Add(1)
+	waitGroup.Add(1)
+	var sendWaitGroup sync.WaitGroup
+	for senderIdx := 0; senderIdx < 10; senderIdx++ {
+		sendWaitGroup.Add(1)
 		go func(val int) {
-			defer sendWg.Done()
-			ch <- val
-		}(i)
+			defer sendWaitGroup.Done()
+			itemChan <- val
+		}(senderIdx)
 	}
 
-	sendWg.Wait()
-	close(ch)
-	wg.Wait()
+	sendWaitGroup.Wait()
+	close(itemChan)
+	waitGroup.Wait()
 
 	assert.Equal(t, int32(10), received.Load())
 }
@@ -160,7 +161,7 @@ func TestLimitEmptyStream(t *testing.T) {
 	t.Parallel()
 
 	source := ro.Empty[int]()
-	limited := LimitGlobal(source, 100, time.Minute)
+	limited := ratelimit.LimitGlobal(source, 100, time.Minute)
 
 	results, err := ro.Collect(limited)
 	require.NoError(t, err)
@@ -171,7 +172,7 @@ func TestLimitSingleItem(t *testing.T) {
 	t.Parallel()
 
 	source := ro.Just(42)
-	limited := LimitGlobal(source, 100, time.Minute)
+	limited := ratelimit.LimitGlobal(source, 100, time.Minute)
 
 	results, err := ro.Collect(limited)
 	require.NoError(t, err)
@@ -192,7 +193,7 @@ func TestLimitRateLimitEnforcement(t *testing.T) {
 	items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	source := ro.FromSlice(items)
 
-	limited := LimitGlobal(source, 10, time.Second)
+	limited := ratelimit.LimitGlobal(source, 10, time.Second)
 
 	results, err := ro.Collect(limited)
 
@@ -208,7 +209,7 @@ func TestLimitPreservesOrder(t *testing.T) {
 	items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	source := ro.FromSlice(items)
 
-	limited := LimitGlobal(source, 1000, time.Second)
+	limited := ratelimit.LimitGlobal(source, 1000, time.Second)
 
 	results, err := ro.Collect(limited)
 	require.NoError(t, err)
@@ -232,7 +233,7 @@ func TestLimitMultipleKeyBuckets(t *testing.T) {
 	}
 
 	source := ro.FromSlice(events)
-	limited := Limit(source, 1000, time.Second, func(e Event) string { return e.Key })
+	limited := ratelimit.Limit(source, 1000, time.Second, func(e Event) string { return e.Key })
 
 	results, err := ro.Collect(limited)
 	require.NoError(t, err)
@@ -254,7 +255,7 @@ func TestLimitZeroIntervalDefaultsToMinute(t *testing.T) {
 	source := ro.FromSlice([]int{1, 2, 3})
 
 	// Zero interval should default to time.Minute
-	limited := LimitGlobal(source, 1000, 0)
+	limited := ratelimit.LimitGlobal(source, 1000, 0)
 
 	results, err := ro.Collect(limited)
 	require.NoError(t, err)
@@ -270,7 +271,7 @@ func BenchmarkLimitGlobal(b *testing.B) {
 	b.ResetTimer()
 
 	source := ro.FromSlice(items)
-	limited := LimitGlobal(source, int64(b.N), time.Second)
+	limited := ratelimit.LimitGlobal(source, int64(b.N), time.Second)
 	_, err := ro.Collect(limited)
 	if err != nil {
 		b.Fatal(err)
@@ -292,7 +293,7 @@ func BenchmarkLimitWithKey(b *testing.B) {
 	b.ResetTimer()
 
 	source := ro.FromSlice(items)
-	limited := Limit(source, int64(b.N), time.Second, func(i Item) string { return i.Key })
+	limited := ratelimit.Limit(source, int64(b.N), time.Second, func(i Item) string { return i.Key })
 	_, err := ro.Collect(limited)
 	if err != nil {
 		b.Fatal(err)

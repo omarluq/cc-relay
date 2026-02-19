@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"bytes"
@@ -12,168 +12,137 @@ import (
 	"github.com/samber/ro"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
-func TestSSEEventString(t *testing.T) {
-	t.Parallel()
+// testEventData defines a single SSE event test case.
+type testEventData struct {
+	name     string
+	expected string
+	event    proxy.SSEEvent
+}
 
-	tests := []struct {
-		name     string
-		expected string
-		event    SSEEvent
-	}{
+// sseEventTestCases returns all test cases for SSEEvent.String() tests.
+func sseEventTestCases() []testEventData {
+	return []testEventData{
 		{
 			name:     "empty event",
-			event:    SSEEvent{},
+			event:    proxy.SSEEvent{Event: "", ID: "", Data: nil, Retry: 0},
 			expected: "\n",
 		},
 		{
-			name: "data only",
-			event: SSEEvent{
-				Data: []byte("hello"),
-			},
+			name:     "data only",
+			event:    proxy.SSEEvent{Event: "", ID: "", Data: []byte("hello"), Retry: 0},
 			expected: "data: hello\n\n",
 		},
 		{
-			name: "event with type",
-			event: SSEEvent{
-				Event: "message",
-				Data:  []byte("hello"),
-			},
+			name:     "event with type",
+			event:    proxy.SSEEvent{Event: "message", ID: "", Data: []byte("hello"), Retry: 0},
 			expected: "event: message\ndata: hello\n\n",
 		},
 		{
-			name: "event with id",
-			event: SSEEvent{
-				Event: "message",
-				Data:  []byte("hello"),
-				ID:    "123",
-			},
+			name:     "event with id",
+			event:    proxy.SSEEvent{Event: "message", ID: "123", Data: []byte("hello"), Retry: 0},
 			expected: "event: message\nid: 123\ndata: hello\n\n",
 		},
 		{
-			name: "event with retry",
-			event: SSEEvent{
-				Event: "message",
-				Data:  []byte("hello"),
-				Retry: 3000,
-			},
+			name:     "event with retry",
+			event:    proxy.SSEEvent{Event: "message", ID: "", Data: []byte("hello"), Retry: 3000},
 			expected: "event: message\nretry: 3000\ndata: hello\n\n",
 		},
 		{
-			name: "multiline data",
-			event: SSEEvent{
-				Event: "message",
-				Data:  []byte("line1\nline2\nline3"),
-			},
+			name:     "multiline data",
+			event:    proxy.SSEEvent{Event: "message", ID: "", Data: []byte("line1\nline2\nline3"), Retry: 0},
 			expected: "event: message\ndata: line1\ndata: line2\ndata: line3\n\n",
 		},
 		{
-			name: "full event",
-			event: SSEEvent{
-				Event: "message",
-				Data:  []byte("hello"),
-				ID:    "456",
-				Retry: 5000,
-			},
+			name:     "full event",
+			event:    proxy.SSEEvent{Event: "message", ID: "456", Data: []byte("hello"), Retry: 5000},
 			expected: "event: message\nid: 456\nretry: 5000\ndata: hello\n\n",
 		},
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+func TestSSEEventString(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range sseEventTestCases() {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.expected, tt.event.String())
-			assert.Equal(t, []byte(tt.expected), tt.event.Bytes())
+			assert.Equal(t, testCase.expected, testCase.event.String())
+			assert.Equal(t, []byte(testCase.expected), testCase.event.Bytes())
 		})
 	}
 }
 
-func TestStreamSSE(t *testing.T) {
-	t.Parallel()
+// streamSSETestCase defines a single StreamSSE test case.
+type streamSSETestCase struct {
+	name     string
+	input    string
+	expected []proxy.SSEEvent
+}
 
-	tests := []struct {
-		name     string
-		input    string
-		expected []SSEEvent
-	}{
+// streamSSETestCases returns all test cases for StreamSSE tests.
+func streamSSETestCases() []streamSSETestCase {
+	return []streamSSETestCase{
 		{
-			name:  "single event",
-			input: "data: hello\n\n",
-			expected: []SSEEvent{
-				{Data: []byte("hello")},
-			},
+			name:     "single event",
+			input:    "data: hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
 		},
 		{
-			name:  "event with type",
-			input: "event: message\ndata: hello\n\n",
-			expected: []SSEEvent{
-				{Event: "message", Data: []byte("hello")},
-			},
+			name:     "event with type",
+			input:    "event: message\ndata: hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "message", ID: "", Data: []byte("hello"), Retry: 0}},
 		},
 		{
-			name:  "event with id",
-			input: "id: 123\ndata: hello\n\n",
-			expected: []SSEEvent{
-				{ID: "123", Data: []byte("hello")},
-			},
+			name:     "event with id",
+			input:    "id: 123\ndata: hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "123", Data: []byte("hello"), Retry: 0}},
 		},
 		{
-			name:  "event with retry",
-			input: "retry: 3000\ndata: hello\n\n",
-			expected: []SSEEvent{
-				{Retry: 3000, Data: []byte("hello")},
-			},
+			name:     "event with retry",
+			input:    "retry: 3000\ndata: hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 3000}},
 		},
 		{
-			name:  "multiline data",
-			input: "data: line1\ndata: line2\n\n",
-			expected: []SSEEvent{
-				{Data: []byte("line1\nline2")},
-			},
+			name:     "multiline data",
+			input:    "data: line1\ndata: line2\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("line1\nline2"), Retry: 0}},
 		},
 		{
 			name:  "multiple events",
 			input: "data: first\n\ndata: second\n\n",
-			expected: []SSEEvent{
-				{Data: []byte("first")},
-				{Data: []byte("second")},
+			expected: []proxy.SSEEvent{
+				{Event: "", ID: "", Data: []byte("first"), Retry: 0},
+				{Event: "", ID: "", Data: []byte("second"),
+					Retry: 0},
 			},
 		},
 		{
-			name:  "comment ignored",
-			input: ": this is a comment\ndata: hello\n\n",
-			expected: []SSEEvent{
-				{Data: []byte("hello")},
-			},
+			name:     "comment ignored",
+			input:    ": this is a comment\ndata: hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
 		},
 		{
-			name:  "field without value",
-			input: "event\ndata: hello\n\n",
-			expected: []SSEEvent{
-				{Event: "", Data: []byte("hello")},
-			},
+			name:     "field without value",
+			input:    "event\ndata: hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
 		},
 		{
-			name:  "value with leading space",
-			input: "data: hello\n\n",
-			expected: []SSEEvent{
-				{Data: []byte("hello")},
-			},
+			name:     "value with leading space",
+			input:    "data: hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
 		},
 		{
-			name:  "value without leading space",
-			input: "data:hello\n\n",
-			expected: []SSEEvent{
-				{Data: []byte("hello")},
-			},
+			name:     "value without leading space",
+			input:    "data:hello\n\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
 		},
 		{
-			name:  "CRLF line endings",
-			input: "data: hello\r\n\r\n",
-			expected: []SSEEvent{
-				{Data: []byte("hello")},
-			},
+			name:     "CRLF line endings",
+			input:    "data: hello\r\n\r\n",
+			expected: []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}},
 		},
 		{
 			name:     "empty input",
@@ -181,17 +150,20 @@ func TestStreamSSE(t *testing.T) {
 			expected: nil,
 		},
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+func TestStreamSSE(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range streamSSETestCases() {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			reader := strings.NewReader(tt.input)
-			events, err := ro.Collect(StreamSSE(reader))
+			reader := strings.NewReader(testCase.input)
+			events, err := ro.Collect(proxy.StreamSSE(reader))
 			require.NoError(t, err)
-			if tt.expected == nil {
+			if testCase.expected == nil {
 				assert.Empty(t, events)
 			} else {
-				assert.Equal(t, tt.expected, events)
+				assert.Equal(t, testCase.expected, events)
 			}
 		})
 	}
@@ -200,13 +172,14 @@ func TestStreamSSE(t *testing.T) {
 func TestStreamSSEPendingEventAtEOF(t *testing.T) {
 	t.Parallel()
 
-	// Event without trailing empty line
 	input := "data: hello"
 	reader := strings.NewReader(input)
 
-	events, err := ro.Collect(StreamSSE(reader))
+	events, err := ro.Collect(proxy.StreamSSE(reader))
 	require.NoError(t, err)
-	assert.Equal(t, []SSEEvent{{Data: []byte("hello")}}, events)
+
+	expected := []proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}}
+	assert.Equal(t, expected, events)
 }
 
 func TestStreamSSEReadError(t *testing.T) {
@@ -215,7 +188,7 @@ func TestStreamSSEReadError(t *testing.T) {
 	readErr := errors.New("read error")
 	reader := &errorReader{err: readErr}
 
-	_, err := ro.Collect(StreamSSE(reader))
+	_, err := ro.Collect(proxy.StreamSSE(reader))
 	assert.Error(t, err)
 	assert.Equal(t, readErr, err)
 }
@@ -231,24 +204,21 @@ func (r *errorReader) Read(_ []byte) (int, error) {
 func TestForwardSSE(t *testing.T) {
 	t.Parallel()
 
-	events := []SSEEvent{
-		{Event: "message", Data: []byte("first")},
-		{Event: "message", Data: []byte("second")},
+	events := []proxy.SSEEvent{
+		{Event: "message", ID: "", Data: []byte("first"), Retry: 0},
+		{Event: "message", ID: "", Data: []byte("second"), Retry: 0},
 	}
 
 	source := ro.FromSlice(events)
-
 	rec := httptest.NewRecorder()
-	err := ForwardSSE(source, rec)
+	err := proxy.ForwardSSE(source, rec)
 	require.NoError(t, err)
 
-	// Check headers
 	assert.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	assert.Equal(t, "no-cache, no-transform", rec.Header().Get("Cache-Control"))
 	assert.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
 	assert.Equal(t, "keep-alive", rec.Header().Get("Connection"))
 
-	// Check body
 	expected := "event: message\ndata: first\n\nevent: message\ndata: second\n\n"
 	assert.Equal(t, expected, rec.Body.String())
 }
@@ -256,16 +226,18 @@ func TestForwardSSE(t *testing.T) {
 func TestForwardSSENotFlushable(t *testing.T) {
 	t.Parallel()
 
-	events := ro.FromSlice([]SSEEvent{{Data: []byte("hello")}})
-	writer := &nonFlushableWriter{}
+	events := ro.FromSlice([]proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}})
+	writer := &nonFlushableWriter{
+		ResponseWriter: nil,
+	}
 
-	err := ForwardSSE(events, writer)
+	err := proxy.ForwardSSE(events, writer)
 	assert.Error(t, err)
-	assert.Equal(t, ErrNotFlushable, err)
+	assert.Equal(t, proxy.ErrNotFlushable, err)
 }
 
 type nonFlushableWriter struct {
-	http.ResponseWriter
+	ResponseWriter http.ResponseWriter
 }
 
 func (w *nonFlushableWriter) Header() http.Header {
@@ -281,11 +253,14 @@ func (w *nonFlushableWriter) WriteHeader(_ int) {}
 func TestForwardSSEWriteError(t *testing.T) {
 	t.Parallel()
 
-	events := ro.FromSlice([]SSEEvent{{Data: []byte("hello")}})
+	events := ro.FromSlice([]proxy.SSEEvent{{Event: "", ID: "", Data: []byte("hello"), Retry: 0}})
 	writeErr := errors.New("write error")
-	writer := &errorWriter{err: writeErr}
+	writer := &errorWriter{
+		headers: http.Header{},
+		err:     writeErr,
+	}
 
-	err := ForwardSSE(events, writer)
+	err := proxy.ForwardSSE(events, writer)
 	assert.Error(t, err)
 	assert.Equal(t, writeErr, err)
 }
@@ -296,9 +271,6 @@ type errorWriter struct {
 }
 
 func (w *errorWriter) Header() http.Header {
-	if w.headers == nil {
-		w.headers = http.Header{}
-	}
 	return w.headers
 }
 
@@ -314,9 +286,9 @@ func TestWriteSSEEvent(t *testing.T) {
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
-	event := SSEEvent{Event: "ping", Data: []byte("pong")}
+	event := proxy.SSEEvent{Event: "ping", ID: "", Data: []byte("pong"), Retry: 0}
 
-	err := WriteSSEEvent(rec, event)
+	err := proxy.WriteSSEEvent(rec, event)
 	require.NoError(t, err)
 
 	expected := "event: ping\ndata: pong\n\n"
@@ -326,12 +298,14 @@ func TestWriteSSEEvent(t *testing.T) {
 func TestWriteSSEEventNotFlushable(t *testing.T) {
 	t.Parallel()
 
-	writer := &nonFlushableWriter{}
-	event := SSEEvent{Data: []byte("hello")}
+	writer := &nonFlushableWriter{
+		ResponseWriter: nil,
+	}
+	event := proxy.SSEEvent{Event: "", ID: "", Data: []byte("hello"), Retry: 0}
 
-	err := WriteSSEEvent(writer, event)
+	err := proxy.WriteSSEEvent(writer, event)
 	assert.Error(t, err)
-	assert.Equal(t, ErrNotFlushable, err)
+	assert.Equal(t, proxy.ErrNotFlushable, err)
 }
 
 // TestSetSSEHeaders is defined in sse_test.go
@@ -340,22 +314,22 @@ func TestWriteSSEEventNotFlushable(t *testing.T) {
 func TestFilterEvents(t *testing.T) {
 	t.Parallel()
 
-	events := []SSEEvent{
-		{Event: "message", Data: []byte("1")},
-		{Event: "ping", Data: []byte("2")},
-		{Event: "message", Data: []byte("3")},
-		{Event: "error", Data: []byte("4")},
+	events := []proxy.SSEEvent{
+		{Event: "message", ID: "", Data: []byte("1"), Retry: 0},
+		{Event: "ping", ID: "", Data: []byte("2"), Retry: 0},
+		{Event: "message", ID: "", Data: []byte("3"), Retry: 0},
+		{Event: "error", ID: "", Data: []byte("4"), Retry: 0},
 	}
 
 	source := ro.FromSlice(events)
-	filtered := ro.Pipe1(source, FilterEvents("message"))
+	filtered := ro.Pipe1(source, proxy.FilterEvents("message"))
 
 	results, err := ro.Collect(filtered)
 	require.NoError(t, err)
 
-	expected := []SSEEvent{
-		{Event: "message", Data: []byte("1")},
-		{Event: "message", Data: []byte("3")},
+	expected := []proxy.SSEEvent{
+		{Event: "message", ID: "", Data: []byte("1"), Retry: 0},
+		{Event: "message", ID: "", Data: []byte("3"), Retry: 0},
 	}
 	assert.Equal(t, expected, results)
 }
@@ -363,23 +337,23 @@ func TestFilterEvents(t *testing.T) {
 func TestFilterEventsByPrefix(t *testing.T) {
 	t.Parallel()
 
-	events := []SSEEvent{
-		{Event: "content_block_start", Data: []byte("1")},
-		{Event: "message_delta", Data: []byte("2")},
-		{Event: "content_block_delta", Data: []byte("3")},
-		{Event: "content_block_stop", Data: []byte("4")},
+	events := []proxy.SSEEvent{
+		{Event: "content_block_start", ID: "", Data: []byte("1"), Retry: 0},
+		{Event: "message_delta", ID: "", Data: []byte("2"), Retry: 0},
+		{Event: "content_block_delta", ID: "", Data: []byte("3"), Retry: 0},
+		{Event: "content_block_stop", ID: "", Data: []byte("4"), Retry: 0},
 	}
 
 	source := ro.FromSlice(events)
-	filtered := ro.Pipe1(source, FilterEventsByPrefix("content_block_"))
+	filtered := ro.Pipe1(source, proxy.FilterEventsByPrefix("content_block_"))
 
 	results, err := ro.Collect(filtered)
 	require.NoError(t, err)
 
-	expected := []SSEEvent{
-		{Event: "content_block_start", Data: []byte("1")},
-		{Event: "content_block_delta", Data: []byte("3")},
-		{Event: "content_block_stop", Data: []byte("4")},
+	expected := []proxy.SSEEvent{
+		{Event: "content_block_start", ID: "", Data: []byte("1"), Retry: 0},
+		{Event: "content_block_delta", ID: "", Data: []byte("3"), Retry: 0},
+		{Event: "content_block_stop", ID: "", Data: []byte("4"), Retry: 0},
 	}
 	assert.Equal(t, expected, results)
 }
@@ -387,20 +361,20 @@ func TestFilterEventsByPrefix(t *testing.T) {
 func TestMapEventData(t *testing.T) {
 	t.Parallel()
 
-	events := []SSEEvent{
-		{Event: "message", Data: []byte("hello")},
-		{Event: "message", Data: []byte("world")},
+	events := []proxy.SSEEvent{
+		{Event: "message", ID: "", Data: []byte("hello"), Retry: 0},
+		{Event: "message", ID: "", Data: []byte("world"), Retry: 0},
 	}
 
 	source := ro.FromSlice(events)
-	transformed := ro.Pipe1(source, MapEventData(bytes.ToUpper))
+	transformed := ro.Pipe1(source, proxy.MapEventData(bytes.ToUpper))
 
 	results, err := ro.Collect(transformed)
 	require.NoError(t, err)
 
-	expected := []SSEEvent{
-		{Event: "message", Data: []byte("HELLO")},
-		{Event: "message", Data: []byte("WORLD")},
+	expected := []proxy.SSEEvent{
+		{Event: "message", ID: "", Data: []byte("HELLO"), Retry: 0},
+		{Event: "message", ID: "", Data: []byte("WORLD"), Retry: 0},
 	}
 	assert.Equal(t, expected, results)
 }
@@ -408,14 +382,14 @@ func TestMapEventData(t *testing.T) {
 func TestCountEvents(t *testing.T) {
 	t.Parallel()
 
-	events := []SSEEvent{
-		{Data: []byte("1")},
-		{Data: []byte("2")},
-		{Data: []byte("3")},
+	events := []proxy.SSEEvent{
+		{Event: "", ID: "", Data: []byte("1"), Retry: 0},
+		{Event: "", ID: "", Data: []byte("2"), Retry: 0},
+		{Event: "", ID: "", Data: []byte("3"), Retry: 0},
 	}
 
 	source := ro.FromSlice(events)
-	counted := ro.Pipe1(source, CountEvents())
+	counted := ro.Pipe1(source, proxy.CountEvents())
 
 	results, err := ro.Collect(counted)
 	require.NoError(t, err)
@@ -426,30 +400,24 @@ func TestCountEvents(t *testing.T) {
 func TestStreamSSERoundTrip(t *testing.T) {
 	t.Parallel()
 
-	// Create original events
-	original := []SSEEvent{
-		{Event: "message_start", Data: []byte(`{"type":"message_start"}`)},
-		{Event: "content_block_delta", Data: []byte(`{"delta":"Hello"}`)},
-		{Event: "content_block_delta", Data: []byte(`{"delta":" world"}`)},
-		{Event: "message_stop", Data: []byte(`{}`)},
+	original := []proxy.SSEEvent{
+		{Event: "message_start", ID: "", Data: []byte(`{"type":"message_start"}`), Retry: 0},
+		{Event: "content_block_delta", ID: "", Data: []byte(`{"delta":"Hello"}`), Retry: 0},
+		{Event: "content_block_delta", ID: "", Data: []byte(`{"delta":" world"}`), Retry: 0},
+		{Event: "message_stop", ID: "", Data: []byte(`{}`), Retry: 0},
 	}
 
-	// Convert to wire format
 	var buf bytes.Buffer
 	for _, e := range original {
 		buf.WriteString(e.String())
 	}
 
-	// Parse back
-	parsed, err := ro.Collect(StreamSSE(&buf))
+	parsed, err := ro.Collect(proxy.StreamSSE(&buf))
 	require.NoError(t, err)
-
-	// Should match original
 	assert.Equal(t, original, parsed)
 }
 
 func BenchmarkStreamSSE(b *testing.B) {
-	// Create a realistic SSE stream
 	var buf bytes.Buffer
 	for i := 0; i < 100; i++ {
 		buf.WriteString("event: content_block_delta\n")
@@ -461,17 +429,22 @@ func BenchmarkStreamSSE(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		reader := bytes.NewReader(sseData)
-		events, _ := ro.Collect(StreamSSE(reader))
+		events, err := ro.Collect(proxy.StreamSSE(reader))
+		if err != nil {
+			b.Fatal(err)
+		}
 		_ = events
 	}
 }
 
 func BenchmarkForwardSSE(b *testing.B) {
-	events := make([]SSEEvent, 100)
+	events := make([]proxy.SSEEvent, 100)
 	for i := range events {
-		events[i] = SSEEvent{
+		events[i] = proxy.SSEEvent{
 			Event: "content_block_delta",
+			ID:    "",
 			Data:  []byte(`{"delta":"some text content"}`),
+			Retry: 0,
 		}
 	}
 
@@ -479,15 +452,19 @@ func BenchmarkForwardSSE(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		source := ro.FromSlice(events)
 		rec := httptest.NewRecorder()
-		_ = ForwardSSE(source, rec)
+		err := proxy.ForwardSSE(source, rec)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
 func BenchmarkSSEEventString(b *testing.B) {
-	event := SSEEvent{
+	event := proxy.SSEEvent{
 		Event: "content_block_delta",
-		Data:  []byte(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello, world!"}}`),
 		ID:    "msg_123",
+		Data:  []byte(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello, world!"}}`),
+		Retry: 0,
 	}
 
 	b.ResetTimer()
@@ -502,10 +479,9 @@ func TestParseSSEFieldInvalidRetry(t *testing.T) {
 	input := "retry: invalid\ndata: hello\n\n"
 	reader := strings.NewReader(input)
 
-	events, err := ro.Collect(StreamSSE(reader))
+	events, err := ro.Collect(proxy.StreamSSE(reader))
 	require.NoError(t, err)
 
-	// Invalid retry should be ignored, Retry stays 0
 	assert.Len(t, events, 1)
 	assert.Equal(t, 0, events[0].Retry)
 	assert.Equal(t, []byte("hello"), events[0].Data)
@@ -514,12 +490,11 @@ func TestParseSSEFieldInvalidRetry(t *testing.T) {
 func TestStreamSSELargeEvent(t *testing.T) {
 	t.Parallel()
 
-	// Create a large data payload
 	largeData := bytes.Repeat([]byte("x"), 10000)
 	input := "event: large\ndata: " + string(largeData) + "\n\n"
 	reader := strings.NewReader(input)
 
-	events, err := ro.Collect(StreamSSE(reader))
+	events, err := ro.Collect(proxy.StreamSSE(reader))
 	require.NoError(t, err)
 
 	assert.Len(t, events, 1)
@@ -530,26 +505,21 @@ func TestStreamSSELargeEvent(t *testing.T) {
 func TestStreamSSESubscribeCancel(t *testing.T) {
 	t.Parallel()
 
-	// Create a stream that would produce multiple events
 	input := "data: 1\n\ndata: 2\n\ndata: 3\n\n"
 	reader := strings.NewReader(input)
 
-	var received []SSEEvent
-	observable := StreamSSE(reader)
+	var received []proxy.SSEEvent
+	observable := proxy.StreamSSE(reader)
 
-	// Subscribe and collect only first event
 	subscription := observable.Subscribe(ro.NewObserver(
-		func(e SSEEvent) {
+		func(e proxy.SSEEvent) {
 			received = append(received, e)
 		},
 		func(_ error) {},
 		func() {},
 	))
 
-	// Subscription should complete since we read all events
 	_ = subscription
-
-	// All events should be received
 	assert.Len(t, received, 3)
 }
 
@@ -557,21 +527,28 @@ func TestStreamSSESubscribeCancel(t *testing.T) {
 func TestStreamSSEWithPipe(t *testing.T) {
 	t.Parallel()
 
-	pr, pw := io.Pipe()
+	pipeReader, pipeWriter := io.Pipe()
 
-	// Write events in a goroutine
 	go func() {
-		defer pw.Close()
-		pw.Write([]byte("event: start\ndata: begin\n\n"))
-		pw.Write([]byte("event: end\ndata: done\n\n"))
+		defer func() {
+			if closeErr := pipeWriter.Close(); closeErr != nil {
+				t.Logf("pipe close error: %v", closeErr)
+			}
+		}()
+		if _, err := pipeWriter.Write([]byte("event: start\ndata: begin\n\n")); err != nil {
+			return
+		}
+		if _, writeErr := pipeWriter.Write([]byte("event: end\ndata: done\n\n")); writeErr != nil {
+			return
+		}
 	}()
 
-	events, err := ro.Collect(StreamSSE(pr))
+	events, err := ro.Collect(proxy.StreamSSE(pipeReader))
 	require.NoError(t, err)
 
-	expected := []SSEEvent{
-		{Event: "start", Data: []byte("begin")},
-		{Event: "end", Data: []byte("done")},
+	expected := []proxy.SSEEvent{
+		{Event: "start", ID: "", Data: []byte("begin"), Retry: 0},
+		{Event: "end", ID: "", Data: []byte("done"), Retry: 0},
 	}
 	assert.Equal(t, expected, events)
 }

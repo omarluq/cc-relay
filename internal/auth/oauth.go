@@ -23,7 +23,10 @@ type BearerAuthenticator struct {
 // If secret is empty, any valid bearer token format is accepted.
 // If secret is provided, tokens are validated against it using constant-time comparison.
 func NewBearerAuthenticator(secret string) *BearerAuthenticator {
-	auth := &BearerAuthenticator{}
+	auth := &BearerAuthenticator{
+		secretHash:     [32]byte{},
+		validateSecret: false,
+	}
 
 	if secret != "" {
 		auth.secretHash = sha256.Sum256([]byte(secret))
@@ -43,6 +46,7 @@ func (a *BearerAuthenticator) Validate(r *http.Request) Result {
 			Valid: false,
 			Type:  TypeBearer,
 			Error: "missing authorization header",
+			Token: "",
 		}
 	}
 
@@ -52,6 +56,7 @@ func (a *BearerAuthenticator) Validate(r *http.Request) Result {
 			Valid: false,
 			Type:  TypeBearer,
 			Error: "invalid authorization scheme",
+			Token: "",
 		}
 	}
 
@@ -63,6 +68,7 @@ func (a *BearerAuthenticator) Validate(r *http.Request) Result {
 			Valid: false,
 			Type:  TypeBearer,
 			Error: "empty bearer token",
+			Token: "",
 		}
 	}
 
@@ -76,6 +82,7 @@ func (a *BearerAuthenticator) Validate(r *http.Request) Result {
 				Valid: false,
 				Type:  TypeBearer,
 				Error: "invalid bearer token",
+				Token: "",
 			}
 		}
 	}
@@ -83,6 +90,8 @@ func (a *BearerAuthenticator) Validate(r *http.Request) Result {
 	return Result{
 		Valid: true,
 		Type:  TypeBearer,
+		Error: "",
+		Token: "",
 	}
 }
 

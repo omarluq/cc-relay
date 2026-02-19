@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"bytes"
@@ -7,19 +7,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 func TestHasThinkingSignatureNoMessages(t *testing.T) {
+	t.Parallel()
 	body := `{"model": "claude-3-5-sonnet-20241022", "messages": []}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if got {
 		t.Error("expected false for empty messages, got true")
 	}
 }
 
 func TestHasThinkingSignatureNoThinkingBlocks(t *testing.T) {
+	t.Parallel()
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
 		"messages": [
@@ -29,13 +33,14 @@ func TestHasThinkingSignatureNoThinkingBlocks(t *testing.T) {
 	}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if got {
 		t.Error("expected false for messages without thinking blocks, got true")
 	}
 }
 
 func TestHasThinkingSignatureHasThinkingBlock(t *testing.T) {
+	t.Parallel()
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
 		"messages": [
@@ -51,14 +56,17 @@ func TestHasThinkingSignatureHasThinkingBlock(t *testing.T) {
 	}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if !got {
 		t.Error("expected true for messages with thinking block, got false")
 	}
 }
 
 func TestHasThinkingSignatureThinkingWithoutSignature(t *testing.T) {
+	t.Parallel(
 	// Edge case: thinking block exists but no signature (shouldn't happen in practice)
+	)
+
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
 		"messages": [
@@ -67,15 +75,18 @@ func TestHasThinkingSignatureThinkingWithoutSignature(t *testing.T) {
 	}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if got {
 		t.Error("expected false for thinking block without signature, got true")
 	}
 }
 
 func TestHasThinkingSignatureThinkingInUserMessage(t *testing.T) {
+	t.Parallel(
 	// Thinking blocks in user messages should not trigger affinity
 	// (only assistant messages contain provider signatures)
+	)
+
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
 		"messages": [
@@ -84,41 +95,44 @@ func TestHasThinkingSignatureThinkingInUserMessage(t *testing.T) {
 	}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if got {
 		t.Error("expected false for thinking block in user message, got true")
 	}
 }
 
 func TestHasThinkingSignatureMalformedJSON(t *testing.T) {
+	t.Parallel()
 	body := `{invalid json`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if got {
 		t.Error("expected false for malformed JSON, got true")
 	}
 }
 
 func TestHasThinkingSignatureNilBody(t *testing.T) {
+	t.Parallel()
 	r := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
 	r.Body = nil
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if got {
 		t.Error("expected false for nil body, got true")
 	}
 }
 
 func TestHasThinkingSignatureBodyRestored(t *testing.T) {
+	t.Parallel()
 	originalBody := `{"model": "test", "messages": []}`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(originalBody)))
+	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(originalBody)))
 
 	// Call the function
-	_ = HasThinkingSignature(r)
+	_ = proxy.HasThinkingSignature(req)
 
 	// Verify body can be read again
-	restoredBody, err := io.ReadAll(r.Body)
+	restoredBody, err := io.ReadAll(req.Body)
 	if err != nil {
 		t.Fatalf("failed to read restored body: %v", err)
 	}
@@ -129,7 +143,10 @@ func TestHasThinkingSignatureBodyRestored(t *testing.T) {
 }
 
 func TestHasThinkingSignatureMultipleAssistantMessages(t *testing.T) {
+	t.Parallel(
 	// Test conversation with multiple turns, only later message has thinking
+	)
+
 	body := `{
 		"model": "claude-3-5-sonnet-20241022",
 		"messages": [
@@ -146,33 +163,35 @@ func TestHasThinkingSignatureMultipleAssistantMessages(t *testing.T) {
 	}`
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
-	got := HasThinkingSignature(r)
+	got := proxy.HasThinkingSignature(r)
 	if !got {
 		t.Error("expected true for multi-turn conversation with thinking, got false")
 	}
 }
 
 func TestCacheThinkingAffinityInContext(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Test caching true
-	ctx = CacheThinkingAffinityInContext(ctx, true)
-	got := GetThinkingAffinityFromContext(ctx)
+	ctx = proxy.CacheThinkingAffinityInContext(ctx, true)
+	got := proxy.GetThinkingAffinityFromContext(ctx)
 	if !got {
 		t.Error("expected true from cached context, got false")
 	}
 
 	// Test caching false
-	ctx2 := CacheThinkingAffinityInContext(context.Background(), false)
-	got2 := GetThinkingAffinityFromContext(ctx2)
+	ctx2 := proxy.CacheThinkingAffinityInContext(context.Background(), false)
+	got2 := proxy.GetThinkingAffinityFromContext(ctx2)
 	if got2 {
 		t.Error("expected false from cached context, got true")
 	}
 }
 
 func TestGetThinkingAffinityFromContextNotCached(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	got := GetThinkingAffinityFromContext(ctx)
+	got := proxy.GetThinkingAffinityFromContext(ctx)
 	if got {
 		t.Error("expected false for uncached context, got true")
 	}
