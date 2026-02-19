@@ -1,6 +1,10 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/health"
 )
@@ -154,4 +158,64 @@ func MakeTestValidationError() *ValidationError {
 // boolPtr returns a pointer to a bool.
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+// WatcherTestFixture encapsulates a test watcher setup with its config path.
+type WatcherTestFixture struct {
+	Watcher    *Watcher
+	ConfigPath string
+}
+
+// NewTestWatcher creates a test watcher with a temp config file.
+// The watcher is automatically cleaned up via t.Cleanup.
+// Returns a fixture containing both the watcher and config path.
+func NewTestWatcher(tb testing.TB, opts ...WatcherOption) *WatcherTestFixture {
+	tb.Helper()
+
+	tmpDir := tb.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	writeDefaultTestConfig(tb, configPath)
+
+	watcher, err := NewWatcher(configPath, opts...)
+	if err != nil {
+		tb.Fatalf("config.NewWatcher failed: %v", err)
+	}
+
+	tb.Cleanup(func() {
+		if closeErr := watcher.Close(); closeErr != nil {
+			tb.Errorf("watcher.Close failed: %v", closeErr)
+		}
+	})
+
+	return &WatcherTestFixture{
+		Watcher:    watcher,
+		ConfigPath: configPath,
+	}
+}
+
+// writeDefaultTestConfig writes a default test config to the given path.
+func writeDefaultTestConfig(tb testing.TB, path string) {
+	tb.Helper()
+	content := `
+server:
+  listen: "127.0.0.1:8787"
+  timeout_ms: 60000
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    enabled: true
+    keys:
+      - key: "sk-ant-test"
+        rpm_limit: 60
+        tpm_limit: 100000
+
+logging:
+  level: "info"
+  format: "json"
+`
+	err := os.WriteFile(path, []byte(content), 0o600)
+	if err != nil {
+		tb.Fatalf("Failed to write test config: %v", err)
+	}
 }

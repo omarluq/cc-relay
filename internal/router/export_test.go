@@ -35,6 +35,26 @@ func NewTestProvider(name string) providers.Provider {
 	return &testProvider{name: name}
 }
 
+// AlwaysHealthy returns a function that always returns true.
+func AlwaysHealthy() func() bool {
+	return func() bool { return true }
+}
+
+// NeverHealthy returns a function that always returns false.
+func NeverHealthy() func() bool {
+	return func() bool { return false }
+}
+
+// NewTestProviderInfo creates a ProviderInfo for testing.
+func NewTestProviderInfo(name string, priority, weight int, isHealthy func() bool) ProviderInfo {
+	return ProviderInfo{
+		Provider: NewTestProvider(name),
+		Priority: priority,
+		Weight:   weight,
+		IsHealthy: isHealthy,
+	}
+}
+
 // Export functions for testing in external test packages
 
 // SortByPriority is the exported version of sortByPriority for testing.

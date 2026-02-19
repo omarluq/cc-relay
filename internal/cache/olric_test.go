@@ -39,19 +39,10 @@ func newTestOlricCache(t *testing.T) *cache.OlricCacheT {
 	t.Helper()
 
 	port := getNextPort()
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("test-dmap-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("test-dmap-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -208,19 +199,10 @@ func TestOlricCacheExists(t *testing.T) {
 func TestOlricCacheClose(t *testing.T) {
 	t.Parallel()
 	port := getNextPort()
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("close-test-dmap-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("close-test-dmap-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
 
 	ctx := context.Background()
 
@@ -551,19 +533,10 @@ func BenchmarkOlricCacheGet(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
 
 	port := int(portCounter.Add(10))
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("bench-dmap-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("bench-dmap-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
 
 	ctx := context.Background()
 	benchCache, err := cache.NewOlricCacheForTest(ctx, &cfg)
@@ -597,19 +570,10 @@ func BenchmarkOlricCacheSet(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
 
 	port := int(portCounter.Add(10))
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("bench-dmap-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("bench-dmap-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
 
 	ctx := context.Background()
 	benchCache, err := cache.NewOlricCacheForTest(ctx, &cfg)
@@ -639,19 +603,10 @@ func BenchmarkOlricCacheMixed(b *testing.B) {
 	b.Skip("Skipping slow benchmark")
 
 	port := int(portCounter.Add(10))
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("bench-dmap-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("bench-dmap-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
 
 	ctx := context.Background()
 	benchCache, err := cache.NewOlricCacheForTest(ctx, &cfg)
@@ -719,19 +674,11 @@ func TestOlricCacheClusterInfoClientMode(t *testing.T) {
 func TestOlricCacheGracefulShutdown(t *testing.T) {
 	t.Parallel()
 	port := getNextPort()
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("shutdown-test-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      2 * time.Second, // Short timeout for test
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("shutdown-test-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
+	cfg.LeaveTimeout = 2 * time.Second // Short timeout for test
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -781,19 +728,17 @@ func TestOlricCacheClusterInfoAfterClose(t *testing.T) {
 func TestOlricCacheHAConfiguration(t *testing.T) {
 	t.Parallel()
 	port := getNextPort()
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("ha-test-dmap-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       cache.EnvLocal,
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      2,
-		ReadQuorum:        1,
-		WriteQuorum:       1,
-		LeaveTimeout:      3 * time.Second,
-		MemberCountQuorum: 1,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("ha-test-dmap-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
+	// Override with HA-specific settings
+	cfg.Environment = cache.EnvLocal
+	cfg.ReplicaCount = 2
+	cfg.ReadQuorum = 1
+	cfg.WriteQuorum = 1
+	cfg.LeaveTimeout = 3 * time.Second
+	cfg.MemberCountQuorum = 1
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -830,19 +775,10 @@ func TestOlricCacheHAConfiguration(t *testing.T) {
 func TestOlricCachePingAfterClose(t *testing.T) {
 	t.Parallel()
 	port := getNextPort()
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("ping-close-test-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("ping-close-test-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
 
 	ctx := context.Background()
 	testCache, err := cache.NewOlricCacheForTest(ctx, &cfg)
@@ -866,19 +802,10 @@ func TestOlricCachePingAfterClose(t *testing.T) {
 func TestOlricCacheStatsAfterClose(t *testing.T) {
 	t.Parallel()
 	port := getNextPort()
-	cfg := cache.OlricConfig{
-		DMapName:          fmt.Sprintf("stats-close-test-%d", port),
-		BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-		Environment:       "",
-		Addresses:         nil,
-		Peers:             nil,
-		ReplicaCount:      0,
-		ReadQuorum:        0,
-		WriteQuorum:       0,
-		LeaveTimeout:      0,
-		MemberCountQuorum: 0,
-		Embedded:          true,
-	}
+	cfg := cache.DefaultTestOlricConfig(
+		fmt.Sprintf("stats-close-test-%d", port),
+		fmt.Sprintf("127.0.0.1:%d", port),
+	)
 
 	ctx := context.Background()
 	testCache, err := cache.NewOlricCacheForTest(ctx, &cfg)
@@ -968,19 +895,11 @@ func TestOlricCacheEnvironmentPresets(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			port := getNextPort()
-			cfg := cache.OlricConfig{
-				DMapName:          fmt.Sprintf("env-test-dmap-%d", port),
-				BindAddr:          fmt.Sprintf("127.0.0.1:%d", port),
-				Environment:       testCase.environment,
-				Addresses:         nil,
-				Peers:             nil,
-				ReplicaCount:      0,
-				ReadQuorum:        0,
-				WriteQuorum:       0,
-				LeaveTimeout:      0,
-				MemberCountQuorum: 0,
-				Embedded:          true,
-			}
+			cfg := cache.DefaultTestOlricConfig(
+				fmt.Sprintf("env-test-dmap-%d", port),
+				fmt.Sprintf("127.0.0.1:%d", port),
+			)
+			cfg.Environment = testCase.environment
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()

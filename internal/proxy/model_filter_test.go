@@ -1,51 +1,19 @@
 package proxy_test
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/proxy"
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
-// mockProviderForFilter creates a minimal provider for filter testing.
-type mockProviderForFilter struct {
-	name string
-}
-
-func (m *mockProviderForFilter) Name() string                                 { return m.name }
-func (m *mockProviderForFilter) BaseURL() string                              { return "" }
-func (m *mockProviderForFilter) Owner() string                                { return m.name }
-func (m *mockProviderForFilter) Authenticate(_ *http.Request, _ string) error { return nil }
-func (m *mockProviderForFilter) ForwardHeaders(_ http.Header) http.Header     { return nil }
-func (m *mockProviderForFilter) SupportsStreaming() bool                      { return true }
-func (m *mockProviderForFilter) GetModelMapping() map[string]string           { return nil }
-func (m *mockProviderForFilter) MapModel(model string) string                 { return model }
-func (m *mockProviderForFilter) ListModels() []providers.Model                { return nil }
-func (m *mockProviderForFilter) SupportsTransparentAuth() bool                { return false }
-func (m *mockProviderForFilter) GetTransparentAuthHeader() string             { return "" }
-func (m *mockProviderForFilter) HasValidTransparentAuth(_ *http.Request) bool { return false }
-
-func (m *mockProviderForFilter) TransformRequest(
-	body []byte, endpoint string,
-) (newBody []byte, targetURL string, err error) {
-	return body, endpoint, nil
-}
-func (m *mockProviderForFilter) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
-	return nil
-}
-func (m *mockProviderForFilter) RequiresBodyTransform() bool { return false }
-func (m *mockProviderForFilter) StreamingContentType() string {
-	return providers.ContentTypeSSE
-}
-
+// filterTestProviders returns test providers and model mapping for filter tests.
 func filterTestProviders() (infos []router.ProviderInfo, mapping map[string]string) {
-	anthropic := &mockProviderForFilter{name: "anthropic"}
-	zai := &mockProviderForFilter{name: "zai"}
-	ollama := &mockProviderForFilter{name: "ollama"}
+	anthropic := proxy.NewMockProvider("anthropic")
+	zai := proxy.NewMockProvider("zai")
+	ollama := proxy.NewMockProvider("ollama")
 
 	infos = []router.ProviderInfo{
 		proxy.TestProviderInfoWithHealth(anthropic, func() bool { return true }),
@@ -152,7 +120,7 @@ func RunFilterTestCase(t *testing.T, testCase struct {
 func TestFilterProvidersByModelEmptyMapping(t *testing.T) {
 	t.Parallel()
 
-	anthropic := &mockProviderForFilter{name: "anthropic"}
+	anthropic := proxy.NewMockProvider("anthropic")
 	providerInfos := []router.ProviderInfo{
 		proxy.TestProviderInfo(anthropic),
 	}
@@ -169,8 +137,8 @@ func TestFilterProvidersByModelEmptyMapping(t *testing.T) {
 func TestFilterProvidersByModelLongestPrefixMatch(t *testing.T) {
 	t.Parallel()
 
-	anthropic := &mockProviderForFilter{name: "anthropic"}
-	anthropicSpecial := &mockProviderForFilter{name: "anthropic-special"}
+	anthropic := proxy.NewMockProvider("anthropic")
+	anthropicSpecial := proxy.NewMockProvider("anthropic-special")
 
 	providerInfos := []router.ProviderInfo{
 		proxy.TestProviderInfo(anthropic),
@@ -196,7 +164,7 @@ func TestFilterProvidersByModelLongestPrefixMatch(t *testing.T) {
 func TestFilterProvidersByModelGracefulDegradation(t *testing.T) {
 	t.Parallel()
 
-	anthropic := &mockProviderForFilter{name: "anthropic"}
+	anthropic := proxy.NewMockProvider("anthropic")
 	providerInfos := []router.ProviderInfo{
 		proxy.TestProviderInfo(anthropic),
 	}

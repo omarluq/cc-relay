@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
@@ -83,36 +82,9 @@ func TestHasThinkingBlocks(t *testing.T) {
 
 func TestProcessRequestThinkingCachedSignature(t *testing.T) {
 	t.Parallel()
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 
-	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	// Pre-populate cache with a valid signature
@@ -144,36 +116,8 @@ func TestProcessRequestThinkingClientSignatureTakesPriority(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
-
-	sigCache := proxy.NewSignatureCache(cacheInstance)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 
 	// Pre-populate cache with a DIFFERENT signature for the same thinking text
 	thinkingText := "I need to consider this carefully..."
@@ -443,36 +387,9 @@ func TestProcessRequestThinkingPreservesUnknownFields(t *testing.T) {
 
 func TestProcessResponseSignature(t *testing.T) {
 	t.Parallel()
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 
-	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	thinkingText := "Let me analyze this..."
@@ -485,7 +402,7 @@ func TestProcessResponseSignature(t *testing.T) {
 
 	// Verify signature was prefixed
 	var result map[string]interface{}
-	err = json.Unmarshal(modifiedData, &result)
+	err := json.Unmarshal(modifiedData, &result)
 	require.NoError(t, err)
 
 	delta, ok := result["delta"].(map[string]interface{})
@@ -502,36 +419,9 @@ func TestProcessResponseSignature(t *testing.T) {
 
 func TestProcessNonStreamingResponse(t *testing.T) {
 	t.Parallel()
-	cfg := cache.Config{
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Mode: cache.ModeSingle,
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 1e4,
-			MaxCost:     1 << 20,
-			BufferItems: 64,
-		},
-	}
-	cacheInstance, err := cache.New(context.Background(), &cfg)
-	require.NoError(t, err)
-	defer func() {
-		if closeErr := cacheInstance.Close(); closeErr != nil {
-			t.Logf("cache close error: %v", closeErr)
-		}
-	}()
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
 
-	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	signature := "response_signature_that_is_long_enough_for_validation"

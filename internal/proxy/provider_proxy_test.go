@@ -4,7 +4,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -13,18 +12,8 @@ import (
 
 	"github.com/omarluq/cc-relay/internal/providers"
 
-
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
-
-// parseTestURL parses a URL string and fails the test if it is invalid.
-// This satisfies the gosec G704 linter by ensuring tainted URLs are validated.
-func parseTestURL(t *testing.T, rawURL string) string {
-	t.Helper()
-	parsedURL, err := url.Parse(rawURL)
-	require.NoError(t, err)
-	return parsedURL.String()
-}
 
 // TestNewProviderProxyValidProvider tests creating a ProviderProxy with valid provider.
 func TestNewProviderProxyValidProvider(t *testing.T) {
@@ -67,7 +56,7 @@ func TestProviderProxySetsCorrectTargetURL(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	backendURL := parseTestURL(t, backend.URL)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	provider := providers.NewAnthropicProvider("test", backendURL)
 	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
@@ -144,19 +133,8 @@ func TestProviderProxyAuthBehavior(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			var receivedAPIKey string
-			var receivedAuth string
-			backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				receivedAPIKey = request.Header.Get("x-api-key")
-				receivedAuth = request.Header.Get("Authorization")
-				writer.WriteHeader(http.StatusOK)
-				if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
-					return
-				}
-			}))
-			defer backend.Close()
-
-			backendURL := parseTestURL(t, backend.URL)
+			backend, capture := proxy.NewHeaderCaptureBackend(t)
+			backendURL := proxy.ParseTestURL(t, backend.URL)
 			provider := testCase.providerFactory(backendURL)
 			providerProxy, err := proxy.NewProviderProxy(
 				provider, testCase.configuredKey, nil, proxy.TestDebugOptions(), nil,
@@ -172,10 +150,10 @@ func TestProviderProxyAuthBehavior(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, recorder.Code, testCase.description)
 			if testCase.expectedAPIKey != "" {
-				assert.Equal(t, testCase.expectedAPIKey, receivedAPIKey, testCase.description)
+				assert.Equal(t, testCase.expectedAPIKey, capture.Get("x-api-key"), testCase.description)
 			}
 			if testCase.expectedAuth != "" {
-				assert.Equal(t, testCase.expectedAuth, receivedAuth, testCase.description)
+				assert.Equal(t, testCase.expectedAuth, capture.Get("Authorization"), testCase.description)
 			}
 		})
 	}
@@ -186,19 +164,8 @@ func TestProviderProxyAuthBehavior(t *testing.T) {
 func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 	t.Parallel()
 
-	var receivedAPIKey string
-	var receivedAuth string
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedAPIKey = request.Header.Get("x-api-key")
-		receivedAuth = request.Header.Get("Authorization")
-		writer.WriteHeader(http.StatusOK)
-		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
-			return
-		}
-	}))
-	defer backend.Close()
-
-	backendURL := parseTestURL(t, backend.URL)
+	backend, capture := proxy.NewHeaderCaptureBackend(t)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	// Z.AI provider does NOT support transparent auth
 	provider := providers.NewZAIProvider("test-zai", backendURL)
 	providerProxy, err := proxy.NewProviderProxy(provider, "zai-key", nil, proxy.TestDebugOptions(), nil)
@@ -213,28 +180,17 @@ func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 	providerProxy.Proxy.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	// Client auth should NOT be forwarded
-	assert.Empty(t, receivedAuth)
+	assert.Empty(t, capture.Get("Authorization"))
 	// Our configured key should be used
-	assert.Equal(t, "zai-key", receivedAPIKey)
+	assert.Equal(t, "zai-key", capture.Get("x-api-key"))
 }
 
 // TestProviderProxyForwardsAnthropicHeaders tests anthropic-* header forwarding.
 func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 
-	var receivedVersion string
-	var receivedBeta string
-	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedVersion = request.Header.Get("Anthropic-Version")
-		receivedBeta = request.Header.Get("Anthropic-Beta")
-		writer.WriteHeader(http.StatusOK)
-		if _, writeErr := writer.Write([]byte(`{"id":"test"}`)); writeErr != nil {
-			return
-		}
-	}))
-	defer backend.Close()
-
-	backendURL := parseTestURL(t, backend.URL)
+	backend, capture := proxy.NewHeaderCaptureBackend(t)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	provider := providers.NewAnthropicProvider("test", backendURL)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
@@ -246,8 +202,8 @@ func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, proxy.AnthropicVersion2024, receivedVersion)
-	assert.Equal(t, "extended-thinking", receivedBeta)
+	assert.Equal(t, proxy.AnthropicVersion2024, capture.Get("Anthropic-Version"))
+	assert.Equal(t, "extended-thinking", capture.Get("Anthropic-Beta"))
 }
 
 // TestProviderProxySSEHeadersSet tests that SSE headers are set for streaming responses.
@@ -263,7 +219,7 @@ func TestProviderProxySSEHeadersSet(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	backendURL := parseTestURL(t, backend.URL)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	provider := providers.NewAnthropicProvider("test", backendURL)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
@@ -296,7 +252,7 @@ func TestProviderProxyModifyResponseHookCalled(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	backendURL := parseTestURL(t, backend.URL)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	provider := providers.NewAnthropicProvider("test", backendURL)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), hook)
 	require.NoError(t, err)
@@ -397,7 +353,7 @@ func TestProviderProxyTransformRequestCalledForCloudProviders(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	backendURL := parseTestURL(t, backend.URL)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	// Cloud provider transforms URL to include model in path
 	provider := &mockCloudProvider{
 		baseURL:      backendURL,
@@ -437,7 +393,7 @@ func TestProviderProxyTransformRequestNotCalledForStandardProviders(t *testing.T
 	}))
 	defer backend.Close()
 
-	backendURL := parseTestURL(t, backend.URL)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	// Anthropic provider does NOT require body transform
 	provider := providers.NewAnthropicProvider("test", backendURL)
 	assert.False(t, provider.RequiresBodyTransform())
@@ -475,7 +431,7 @@ func TestProviderProxyEventStreamConversion(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	backendURL := parseTestURL(t, backend.URL)
+	backendURL := proxy.ParseTestURL(t, backend.URL)
 	provider.baseURL = backendURL
 
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)

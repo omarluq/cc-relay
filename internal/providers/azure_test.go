@@ -11,6 +11,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testAzureConfig creates a base AzureConfig with all fields set.
+// Use opts to override specific fields for testing.
+func testAzureConfig(opts func(*providers.AzureConfig)) *providers.AzureConfig {
+	cfg := &providers.AzureConfig{
+		ModelMapping: nil,
+		Name:         "test-azure",
+		ResourceName: "my-resource",
+		DeploymentID: "",
+		APIVersion:   "",
+		AuthMethod:   "",
+		Models:       nil,
+	}
+	if opts != nil {
+		opts(cfg)
+	}
+	return cfg
+}
+
 // testAzureAuthenticate is a helper function to test authentication.
 func testAzureAuthenticate(
 	t *testing.T,
@@ -20,15 +38,9 @@ func testAzureAuthenticate(
 	expectedValue string,
 ) {
 	t.Helper()
-	cfg := &providers.AzureConfig{
-		ModelMapping: nil,
-		Name:         "test-azure",
-		ResourceName: "my-resource",
-		DeploymentID: "",
-		APIVersion:   "",
-		AuthMethod:   authMethod,
-		Models:       nil,
-	}
+	cfg := testAzureConfig(func(c *providers.AzureConfig) {
+		c.AuthMethod = authMethod
+	})
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
@@ -43,15 +55,9 @@ func TestNewAzureProviderCreatesProvider(t *testing.T) {
 	t.Parallel()
 	t.Run("creates provider with required config", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "claude-deployment",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.DeploymentID = "claude-deployment"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -64,15 +70,9 @@ func TestNewAzureProviderCreatesProvider(t *testing.T) {
 
 	t.Run("returns error when resource_name is missing", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.ResourceName = ""
+		})
 		_, err := providers.NewAzureProvider(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "resource_name is required")
@@ -80,15 +80,9 @@ func TestNewAzureProviderCreatesProvider(t *testing.T) {
 
 	t.Run("uses custom API version", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "2024-12-01",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.APIVersion = "2024-12-01"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 		assert.Equal(t, "2024-12-01", provider.AzureAPIVersion())
@@ -96,15 +90,7 @@ func TestNewAzureProviderCreatesProvider(t *testing.T) {
 
 	t.Run("uses default models when none specified", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(nil)
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 		models := provider.ListModels()
@@ -116,15 +102,9 @@ func TestNewAzureProviderConfigOptions(t *testing.T) {
 	t.Parallel()
 	t.Run("uses custom models when specified", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       []string{"custom-model"},
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.Models = []string{"custom-model"}
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 		models := provider.ListModels()
@@ -134,15 +114,10 @@ func TestNewAzureProviderConfigOptions(t *testing.T) {
 
 	t.Run("stores resource name and deployment ID", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-special-resource",
-			DeploymentID: "my-deployment-123",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.ResourceName = "my-special-resource"
+			c.DeploymentID = "my-deployment-123"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 		assert.Equal(t, "my-special-resource", provider.AzureResourceName())
@@ -151,15 +126,7 @@ func TestNewAzureProviderConfigOptions(t *testing.T) {
 
 	t.Run("uses api_key auth method by default", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(nil)
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 		assert.Equal(t, "api_key", provider.AzureAuthMethod())
@@ -167,15 +134,9 @@ func TestNewAzureProviderConfigOptions(t *testing.T) {
 
 	t.Run("accepts entra_id auth method", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "entra_id",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.AuthMethod = "entra_id"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 		assert.Equal(t, "entra_id", provider.AzureAuthMethod())
@@ -191,15 +152,9 @@ func TestAzureProviderAuthenticate(t *testing.T) {
 
 	t.Run("uses Bearer token for entra_id auth", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "entra_id",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.AuthMethod = "entra_id"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -213,15 +168,7 @@ func TestAzureProviderAuthenticate(t *testing.T) {
 
 	t.Run("default auth method uses x-api-key", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(nil)
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -235,15 +182,7 @@ func TestAzureProviderAuthenticate(t *testing.T) {
 
 func TestAzureProviderForwardHeaders(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.AzureConfig{
-		ModelMapping: nil,
-		Name:         "test-azure",
-		ResourceName: "my-resource",
-		DeploymentID: "",
-		APIVersion:   "",
-		AuthMethod:   "",
-		Models:       nil,
-	}
+	cfg := testAzureConfig(nil)
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
@@ -287,15 +226,9 @@ func TestAzureProviderTransformRequest(t *testing.T) {
 	t.Parallel()
 	t.Run("constructs correct URL with api-version", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "2024-06-01",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.APIVersion = "2024-06-01"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -312,15 +245,7 @@ func TestAzureProviderTransformRequest(t *testing.T) {
 
 	t.Run("body is unchanged", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(nil)
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -334,15 +259,10 @@ func TestAzureProviderTransformRequest(t *testing.T) {
 
 	t.Run("uses custom api-version in URL", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "custom-res",
-			DeploymentID: "",
-			APIVersion:   "2025-01-15",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.ResourceName = "custom-res"
+			c.APIVersion = "2025-01-15"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -359,15 +279,9 @@ func TestAzureProviderTransformRequestEndpoint(t *testing.T) {
 	t.Parallel()
 	t.Run("ignores endpoint parameter", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "2024-06-01",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.APIVersion = "2024-06-01"
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -384,15 +298,7 @@ func TestAzureProviderTransformRequestEndpoint(t *testing.T) {
 
 func TestAzureProviderRequiresBodyTransform(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.AzureConfig{
-		ModelMapping: nil,
-		Name:         "test-azure",
-		ResourceName: "my-resource",
-		DeploymentID: "",
-		APIVersion:   "",
-		AuthMethod:   "",
-		Models:       nil,
-	}
+	cfg := testAzureConfig(nil)
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
@@ -401,15 +307,7 @@ func TestAzureProviderRequiresBodyTransform(t *testing.T) {
 
 func TestAzureProviderSupportsStreaming(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.AzureConfig{
-		ModelMapping: nil,
-		Name:         "test-azure",
-		ResourceName: "my-resource",
-		DeploymentID: "",
-		APIVersion:   "",
-		AuthMethod:   "",
-		Models:       nil,
-	}
+	cfg := testAzureConfig(nil)
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
@@ -418,15 +316,7 @@ func TestAzureProviderSupportsStreaming(t *testing.T) {
 
 func TestAzureProviderStreamingContentType(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.AzureConfig{
-		ModelMapping: nil,
-		Name:         "test-azure",
-		ResourceName: "my-resource",
-		DeploymentID: "",
-		APIVersion:   "",
-		AuthMethod:   "",
-		Models:       nil,
-	}
+	cfg := testAzureConfig(nil)
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
@@ -435,15 +325,7 @@ func TestAzureProviderStreamingContentType(t *testing.T) {
 
 func TestAzureProviderSupportsTransparentAuth(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.AzureConfig{
-		ModelMapping: nil,
-		Name:         "test-azure",
-		ResourceName: "my-resource",
-		DeploymentID: "",
-		APIVersion:   "",
-		AuthMethod:   "",
-		Models:       nil,
-	}
+	cfg := testAzureConfig(nil)
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
@@ -453,17 +335,11 @@ func TestAzureProviderSupportsTransparentAuth(t *testing.T) {
 
 func TestAzureProviderModelMapping(t *testing.T) {
 	t.Parallel()
-	cfg := &providers.AzureConfig{
-		ModelMapping: map[string]string{
+	cfg := testAzureConfig(func(c *providers.AzureConfig) {
+		c.ModelMapping = map[string]string{
 			"claude-4": "claude-sonnet-4-5-20250514",
-		},
-		Name:         "test-azure",
-		ResourceName: "my-resource",
-		DeploymentID: "",
-		APIVersion:   "",
-		AuthMethod:   "",
-		Models:       nil,
-	}
+		}
+	})
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
@@ -482,17 +358,11 @@ func TestAzureProviderGetModelMapping(t *testing.T) {
 	t.Parallel()
 	t.Run("returns model mapping when configured", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: map[string]string{
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.ModelMapping = map[string]string{
 				"alias": "real-model",
-			},
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+			}
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -503,15 +373,7 @@ func TestAzureProviderGetModelMapping(t *testing.T) {
 
 	t.Run("returns nil when no mapping configured", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(nil)
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -524,15 +386,7 @@ func TestAzureProviderListModels(t *testing.T) {
 	t.Parallel()
 	t.Run("returns default models with correct metadata", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       nil,
-		}
+		cfg := testAzureConfig(nil)
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
@@ -549,15 +403,9 @@ func TestAzureProviderListModels(t *testing.T) {
 
 	t.Run("returns custom models when specified", func(t *testing.T) {
 		t.Parallel()
-		cfg := &providers.AzureConfig{
-			ModelMapping: nil,
-			Name:         "test-azure",
-			ResourceName: "my-resource",
-			DeploymentID: "",
-			APIVersion:   "",
-			AuthMethod:   "",
-			Models:       []string{"custom-model-1", "custom-model-2"},
-		}
+		cfg := testAzureConfig(func(c *providers.AzureConfig) {
+			c.Models = []string{"custom-model-1", "custom-model-2"}
+		})
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 

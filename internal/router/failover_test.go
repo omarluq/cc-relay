@@ -77,8 +77,8 @@ func TestFailoverRouterSelectAllUnhealthy(t *testing.T) {
 
 	rtr := router.NewFailoverRouter(0)
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 1, Weight: 0, IsHealthy: func() bool { return false }},
-		{Provider: router.NewTestProvider("p2"), Priority: 2, Weight: 0, IsHealthy: func() bool { return false }},
+		router.NewTestProviderInfo("p1", 1, 0, router.NeverHealthy()),
+		router.NewTestProviderInfo("p2", 2, 0, router.NeverHealthy()),
 	}
 	_, err := rtr.Select(context.Background(), providers)
 	if !errors.Is(err, router.ErrAllProvidersUnhealthy) {
@@ -91,9 +91,9 @@ func TestFailoverRouterSelectReturnsHighestPriority(t *testing.T) {
 
 	rtr := router.NewFailoverRouter(0)
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 1, Weight: 1, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p2"), Priority: 3, Weight: 3, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p3"), Priority: 2, Weight: 2, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("p1", 1, 1, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p2", 3, 3, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p3", 2, 2, router.AlwaysHealthy()),
 	}
 	result, err := rtr.Select(context.Background(), providers)
 	if err != nil {
@@ -112,9 +112,9 @@ func TestFailoverRouterSelectSkipsUnhealthyHighPriority(t *testing.T) {
 
 	rtr := router.NewFailoverRouter(0)
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 1, Weight: 1, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p2"), Priority: 3, Weight: 3, IsHealthy: func() bool { return false }},
-		{Provider: router.NewTestProvider("p3"), Priority: 2, Weight: 2, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("p1", 1, 1, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p2", 3, 3, router.NeverHealthy()),
+		router.NewTestProviderInfo("p3", 2, 2, router.AlwaysHealthy()),
 	}
 	result, err := rtr.Select(context.Background(), providers)
 	if err != nil {
@@ -146,7 +146,7 @@ func TestFailoverRouterSelectWithRetryAllUnhealthy(t *testing.T) {
 		return 200, nil
 	}
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 1, Weight: 0, IsHealthy: func() bool { return false }},
+		router.NewTestProviderInfo("p1", 1, 0, router.NeverHealthy()),
 	}
 	_, err := rtr.SelectWithRetry(context.Background(), providers, tryProvider)
 	if !errors.Is(err, router.ErrAllProvidersUnhealthy) {
@@ -166,8 +166,8 @@ func TestFailoverRouterSelectWithRetryPrimarySucceeds(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("primary"), Priority: 2, Weight: 2, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("fallback"), Priority: 1, Weight: 1, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("primary", 2, 2, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("fallback", 1, 1, router.AlwaysHealthy()),
 	}
 
 	result, err := rtr.SelectWithRetry(context.Background(), providers, tryProvider)
@@ -193,7 +193,7 @@ func TestFailoverRouterSelectWithRetrySingleProvider(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("single"), Priority: 1, Weight: 0, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("single", 1, 0, router.AlwaysHealthy()),
 	}
 
 	result, err := rtr.SelectWithRetry(context.Background(), providers, tryProvider)
@@ -222,8 +222,8 @@ func TestFailoverRouterSelectWithRetryFailoverOnTrigger(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("primary"), Priority: 2, Weight: 2, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("fallback"), Priority: 1, Weight: 1, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("primary", 2, 2, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("fallback", 1, 1, router.AlwaysHealthy()),
 	}
 
 	result, err := rtr.SelectWithRetry(context.Background(), providers, tryProvider)
@@ -260,8 +260,8 @@ func TestFailoverRouterSelectWithRetryNoFailoverOnNonTrigger(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("primary"), Priority: 2, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("fallback"), Priority: 1, Weight: 0, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("primary", 2, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("fallback", 1, 0, router.AlwaysHealthy()),
 	}
 
 	_, err := rtr.SelectWithRetry(context.Background(), providers, tryProvider)
@@ -304,8 +304,8 @@ func TestFailoverRouterSelectWithRetryFirstSuccessWins(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("slow"), Priority: 2, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("fast"), Priority: 1, Weight: 0, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("slow", 2, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("fast", 1, 0, router.AlwaysHealthy()),
 	}
 
 	// Use status code trigger to ensure failover
@@ -358,9 +358,9 @@ func TestFailoverRouterSelectWithRetryTimeoutRespected(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 3, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p2"), Priority: 2, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p3"), Priority: 1, Weight: 0, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("p1", 3, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p2", 2, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p3", 1, 0, router.AlwaysHealthy()),
 	}
 
 	start := time.Now()
@@ -394,10 +394,10 @@ func TestFailoverRouterSelectWithRetryConcurrentSafety(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p4"), Priority: 4, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p3"), Priority: 3, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p2"), Priority: 2, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p1"), Priority: 1, Weight: 0, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("p4", 4, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p3", 3, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p2", 2, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p1", 1, 0, router.AlwaysHealthy()),
 	}
 
 	var waitGroup sync.WaitGroup
@@ -431,11 +431,11 @@ func TestFailoverRouterSortByPriority(t *testing.T) {
 	t.Parallel()
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 1, Weight: 1, IsHealthy: nil},
-		{Provider: router.NewTestProvider("p3"), Priority: 3, Weight: 3, IsHealthy: nil},
-		{Provider: router.NewTestProvider("p2"), Priority: 2, Weight: 2, IsHealthy: nil},
-		{Provider: router.NewTestProvider("p5"), Priority: 5, Weight: 5, IsHealthy: nil},
-		{Provider: router.NewTestProvider("p4"), Priority: 4, Weight: 4, IsHealthy: nil},
+		router.NewTestProviderInfo("p1", 1, 1, nil),
+		router.NewTestProviderInfo("p3", 3, 3, nil),
+		router.NewTestProviderInfo("p2", 2, 2, nil),
+		router.NewTestProviderInfo("p5", 5, 5, nil),
+		router.NewTestProviderInfo("p4", 4, 4, nil),
 	}
 
 	sorted := router.SortByPriority(providers)
@@ -459,9 +459,9 @@ func TestFailoverRouterSortByPriorityStableSort(t *testing.T) {
 
 	// Same priority, different weights - should preserve order
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 1, Weight: 10, IsHealthy: nil},
-		{Provider: router.NewTestProvider("p2"), Priority: 1, Weight: 20, IsHealthy: nil},
-		{Provider: router.NewTestProvider("p3"), Priority: 1, Weight: 30, IsHealthy: nil},
+		router.NewTestProviderInfo("p1", 1, 10, nil),
+		router.NewTestProviderInfo("p2", 1, 20, nil),
+		router.NewTestProviderInfo("p3", 1, 30, nil),
 	}
 
 	sorted := router.SortByPriority(providers)
@@ -478,7 +478,7 @@ func TestFailoverRouterSortByPriorityStableSort(t *testing.T) {
 func TestRoutingResult(t *testing.T) {
 	t.Parallel()
 
-	provider := router.ProviderInfo{Provider: router.NewTestProvider("test"), Priority: 1, Weight: 0, IsHealthy: nil}
+	provider := router.NewTestProviderInfo("test", 1, 0, nil)
 	err := errors.New("test error")
 
 	result := router.RoutingResult{
@@ -519,8 +519,8 @@ func TestFailoverRouterParallelRaceAllFail(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 2, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p2"), Priority: 1, Weight: 0, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("p1", 2, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p2", 1, 0, router.AlwaysHealthy()),
 	}
 
 	_, err := rtr.SelectWithRetry(context.Background(), providers, tryProvider)
@@ -546,8 +546,8 @@ func TestFailoverRouterContextCancellation(t *testing.T) {
 	}
 
 	providers := []router.ProviderInfo{
-		{Provider: router.NewTestProvider("p1"), Priority: 2, Weight: 0, IsHealthy: func() bool { return true }},
-		{Provider: router.NewTestProvider("p2"), Priority: 1, Weight: 0, IsHealthy: func() bool { return true }},
+		router.NewTestProviderInfo("p1", 2, 0, router.AlwaysHealthy()),
+		router.NewTestProviderInfo("p2", 1, 0, router.AlwaysHealthy()),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

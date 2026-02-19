@@ -20,6 +20,17 @@ const (
 	existingConfigContent         = "existing: content"
 )
 
+// newMockInitCmd creates a mock cobra.Command with the output and force flags
+// pre-registered, matching the flags used by the init command.
+func newMockInitCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "init",
+	}
+	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
+	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
+	return cmd
+}
+
 func TestRunConfigInitDefaultPath(t *testing.T) {
 	t.Parallel(
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
@@ -41,9 +52,7 @@ func TestRunConfigInitDefaultPath(t *testing.T) {
 	}
 
 	// Create a mock command with the output and force flags
-	cmd := &cobra.Command{}
-	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
-	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
+	cmd := newMockInitCmd()
 
 	// runConfigInit should create config file
 	err := runConfigInit(cmd, nil)
@@ -82,9 +91,7 @@ func TestRunConfigInitCustomPath(t *testing.T) {
 	customPath := filepath.Join(tmpDir, "custom", initConfigFileName)
 
 	// Create a mock command with custom output path
-	cmd := &cobra.Command{}
-	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
-	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
+	cmd := newMockInitCmd()
 	if err := cmd.Flags().Set(initConfigOutputFlag, customPath); err != nil {
 		t.Fatal(err)
 	}
@@ -114,9 +121,7 @@ func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
 	}
 
 	// Create a mock command without force flag
-	cmd := &cobra.Command{}
-	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
-	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
+	cmd := newMockInitCmd()
 	if err := cmd.Flags().Set(initConfigOutputFlag, configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -144,9 +149,7 @@ func TestRunConfigInitExistingFileWithForce(t *testing.T) {
 	}
 
 	// Create a mock command with force flag
-	cmd := &cobra.Command{}
-	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
-	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
+	cmd := newMockInitCmd()
 	if err := cmd.Flags().Set(initConfigOutputFlag, configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -185,9 +188,7 @@ func TestRunConfigInitCreatesDirectory(t *testing.T) {
 	nestedPath := filepath.Join(tmpDir, "a", "b", "c", initConfigFileName)
 
 	// Create a mock command with nested path
-	cmd := &cobra.Command{}
-	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
-	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)
+	cmd := newMockInitCmd()
 	if err := cmd.Flags().Set(initConfigOutputFlag, nestedPath); err != nil {
 		t.Fatal(err)
 	}
