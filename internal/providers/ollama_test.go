@@ -19,8 +19,8 @@ func TestNewOllamaProvider(t *testing.T) {
 			{
 				name:         "with custom base URL",
 				providerName: "ollama-custom",
-				baseURL:      "http://192.168.1.100:11434",
-				wantBaseURL:  "http://192.168.1.100:11434",
+				baseURL:      "http://10.0.0.50:11434",
+				wantBaseURL:  "http://10.0.0.50:11434",
 			},
 			{
 				name:         "with empty base URL uses default",
@@ -246,7 +246,7 @@ func TestNewOllamaProviderWithMapping(t *testing.T) {
 
 	provider := providers.NewOllamaProviderWithMapping(
 		"ollama-primary",
-		"http://192.168.1.100:11434",
+		"http://10.0.0.50:11434",
 		models,
 		mapping,
 	)
@@ -255,7 +255,7 @@ func TestNewOllamaProviderWithMapping(t *testing.T) {
 		t.Errorf("Expected name=ollama-primary, got %s", provider.Name())
 	}
 
-	if provider.BaseURL() != "http://192.168.1.100:11434" {
+	if provider.BaseURL() != "http://10.0.0.50:11434" {
 		t.Errorf("Expected custom base URL, got %s", provider.BaseURL())
 	}
 
