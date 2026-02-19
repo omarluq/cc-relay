@@ -1,6 +1,6 @@
 ---
 title: "프로바이더"
-description: "cc-relay에서 Anthropic, Z.AI, Ollama 프로바이더 설정"
+description: "cc-relay에서 Anthropic, Z.AI, MiniMax, Ollama 프로바이더 설정"
 weight: 5
 ---
 
@@ -14,6 +14,7 @@ CC-Relay는 Claude Code와 다양한 LLM 백엔드 사이의 프록시 역할을
 |-----------|------|------|------|
 | Anthropic | `anthropic` | 직접 Anthropic API 접근 | 표준 Anthropic 가격 |
 | Z.AI | `zai` | Zhipu AI GLM 모델, Anthropic 호환 | Anthropic 가격의 약 1/7 |
+| MiniMax | `minimax` | MiniMax 모델, Anthropic 호환 | MiniMax 가격 |
 | Ollama | `ollama` | 로컬 LLM 추론 | 무료 (로컬 컴퓨팅) |
 | AWS Bedrock | `bedrock` | SigV4 인증으로 AWS 경유 Claude | AWS Bedrock 가격 |
 | Azure AI Foundry | `azure` | Azure MAAS 경유 Claude | Azure AI 가격 |
@@ -560,6 +561,131 @@ key = "vertex-internal"  # Internal key for cc-relay auth
    - **Application Default Credentials**: `gcloud auth application-default login`
    - **Service Account**: Set `GOOGLE_APPLICATION_CREDENTIALS` environment variable
    - **GCE/GKE**: Uses attached service account automatically
+
+## MiniMax 프로바이더
+
+MiniMax는 Anthropic 호환 API를 통해 대규모 언어 모델을 제공합니다. MiniMax는 코딩 작업에 적합한 고품질 모델을 경쟁력 있는 가격으로 제공합니다.
+
+### 설정
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+providers:
+  - name: "minimax"
+    type: "minimax"
+    enabled: true
+    base_url: "https://api.minimax.io/anthropic"  # 선택사항, 기본값 사용
+
+    keys:
+      - key: "${MINIMAX_API_KEY}"
+        priority: 1  # 장애 조치에서 Anthropic보다 낮은 우선순위
+
+    # Claude 모델 이름을 MiniMax 모델로 매핑
+    model_mapping:
+      "claude-opus-4-6": "MiniMax-M2.5"
+      "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+      "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+      "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+      "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+
+    models:
+      - "MiniMax-M2.5"
+      - "MiniMax-M2.5-highspeed"
+      - "MiniMax-M2.1"
+      - "MiniMax-M2.1-highspeed"
+      - "MiniMax-M2"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "minimax"
+type = "minimax"
+enabled = true
+base_url = "https://api.minimax.io/anthropic"  # 선택사항, 기본값 사용
+
+[[providers.keys]]
+key = "${MINIMAX_API_KEY}"
+priority = 1  # 장애 조치에서 Anthropic보다 낮은 우선순위
+
+# Claude 모델 이름을 MiniMax 모델로 매핑
+[providers.model_mapping]
+"claude-opus-4-6" = "MiniMax-M2.5"
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+
+models = [
+  "MiniMax-M2.5",
+  "MiniMax-M2.5-highspeed",
+  "MiniMax-M2.1",
+  "MiniMax-M2.1-highspeed",
+  "MiniMax-M2"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### API 키 설정
+
+1. [minimax.io](https://www.minimax.io)에서 계정 생성
+2. API 키 섹션으로 이동
+3. 새 API 키 생성
+4. 환경 변수에 저장: `export MINIMAX_API_KEY="..."`
+
+### 인증
+
+MiniMax는 Anthropic에서 사용하는 `x-api-key` 헤더 대신 Bearer 토큰 인증을 사용합니다. CC-Relay가 이를 자동으로 처리합니다 — 추가 설정이 필요 없습니다.
+
+### 사용 가능한 모델
+
+| 모델 | 설명 |
+|------|------|
+| `MiniMax-M2.5` | 플래그십 모델, 최고 품질 |
+| `MiniMax-M2.5-highspeed` | M2.5의 고속 변형 |
+| `MiniMax-M2.1` | 이전 세대 모델 |
+| `MiniMax-M2.1-highspeed` | M2.1의 고속 변형 |
+| `MiniMax-M2` | 기본 모델 |
+
+### 모델 매핑
+
+모델 매핑은 Anthropic 모델 이름을 MiniMax 동등 모델로 변환합니다:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+model_mapping:
+  # Claude Opus -> MiniMax-M2.5 (플래그십)
+  "claude-opus-4-6": "MiniMax-M2.5"
+
+  # Claude Sonnet -> MiniMax-M2.5-highspeed (빠른, 고품질)
+  "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+  "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+
+  # Claude Haiku -> MiniMax-M2.1-highspeed (빠른, 경제적)
+  "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+  "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Opus -> MiniMax-M2.5 (플래그십)
+"claude-opus-4-6" = "MiniMax-M2.5"
+
+# Claude Sonnet -> MiniMax-M2.5-highspeed (빠른, 고품질)
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+
+# Claude Haiku -> MiniMax-M2.1-highspeed (빠른, 경제적)
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
 
 ## Model Mapping
 

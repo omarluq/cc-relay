@@ -1,6 +1,6 @@
 ---
 title: "プロバイダー"
-description: "cc-relayでAnthropic、Z.AI、Ollamaプロバイダーを設定する"
+description: "cc-relayでAnthropic、Z.AI、MiniMax、Ollamaプロバイダーを設定する"
 weight: 5
 ---
 
@@ -14,6 +14,7 @@ CC-RelayはClaude Codeと様々なLLMバックエンド間のプロキシとし�
 |-------------|--------|------|--------|
 | Anthropic | `anthropic` | 直接Anthropic APIアクセス | 標準Anthropic料金 |
 | Z.AI | `zai` | Zhipu AI GLMモデル、Anthropic互換 | Anthropicの約1/7の料金 |
+| MiniMax | `minimax` | MiniMaxモデル、Anthropic互換 | MiniMax料金 |
 | Ollama | `ollama` | ローカルLLM推論 | 無料（ローカルコンピューティング） |
 | AWS Bedrock | `bedrock` | SigV4認証によるAWS経由のClaude | AWS Bedrock料金 |
 | Azure AI Foundry | `azure` | Azure MAAS経由のClaude | Azure AI料金 |
@@ -212,6 +213,131 @@ model_mapping:
 | claude-haiku-3-5 | $0.25 入力 / $1.25 出力 | GLM-4.5-Air | ~$0.04 / $0.18 |
 
 *価格は概算であり、変更される可能性があります。*
+
+## MiniMaxプロバイダー
+
+MiniMaxはAnthropic互換APIを通じて大規模言語モデルを提供しています。MiniMaxはコーディングタスクに適した高品質モデルを競争力のある価格で提供します。
+
+### 設定
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+providers:
+  - name: "minimax"
+    type: "minimax"
+    enabled: true
+    base_url: "https://api.minimax.io/anthropic"  # オプション、デフォルトを使用
+
+    keys:
+      - key: "${MINIMAX_API_KEY}"
+        priority: 1  # フェイルオーバーでAnthropicより低い優先度
+
+    # ClaudeモデルをMiniMaxモデルにマッピング
+    model_mapping:
+      "claude-opus-4-6": "MiniMax-M2.5"
+      "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+      "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+      "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+      "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+
+    models:
+      - "MiniMax-M2.5"
+      - "MiniMax-M2.5-highspeed"
+      - "MiniMax-M2.1"
+      - "MiniMax-M2.1-highspeed"
+      - "MiniMax-M2"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "minimax"
+type = "minimax"
+enabled = true
+base_url = "https://api.minimax.io/anthropic"  # オプション、デフォルトを使用
+
+[[providers.keys]]
+key = "${MINIMAX_API_KEY}"
+priority = 1  # フェイルオーバーでAnthropicより低い優先度
+
+# ClaudeモデルをMiniMaxモデルにマッピング
+[providers.model_mapping]
+"claude-opus-4-6" = "MiniMax-M2.5"
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+
+models = [
+  "MiniMax-M2.5",
+  "MiniMax-M2.5-highspeed",
+  "MiniMax-M2.1",
+  "MiniMax-M2.1-highspeed",
+  "MiniMax-M2"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### APIキーの設定
+
+1. [minimax.io](https://www.minimax.io)でアカウントを作成
+2. APIキーセクションに移動
+3. 新しいAPIキーを作成
+4. 環境変数に保存: `export MINIMAX_API_KEY="..."`
+
+### 認証
+
+MiniMaxはAnthropicで使用される`x-api-key`ヘッダーではなく、Bearerトークン認証を使用します。CC-Relayはこれを自動的に処理します — 追加の設定は不要です。
+
+### 利用可能なモデル
+
+| モデル | 説明 |
+|--------|------|
+| `MiniMax-M2.5` | フラッグシップモデル、最高品質 |
+| `MiniMax-M2.5-highspeed` | M2.5の高速バリアント |
+| `MiniMax-M2.1` | 前世代モデル |
+| `MiniMax-M2.1-highspeed` | M2.1の高速バリアント |
+| `MiniMax-M2` | ベースモデル |
+
+### モデルマッピング
+
+モデルマッピングはAnthropicのモデル名をMiniMaxの同等モデルに変換します:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+model_mapping:
+  # Claude Opus -> MiniMax-M2.5（フラッグシップ）
+  "claude-opus-4-6": "MiniMax-M2.5"
+
+  # Claude Sonnet -> MiniMax-M2.5-highspeed（高速、高品質）
+  "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+  "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+
+  # Claude Haiku -> MiniMax-M2.1-highspeed（高速、経済的）
+  "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+  "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Opus -> MiniMax-M2.5（フラッグシップ）
+"claude-opus-4-6" = "MiniMax-M2.5"
+
+# Claude Sonnet -> MiniMax-M2.5-highspeed（高速、高品質）
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+
+# Claude Haiku -> MiniMax-M2.1-highspeed（高速、経済的）
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
 
 ## Ollamaプロバイダー
 

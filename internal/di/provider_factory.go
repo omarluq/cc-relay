@@ -15,6 +15,7 @@ var ErrUnknownProviderType = fmt.Errorf("unknown provider type")
 const (
 	ProviderTypeAnthropic = "anthropic"
 	ProviderTypeZAI       = "zai"
+	ProviderTypeMiniMax   = "minimax"
 	ProviderTypeOllama    = "ollama"
 	ProviderTypeBedrock   = "bedrock"
 	ProviderTypeVertex    = "vertex"
@@ -22,7 +23,7 @@ const (
 )
 
 // supportedProviderTypes is the list of supported provider types for error messages.
-const supportedProviderTypes = "anthropic, zai, ollama, bedrock, vertex, azure"
+const supportedProviderTypes = "anthropic, zai, minimax, ollama, bedrock, vertex, azure"
 
 // createCloudProvider creates a cloud provider (bedrock, vertex, azure) with validation.
 func createCloudProvider(ctx context.Context, providerConfig *config.ProviderConfig) (providers.Provider, error) {
@@ -71,6 +72,10 @@ func createProvider(ctx context.Context, providerConfig *config.ProviderConfig) 
 		), nil
 	case ProviderTypeZAI:
 		return providers.NewZAIProviderWithMapping(
+			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
+		), nil
+	case ProviderTypeMiniMax:
+		return providers.NewMiniMaxProviderWithMapping(
 			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
 	case ProviderTypeOllama:

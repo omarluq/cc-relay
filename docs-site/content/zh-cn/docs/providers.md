@@ -1,6 +1,6 @@
 ---
 title: "供应商"
-description: "在 cc-relay 中配置 Anthropic、Z.AI 和 Ollama 供应商"
+description: "在 cc-relay 中配置 Anthropic、Z.AI、MiniMax 和 Ollama 供应商"
 weight: 5
 ---
 
@@ -14,6 +14,7 @@ CC-Relay 作为 Claude Code 和各种 LLM 后端之间的代理。所有供应�
 |--------|------|------|------|
 | Anthropic | `anthropic` | 直接访问 Anthropic API | 标准 Anthropic 定价 |
 | Z.AI | `zai` | Zhipu AI GLM 模型，Anthropic 兼容 | 约为 Anthropic 定价的 1/7 |
+| MiniMax | `minimax` | MiniMax 模型，Anthropic 兼容 | MiniMax 定价 |
 | Ollama | `ollama` | 本地 LLM 推理 | 免费（本地计算） |
 | AWS Bedrock | `bedrock` | 通过 AWS 使用 SigV4 认证访问 Claude | AWS Bedrock 定价 |
 | Azure AI Foundry | `azure` | 通过 Azure MAAS 访问 Claude | Azure AI 定价 |
@@ -593,6 +594,130 @@ Available regions for Claude on Vertex AI (check [Google Cloud documentation](ht
 - `us-east5` (default)
 - `us-central1`
 - `europe-west1`
+
+## MiniMax 供应商
+
+MiniMax 通过 Anthropic 兼容的 API 提供大语言模型。MiniMax 以具有竞争力的价格提供适合编码任务的高质量模型。
+
+### 配置
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+providers:
+  - name: "minimax"
+    type: "minimax"
+    enabled: true
+    base_url: "https://api.minimax.io/anthropic"  # 可选，使用默认值
+
+    keys:
+      - key: "${MINIMAX_API_KEY}"
+        priority: 1  # 故障转移中优先级低于 Anthropic
+
+    # 将 Claude 模型名称映射到 MiniMax 模型
+    model_mapping:
+      "claude-opus-4-6": "MiniMax-M2.5"
+      "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+      "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+      "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+      "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+
+    models:
+      - "MiniMax-M2.5"
+      - "MiniMax-M2.5-highspeed"
+      - "MiniMax-M2.1"
+      - "MiniMax-M2.1-highspeed"
+      - "MiniMax-M2"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "minimax"
+type = "minimax"
+enabled = true
+base_url = "https://api.minimax.io/anthropic"  # 可选，使用默认值
+
+[[providers.keys]]
+key = "${MINIMAX_API_KEY}"
+priority = 1  # 故障转移中优先级低于 Anthropic
+
+# 将 Claude 模型名称映射到 MiniMax 模型
+[providers.model_mapping]
+"claude-opus-4-6" = "MiniMax-M2.5"
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+
+models = [
+  "MiniMax-M2.5",
+  "MiniMax-M2.5-highspeed",
+  "MiniMax-M2.1",
+  "MiniMax-M2.1-highspeed",
+  "MiniMax-M2"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### API 密钥设置
+
+1. 在 [minimax.io](https://www.minimax.io) 创建账户
+2. 导航到 API 密钥部分
+3. 创建新的 API 密钥
+4. 保存到环境变量: `export MINIMAX_API_KEY="..."`
+
+### 认证
+
+MiniMax 使用 Bearer 令牌认证，而不是 Anthropic 使用的 `x-api-key` 头。CC-Relay 自动处理此差异 — 无需额外配置。
+
+### 可用模型
+
+| 模型 | 描述 |
+|------|------|
+| `MiniMax-M2.5` | 旗舰模型，最高质量 |
+| `MiniMax-M2.5-highspeed` | M2.5 的高速变体 |
+| `MiniMax-M2.1` | 上一代模型 |
+| `MiniMax-M2.1-highspeed` | M2.1 的高速变体 |
+| `MiniMax-M2` | 基础模型 |
+
+### 模型映射
+
+模型映射将 Anthropic 模型名称转换为 MiniMax 对应模型:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+model_mapping:
+  # Claude Opus -> MiniMax-M2.5（旗舰）
+  "claude-opus-4-6": "MiniMax-M2.5"
+
+  # Claude Sonnet -> MiniMax-M2.5-highspeed（快速、高质量）
+  "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+  "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+
+  # Claude Haiku -> MiniMax-M2.1-highspeed（快速、经济）
+  "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+  "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Opus -> MiniMax-M2.5（旗舰）
+"claude-opus-4-6" = "MiniMax-M2.5"
+
+# Claude Sonnet -> MiniMax-M2.5-highspeed（快速、高质量）
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+
+# Claude Haiku -> MiniMax-M2.1-highspeed（快速、经济）
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Cloud Provider Comparison
 

@@ -190,7 +190,7 @@ func TestValidateInvalidProviderType(t *testing.T) {
 func TestValidateValidProviderTypes(t *testing.T) {
 	t.Parallel()
 
-	validTypes := []string{testProviderType, "zai", "ollama", testTypeBedrock, testTypeVertex, testTypeAzure}
+	validTypes := []string{testProviderType, "zai", "minimax", "ollama", testTypeBedrock, testTypeVertex, testTypeAzure}
 
 	for _, provType := range validTypes {
 		t.Run(provType, func(t *testing.T) {

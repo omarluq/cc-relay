@@ -1,6 +1,6 @@
 ---
 title: "Proveedores"
-description: "Configure proveedores Anthropic, Z.AI y Ollama en cc-relay"
+description: "Configure proveedores Anthropic, Z.AI, MiniMax y Ollama en cc-relay"
 weight: 5
 ---
 
@@ -14,6 +14,7 @@ CC-Relay actua como un proxy entre Claude Code y varios backends de LLM. Todos l
 |-----------|------|-------------|-------|
 | Anthropic | `anthropic` | Acceso directo a la API de Anthropic | Precios estandar de Anthropic |
 | Z.AI | `zai` | Modelos GLM de Zhipu AI, compatible con Anthropic | ~1/7 del precio de Anthropic |
+| MiniMax | `minimax` | Modelos MiniMax, compatible con Anthropic | Precios MiniMax |
 | Ollama | `ollama` | Inferencia LLM local | Gratis (computo local) |
 | AWS Bedrock | `bedrock` | Claude via AWS con autenticacion SigV4 | Precios AWS Bedrock |
 | Azure AI Foundry | `azure` | Claude via Azure MAAS | Precios Azure AI |
@@ -593,6 +594,131 @@ Available regions for Claude on Vertex AI (check [Google Cloud documentation](ht
 - `us-east5` (default)
 - `us-central1`
 - `europe-west1`
+
+
+## Proveedor MiniMax
+
+MiniMax ofrece modelos de lenguaje grandes a traves de una API compatible con Anthropic. MiniMax proporciona modelos de alta calidad a precios competitivos, adecuados para tareas de programacion.
+
+### Configuracion
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+providers:
+  - name: "minimax"
+    type: "minimax"
+    enabled: true
+    base_url: "https://api.minimax.io/anthropic"  # Opcional, usa predeterminado
+
+    keys:
+      - key: "${MINIMAX_API_KEY}"
+        priority: 1  # Prioridad menor que Anthropic para failover
+
+    # Mapear nombres de modelo Claude a modelos MiniMax
+    model_mapping:
+      "claude-opus-4-6": "MiniMax-M2.5"
+      "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+      "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+      "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+      "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+
+    models:
+      - "MiniMax-M2.5"
+      - "MiniMax-M2.5-highspeed"
+      - "MiniMax-M2.1"
+      - "MiniMax-M2.1-highspeed"
+      - "MiniMax-M2"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "minimax"
+type = "minimax"
+enabled = true
+base_url = "https://api.minimax.io/anthropic"  # Opcional, usa predeterminado
+
+[[providers.keys]]
+key = "${MINIMAX_API_KEY}"
+priority = 1  # Prioridad menor que Anthropic para failover
+
+# Mapear nombres de modelo Claude a modelos MiniMax
+[providers.model_mapping]
+"claude-opus-4-6" = "MiniMax-M2.5"
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+
+models = [
+  "MiniMax-M2.5",
+  "MiniMax-M2.5-highspeed",
+  "MiniMax-M2.1",
+  "MiniMax-M2.1-highspeed",
+  "MiniMax-M2"
+]
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### Configuracion de Clave API
+
+1. Cree una cuenta en [minimax.io](https://www.minimax.io)
+2. Navegue a la seccion de Claves API
+3. Cree una nueva clave API
+4. Almacene en variable de entorno: `export MINIMAX_API_KEY="..."`
+
+### Autenticacion
+
+MiniMax utiliza autenticacion con token Bearer en lugar del encabezado `x-api-key` utilizado por Anthropic. CC-Relay maneja esto automaticamente — no se necesita configuracion adicional.
+
+### Modelos Disponibles
+
+| Modelo | Descripcion |
+|--------|-------------|
+| `MiniMax-M2.5` | Modelo insignia, mejor calidad |
+| `MiniMax-M2.5-highspeed` | Variante rapida de M2.5 |
+| `MiniMax-M2.1` | Generacion anterior |
+| `MiniMax-M2.1-highspeed` | Variante rapida de M2.1 |
+| `MiniMax-M2` | Modelo base |
+
+### Mapeo de Modelos
+
+El mapeo de modelos traduce nombres de modelos Anthropic a equivalentes de MiniMax:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+model_mapping:
+  # Claude Opus -> MiniMax-M2.5 (insignia)
+  "claude-opus-4-6": "MiniMax-M2.5"
+
+  # Claude Sonnet -> MiniMax-M2.5-highspeed (rapido, alta calidad)
+  "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+  "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
+
+  # Claude Haiku -> MiniMax-M2.1-highspeed (rapido, economico)
+  "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
+  "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[model_mapping]
+# Claude Opus -> MiniMax-M2.5 (insignia)
+"claude-opus-4-6" = "MiniMax-M2.5"
+
+# Claude Sonnet -> MiniMax-M2.5-highspeed (rapido, alta calidad)
+"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
+
+# Claude Haiku -> MiniMax-M2.1-highspeed (rapido, economico)
+"claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
+"claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
+```
+  {{< /tab >}}
+{{< /tabs >}}
 
 ## Cloud Provider Comparison
 
