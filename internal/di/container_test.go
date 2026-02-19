@@ -1,4 +1,4 @@
-package di
+package di_test
 
 import (
 	"context"
@@ -11,7 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/omarluq/cc-relay/internal/router"
+	"github.com/omarluq/cc-relay/internal/di"
 )
+
+// shutdownContainer shuts down the container and logs any error (for use in t.Cleanup).
+func shutdownContainer(t *testing.T, container *di.Container) {
+	t.Helper()
+	if err := container.Shutdown(); err != nil {
+		t.Logf("container shutdown: %v", err)
+	}
+}
 
 // createTempConfigFile creates a temporary config file for testing.
 func createTempConfigFile(t *testing.T) string {
@@ -42,10 +51,12 @@ providers:
 `
 
 func TestNewContainer(t *testing.T) {
+	t.Parallel()
 	t.Run("creates container with valid config", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigFile(t)
 
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
 		require.NotNil(t, container)
 
@@ -58,54 +69,63 @@ func TestNewContainer(t *testing.T) {
 	})
 
 	t.Run("container creation validates config eagerly", func(t *testing.T) {
-		// Container creation validates config to fail fast
+		t.Parallel()
+
 		configPath := createTempConfigFile(t)
 
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
 		require.NotNil(t, container)
 
 		// Clean up
-		_ = container.Shutdown()
+		err = container.Shutdown()
+		assert.NoError(t, err)
 	})
 }
 
 func TestContainerInvoke(t *testing.T) {
+	t.Parallel()
 	configPath := createTempConfigFile(t)
-	container, err := NewContainer(configPath)
+	container, err := di.NewContainer(configPath)
 	require.NoError(t, err)
-	defer container.Shutdown()
+	t.Cleanup(func() { shutdownContainer(t, container) })
 
-	t.Run("Invoke resolves config service", func(t *testing.T) {
-		cfgSvc, err := Invoke[*ConfigService](container)
+	t.Run("di.Invoke resolves config service", func(t *testing.T) {
+		t.Parallel()
+		cfgSvc, err := di.Invoke[*di.ConfigService](container)
 		require.NoError(t, err)
 		assert.NotNil(t, cfgSvc)
 		assert.NotNil(t, cfgSvc.Config)
 		assert.Equal(t, ":8787", cfgSvc.Config.Server.Listen)
 	})
 
-	t.Run("MustInvoke resolves config service", func(t *testing.T) {
-		cfgSvc := MustInvoke[*ConfigService](container)
+	t.Run("di.MustInvoke resolves config service", func(t *testing.T) {
+		t.Parallel()
+		cfgSvc := di.MustInvoke[*di.ConfigService](container)
 		assert.NotNil(t, cfgSvc)
 		assert.NotNil(t, cfgSvc.Config)
 	})
 
-	t.Run("InvokeNamed resolves config path", func(t *testing.T) {
-		path, err := InvokeNamed[string](container, ConfigPathKey)
+	t.Run("di.InvokeNamed resolves config path", func(t *testing.T) {
+		t.Parallel()
+		path, err := di.InvokeNamed[string](container, di.ConfigPathKey)
 		require.NoError(t, err)
 		assert.Equal(t, configPath, path)
 	})
 
-	t.Run("MustInvokeNamed resolves config path", func(t *testing.T) {
-		path := MustInvokeNamed[string](container, ConfigPathKey)
+	t.Run("di.MustInvokeNamed resolves config path", func(t *testing.T) {
+		t.Parallel()
+		path := di.MustInvokeNamed[string](container, di.ConfigPathKey)
 		assert.Equal(t, configPath, path)
 	})
 }
 
 func TestContainerShutdown(t *testing.T) {
+	t.Parallel()
 	t.Run("shutdown returns nil for unused container", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigFile(t)
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
 
 		err = container.Shutdown()
@@ -113,15 +133,16 @@ func TestContainerShutdown(t *testing.T) {
 	})
 
 	t.Run("shutdown cleans up initialized services", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigFile(t)
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
 
 		// Initialize services by invoking them
-		_, err = Invoke[*ConfigService](container)
+		_, err = di.Invoke[*di.ConfigService](container)
 		require.NoError(t, err)
 
-		_, err = Invoke[*CacheService](container)
+		_, err = di.Invoke[*di.CacheService](container)
 		require.NoError(t, err)
 
 		// Shutdown should succeed
@@ -130,12 +151,13 @@ func TestContainerShutdown(t *testing.T) {
 	})
 
 	t.Run("ShutdownWithContext respects timeout", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigFile(t)
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
 
 		// Initialize services
-		_, err = Invoke[*ConfigService](container)
+		_, err = di.Invoke[*di.ConfigService](container)
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -146,8 +168,9 @@ func TestContainerShutdown(t *testing.T) {
 	})
 
 	t.Run("ShutdownWithContext returns error on expired context", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigFile(t)
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
 
 		// Use already expired context
@@ -164,19 +187,22 @@ func TestContainerShutdown(t *testing.T) {
 }
 
 func TestContainerHealthCheck(t *testing.T) {
+	t.Parallel()
 	t.Run("health check passes with valid config", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigFile(t)
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
-		defer container.Shutdown()
+		t.Cleanup(func() { shutdownContainer(t, container) })
 
 		err = container.HealthCheck()
 		assert.NoError(t, err)
 	})
 
 	t.Run("container creation fails with invalid config path", func(t *testing.T) {
-		// NewContainer now eagerly loads config to fail fast
-		container, err := NewContainer("/nonexistent/config.yaml")
+		t.Parallel()
+
+		container, err := di.NewContainer("/nonexistent/config.yaml")
 		assert.Error(t, err)
 		assert.Nil(t, container)
 		assert.Contains(t, err.Error(), "failed to load config")
@@ -215,13 +241,15 @@ providers:
 }
 
 func TestRouterService(t *testing.T) {
+	t.Parallel()
 	t.Run("creates router with default strategy (failover)", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigFile(t)
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
-		defer container.Shutdown()
+		t.Cleanup(func() { shutdownContainer(t, container) })
 
-		routerSvc, err := Invoke[*RouterService](container)
+		routerSvc, err := di.Invoke[*di.RouterService](container)
 		require.NoError(t, err)
 		assert.NotNil(t, routerSvc)
 
@@ -234,12 +262,13 @@ func TestRouterService(t *testing.T) {
 	})
 
 	t.Run("creates router with configured strategy", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigWithRouting(t, "round_robin")
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
-		defer container.Shutdown()
+		t.Cleanup(func() { shutdownContainer(t, container) })
 
-		routerSvc, err := Invoke[*RouterService](container)
+		routerSvc, err := di.Invoke[*di.RouterService](container)
 		require.NoError(t, err)
 
 		// GetRouter returns current router based on config
@@ -251,33 +280,38 @@ func TestRouterService(t *testing.T) {
 	})
 
 	t.Run("router depends on config", func(t *testing.T) {
+		t.Parallel()
 		configPath := createTempConfigWithRouting(t, "shuffle")
-		container, err := NewContainer(configPath)
+		container, err := di.NewContainer(configPath)
 		require.NoError(t, err)
-		defer container.Shutdown()
+		t.Cleanup(func() { shutdownContainer(t, container) })
 
 		// Invoke router without explicitly invoking config first
-		routerSvc, err := Invoke[*RouterService](container)
+		routerSvc, err := di.Invoke[*di.RouterService](container)
 		require.NoError(t, err)
 		assert.NotNil(t, routerSvc)
 
 		// Config should have been implicitly resolved
-		cfgSvc, err := Invoke[*ConfigService](container)
+		cfgSvc, err := di.Invoke[*di.ConfigService](container)
 		require.NoError(t, err)
 		assert.Equal(t, "shuffle", cfgSvc.Config.Routing.Strategy)
 	})
 
 	t.Run("supports all routing strategies", func(t *testing.T) {
+		t.Parallel()
 		strategies := []string{"round_robin", "weighted_round_robin", "shuffle", "failover"}
 
 		for _, strategy := range strategies {
 			t.Run(strategy, func(t *testing.T) {
+				t.Parallel()
 				configPath := createTempConfigWithRouting(t, strategy)
-				container, err := NewContainer(configPath)
+				container, err := di.NewContainer(configPath)
 				require.NoError(t, err)
-				defer container.Shutdown()
+				t.Cleanup(func() {
+					shutdownContainer(t, container)
+				})
 
-				routerSvc, err := Invoke[*RouterService](container)
+				routerSvc, err := di.Invoke[*di.RouterService](container)
 				require.NoError(t, err)
 				assert.Equal(t, strategy, routerSvc.GetRouter().Name())
 			})

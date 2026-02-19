@@ -28,7 +28,9 @@ type Runtime struct {
 // NewRuntime creates a new Runtime with the given initial configuration.
 // The initial config is stored and immediately available via Get().
 func NewRuntime(initial *Config) *Runtime {
-	r := &Runtime{}
+	r := &Runtime{
+		ptr: atomic.Pointer[Config]{},
+	}
 	r.ptr.Store(initial)
 	return r
 }

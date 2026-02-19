@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
@@ -51,7 +52,8 @@ func selectOutput(outputCfg string) (io.Writer, *os.File, error) {
 	case "stderr":
 		return os.Stderr, os.Stderr, nil
 	default:
-		// File output
+		// File output - validate and clean the path
+		outputCfg = filepath.Clean(outputCfg)
 		f, err := os.OpenFile(outputCfg, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
 			return nil, nil, err
@@ -98,7 +100,7 @@ func buildConsoleWriter(output io.Writer) zerolog.ConsoleWriter {
 
 // formatLevel formats log level with ANSI colors.
 func formatLevel(i interface{}) string {
-	ll, ok := i.(string)
+	levelStr, ok := i.(string)
 	if !ok {
 		return ""
 	}
@@ -112,10 +114,10 @@ func formatLevel(i interface{}) string {
 		"panic": "\033[35mPNC\033[0m", // Magenta
 	}
 
-	if colored, exists := levelColors[ll]; exists {
+	if colored, exists := levelColors[levelStr]; exists {
 		return colored
 	}
-	return ll
+	return levelStr
 }
 
 // formatMessage formats log message with arrow prefix.

@@ -13,7 +13,10 @@ type requestTimings struct {
 type timingsKey struct{}
 
 func withRequestTimings(ctx context.Context) (context.Context, *requestTimings) {
-	timings := &requestTimings{}
+	timings := &requestTimings{
+		Auth:    0,
+		Routing: 0,
+	}
 	return context.WithValue(ctx, timingsKey{}, timings), timings
 }
 

@@ -1,6 +1,7 @@
-package health
+package health_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/health"
 	"context"
 	"errors"
 	"testing"
@@ -9,34 +10,38 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const testProviderName = "test-provider"
+
 func TestNewCircuitBreakerDefaultSettings(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{}
+	cfg := health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 
-	if cb == nil {
-		t.Fatal("expected non-nil CircuitBreaker")
+	if breaker == nil {
+		t.Fatal("expected non-nil health.CircuitBreaker")
 	}
-	if cb.Name() != "test-provider" {
-		t.Errorf("expected name 'test-provider', got %q", cb.Name())
+	if breaker.Name() != "test-provider" {
+		t.Errorf("expected name 'test-provider', got %q", breaker.Name())
 	}
-	if cb.State() != StateClosed {
-		t.Errorf("expected initial state CLOSED, got %s", cb.State().String())
+	if breaker.State() != health.StateClosed {
+		t.Errorf("expected initial state CLOSED, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerAllowWhenClosed(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 5,
 		OpenDurationMS:   1000,
 		HalfOpenProbes:   3,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 
-	done, err := cb.Allow()
+	done, err := breaker.Allow()
 	if err != nil {
 		t.Fatalf("expected Allow to succeed when closed, got error: %v", err)
 	}
@@ -46,316 +51,345 @@ func TestCircuitBreakerAllowWhenClosed(t *testing.T) {
 
 	done(nil)
 
-	if cb.State() != StateClosed {
-		t.Errorf("expected state CLOSED after success, got %s", cb.State().String())
+	if breaker.State() != health.StateClosed {
+		t.Errorf("expected state CLOSED after success, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerOpensAfterThresholdFailures(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 3,
 		OpenDurationMS:   1000,
 		HalfOpenProbes:   1,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
 	for i := 0; i < 3; i++ {
-		done, err := cb.Allow()
-		if err != nil {
-			t.Fatalf("iteration %d: Allow failed before threshold: %v", i, err)
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("iteration %d: Allow failed before threshold: %v", i, allowErr)
 		}
 		done(testErr)
 	}
 
-	if cb.State() != StateOpen {
-		t.Errorf("expected state OPEN after %d failures, got %s", 3, cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Errorf("expected state OPEN after %d failures, got %s", 3, breaker.State().String())
 	}
 
-	_, err := cb.Allow()
+	_, err := breaker.Allow()
 	if err == nil {
 		t.Error("expected Allow to fail when circuit is open")
 	}
-	if !errors.Is(err, ErrCircuitOpen) {
-		t.Errorf("expected ErrCircuitOpen, got %v", err)
+	if !errors.Is(err, health.ErrCircuitOpen) {
+		t.Errorf("expected health.ErrCircuitOpen, got %v", err)
 	}
 }
 
 func TestCircuitBreakerTransitionsToHalfOpenAfterTimeout(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   100,
 		HalfOpenProbes:   1,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
 	for i := 0; i < 2; i++ {
-		done, _ := cb.Allow()
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("Allow failed: %v", allowErr)
+		}
 		done(testErr)
 	}
 
-	if cb.State() != StateOpen {
-		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Fatalf("expected state OPEN, got %s", breaker.State().String())
 	}
 
 	time.Sleep(150 * time.Millisecond)
 
-	done, err := cb.Allow()
+	done, err := breaker.Allow()
 	if err != nil {
 		t.Fatalf("expected Allow to succeed in half-open state, got error: %v", err)
 	}
 
-	if cb.State() != StateHalfOpen {
-		t.Errorf("expected state HALF-OPEN after timeout, got %s", cb.State().String())
+	if breaker.State() != health.StateHalfOpen {
+		t.Errorf("expected state HALF-OPEN after timeout, got %s", breaker.State().String())
 	}
 
 	done(nil)
 }
 
 func TestCircuitBreakerClosesAfterSuccessfulProbes(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   50,
 		HalfOpenProbes:   2,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
 	for i := 0; i < 2; i++ {
-		done, _ := cb.Allow()
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("iteration %d: Allow failed: %v", i, allowErr)
+		}
 		done(testErr)
 	}
 
 	time.Sleep(100 * time.Millisecond)
 
 	for i := 0; i < 2; i++ {
-		done, err := cb.Allow()
-		if err != nil {
-			t.Fatalf("probe %d: expected Allow to succeed, got error: %v", i, err)
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("probe %d: expected Allow to succeed, got error: %v", i, allowErr)
 		}
 		done(nil)
 	}
 
-	if cb.State() != StateClosed {
-		t.Errorf("expected state CLOSED after successful probes, got %s", cb.State().String())
+	if breaker.State() != health.StateClosed {
+		t.Errorf("expected state CLOSED after successful probes, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerContextCanceledNotFailure(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   1000,
 		HalfOpenProbes:   1,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 
 	for i := 0; i < 5; i++ {
-		done, err := cb.Allow()
-		if err != nil {
-			t.Fatalf("iteration %d: Allow failed unexpectedly: %v", i, err)
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("iteration %d: Allow failed unexpectedly: %v", i, allowErr)
 		}
 		done(context.Canceled)
 	}
 
-	if cb.State() != StateClosed {
-		t.Errorf("expected state CLOSED after context.Canceled errors, got %s", cb.State().String())
+	if breaker.State() != health.StateClosed {
+		t.Errorf("expected state CLOSED after context.Canceled errors, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerReportSuccess(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 5,
 		OpenDurationMS:   1000,
 		HalfOpenProbes:   3,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 
-	recorded := cb.ReportSuccess()
+	recorded := breaker.ReportSuccess()
 
 	if !recorded {
 		t.Error("expected ReportSuccess to return true when circuit is CLOSED")
 	}
 
-	if cb.State() != StateClosed {
-		t.Errorf("expected state CLOSED, got %s", cb.State().String())
+	if breaker.State() != health.StateClosed {
+		t.Errorf("expected state CLOSED, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerReportFailure(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   1000,
 		HalfOpenProbes:   1,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
-	recorded := cb.ReportFailure(testErr)
+	recorded := breaker.ReportFailure(testErr)
 	if !recorded {
 		t.Error("expected ReportFailure to return true when circuit is CLOSED")
 	}
 
-	recorded = cb.ReportFailure(testErr)
+	recorded = breaker.ReportFailure(testErr)
 	if !recorded {
 		t.Error("expected ReportFailure to return true when circuit is CLOSED (second call)")
 	}
 
-	if cb.State() != StateOpen {
-		t.Errorf("expected state OPEN after ReportFailure calls, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Errorf("expected state OPEN after ReportFailure calls, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerReportSuccessWhenOpen(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   1000,
 		HalfOpenProbes:   1,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
 	for i := 0; i < 2; i++ {
-		done, _ := cb.Allow()
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("Allow failed: %v", allowErr)
+		}
 		done(testErr)
 	}
 
-	if cb.State() != StateOpen {
-		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Fatalf("expected state OPEN, got %s", breaker.State().String())
 	}
 
 	// Now try to report success when circuit is OPEN
-	recorded := cb.ReportSuccess()
+	recorded := breaker.ReportSuccess()
 	if recorded {
 		t.Error("expected ReportSuccess to return false when circuit is OPEN")
 	}
 
 	// Circuit should remain OPEN
-	if cb.State() != StateOpen {
-		t.Errorf("expected state to remain OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Errorf("expected state to remain OPEN, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerReportFailureWhenOpen(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   1000,
 		HalfOpenProbes:   1,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
 	for i := 0; i < 2; i++ {
-		done, _ := cb.Allow()
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("Allow failed: %v", allowErr)
+		}
 		done(testErr)
 	}
 
-	if cb.State() != StateOpen {
-		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Fatalf("expected state OPEN, got %s", breaker.State().String())
 	}
 
 	// Now try to report failure when circuit is OPEN
-	recorded := cb.ReportFailure(testErr)
+	recorded := breaker.ReportFailure(testErr)
 	if recorded {
 		t.Error("expected ReportFailure to return false when circuit is OPEN")
 	}
 
 	// Circuit should remain OPEN
-	if cb.State() != StateOpen {
-		t.Errorf("expected state to remain OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Errorf("expected state to remain OPEN, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerReportSuccessWhenHalfOpen(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   50,
 		HalfOpenProbes:   2,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
 	for i := 0; i < 2; i++ {
-		done, _ := cb.Allow()
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("Allow failed: %v", allowErr)
+		}
 		done(testErr)
 	}
 
-	if cb.State() != StateOpen {
-		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Fatalf("expected state OPEN, got %s", breaker.State().String())
 	}
 
 	// Wait for circuit to transition to HALF-OPEN
 	time.Sleep(100 * time.Millisecond)
 
 	// First probe should succeed and return true
-	recorded := cb.ReportSuccess()
+	recorded := breaker.ReportSuccess()
 	if !recorded {
 		t.Error("expected ReportSuccess to return true when circuit is HALF-OPEN")
 	}
 
-	if cb.State() != StateHalfOpen {
-		t.Errorf("expected state HALF-OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateHalfOpen {
+		t.Errorf("expected state HALF-OPEN, got %s", breaker.State().String())
 	}
 }
 
 func TestCircuitBreakerReportFailureWhenHalfOpen(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   50,
 		HalfOpenProbes:   2,
 	}
 
-	cb := NewCircuitBreaker("test-provider", cfg, &logger)
+	breaker := health.NewCircuitBreaker("test-provider", cfg, &logger)
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
 	for i := 0; i < 2; i++ {
-		done, _ := cb.Allow()
+		done, allowErr := breaker.Allow()
+		if allowErr != nil {
+			t.Fatalf("Allow failed: %v", allowErr)
+		}
 		done(testErr)
 	}
 
-	if cb.State() != StateOpen {
-		t.Fatalf("expected state OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Fatalf("expected state OPEN, got %s", breaker.State().String())
 	}
 
 	// Wait for circuit to transition to HALF-OPEN
 	time.Sleep(100 * time.Millisecond)
 
 	// First probe should be allowed and return true
-	recorded := cb.ReportFailure(testErr)
+	recorded := breaker.ReportFailure(testErr)
 	if !recorded {
 		t.Error("expected ReportFailure to return true when circuit is HALF-OPEN")
 	}
 
 	// After failure in HALF-OPEN, circuit should go back to OPEN
-	if cb.State() != StateOpen {
-		t.Errorf("expected state OPEN after failure in HALF-OPEN, got %s", cb.State().String())
+	if breaker.State() != health.StateOpen {
+		t.Errorf("expected state OPEN after failure in HALF-OPEN, got %s", breaker.State().String())
 	}
 }
 
 func TestShouldCountAsFailure(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		err        error
 		name       string
@@ -381,18 +415,20 @@ func TestShouldCountAsFailure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ShouldCountAsFailure(tt.statusCode, tt.err)
+			t.Parallel()
+			got := health.ShouldCountAsFailure(tt.statusCode, tt.err)
 			if got != tt.want {
-				t.Errorf("ShouldCountAsFailure(%d, %v) = %v, want %v", tt.statusCode, tt.err, got, tt.want)
+				t.Errorf("health.ShouldCountAsFailure(%d, %v) = %v, want %v", tt.statusCode, tt.err, got, tt.want)
 			}
 		})
 	}
 }
 
 func TestShouldCountAsFailureWrappedContextCanceled(t *testing.T) {
+	t.Parallel()
 	wrappedErr := errors.Join(errors.New("request failed"), context.Canceled)
 
-	if ShouldCountAsFailure(0, wrappedErr) {
+	if health.ShouldCountAsFailure(0, wrappedErr) {
 		t.Error("expected wrapped context.Canceled to NOT count as failure")
 	}
 }

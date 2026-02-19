@@ -1,10 +1,14 @@
-package proxy
+package proxy_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
+
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 func TestNewServerCreatesValidServer(t *testing.T) {
@@ -14,17 +18,17 @@ func TestNewServerCreatesValidServer(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	server := NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer("127.0.0.1:0", handler, false)
 
 	if server == nil {
 		t.Fatal("Expected non-nil server")
 	}
 
-	if server.addr != "127.0.0.1:0" {
-		t.Errorf("Expected addr '127.0.0.1:0', got %s", server.addr)
+	if proxy.GetServerAddr(server) != "127.0.0.1:0" {
+		t.Errorf("Expected addr '127.0.0.1:0', got %s", proxy.GetServerAddr(server))
 	}
 
-	if server.httpServer == nil {
+	if proxy.GetHTTPServer(server) == nil {
 		t.Fatal("Expected non-nil httpServer")
 	}
 }
@@ -36,19 +40,19 @@ func TestNewServerHasCorrectTimeouts(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	server := NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer("127.0.0.1:0", handler, false)
 
 	// Verify timeouts match documented values
-	if server.httpServer.ReadTimeout != 10*time.Second {
-		t.Errorf("Expected ReadTimeout 10s, got %v", server.httpServer.ReadTimeout)
+	if proxy.GetHTTPServer(server).ReadTimeout != 10*time.Second {
+		t.Errorf("Expected ReadTimeout 10s, got %v", proxy.GetHTTPServer(server).ReadTimeout)
 	}
 
-	if server.httpServer.WriteTimeout != 600*time.Second {
-		t.Errorf("Expected WriteTimeout 600s, got %v", server.httpServer.WriteTimeout)
+	if proxy.GetHTTPServer(server).WriteTimeout != 600*time.Second {
+		t.Errorf("Expected WriteTimeout 600s, got %v", proxy.GetHTTPServer(server).WriteTimeout)
 	}
 
-	if server.httpServer.IdleTimeout != 120*time.Second {
-		t.Errorf("Expected IdleTimeout 120s, got %v", server.httpServer.IdleTimeout)
+	if proxy.GetHTTPServer(server).IdleTimeout != 120*time.Second {
+		t.Errorf("Expected IdleTimeout 120s, got %v", proxy.GetHTTPServer(server).IdleTimeout)
 	}
 }
 
@@ -59,9 +63,9 @@ func TestNewServerHasCorrectHandler(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	server := NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer("127.0.0.1:0", handler, false)
 
-	if server.httpServer.Handler == nil {
+	if proxy.GetHTTPServer(server).Handler == nil {
 		t.Error("Expected non-nil handler")
 	}
 }
@@ -74,7 +78,7 @@ func TestServerListenAndServeInvalidAddress(t *testing.T) {
 	})
 
 	// Use an invalid address that will fail to bind
-	server := NewServer("invalid-address:99999", handler, false)
+	server := proxy.NewServer("invalid-address:99999", handler, false)
 
 	err := server.ListenAndServe()
 	if err == nil {
@@ -89,13 +93,15 @@ func TestServerShutdown(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	server := NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer("127.0.0.1:0", handler, false)
 
 	// Start server in goroutine
 	serverDone := make(chan struct{})
 	go func() {
 		defer close(serverDone)
-		_ = server.ListenAndServe()
+		if listenErr := server.ListenAndServe(); listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+			t.Logf("server listen error: %v", listenErr)
+		}
 	}()
 
 	// Give server time to start
@@ -127,17 +133,17 @@ func TestNewServerHTTP2Enabled(t *testing.T) {
 	})
 
 	// Create server with HTTP/2 enabled
-	server := NewServer("127.0.0.1:0", handler, true)
+	server := proxy.NewServer("127.0.0.1:0", handler, true)
 
 	if server == nil {
 		t.Fatal("Expected non-nil server")
 	}
 
-	if server.httpServer == nil {
+	if proxy.GetHTTPServer(server) == nil {
 		t.Fatal("Expected non-nil httpServer")
 	}
 
-	if server.httpServer.Handler == nil {
+	if proxy.GetHTTPServer(server).Handler == nil {
 		t.Error("Expected non-nil handler (should be wrapped with h2c)")
 	}
 }
@@ -150,17 +156,17 @@ func TestNewServerHTTP2Disabled(t *testing.T) {
 	})
 
 	// Create server with HTTP/2 disabled
-	server := NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer("127.0.0.1:0", handler, false)
 
 	if server == nil {
 		t.Fatal("Expected non-nil server")
 	}
 
-	if server.httpServer == nil {
+	if proxy.GetHTTPServer(server) == nil {
 		t.Fatal("Expected non-nil httpServer")
 	}
 
-	if server.httpServer.Handler == nil {
+	if proxy.GetHTTPServer(server).Handler == nil {
 		t.Error("Expected non-nil handler")
 	}
 }

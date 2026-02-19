@@ -44,7 +44,7 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - funlen        # Function length checker (enabled for production code)
+    - funlen # Function length checker (enabled for production code)
     - gocognit
     - goprintffuncname
     - lll
@@ -64,12 +64,10 @@ linters:
     - tparallel
     - wastedassign
     - nilnil
-
-  disable:
-    - exhaustruct   # Too noisy - requires all struct fields to be set
-    - varnamelen    # Conflicts with Go conventions (i, j, ok, etc.)
-    - forbidigo     # We need fmt.Printf for CLI output
-    - cyclop        # Redundant with gocyclo
+    - exhaustruct
+    - varnamelen
+    - forbidigo
+    - cyclop
 
   exclusions:
     rules:
@@ -78,8 +76,6 @@ linters:
       - linters: [all]
         path: ".*_generated\\.go$"
       # Test files: exclude noisy linters (table-driven tests are naturally long)
-      - linters: [gocyclo, gocognit, errcheck, dupl, gosec, goconst, testpackage, paralleltest, thelper, noctx, funlen]
-        path: "_test\\.go$"
       - linters: [lll]
         source: "^//go:generate "
 
@@ -87,15 +83,9 @@ linters:
     errcheck:
       check-type-assertions: true
       check-blank: true
-      exclude-functions:
-        - io/ioutil.ReadFile
-        - io.Copy(*bytes.Buffer)
-        - io.Copy(os.Stdout)
 
     govet:
       enable-all: true
-      disable:
-        - shadow
 
     gocyclo:
       # Reduced from 15 to 10 (stricter) - Phase 02.3-09
@@ -163,9 +153,6 @@ linters:
         - name: redefines-builtin-id
 
     gosec:
-      excludes:
-        - G104
-        - G304
       config:
         global:
           nosec: true
@@ -178,9 +165,8 @@ linters:
         - opinionated
         - performance
         - style
-      disabled-checks:
-        - dupImport
-        - ifElseChain
-        - octalLiteral
-        - whyNoLint
-        - wrapperFunc
+
+    exhaustruct:
+      # Only check struct literals in our own packages
+      include:
+        - ^github\.com/omarluq/cc-relay/.*

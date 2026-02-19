@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"bytes"
@@ -10,9 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 const (
@@ -24,6 +29,156 @@ const (
 	keyBeta             = "key-beta"
 	concurrentKey       = "concurrent-key"
 )
+
+// newMiddlewareTestConfig builds a fully-initialized config.Config with all exhaustruct fields set.
+// Only Server.Auth is customizable; remaining fields use zero values.
+func newMiddlewareTestConfig(authCfg config.AuthConfig) *config.Config {
+	return &config.Config{
+		Providers: nil,
+		Routing: config.RoutingConfig{
+			ModelMapping:    nil,
+			Strategy:        "",
+			DefaultProvider: "",
+			FailoverTimeout: 0,
+			Debug:           false,
+		},
+		Logging: config.LoggingConfig{
+			Level:  "",
+			Format: "",
+			Output: "",
+			Pretty: false,
+			DebugOptions: config.DebugOptions{
+				LogRequestBody:     false,
+				LogResponseHeaders: false,
+				LogTLSMetrics:      false,
+				MaxBodyLogSize:     0,
+			},
+		},
+		Health: health.Config{
+			HealthCheck: health.CheckConfig{
+				Enabled:    nil,
+				IntervalMS: 0,
+			},
+			CircuitBreaker: health.CircuitBreakerConfig{
+				OpenDurationMS:   0,
+				FailureThreshold: 0,
+				HalfOpenProbes:   0,
+			},
+		},
+		Server: config.ServerConfig{
+			Listen:        "",
+			APIKey:        "",
+			Auth:          authCfg,
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
+		},
+		Cache: cache.Config{
+			Mode: "",
+			Olric: cache.OlricConfig{
+				DMapName:          "",
+				BindAddr:          "",
+				Environment:       "",
+				Addresses:         nil,
+				Peers:             nil,
+				ReplicaCount:      0,
+				ReadQuorum:        0,
+				WriteQuorum:       0,
+				LeaveTimeout:      0,
+				MemberCountQuorum: 0,
+				Embedded:          false,
+			},
+			Ristretto: cache.RistrettoConfig{
+				NumCounters: 0,
+				MaxCost:     0,
+				BufferItems: 0,
+			},
+		},
+	}
+}
+
+// newMiddlewareTestConfigWithLegacyKey builds a config with legacy Server.APIKey set.
+func newMiddlewareTestConfigWithLegacyKey(apiKey string) *config.Config {
+	return &config.Config{
+		Providers: nil,
+		Routing: config.RoutingConfig{
+			ModelMapping:    nil,
+			Strategy:        "",
+			DefaultProvider: "",
+			FailoverTimeout: 0,
+			Debug:           false,
+		},
+		Logging: config.LoggingConfig{
+			Level:  "",
+			Format: "",
+			Output: "",
+			Pretty: false,
+			DebugOptions: config.DebugOptions{
+				LogRequestBody:     false,
+				LogResponseHeaders: false,
+				LogTLSMetrics:      false,
+				MaxBodyLogSize:     0,
+			},
+		},
+		Health: health.Config{
+			HealthCheck: health.CheckConfig{
+				Enabled:    nil,
+				IntervalMS: 0,
+			},
+			CircuitBreaker: health.CircuitBreakerConfig{
+				OpenDurationMS:   0,
+				FailureThreshold: 0,
+				HalfOpenProbes:   0,
+			},
+		},
+		Server: config.ServerConfig{
+			Listen: "",
+			APIKey: apiKey,
+			Auth: config.AuthConfig{
+				APIKey:            "",
+				BearerSecret:      "",
+				AllowBearer:       false,
+				AllowSubscription: false,
+			},
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
+		},
+		Cache: cache.Config{
+			Mode: "",
+			Olric: cache.OlricConfig{
+				DMapName:          "",
+				BindAddr:          "",
+				Environment:       "",
+				Addresses:         nil,
+				Peers:             nil,
+				ReplicaCount:      0,
+				ReadQuorum:        0,
+				WriteQuorum:       0,
+				LeaveTimeout:      0,
+				MemberCountQuorum: 0,
+				Embedded:          false,
+			},
+			Ristretto: cache.RistrettoConfig{
+				NumCounters: 0,
+				MaxCost:     0,
+				BufferItems: 0,
+			},
+		},
+	}
+}
+
+// emptyAuthConfig returns a fully-initialized AuthConfig with all fields at zero values.
+func emptyAuthConfig() config.AuthConfig {
+	return config.AuthConfig{
+		APIKey:            "",
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	}
+}
 
 func assertStatus(t *testing.T, rec *httptest.ResponseRecorder, expected int, msg string) {
 	t.Helper()
@@ -41,8 +196,8 @@ func assertStatusCode(t *testing.T, got, expected int, msg string) {
 
 func doAPIKeyRequest(t *testing.T, handler http.Handler, key string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := newMessagesRequest(http.NoBody)
-	req.Header.Set(apiKeyHeader, key)
+	req := proxy.NewMessagesRequest(http.NoBody)
+	req.Header.Set(proxy.APIKeyHeader, key)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
@@ -62,36 +217,36 @@ func runConcurrentRequests(
 ) {
 	t.Helper()
 
-	var wg sync.WaitGroup
-	wg.Add(workers)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(workers)
 
-	for i := 0; i < workers; i++ {
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < iterations; j++ {
-				key, expected := keyFn(id, j)
+	for workerIndex := 0; workerIndex < workers; workerIndex++ {
+		go func(workerID int) {
+			defer waitGroup.Done()
+			for iterIndex := 0; iterIndex < iterations; iterIndex++ {
+				key, expected := keyFn(workerID, iterIndex)
 				rec := doAPIKeyRequest(t, handler, key)
 				if rec.Code != expected {
-					t.Errorf("goroutine %d request %d: expected %d, got %d", id, j, expected, rec.Code)
+					t.Errorf("goroutine %d request %d: expected %d, got %d", workerID, iterIndex, expected, rec.Code)
 				}
 			}
-		}(i)
+		}(workerIndex)
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 }
 
 func startConfigSwitcher(
-	wg *sync.WaitGroup,
+	waitGroup *sync.WaitGroup,
 	runtime *config.Runtime,
 	cfg1, cfg2 *config.Config,
 	iterations int,
 ) {
-	wg.Add(1)
+	waitGroup.Add(1)
 	go func() {
-		defer wg.Done()
-		for i := 0; i < iterations; i++ {
-			if i%2 == 0 {
+		defer waitGroup.Done()
+		for iterIndex := 0; iterIndex < iterations; iterIndex++ {
+			if iterIndex%2 == 0 {
 				runtime.Store(cfg1)
 			} else {
 				runtime.Store(cfg2)
@@ -105,11 +260,11 @@ func TestAuthMiddlewareValidKey(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
-	middleware := AuthMiddleware("secret-key")
+	middleware := proxy.AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := newMessagesRequest(http.NoBody)
-	req.Header.Set(apiKeyHeader, "secret-key")
+	req := proxy.NewMessagesRequest(http.NoBody)
+	req.Header.Set(proxy.APIKeyHeader, "secret-key")
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
@@ -121,11 +276,11 @@ func TestAuthMiddlewareInvalidKey(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
-	middleware := AuthMiddleware("secret-key")
+	middleware := proxy.AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := newMessagesRequest(http.NoBody)
-	req.Header.Set(apiKeyHeader, wrongKey)
+	req := proxy.NewMessagesRequest(http.NoBody)
+	req.Header.Set(proxy.APIKeyHeader, wrongKey)
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
@@ -137,10 +292,10 @@ func TestAuthMiddlewareMissingKey(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
-	middleware := AuthMiddleware("secret-key")
+	middleware := proxy.AuthMiddleware("secret-key")
 	wrappedHandler := middleware(handler)
 
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	// No x-api-key header
 
 	rec := httptest.NewRecorder()
@@ -158,11 +313,16 @@ func TestMultiAuthMiddlewareNoAuthConfigured(t *testing.T) {
 	t.Parallel()
 
 	handler := okHandler()
-	authConfig := &config.AuthConfig{}
-	middleware := MultiAuthMiddleware(authConfig)
+	authConfig := &config.AuthConfig{
+		APIKey:            "",
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	}
+	middleware := proxy.MultiAuthMiddleware(authConfig)
 	wrappedHandler := middleware(handler)
 
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	// No auth headers
 
 	rec := httptest.NewRecorder()
@@ -177,14 +337,16 @@ func TestMultiAuthMiddlewareBearerOnly(t *testing.T) {
 
 	handler := okHandler()
 	authConfig := &config.AuthConfig{
-		AllowBearer:  true,
-		BearerSecret: "test-bearer-secret",
+		APIKey:            "",
+		BearerSecret:      "test-bearer-secret",
+		AllowBearer:       true,
+		AllowSubscription: false,
 	}
-	middleware := MultiAuthMiddleware(authConfig)
+	middleware := proxy.MultiAuthMiddleware(authConfig)
 	wrappedHandler := middleware(handler)
 
 	// Valid bearer token
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer test-bearer-secret")
 
 	rec := httptest.NewRecorder()
@@ -198,14 +360,17 @@ func TestMultiAuthMiddlewareAPIKeyOnly(t *testing.T) {
 
 	handler := okHandler()
 	authConfig := &config.AuthConfig{
-		APIKey: "test-api-key",
+		APIKey:            "test-api-key",
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
 	}
-	middleware := MultiAuthMiddleware(authConfig)
+	middleware := proxy.MultiAuthMiddleware(authConfig)
 	wrappedHandler := middleware(handler)
 
 	// Valid API key
-	req := newMessagesRequest(http.NoBody)
-	req.Header.Set(apiKeyHeader, "test-api-key")
+	req := proxy.NewMessagesRequest(http.NoBody)
+	req.Header.Set(proxy.APIKeyHeader, "test-api-key")
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
@@ -218,17 +383,18 @@ func TestMultiAuthMiddlewareBothMethods(t *testing.T) {
 
 	handler := okHandler()
 	authConfig := &config.AuthConfig{
-		APIKey:       "test-api-key",
-		AllowBearer:  true,
-		BearerSecret: "test-bearer-secret",
+		APIKey:            "test-api-key",
+		BearerSecret:      "test-bearer-secret",
+		AllowBearer:       true,
+		AllowSubscription: false,
 	}
-	middleware := MultiAuthMiddleware(authConfig)
+	middleware := proxy.MultiAuthMiddleware(authConfig)
 	wrappedHandler := middleware(handler)
 
 	// Test with bearer - should work
 	t.Run("bearer works", func(t *testing.T) {
 		t.Parallel()
-		req := newMessagesRequest(http.NoBody)
+		req := proxy.NewMessagesRequest(http.NoBody)
 		req.Header.Set("Authorization", "Bearer test-bearer-secret")
 
 		rec := httptest.NewRecorder()
@@ -240,8 +406,8 @@ func TestMultiAuthMiddlewareBothMethods(t *testing.T) {
 	// Test with API key - should work
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
-		req := newMessagesRequest(http.NoBody)
-		req.Header.Set(apiKeyHeader, "test-api-key")
+		req := proxy.NewMessagesRequest(http.NoBody)
+		req.Header.Set(proxy.APIKeyHeader, "test-api-key")
 
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
@@ -255,13 +421,16 @@ func TestMultiAuthMiddlewareSubscriptionAlias(t *testing.T) {
 
 	handler := okHandler()
 	authConfig := &config.AuthConfig{
+		APIKey:            "",
+		BearerSecret:      "",
+		AllowBearer:       false,
 		AllowSubscription: true, // Alias for AllowBearer
 	}
-	middleware := MultiAuthMiddleware(authConfig)
+	middleware := proxy.MultiAuthMiddleware(authConfig)
 	wrappedHandler := middleware(handler)
 
 	// Any bearer token should work (passthrough mode)
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	req.Header.Set("Authorization", "Bearer any-subscription-token")
 
 	rec := httptest.NewRecorder()
@@ -273,26 +442,22 @@ func TestMultiAuthMiddlewareSubscriptionAlias(t *testing.T) {
 func TestLiveAuthMiddlewareToggleAPIKey(t *testing.T) {
 	t.Parallel()
 
-	runtimeCfg := config.NewRuntime(&config.Config{
-		Server: config.ServerConfig{APIKey: "test-key"},
-	})
+	runtimeCfg := config.NewRuntime(newMiddlewareTestConfigWithLegacyKey("test-key"))
 
 	handler := okHandler()
 
-	wrapped := LiveAuthMiddleware(runtimeCfg)(handler)
+	wrapped := proxy.LiveAuthMiddleware(runtimeCfg)(handler)
 
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrapped.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 when API key required, got %d", rec.Code)
 	}
 
-	runtimeCfg.Store(&config.Config{
-		Server: config.ServerConfig{APIKey: ""},
-	})
+	runtimeCfg.Store(newMiddlewareTestConfigWithLegacyKey(""))
 
-	req2 := newMessagesRequest(http.NoBody)
+	req2 := proxy.NewMessagesRequest(http.NoBody)
 	rec2 := httptest.NewRecorder()
 	wrapped.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
@@ -304,12 +469,12 @@ func TestRequestIDMiddlewareGeneratesID(t *testing.T) {
 	t.Parallel()
 
 	var capturedRequestID string
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedRequestID = GetRequestID(r.Context())
-		w.WriteHeader(http.StatusOK)
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		capturedRequestID = proxy.GetRequestID(request.Context())
+		writer.WriteHeader(http.StatusOK)
 	})
 
-	middleware := RequestIDMiddleware()
+	middleware := proxy.RequestIDMiddleware()
 	wrappedHandler := middleware(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
@@ -333,12 +498,12 @@ func TestRequestIDMiddlewareUsesProvidedID(t *testing.T) {
 
 	providedID := "custom-request-id-123"
 	var capturedRequestID string
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedRequestID = GetRequestID(r.Context())
-		w.WriteHeader(http.StatusOK)
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		capturedRequestID = proxy.GetRequestID(request.Context())
+		writer.WriteHeader(http.StatusOK)
 	})
 
-	middleware := RequestIDMiddleware()
+	middleware := proxy.RequestIDMiddleware()
 	wrappedHandler := middleware(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
@@ -364,11 +529,16 @@ func TestLoggingMiddlewareLogsRequest(t *testing.T) {
 
 	handler := okHandler()
 
-	debugOpts := config.DebugOptions{}
-	middleware := LoggingMiddleware(debugOpts)
+	debugOpts := config.DebugOptions{
+		LogRequestBody:     false,
+		LogResponseHeaders: false,
+		LogTLSMetrics:      false,
+		MaxBodyLogSize:     0,
+	}
+	middleware := proxy.LoggingMiddleware(debugOpts)
 
 	// Wrap with RequestIDMiddleware first (as in production)
-	wrappedHandler := RequestIDMiddleware()(middleware(handler))
+	wrappedHandler := proxy.RequestIDMiddleware()(middleware(handler))
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"test"}`))
 	rec := httptest.NewRecorder()
@@ -394,12 +564,12 @@ func TestFormatDuration(t *testing.T) {
 		{"zero", "0s", 0},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := formatDuration(tt.d)
-			if got != tt.expected {
-				t.Errorf("formatDuration(%s) = %s, want %s", tt.d, got, tt.expected)
+			got := proxy.FormatDuration(testCase.d)
+			if got != testCase.expected {
+				t.Errorf("proxy.FormatDuration(%s) = %s, want %s", testCase.d, got, testCase.expected)
 			}
 		})
 	}
@@ -419,14 +589,14 @@ func TestFormatCompletionMessage(t *testing.T) {
 		{"x", "1.5s", "x Internal Server Error (1.5s)", 500},
 	}
 
-	for _, tt := range tests {
-		name := http.StatusText(tt.status)
+	for _, testCase := range tests {
+		name := http.StatusText(testCase.status)
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := formatCompletionMessage(tt.status, tt.symbol, tt.duration)
-			if got != tt.expected {
-				t.Errorf("formatCompletionMessage(%d, %s, %s) = %s, want %s",
-					tt.status, tt.symbol, tt.duration, got, tt.expected)
+			got := proxy.FormatCompletionMessage(testCase.status, testCase.symbol, testCase.duration)
+			if got != testCase.expected {
+				t.Errorf("proxy.FormatCompletionMessage(%d, %s, %s) = %s, want %s",
+					testCase.status, testCase.symbol, testCase.duration, got, testCase.expected)
 			}
 		})
 	}
@@ -455,15 +625,15 @@ func TestRedactSensitiveFields(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			got := redactSensitiveFields(tt.input)
-			if !strings.Contains(got, tt.contains) {
-				t.Errorf("Expected output to contain %q, got: %s", tt.contains, got)
+			got := proxy.RedactSensitiveFields(testCase.input)
+			if !strings.Contains(got, testCase.contains) {
+				t.Errorf("Expected output to contain %q, got: %s", testCase.contains, got)
 			}
-			if tt.notContains != "" && strings.Contains(got, tt.notContains) {
-				t.Errorf("Expected output to NOT contain %q, got: %s", tt.notContains, got)
+			if testCase.notContains != "" && strings.Contains(got, testCase.notContains) {
+				t.Errorf("Expected output to NOT contain %q, got: %s", testCase.notContains, got)
 			}
 		})
 	}
@@ -472,22 +642,22 @@ func TestRedactSensitiveFields(t *testing.T) {
 func TestResponseWriterCapturesStatusCode(t *testing.T) {
 	t.Parallel()
 
-	rw := newTestResponseWriter()
+	respWriter := proxy.NewTestResponseWriter()
 
-	rw.WriteHeader(http.StatusNotFound)
+	respWriter.WriteHeader(http.StatusNotFound)
 
-	assertStatusCode(t, rw.statusCode, http.StatusNotFound, "expected status 404")
+	assertStatusCode(t, proxy.GetResponseWriterStatusCode(respWriter), http.StatusNotFound, "expected status 404")
 }
 
 func TestResponseWriterDetectsStreaming(t *testing.T) {
 	t.Parallel()
 
-	rw := newTestResponseWriter()
+	respWriter := proxy.NewTestResponseWriter()
 
-	rw.Header().Set("Content-Type", "text/event-stream")
-	rw.WriteHeader(http.StatusOK)
+	respWriter.Header().Set("Content-Type", "text/event-stream")
+	respWriter.WriteHeader(http.StatusOK)
 
-	if !rw.isStreaming {
+	if !proxy.GetResponseWriterIsStreaming(respWriter) {
 		t.Error("Expected isStreaming to be true for text/event-stream")
 	}
 }
@@ -495,20 +665,20 @@ func TestResponseWriterDetectsStreaming(t *testing.T) {
 func TestResponseWriterCountsSSEEvents(t *testing.T) {
 	t.Parallel()
 
-	rw := newTestResponseWriter()
+	respWriter := proxy.NewTestResponseWriter()
 
-	rw.Header().Set("Content-Type", "text/event-stream")
-	rw.WriteHeader(http.StatusOK)
+	respWriter.Header().Set("Content-Type", "text/event-stream")
+	respWriter.WriteHeader(http.StatusOK)
 
 	// Write SSE events
 	sseData := "event: message_start\ndata: {}\n\nevent: content_block_start\ndata: {}\n\n"
-	_, err := rw.Write([]byte(sseData))
+	_, err := respWriter.Write([]byte(sseData))
 	if err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
 
-	if rw.sseEvents != 2 {
-		t.Errorf("Expected 2 SSE events, got %d", rw.sseEvents)
+	if proxy.GetResponseWriterSSEEvents(respWriter) != 2 {
+		t.Errorf("Expected 2 SSE events, got %d", proxy.GetResponseWriterSSEEvents(respWriter))
 	}
 }
 
@@ -528,14 +698,14 @@ func TestAuthFingerprint(t *testing.T) {
 		{"bearer no secret", "", "", true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			fp := authFingerprint(tt.bearerEnabled, tt.bearerSecret, tt.apiKey)
+			fp := proxy.AuthFingerprint(testCase.bearerEnabled, testCase.bearerSecret, testCase.apiKey)
 			require.NotEmpty(t, fp, "fingerprint should not be empty")
 
 			// Same inputs produce same fingerprint
-			fp2 := authFingerprint(tt.bearerEnabled, tt.bearerSecret, tt.apiKey)
+			fp2 := proxy.AuthFingerprint(testCase.bearerEnabled, testCase.bearerSecret, testCase.apiKey)
 			assert.Equalf(t, fp, fp2, "fingerprint not deterministic: %q != %q", fp, fp2)
 		})
 	}
@@ -543,10 +713,10 @@ func TestAuthFingerprint(t *testing.T) {
 	// Different inputs produce different fingerprints
 	t.Run("different inputs differ", func(t *testing.T) {
 		t.Parallel()
-		fp1 := authFingerprint(true, "secret1", "key1")
-		fp2 := authFingerprint(true, "secret2", "key1")
-		fp3 := authFingerprint(false, "secret1", "key1")
-		fp4 := authFingerprint(true, "secret1", "key2")
+		fp1 := proxy.AuthFingerprint(true, "secret1", "key1")
+		fp2 := proxy.AuthFingerprint(true, "secret2", "key1")
+		fp3 := proxy.AuthFingerprint(false, "secret1", "key1")
+		fp4 := proxy.AuthFingerprint(true, "secret1", "key2")
 
 		assert.NotEqual(t, fp1, fp2, "different bearer secrets should produce different fingerprints")
 		assert.NotEqual(t, fp1, fp3, "different bearer enabled should produce different fingerprints")
@@ -557,15 +727,15 @@ func TestAuthFingerprint(t *testing.T) {
 	t.Run("delimiter collision resistance", func(t *testing.T) {
 		t.Parallel()
 		// These would collide with naive delimiter-based format
-		fp1 := authFingerprint(true, "secret|5:fake", "real")
-		fp2 := authFingerprint(true, "secret", "fake|5:real")
+		fp1 := proxy.AuthFingerprint(true, "secret|5:fake", "real")
+		fp2 := proxy.AuthFingerprint(true, "secret", "fake|5:real")
 		if fp1 == fp2 {
 			t.Error("fingerprints should not collide when secrets contain delimiters")
 		}
 
 		// Additional edge case with length-like patterns
-		fp3 := authFingerprint(true, "a|3:bcd", "ef")
-		fp4 := authFingerprint(true, "a", "bcd|2:ef")
+		fp3 := proxy.AuthFingerprint(true, "a|3:bcd", "ef")
+		fp4 := proxy.AuthFingerprint(true, "a", "bcd|2:ef")
 		if fp3 == fp4 {
 			t.Error("fingerprints should not collide with length-like patterns")
 		}
@@ -573,21 +743,16 @@ func TestAuthFingerprint(t *testing.T) {
 }
 
 func okHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	return http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusOK)
 	})
 }
 
 func handlerWithCalled(called *bool) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	return http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		*called = true
-		w.WriteHeader(http.StatusOK)
+		writer.WriteHeader(http.StatusOK)
 	})
-}
-
-func newTestResponseWriter() *responseWriter {
-	rec := httptest.NewRecorder()
-	return &responseWriter{ResponseWriter: rec, statusCode: http.StatusOK}
 }
 
 func TestLiveAuthMiddlewareNilProvider(t *testing.T) {
@@ -596,10 +761,10 @@ func TestLiveAuthMiddlewareNilProvider(t *testing.T) {
 	called := false
 	handler := handlerWithCalled(&called)
 
-	middleware := LiveAuthMiddleware(nil)
+	middleware := proxy.LiveAuthMiddleware(nil)
 	wrappedHandler := middleware(handler)
 
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -616,10 +781,10 @@ func TestLiveAuthMiddlewareNilConfig(t *testing.T) {
 	handler := handlerWithCalled(&called)
 
 	runtime := config.NewRuntime(nil)
-	middleware := LiveAuthMiddleware(runtime)
+	middleware := proxy.LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -635,16 +800,12 @@ func TestLiveAuthMiddlewareNoAuthConfigured(t *testing.T) {
 	called := false
 	handler := handlerWithCalled(&called)
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{},
-		},
-	}
+	cfg := newMiddlewareTestConfig(emptyAuthConfig())
 	runtime := config.NewRuntime(cfg)
-	middleware := LiveAuthMiddleware(runtime)
+	middleware := proxy.LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
-	req := newMessagesRequest(http.NoBody)
+	req := proxy.NewMessagesRequest(http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -659,23 +820,22 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 
 	newWrappedHandler := func() http.Handler {
 		handler := okHandler()
-		cfg := &config.Config{
-			Server: config.ServerConfig{
-				Auth: config.AuthConfig{
-					APIKey: "test-api-key",
-				},
-			},
-		}
+		cfg := newMiddlewareTestConfig(config.AuthConfig{
+			APIKey:            "test-api-key",
+			BearerSecret:      "",
+			AllowBearer:       false,
+			AllowSubscription: false,
+		})
 		runtime := config.NewRuntime(cfg)
-		middleware := LiveAuthMiddleware(runtime)
+		middleware := proxy.LiveAuthMiddleware(runtime)
 		return middleware(handler)
 	}
 
 	t.Run("valid key", func(t *testing.T) {
 		t.Parallel()
 		wrappedHandler := newWrappedHandler()
-		req := newMessagesRequest(http.NoBody)
-		req.Header.Set(apiKeyHeader, "test-api-key")
+		req := proxy.NewMessagesRequest(http.NoBody)
+		req.Header.Set(proxy.APIKeyHeader, "test-api-key")
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -685,8 +845,8 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 	t.Run("invalid key", func(t *testing.T) {
 		t.Parallel()
 		wrappedHandler := newWrappedHandler()
-		req := newMessagesRequest(http.NoBody)
-		req.Header.Set(apiKeyHeader, wrongKey)
+		req := proxy.NewMessagesRequest(http.NoBody)
+		req.Header.Set(proxy.APIKeyHeader, wrongKey)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -698,7 +858,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 	t.Run("missing key", func(t *testing.T) {
 		t.Parallel()
 		wrappedHandler := newWrappedHandler()
-		req := newMessagesRequest(http.NoBody)
+		req := proxy.NewMessagesRequest(http.NoBody)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 
@@ -714,28 +874,26 @@ func TestLiveAuthMiddlewareConfigSwitching(t *testing.T) {
 	handler := okHandler()
 
 	// Start with API key auth
-	cfg1 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: keyV1,
-			},
-		},
-	}
+	cfg1 := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            keyV1,
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	})
 	runtime := config.NewRuntime(cfg1)
-	middleware := LiveAuthMiddleware(runtime)
+	middleware := proxy.LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
 	// Request with key-v1 should succeed
 	assertKeyWithHandler(t, wrappedHandler, keyV1, http.StatusOK, "key-v1 should work with cfg1")
 
 	// Switch to new API key
-	cfg2 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: keyV2,
-			},
-		},
-	}
+	cfg2 := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            keyV2,
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	})
 	runtime.Store(cfg2)
 
 	// Old key should now fail
@@ -751,19 +909,18 @@ func TestLiveAuthMiddlewareSwitchAuthMethods(t *testing.T) {
 	handler := okHandler()
 
 	// Start with API key auth
-	cfg1 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: "my-api-key",
-			},
-		},
-	}
+	cfg1 := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            "my-api-key",
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	})
 	runtime := config.NewRuntime(cfg1)
-	middleware := LiveAuthMiddleware(runtime)
+	middleware := proxy.LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
 	// Bearer should fail, API key should work
-	req1 := newMessagesRequest(http.NoBody)
+	req1 := proxy.NewMessagesRequest(http.NoBody)
 	req1.Header.Set("Authorization", "Bearer my-bearer-token")
 	rec1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec1, req1)
@@ -772,18 +929,16 @@ func TestLiveAuthMiddlewareSwitchAuthMethods(t *testing.T) {
 	}
 
 	// Switch to bearer auth
-	cfg2 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				AllowBearer:  true,
-				BearerSecret: "my-bearer-token",
-			},
-		},
-	}
+	cfg2 := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            "",
+		BearerSecret:      "my-bearer-token",
+		AllowBearer:       true,
+		AllowSubscription: false,
+	})
 	runtime.Store(cfg2)
 
 	// Now bearer should work
-	req2 := newMessagesRequest(http.NoBody)
+	req2 := proxy.NewMessagesRequest(http.NoBody)
 	req2.Header.Set("Authorization", "Bearer my-bearer-token")
 	rec2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec2, req2)
@@ -792,8 +947,8 @@ func TestLiveAuthMiddlewareSwitchAuthMethods(t *testing.T) {
 	}
 
 	// API key should now fail
-	req3 := newMessagesRequest(http.NoBody)
-	req3.Header.Set(apiKeyHeader, "my-api-key")
+	req3 := proxy.NewMessagesRequest(http.NoBody)
+	req3.Header.Set(proxy.APIKeyHeader, "my-api-key")
 	rec3 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec3, req3)
 	if rec3.Code != http.StatusUnauthorized {
@@ -807,19 +962,18 @@ func TestLiveAuthMiddlewareSwitchToNoAuth(t *testing.T) {
 	handler := okHandler()
 
 	// Start with API key auth
-	cfg1 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: "required-key",
-			},
-		},
-	}
+	cfg1 := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            "required-key",
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	})
 	runtime := config.NewRuntime(cfg1)
-	middleware := LiveAuthMiddleware(runtime)
+	middleware := proxy.LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
 	// No key should fail
-	req1 := newMessagesRequest(http.NoBody)
+	req1 := proxy.NewMessagesRequest(http.NoBody)
 	rec1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec1, req1)
 	if rec1.Code != http.StatusUnauthorized {
@@ -827,15 +981,11 @@ func TestLiveAuthMiddlewareSwitchToNoAuth(t *testing.T) {
 	}
 
 	// Switch to no auth
-	cfg2 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{},
-		},
-	}
+	cfg2 := newMiddlewareTestConfig(emptyAuthConfig())
 	runtime.Store(cfg2)
 
 	// Now no key should pass through
-	req2 := newMessagesRequest(http.NoBody)
+	req2 := proxy.NewMessagesRequest(http.NoBody)
 	rec2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
@@ -848,15 +998,14 @@ func TestLiveAuthMiddlewareConcurrentAccess(t *testing.T) {
 
 	handler := okHandler()
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: concurrentKey,
-			},
-		},
-	}
+	cfg := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            concurrentKey,
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	})
 	runtime := config.NewRuntime(cfg)
-	middleware := LiveAuthMiddleware(runtime)
+	middleware := proxy.LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
 	const goroutines = 50
@@ -875,54 +1024,52 @@ func TestLiveAuthMiddlewareConcurrentConfigSwitch(t *testing.T) {
 
 	handler := okHandler()
 
-	cfg1 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: keyAlpha,
-			},
-		},
-	}
-	cfg2 := &config.Config{
-		Server: config.ServerConfig{
-			Auth: config.AuthConfig{
-				APIKey: keyBeta,
-			},
-		},
-	}
+	cfg1 := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            keyAlpha,
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	})
+	cfg2 := newMiddlewareTestConfig(config.AuthConfig{
+		APIKey:            keyBeta,
+		BearerSecret:      "",
+		AllowBearer:       false,
+		AllowSubscription: false,
+	})
 
 	runtime := config.NewRuntime(cfg1)
-	middleware := LiveAuthMiddleware(runtime)
+	middleware := proxy.LiveAuthMiddleware(runtime)
 	wrappedHandler := middleware(handler)
 
 	const goroutines = 20
 	const iterations = 50
 
-	var wg sync.WaitGroup
-	startConfigSwitcher(&wg, runtime, cfg1, cfg2, iterations)
+	var waitGroup sync.WaitGroup
+	startConfigSwitcher(&waitGroup, runtime, cfg1, cfg2, iterations)
 
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
+	for workerIndex := 0; workerIndex < goroutines; workerIndex++ {
+		waitGroup.Add(1)
+		go func(workerID int) {
+			defer waitGroup.Done()
 			for range iterations {
 				for _, key := range []string{keyAlpha, keyBeta} {
 					status := doAPIKeyRequest(t, wrappedHandler, key).Code
 					if status != http.StatusOK && status != http.StatusUnauthorized {
-						t.Errorf("goroutine %d: unexpected status %d", id, status)
+						t.Errorf("goroutine %d: unexpected status %d", workerID, status)
 					}
 				}
 			}
-		}(i)
+		}(workerIndex)
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 }
 
 // --- ConcurrencyLimiter Tests ---
 
 func TestConcurrencyLimiterTryAcquireWithinLimit(t *testing.T) {
 	t.Parallel()
-	limiter := NewConcurrencyLimiter(3)
+	limiter := proxy.NewConcurrencyLimiter(3)
 
 	// Should acquire 3 times successfully
 	require.True(t, limiter.TryAcquire())
@@ -937,7 +1084,7 @@ func TestConcurrencyLimiterTryAcquireWithinLimit(t *testing.T) {
 
 func TestConcurrencyLimiterTryAcquireRelease(t *testing.T) {
 	t.Parallel()
-	limiter := NewConcurrencyLimiter(2)
+	limiter := proxy.NewConcurrencyLimiter(2)
 
 	// Acquire 2
 	require.True(t, limiter.TryAcquire())
@@ -955,10 +1102,10 @@ func TestConcurrencyLimiterTryAcquireRelease(t *testing.T) {
 
 func TestConcurrencyLimiterUnlimited(t *testing.T) {
 	t.Parallel()
-	limiter := NewConcurrencyLimiter(0)
+	limiter := proxy.NewConcurrencyLimiter(0)
 
 	// Should always succeed with limit 0
-	for i := 0; i < 100; i++ {
+	for idx := 0; idx < 100; idx++ {
 		require.True(t, limiter.TryAcquire())
 	}
 	require.Equal(t, int64(100), limiter.CurrentInFlight())
@@ -966,7 +1113,7 @@ func TestConcurrencyLimiterUnlimited(t *testing.T) {
 
 func TestConcurrencyLimiterSetLimit(t *testing.T) {
 	t.Parallel()
-	limiter := NewConcurrencyLimiter(5)
+	limiter := proxy.NewConcurrencyLimiter(5)
 	require.Equal(t, int64(5), limiter.GetLimit())
 
 	limiter.SetLimit(10)
@@ -978,7 +1125,7 @@ func TestConcurrencyLimiterSetLimit(t *testing.T) {
 
 func TestConcurrencyLimiterHotReload(t *testing.T) {
 	t.Parallel()
-	limiter := NewConcurrencyLimiter(2)
+	limiter := proxy.NewConcurrencyLimiter(2)
 
 	// Fill up limit
 	require.True(t, limiter.TryAcquire())
@@ -1008,17 +1155,17 @@ func TestConcurrencyLimiterHotReload(t *testing.T) {
 func TestConcurrencyLimiterConcurrentAccess(t *testing.T) {
 	t.Parallel()
 	const limit = 10
-	limiter := NewConcurrencyLimiter(limit)
+	limiter := proxy.NewConcurrencyLimiter(limit)
 
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 	acquired := make(chan struct{}, 100)
 	rejected := make(chan struct{}, 100)
 
 	// Spawn many goroutines trying to acquire
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
+	for workerIndex := 0; workerIndex < 50; workerIndex++ {
+		waitGroup.Add(1)
 		go func() {
-			defer wg.Done()
+			defer waitGroup.Done()
 			if limiter.TryAcquire() {
 				acquired <- struct{}{}
 				time.Sleep(10 * time.Millisecond)
@@ -1029,7 +1176,7 @@ func TestConcurrencyLimiterConcurrentAccess(t *testing.T) {
 		}()
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 	close(acquired)
 	close(rejected)
 
@@ -1042,14 +1189,14 @@ func TestConcurrencyLimiterConcurrentAccess(t *testing.T) {
 
 func TestConcurrencyMiddlewareEnforcesLimit(t *testing.T) {
 	t.Parallel()
-	limiter := NewConcurrencyLimiter(1)
+	limiter := proxy.NewConcurrencyLimiter(1)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		time.Sleep(50 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
+		writer.WriteHeader(http.StatusOK)
 	})
 
-	wrappedHandler := ConcurrencyMiddleware(limiter)(handler)
+	wrappedHandler := proxy.ConcurrencyMiddleware(limiter)(handler)
 
 	// First request should succeed
 	req1 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
@@ -1059,11 +1206,11 @@ func TestConcurrencyMiddlewareEnforcesLimit(t *testing.T) {
 	req2 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
 	resp2 := httptest.NewRecorder()
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(2)
 
 	go func() {
-		defer wg.Done()
+		defer waitGroup.Done()
 		wrappedHandler.ServeHTTP(resp1, req1)
 	}()
 
@@ -1071,11 +1218,11 @@ func TestConcurrencyMiddlewareEnforcesLimit(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	go func() {
-		defer wg.Done()
+		defer waitGroup.Done()
 		wrappedHandler.ServeHTTP(resp2, req2)
 	}()
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	require.Equal(t, http.StatusOK, resp1.Code)
 	require.Equal(t, http.StatusServiceUnavailable, resp2.Code)
@@ -1084,13 +1231,13 @@ func TestConcurrencyMiddlewareEnforcesLimit(t *testing.T) {
 
 func TestConcurrencyMiddlewareReleasesOnCompletion(t *testing.T) {
 	t.Parallel()
-	limiter := NewConcurrencyLimiter(1)
+	limiter := proxy.NewConcurrencyLimiter(1)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusOK)
 	})
 
-	wrappedHandler := ConcurrencyMiddleware(limiter)(handler)
+	wrappedHandler := proxy.ConcurrencyMiddleware(limiter)(handler)
 
 	// First request
 	req1 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
@@ -1114,11 +1261,15 @@ func TestMaxBodyBytesMiddlewareAllowsWithinLimit(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody []byte
-	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = io.ReadAll(r.Body)
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		var readErr error
+		receivedBody, readErr = io.ReadAll(request.Body)
+		if readErr != nil {
+			t.Errorf("unexpected error reading body: %v", readErr)
+		}
 	})
 
-	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 100 })(handler)
+	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return 100 })(handler)
 
 	body := bytes.NewReader([]byte(`{"model": "claude-3"}`))
 	req := httptest.NewRequest(http.MethodPost, "/test", body)
@@ -1133,16 +1284,16 @@ func TestMaxBodyBytesMiddlewareErrorOnOversized(t *testing.T) {
 	t.Parallel()
 
 	var readErr error
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, readErr = io.ReadAll(r.Body)
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, readErr = io.ReadAll(request.Body)
 		if readErr != nil {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			writer.WriteHeader(http.StatusRequestEntityTooLarge)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		writer.WriteHeader(http.StatusOK)
 	})
 
-	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
+	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
 
 	body := bytes.NewReader([]byte(`{"model": "claude-3-opus-20240229", "messages": []}`))
 	req := httptest.NewRequest(http.MethodPost, "/test", body)
@@ -1152,7 +1303,7 @@ func TestMaxBodyBytesMiddlewareErrorOnOversized(t *testing.T) {
 
 	// Handler should have gotten an error
 	require.Error(t, readErr)
-	require.True(t, IsBodyTooLargeError(readErr))
+	require.True(t, proxy.IsBodyTooLargeError(readErr))
 	require.Equal(t, http.StatusRequestEntityTooLarge, resp.Code)
 }
 
@@ -1160,11 +1311,15 @@ func TestMaxBodyBytesMiddlewareUnlimitedWhenZero(t *testing.T) {
 	t.Parallel()
 
 	var receivedBody []byte
-	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		receivedBody, _ = io.ReadAll(r.Body)
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+		var readErr error
+		receivedBody, readErr = io.ReadAll(request.Body)
+		if readErr != nil {
+			t.Errorf("unexpected error reading body: %v", readErr)
+		}
 	})
 
-	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 0 })(handler)
+	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return 0 })(handler)
 
 	// Large body should work when limit is 0
 	largeBody := bytes.Repeat([]byte("x"), 1000)
@@ -1180,16 +1335,16 @@ func TestMaxBodyBytesMiddlewareHotReload(t *testing.T) {
 	t.Parallel()
 
 	limit := int64(100)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := io.ReadAll(r.Body)
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, err := io.ReadAll(request.Body)
 		if err != nil {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			writer.WriteHeader(http.StatusRequestEntityTooLarge)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		writer.WriteHeader(http.StatusOK)
 	})
 
-	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return limit })(handler)
+	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return limit })(handler)
 
 	// First request with small body should succeed
 	req1 := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte("small")))
@@ -1210,11 +1365,11 @@ func TestMaxBodyBytesMiddlewareHotReload(t *testing.T) {
 func TestMaxBodyBytesMiddlewareNilBody(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusOK)
 	})
 
-	wrappedHandler := MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
+	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 	resp := httptest.NewRecorder()

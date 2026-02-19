@@ -68,8 +68,10 @@ func (r *ModelRewriter) RewriteRequest(req *http.Request, logger *zerolog.Logger
 
 	// Handle result using OrElse for graceful degradation
 	res := result.OrElse(rewriteResult{
-		bodyBytes:    bodyBytes,
-		wasRewritten: false,
+		originalModel: "",
+		mappedModel:   "",
+		bodyBytes:     bodyBytes,
+		wasRewritten:  false,
 	})
 
 	// Log successful rewrite
@@ -96,14 +98,14 @@ func (r *ModelRewriter) tryRewrite(bodyBytes []byte) mo.Result[rewriteResult] {
 	}
 
 	// Step 2: Get model field
-	modelField, ok := body["model"]
-	if !ok {
+	modelField, hasModel := body["model"]
+	if !hasModel {
 		return mo.Err[rewriteResult](errNoModelField)
 	}
 
 	// Step 3: Ensure model is a string
-	originalModel, ok := modelField.(string)
-	if !ok {
+	originalModel, isString := modelField.(string)
+	if !isString {
 		return mo.Err[rewriteResult](errModelNotString)
 	}
 
@@ -112,8 +114,10 @@ func (r *ModelRewriter) tryRewrite(bodyBytes []byte) mo.Result[rewriteResult] {
 	if !found {
 		// No mapping - return original body unchanged (not an error, just no rewrite)
 		return mo.Ok(rewriteResult{
-			bodyBytes:    bodyBytes,
-			wasRewritten: false,
+			originalModel: "",
+			mappedModel:   "",
+			bodyBytes:     bodyBytes,
+			wasRewritten:  false,
 		})
 	}
 

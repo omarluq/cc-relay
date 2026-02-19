@@ -1,4 +1,4 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"context"
@@ -8,11 +8,79 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/omarluq/cc-relay/internal/ratelimit"
 )
+
+// verifyConcurrentSafety runs a work function in multiple goroutines and returns
+// false if any goroutine panicked. Used to reduce test cognitive complexity.
+func verifyConcurrentSafety(t *testing.T, goroutines int, work func()) bool {
+	t.Helper()
+
+	var waitGroup sync.WaitGroup
+	panicked := make(chan bool, goroutines)
+
+	for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					panicked <- true
+				}
+			}()
+			work()
+		}()
+	}
+
+	waitGroup.Wait()
+	close(panicked)
+
+	for didPanic := range panicked {
+		if didPanic {
+			return false
+		}
+	}
+
+	return true
+}
+
+// verifyConcurrentSafetyWithIdx is like verifyConcurrentSafety but passes
+// the goroutine index to the work function.
+func verifyConcurrentSafetyWithIdx(t *testing.T, goroutines int, work func(idx int)) bool {
+	t.Helper()
+
+	var waitGroup sync.WaitGroup
+	panicked := make(chan bool, goroutines)
+
+	for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+		waitGroup.Add(1)
+		go func(idx int) {
+			defer waitGroup.Done()
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					panicked <- true
+				}
+			}()
+			work(idx)
+		}(goroutineIdx)
+	}
+
+	waitGroup.Wait()
+	close(panicked)
+
+	for didPanic := range panicked {
+		if didPanic {
+			return false
+		}
+	}
+
+	return true
+}
 
 // Property-based tests for RateLimiter interface implementations
 
 func TestRateLimiterProperties(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -24,11 +92,11 @@ func TestRateLimiterProperties(t *testing.T) {
 				return true // Skip invalid inputs
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			ctx := context.Background()
 
 			// Call Allow multiple times - should never block
-			for i := 0; i < rpm*2; i++ {
+			for allowIdx := 0; allowIdx < rpm*2; allowIdx++ {
 				_ = limiter.Allow(ctx)
 			}
 
@@ -45,7 +113,7 @@ func TestRateLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			ctx := context.Background()
 
 			// A fresh limiter should always allow the first request
@@ -62,7 +130,7 @@ func TestRateLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			usage := limiter.GetUsage()
 
 			// Limits should match configured values (or unlimited)
@@ -72,6 +140,15 @@ func TestRateLimiterProperties(t *testing.T) {
 		gen.IntRange(1000, 100000),
 	))
 
+	properties.TestingRun(t)
+}
+
+func TestRateLimiterSetLimitProperty(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
 	// Property 4: SetLimit updates limits
 	properties.Property("SetLimit updates limits", prop.ForAll(
 		func(initialRPM, initialTPM, newRPM, newTPM int) bool {
@@ -79,7 +156,7 @@ func TestRateLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(initialRPM, initialTPM)
+			limiter := ratelimit.NewTokenBucketLimiter(initialRPM, initialTPM)
 			limiter.SetLimit(newRPM, newTPM)
 
 			usage := limiter.GetUsage()
@@ -93,6 +170,15 @@ func TestRateLimiterProperties(t *testing.T) {
 		gen.IntRange(1001, 100001), // newTPM - different range to avoid gocritic
 	))
 
+	properties.TestingRun(t)
+}
+
+func TestRateLimiterZeroLimitsProperty(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
 	// Property 5: Zero/negative limits become unlimited
 	properties.Property("zero limits become unlimited", prop.ForAll(
 		func(testZeroRPM, testZeroTPM bool) bool {
@@ -105,7 +191,7 @@ func TestRateLimiterProperties(t *testing.T) {
 				tpm = 0
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			usage := limiter.GetUsage()
 
 			// Zero values should be converted to unlimited (1M)
@@ -129,7 +215,7 @@ func TestRateLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(100, 100000)
+			limiter := ratelimit.NewTokenBucketLimiter(100, 100000)
 
 			// Should return true or false without panicking
 			result := limiter.Reserve(tokens)
@@ -142,6 +228,7 @@ func TestRateLimiterProperties(t *testing.T) {
 }
 
 func TestRateLimiterBurstProperty(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)
@@ -154,12 +241,12 @@ func TestRateLimiterBurstProperty(t *testing.T) {
 			}
 
 			// Create limiter with burst = limit
-			limiter := NewTokenBucketLimiter(limit, limit*1000)
+			limiter := ratelimit.NewTokenBucketLimiter(limit, limit*1000)
 			ctx := context.Background()
 
 			allowed := 0
 			// Try to do limit*2 requests immediately
-			for i := 0; i < limit*2; i++ {
+			for allowIdx := 0; allowIdx < limit*2; allowIdx++ {
 				if limiter.Allow(ctx) {
 					allowed++
 				}
@@ -174,7 +261,8 @@ func TestRateLimiterBurstProperty(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestRateLimiterConcurrentAccessProperties(t *testing.T) {
+func TestRateLimiterConcurrentAllowProperty(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)
@@ -186,42 +274,26 @@ func TestRateLimiterConcurrentAccessProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(1000, 1000000)
+			limiter := ratelimit.NewTokenBucketLimiter(1000, 1000000)
 			ctx := context.Background()
 
-			var wg sync.WaitGroup
-			panicked := make(chan bool, goroutines)
-
-			for i := 0; i < goroutines; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							panicked <- true
-						}
-					}()
-
-					for j := 0; j < 10; j++ {
-						_ = limiter.Allow(ctx)
-					}
-				}()
-			}
-
-			wg.Wait()
-			close(panicked)
-
-			// Check for any panics
-			for p := range panicked {
-				if p {
-					return false
+			return verifyConcurrentSafety(t, goroutines, func() {
+				for step := 0; step < 10; step++ {
+					_ = limiter.Allow(ctx)
 				}
-			}
-
-			return true
+			})
 		},
 		gen.IntRange(1, 50),
 	))
+
+	properties.TestingRun(t)
+}
+
+func TestRateLimiterConcurrentGetUsageProperty(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
+	properties := gopter.NewProperties(parameters)
 
 	// Property: Concurrent GetUsage calls don't panic
 	properties.Property("concurrent GetUsage is safe", prop.ForAll(
@@ -230,40 +302,25 @@ func TestRateLimiterConcurrentAccessProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(100, 100000)
+			limiter := ratelimit.NewTokenBucketLimiter(100, 100000)
 
-			var wg sync.WaitGroup
-			panicked := make(chan bool, goroutines)
-
-			for i := 0; i < goroutines; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							panicked <- true
-						}
-					}()
-
-					for j := 0; j < 10; j++ {
-						_ = limiter.GetUsage()
-					}
-				}()
-			}
-
-			wg.Wait()
-			close(panicked)
-
-			for p := range panicked {
-				if p {
-					return false
+			return verifyConcurrentSafety(t, goroutines, func() {
+				for step := 0; step < 10; step++ {
+					_ = limiter.GetUsage()
 				}
-			}
-
-			return true
+			})
 		},
 		gen.IntRange(1, 50),
 	))
+
+	properties.TestingRun(t)
+}
+
+func TestRateLimiterConcurrentSetLimitProperty(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
+	properties := gopter.NewProperties(parameters)
 
 	// Property: Concurrent SetLimit calls don't panic
 	properties.Property("concurrent SetLimit is safe", prop.ForAll(
@@ -272,38 +329,23 @@ func TestRateLimiterConcurrentAccessProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(100, 100000)
+			limiter := ratelimit.NewTokenBucketLimiter(100, 100000)
 
-			var wg sync.WaitGroup
-			panicked := make(chan bool, goroutines)
-
-			for i := 0; i < goroutines; i++ {
-				wg.Add(1)
-				go func(idx int) {
-					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							panicked <- true
-						}
-					}()
-
-					limiter.SetLimit(100+idx, 100000+idx*1000)
-				}(i)
-			}
-
-			wg.Wait()
-			close(panicked)
-
-			for p := range panicked {
-				if p {
-					return false
-				}
-			}
-
-			return true
+			return verifyConcurrentSafetyWithIdx(t, goroutines, func(idx int) {
+				limiter.SetLimit(100+idx, 100000+idx*1000)
+			})
 		},
 		gen.IntRange(1, 30),
 	))
+
+	properties.TestingRun(t)
+}
+
+func TestRateLimiterMixedConcurrentProperty(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 50
+	properties := gopter.NewProperties(parameters)
 
 	// Property: Mixed concurrent operations are safe
 	properties.Property("mixed concurrent operations are safe", prop.ForAll(
@@ -312,64 +354,21 @@ func TestRateLimiterConcurrentAccessProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(1000, 1000000)
+			limiter := ratelimit.NewTokenBucketLimiter(1000, 1000000)
 			ctx := context.Background()
 
-			var wg sync.WaitGroup
-			panicked := make(chan bool, goroutines*3)
+			// Test Allow, GetUsage, and SetLimit concurrently
+			allowOk := verifyConcurrentSafety(t, goroutines, func() {
+				_ = limiter.Allow(ctx)
+			})
+			usageOk := verifyConcurrentSafety(t, goroutines, func() {
+				_ = limiter.GetUsage()
+			})
+			setOk := verifyConcurrentSafetyWithIdx(t, goroutines, func(idx int) {
+				limiter.SetLimit(100+idx, 100000)
+			})
 
-			// Readers (Allow)
-			for i := 0; i < goroutines; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							panicked <- true
-						}
-					}()
-					_ = limiter.Allow(ctx)
-				}()
-			}
-
-			// Readers (GetUsage)
-			for i := 0; i < goroutines; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							panicked <- true
-						}
-					}()
-					_ = limiter.GetUsage()
-				}()
-			}
-
-			// Writers (SetLimit)
-			for i := 0; i < goroutines; i++ {
-				wg.Add(1)
-				go func(idx int) {
-					defer wg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							panicked <- true
-						}
-					}()
-					limiter.SetLimit(100+idx, 100000)
-				}(i)
-			}
-
-			wg.Wait()
-			close(panicked)
-
-			for p := range panicked {
-				if p {
-					return false
-				}
-			}
-
-			return true
+			return allowOk && usageOk && setOk
 		},
 		gen.IntRange(1, 20),
 	))

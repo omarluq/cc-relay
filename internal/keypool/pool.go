@@ -75,15 +75,16 @@ func NewKeyPool(provider string, cfg PoolConfig) (*KeyPool, error) {
 	}
 
 	pool := &KeyPool{
-		provider: provider,
-		keys:     make([]*KeyMetadata, 0, len(cfg.Keys)),
+		selector: selector,
 		keyMap:   make(map[string]*KeyMetadata, len(cfg.Keys)),
 		limiters: make(map[string]ratelimit.RateLimiter, len(cfg.Keys)),
-		selector: selector,
+		provider: provider,
+		keys:     make([]*KeyMetadata, 0, len(cfg.Keys)),
+		mu:       sync.RWMutex{},
 	}
 
 	// Initialize keys and limiters
-	for i, keyCfg := range cfg.Keys {
+	for idx, keyCfg := range cfg.Keys {
 		// Create key metadata
 		key := NewKeyMetadata(keyCfg.APIKey, keyCfg.RPMLimit, keyCfg.ITPMLimit, keyCfg.OTPMLimit)
 
@@ -106,7 +107,7 @@ func NewKeyPool(provider string, cfg PoolConfig) (*KeyPool, error) {
 		log.Debug().
 			Str("provider", provider).
 			Str("key_id", key.ID).
-			Int("index", i).
+			Int("index", idx).
 			Int("rpm_limit", keyCfg.RPMLimit).
 			Int("itpm_limit", keyCfg.ITPMLimit).
 			Int("otpm_limit", keyCfg.OTPMLimit).
@@ -313,7 +314,7 @@ func (p *KeyPool) GetStats() PoolStats {
 			stats.ExhaustedKeys++
 		}
 		return stats
-	}, PoolStats{TotalKeys: len(p.keys)})
+	}, PoolStats{TotalKeys: len(p.keys), AvailableKeys: 0, ExhaustedKeys: 0, TotalRPM: 0, RemainingRPM: 0})
 }
 
 // Keys returns a copy of the keys slice for external iteration.

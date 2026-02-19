@@ -22,18 +22,18 @@ type thinkingAffinityContextKey struct{}
 // provider (e.g., via round-robin), the signature validation fails.
 //
 // The request body is restored for subsequent reads.
-func HasThinkingSignature(r *http.Request) bool {
-	if r.Body == nil {
+func HasThinkingSignature(request *http.Request) bool {
+	if request.Body == nil {
 		return false
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
-	closeBody(r.Body)
+	bodyBytes, err := io.ReadAll(request.Body)
+	closeBody(request.Body)
 
 	// Always restore body for downstream use, even on partial read error
 	// io.ReadAll may return partial bytes alongside an error
-	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	r.ContentLength = int64(len(bodyBytes))
+	request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	request.ContentLength = int64(len(bodyBytes))
 
 	if err != nil {
 		return false

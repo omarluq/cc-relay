@@ -1,122 +1,65 @@
-package providers
+package providers_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
+
+	"github.com/omarluq/cc-relay/internal/providers"
 )
 
 func TestNewOllamaProvider(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name         string
-		providerName string
-		baseURL      string
-		wantBaseURL  string
-	}{
-		{
-			name:         "with custom base URL",
-			providerName: "ollama-custom",
-			baseURL:      "http://192.168.1.100:11434",
-			wantBaseURL:  "http://192.168.1.100:11434",
+	assertNewProvider(t,
+		func(name, baseURL string) providers.Provider {
+			return providers.NewOllamaProvider(name, baseURL)
 		},
-		{
-			name:         "with empty base URL uses default",
-			providerName: "ollama-default",
-			baseURL:      "",
-			wantBaseURL:  DefaultOllamaBaseURL,
+		[]providerTestCase{
+			{
+				name:         "with custom base URL",
+				providerName: "ollama-custom",
+				baseURL:      "http://192.168.1.100:11434",
+				wantBaseURL:  "http://192.168.1.100:11434",
+			},
+			{
+				name:         "with empty base URL uses default",
+				providerName: "ollama-default",
+				baseURL:      "",
+				wantBaseURL:  providers.DefaultOllamaBaseURL,
+			},
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			provider := NewOllamaProvider(tt.providerName, tt.baseURL)
-
-			if provider.Name() != tt.providerName {
-				t.Errorf("Expected name=%s, got %s", tt.providerName, provider.Name())
-			}
-
-			if provider.BaseURL() != tt.wantBaseURL {
-				t.Errorf("Expected baseURL=%s, got %s", tt.wantBaseURL, provider.BaseURL())
-			}
-		})
-	}
+	)
 }
 
 func TestOllamaAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "")
 
-	req, err := http.NewRequest("POST", "http://localhost:11434/v1/messages", http.NoBody)
+	testURL := "http://localhost:11434/v1/messages"
+	req, err := http.NewRequestWithContext(
+		context.Background(), "POST", testURL, http.NoBody,
+	)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
 
-	apiKey := "ollama-test-key-123"
-
-	err = provider.Authenticate(req, apiKey)
-	if err != nil {
-		t.Fatalf("Authenticate failed: %v", err)
-	}
-
-	// Verify x-api-key header is set correctly (Ollama accepts but ignores auth)
-	gotKey := req.Header.Get("x-api-key")
-	if gotKey != apiKey {
-		t.Errorf("Expected x-api-key=%s, got %s", apiKey, gotKey)
-	}
+	assertAuthenticateSetsKey(t, provider, req)
 }
 
 func TestOllamaForwardHeaders(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "")
 
-	// Create original headers with mix of anthropic-* and other headers
-	originalHeaders := http.Header{
-		"anthropic-version":                         []string{"2023-06-01"},
-		"anthropic-dangerous-direct-browser-access": []string{"true"},
-		"Authorization":                             []string{"Bearer token"},
-		"User-Agent":                                []string{"test-agent"},
-		"X-Custom-Header":                           []string{"custom-value"},
-	}
-
-	forwardedHeaders := provider.ForwardHeaders(originalHeaders)
-
-	// Verify anthropic-* headers are forwarded (Ollama is Anthropic-compatible)
-	if forwardedHeaders.Get("anthropic-version") != "2023-06-01" {
-		t.Errorf("Expected anthropic-version header to be forwarded")
-	}
-
-	if forwardedHeaders.Get("anthropic-dangerous-direct-browser-access") != "true" {
-		t.Errorf("Expected anthropic-dangerous-direct-browser-access header to be forwarded")
-	}
-
-	// Verify Content-Type is set
-	if forwardedHeaders.Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type=application/json, got %s", forwardedHeaders.Get("Content-Type"))
-	}
-
-	// Verify non-anthropic headers are NOT forwarded
-	if forwardedHeaders.Get("Authorization") != "" {
-		t.Error("Expected Authorization header to not be forwarded")
-	}
-
-	if forwardedHeaders.Get("User-Agent") != "" {
-		t.Error("Expected User-Agent header to not be forwarded")
-	}
-
-	if forwardedHeaders.Get("X-Custom-Header") != "" {
-		t.Error("Expected X-Custom-Header to not be forwarded")
-	}
+	assertForwardHeaders(t, provider)
 }
 
 func TestOllamaSupportsStreaming(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "")
 
 	if !provider.SupportsStreaming() {
 		t.Error("Expected OllamaProvider to support streaming")
@@ -126,75 +69,22 @@ func TestOllamaSupportsStreaming(t *testing.T) {
 func TestOllamaForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "")
 
-	tests := []struct {
-		originalHeaders http.Header
-		checkFunc       func(*testing.T, http.Header)
-		name            string
-	}{
-		{
-			name:            "empty headers",
-			originalHeaders: http.Header{},
-			checkFunc: func(t *testing.T, h http.Header) {
-				t.Helper()
-				if h.Get("Content-Type") != "application/json" {
-					t.Error("Expected Content-Type to be set even with empty original headers")
-				}
-			},
-		},
-		{
-			name: "multiple anthropic headers",
-			originalHeaders: http.Header{
-				"anthropic-version": []string{"2023-06-01"},
-				"anthropic-beta":    []string{"feature-1", "feature-2"},
-			},
-			checkFunc: func(t *testing.T, h http.Header) {
-				t.Helper()
-				if h.Get("anthropic-version") != "2023-06-01" {
-					t.Error("Expected anthropic-version to be forwarded")
-				}
-				beta := h["Anthropic-Beta"]
-				if len(beta) != 2 || beta[0] != "feature-1" || beta[1] != "feature-2" {
-					t.Errorf("Expected anthropic-beta to have both values, got %v", beta)
-				}
-			},
-		},
-		{
-			name: "short header name starting with 'a'",
-			originalHeaders: http.Header{
-				"accept": []string{"application/json"},
-			},
-			checkFunc: func(t *testing.T, h http.Header) {
-				t.Helper()
-				if h.Get("accept") != "" {
-					t.Error("Expected short header starting with 'a' to not be forwarded")
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			forwardedHeaders := provider.ForwardHeaders(tt.originalHeaders)
-			tt.checkFunc(t, forwardedHeaders)
-		})
-	}
+	assertForwardHeadersEdgeCases(t, provider)
 }
 
 func TestOllamaProviderInterface(t *testing.T) {
 	t.Parallel()
 
 	// Verify OllamaProvider implements Provider interface
-	var _ Provider = (*OllamaProvider)(nil)
+	var _ providers.Provider = (*providers.OllamaProvider)(nil)
 }
 
 func TestOllamaOwner(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "")
 
 	if provider.Owner() != "ollama" {
 		t.Errorf("Expected owner=ollama, got %s", provider.Owner())
@@ -205,32 +95,21 @@ func TestOllamaListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
 	models := []string{"llama3.2:3b", "qwen2.5:7b"}
-	provider := NewOllamaProviderWithModels("ollama-primary", "", models)
+	provider := providers.NewOllamaProviderWithModels(
+		"ollama-primary", "", models,
+	)
 
 	result := provider.ListModels()
 
-	if len(result) != 2 {
-		t.Fatalf("Expected 2 models, got %d", len(result))
-	}
+	assertListModelsWithConfiguredModels(
+		t, result, "ollama", "ollama-primary",
+	)
 
-	// First model
+	// Verify specific model IDs
 	if result[0].ID != "llama3.2:3b" {
 		t.Errorf("Expected model ID=llama3.2:3b, got %s", result[0].ID)
 	}
-	if result[0].Object != "model" {
-		t.Errorf("Expected object=model, got %s", result[0].Object)
-	}
-	if result[0].OwnedBy != "ollama" {
-		t.Errorf("Expected owned_by=ollama, got %s", result[0].OwnedBy)
-	}
-	if result[0].Provider != "ollama-primary" {
-		t.Errorf("Expected provider=ollama-primary, got %s", result[0].Provider)
-	}
-	if result[0].Created == 0 {
-		t.Error("Expected created timestamp to be set")
-	}
 
-	// Second model
 	if result[1].ID != "qwen2.5:7b" {
 		t.Errorf("Expected model ID=qwen2.5:7b, got %s", result[1].ID)
 	}
@@ -240,7 +119,7 @@ func TestOllamaListModelsEmpty(t *testing.T) {
 	t.Parallel()
 
 	// Unlike Z.AI, Ollama has no default models (models are user-installed)
-	provider := NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "")
 
 	result := provider.ListModels()
 
@@ -253,7 +132,7 @@ func TestOllamaListModelsEmpty(t *testing.T) {
 func TestOllamaListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOllamaProviderWithModels("test-ollama", "", nil)
+	provider := providers.NewOllamaProviderWithModels("test-ollama", "", nil)
 
 	result := provider.ListModels()
 
@@ -266,11 +145,13 @@ func TestOllamaListModelsNilModels(t *testing.T) {
 func TestOllamaSupportsTransparentAuth(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "")
 
 	// Ollama cannot validate Anthropic tokens
 	if provider.SupportsTransparentAuth() {
-		t.Error("Expected SupportsTransparentAuth to return false for Ollama")
+		t.Error(
+			"Expected SupportsTransparentAuth to return false for Ollama",
+		)
 	}
 }
 
@@ -279,7 +160,7 @@ func TestOllamaGetModelMapping(t *testing.T) {
 
 	t.Run("returns nil when no mapping configured", func(t *testing.T) {
 		t.Parallel()
-		provider := NewOllamaProvider("test-ollama", "")
+		provider := providers.NewOllamaProvider("test-ollama", "")
 		if provider.GetModelMapping() != nil {
 			t.Error("Expected nil model mapping when not configured")
 		}
@@ -290,13 +171,18 @@ func TestOllamaGetModelMapping(t *testing.T) {
 		mapping := map[string]string{
 			"claude-opus-4-5-20251101": "qwen3:8b",
 		}
-		provider := NewOllamaProviderWithMapping("test-ollama", "", nil, mapping)
+		provider := providers.NewOllamaProviderWithMapping(
+			"test-ollama", "", nil, mapping,
+		)
 		result := provider.GetModelMapping()
 		if result == nil {
 			t.Fatal("Expected non-nil model mapping")
 		}
 		if result["claude-opus-4-5-20251101"] != "qwen3:8b" {
-			t.Errorf("Expected mapping for claude-opus-4-5-20251101, got %v", result)
+			t.Errorf(
+				"Expected mapping for claude-opus-4-5-20251101, got %v",
+				result,
+			)
 		}
 	})
 }
@@ -334,13 +220,15 @@ func TestOllamaMapModel(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			provider := NewOllamaProviderWithMapping("test-ollama", "", nil, tt.mapping)
-			result := provider.MapModel(tt.input)
-			if result != tt.expected {
-				t.Errorf("Expected %q, got %q", tt.expected, result)
+			provider := providers.NewOllamaProviderWithMapping(
+				"test-ollama", "", nil, testCase.mapping,
+			)
+			result := provider.MapModel(testCase.input)
+			if result != testCase.expected {
+				t.Errorf("Expected %q, got %q", testCase.expected, result)
 			}
 		})
 	}
@@ -356,7 +244,12 @@ func TestNewOllamaProviderWithMapping(t *testing.T) {
 	}
 	models := []string{"qwen3:8b", "qwen3:4b", "qwen3:1b"}
 
-	provider := NewOllamaProviderWithMapping("ollama-primary", "http://192.168.1.100:11434", models, mapping)
+	provider := providers.NewOllamaProviderWithMapping(
+		"ollama-primary",
+		"http://192.168.1.100:11434",
+		models,
+		mapping,
+	)
 
 	if provider.Name() != "ollama-primary" {
 		t.Errorf("Expected name=ollama-primary, got %s", provider.Name())
@@ -367,11 +260,17 @@ func TestNewOllamaProviderWithMapping(t *testing.T) {
 	}
 
 	if len(provider.ListModels()) != 3 {
-		t.Errorf("Expected 3 models, got %d", len(provider.ListModels()))
+		t.Errorf(
+			"Expected 3 models, got %d",
+			len(provider.ListModels()),
+		)
 	}
 
 	if len(provider.GetModelMapping()) != 3 {
-		t.Errorf("Expected 3 mappings, got %d", len(provider.GetModelMapping()))
+		t.Errorf(
+			"Expected 3 mappings, got %d",
+			len(provider.GetModelMapping()),
+		)
 	}
 
 	// Verify mapping works

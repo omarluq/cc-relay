@@ -1,59 +1,103 @@
-package router
+package router_test
 
 import (
 	"context"
 	"errors"
 	"sync"
 	"testing"
+
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 func TestShuffleRouterName(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
-	if router.Name() != StrategyShuffle {
-		t.Errorf("Name() = %q, want %q", router.Name(), StrategyShuffle)
+	rtr := router.NewShuffleRouter()
+	if rtr.Name() != router.StrategyShuffle {
+		t.Errorf("Name() = %q, want %q", rtr.Name(), router.StrategyShuffle)
 	}
 }
 
 func TestShuffleRouterEmptyProviders(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
-	_, err := router.Select(context.Background(), []ProviderInfo{})
+	rtr := router.NewShuffleRouter()
+	_, err := rtr.Select(context.Background(), []router.ProviderInfo{})
 
-	if !errors.Is(err, ErrNoProviders) {
-		t.Errorf("Select() error = %v, want ErrNoProviders", err)
+	if !errors.Is(err, router.ErrNoProviders) {
+		t.Errorf("Select() error = %v, want router.ErrNoProviders", err)
 	}
 }
 
 func TestShuffleRouterAllUnhealthy(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
-	providers := []ProviderInfo{
-		{IsHealthy: func() bool { return false }},
-		{IsHealthy: func() bool { return false }},
-		{IsHealthy: func() bool { return false }},
+	rtr := router.NewShuffleRouter()
+	// Test that shuffle router correctly handles case where no providers are healthy.
+	// Even with multiple unhealthy providers in the pool, should return proper error.
+	prov1 := router.ProviderInfo{
+		Provider:  router.NewTestProvider("a"),
+		Weight:    5,
+		Priority:  1,
+		IsHealthy: func() bool { return false },
+	}
+	prov2 := router.ProviderInfo{
+		Provider:  router.NewTestProvider("b"),
+		Weight:    10,
+		Priority:  2,
+		IsHealthy: func() bool { return false },
+	}
+	providers := []router.ProviderInfo{prov1, prov2}
+
+	_, err := rtr.Select(context.Background(), providers)
+
+	if !errors.Is(err, router.ErrAllProvidersUnhealthy) {
+		t.Errorf("Select() error = %v, want router.ErrAllProvidersUnhealthy", err)
+	}
+}
+
+func TestShuffleRouterSkipsUnhealthyDistinct(t *testing.T) {
+	t.Parallel()
+
+	// This test differs from round_robin by testing the shuffle-specific behavior
+	// that unhealthy providers don't affect the shuffle order
+	rtr := router.NewShuffleRouter()
+
+	providers := []router.ProviderInfo{
+		{Provider: router.NewTestProvider("p1"), Weight: 1, Priority: 0, IsHealthy: func() bool { return true }},
+		{Provider: router.NewTestProvider("p2"), Weight: 2, Priority: 0, IsHealthy: func() bool { return false }},
+		{Provider: router.NewTestProvider("p3"), Weight: 3, Priority: 0, IsHealthy: func() bool { return true }},
 	}
 
-	_, err := router.Select(context.Background(), providers)
+	// Select multiple times and verify we never get the unhealthy one
+	selectedWeights := make(map[int]bool)
+	for idx := 0; idx < 20; idx++ {
+		prov, err := rtr.Select(context.Background(), providers)
+		if err != nil {
+			t.Fatalf("Select() error = %v", err)
+		}
+		selectedWeights[prov.Weight] = true
+	}
 
-	if !errors.Is(err, ErrAllProvidersUnhealthy) {
-		t.Errorf("Select() error = %v, want ErrAllProvidersUnhealthy", err)
+	// Should only have selected weights 1 and 3, not 2 (unhealthy)
+	if selectedWeights[2] {
+		t.Error("Selected unhealthy provider with weight 2")
+	}
+	if !selectedWeights[1] || !selectedWeights[3] {
+		t.Error("Should have selected healthy providers with weights 1 and 3")
 	}
 }
 
 func TestShuffleRouterDealingCardsEachGetsOneBeforeSeconds(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
+	rtr := router.NewShuffleRouter()
 	providers := createShuffleTestProviders(3)
 
 	// First round: each provider should get exactly 1 request
 	firstRound := make(map[int]int) // weight -> count
-	for i := 0; i < 3; i++ {
-		selected, err := router.Select(context.Background(), providers)
+	for idx := 0; idx < 3; idx++ {
+		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
 		}
@@ -69,8 +113,8 @@ func TestShuffleRouterDealingCardsEachGetsOneBeforeSeconds(t *testing.T) {
 
 	// Second round: again each should get exactly 1 more
 	secondRound := make(map[int]int)
-	for i := 0; i < 3; i++ {
-		selected, err := router.Select(context.Background(), providers)
+	for idx := 0; idx < 3; idx++ {
+		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
 		}
@@ -88,19 +132,19 @@ func TestShuffleRouterDealingCardsEachGetsOneBeforeSeconds(t *testing.T) {
 func TestShuffleRouterReshufflesWhenExhausted(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
+	rtr := router.NewShuffleRouter()
 	providers := createShuffleTestProviders(2)
 
 	// Exhaust the deck (2 requests)
-	for i := 0; i < 2; i++ {
-		_, err := router.Select(context.Background(), providers)
+	for idx := 0; idx < 2; idx++ {
+		_, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
 		}
 	}
 
 	// Third request should work (reshuffled)
-	_, err := router.Select(context.Background(), providers)
+	_, err := rtr.Select(context.Background(), providers)
 	if err != nil {
 		t.Errorf("Select() after exhaustion should work after reshuffle, got error = %v", err)
 	}
@@ -109,11 +153,11 @@ func TestShuffleRouterReshufflesWhenExhausted(t *testing.T) {
 func TestShuffleRouterReshufflesWhenProviderCountChanges(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
+	rtr := router.NewShuffleRouter()
 
 	// Start with 2 providers
 	providers2 := createShuffleTestProviders(2)
-	_, err := router.Select(context.Background(), providers2)
+	_, err := rtr.Select(context.Background(), providers2)
 	if err != nil {
 		t.Fatalf("Select() error = %v", err)
 	}
@@ -123,8 +167,8 @@ func TestShuffleRouterReshufflesWhenProviderCountChanges(t *testing.T) {
 
 	// Make 3 requests - should work and distribute across all 3
 	counts := make(map[int]int)
-	for i := 0; i < 3; i++ {
-		selected, err := router.Select(context.Background(), providers3)
+	for idx := 0; idx < 3; idx++ {
+		selected, err := rtr.Select(context.Background(), providers3)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
 		}
@@ -137,45 +181,22 @@ func TestShuffleRouterReshufflesWhenProviderCountChanges(t *testing.T) {
 	}
 }
 
-func TestShuffleRouterSkipsUnhealthy(t *testing.T) {
-	t.Parallel()
-
-	router := NewShuffleRouter()
-	providers := []ProviderInfo{
-		{Weight: 1, IsHealthy: func() bool { return true }},
-		{Weight: 2, IsHealthy: func() bool { return false }}, // unhealthy
-		{Weight: 3, IsHealthy: func() bool { return true }},
-	}
-
-	// With provider 1 unhealthy, should only select from 0 and 2
-	for i := 0; i < 4; i++ {
-		selected, err := router.Select(context.Background(), providers)
-		if err != nil {
-			t.Fatalf("Select() error = %v", err)
-		}
-
-		if selected.Weight == 2 {
-			t.Errorf("Selected unhealthy provider with weight 2 on iteration %d", i)
-		}
-	}
-}
-
 func TestShuffleRouterConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
+	rtr := router.NewShuffleRouter()
 	providers := createShuffleTestProviders(3)
 
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 	numGoroutines := 10
 	requestsPerGoroutine := 100
 
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
+	waitGroup.Add(numGoroutines)
+	for gIdx := 0; gIdx < numGoroutines; gIdx++ {
 		go func() {
-			defer wg.Done()
-			for j := 0; j < requestsPerGoroutine; j++ {
-				_, err := router.Select(context.Background(), providers)
+			defer waitGroup.Done()
+			for reqIdx := 0; reqIdx < requestsPerGoroutine; reqIdx++ {
+				_, err := rtr.Select(context.Background(), providers)
 				if err != nil {
 					t.Errorf("Concurrent Select() error = %v", err)
 				}
@@ -183,29 +204,29 @@ func TestShuffleRouterConcurrentSafety(t *testing.T) {
 		}()
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 }
 
 func TestShuffleRouterImplementsInterface(t *testing.T) {
 	t.Parallel()
 
 	// Compile-time interface compliance check
-	var _ ProviderRouter = (*ShuffleRouter)(nil)
+	var _ router.ProviderRouter = (*router.ShuffleRouter)(nil)
 }
 
 func TestShuffleRouterNilIsHealthyTreatedAsHealthy(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
-	providers := []ProviderInfo{
-		{Weight: 1, IsHealthy: nil}, // nil = healthy
-		{Weight: 2, IsHealthy: func() bool { return true }},
+	rtr := router.NewShuffleRouter()
+	providers := []router.ProviderInfo{
+		{Provider: router.NewTestProvider("p1"), Weight: 1, Priority: 0, IsHealthy: nil},
+		{Provider: router.NewTestProvider("p2"), Weight: 2, Priority: 0, IsHealthy: func() bool { return true }},
 	}
 
 	// Both should be selectable - do 2 rounds (4 requests)
 	counts := make(map[int]int)
-	for i := 0; i < 4; i++ {
-		selected, err := router.Select(context.Background(), providers)
+	for idx := 0; idx < 4; idx++ {
+		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
 		}
@@ -221,13 +242,13 @@ func TestShuffleRouterNilIsHealthyTreatedAsHealthy(t *testing.T) {
 func TestShuffleRouterSingleProvider(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
-	providers := []ProviderInfo{
-		{Weight: 42, IsHealthy: func() bool { return true }},
+	rtr := router.NewShuffleRouter()
+	providers := []router.ProviderInfo{
+		{Provider: router.NewTestProvider("only"), Weight: 42, Priority: 0, IsHealthy: func() bool { return true }},
 	}
 
-	for i := 0; i < 5; i++ {
-		selected, err := router.Select(context.Background(), providers)
+	for idx := 0; idx < 5; idx++ {
+		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
 		}
@@ -240,13 +261,13 @@ func TestShuffleRouterSingleProvider(t *testing.T) {
 func TestShuffleRouterEvenDistributionOverManyRounds(t *testing.T) {
 	t.Parallel()
 
-	router := NewShuffleRouter()
+	rtr := router.NewShuffleRouter()
 	providers := createShuffleTestProviders(4)
 
 	// Run 40 requests (10 complete rounds)
 	counts := make(map[int]int)
-	for i := 0; i < 40; i++ {
-		selected, err := router.Select(context.Background(), providers)
+	for idx := 0; idx < 40; idx++ {
+		selected, err := rtr.Select(context.Background(), providers)
 		if err != nil {
 			t.Fatalf("Select() error = %v", err)
 		}
@@ -262,12 +283,13 @@ func TestShuffleRouterEvenDistributionOverManyRounds(t *testing.T) {
 }
 
 // createShuffleTestProviders creates N healthy providers with unique weights for identification.
-func createShuffleTestProviders(n int) []ProviderInfo {
-	providers := make([]ProviderInfo, n)
-	for i := 0; i < n; i++ {
-		providers[i] = ProviderInfo{
-			Weight:    i + 1, // Use weight as identifier (1, 2, 3, ...)
-			Priority:  i,
+func createShuffleTestProviders(n int) []router.ProviderInfo {
+	providers := make([]router.ProviderInfo, n)
+	for idx := 0; idx < n; idx++ {
+		providers[idx] = router.ProviderInfo{
+			Provider:  router.NewTestProvider(string(rune('a' + idx))),
+			Weight:    idx + 1, // Use weight as identifier (1, 2, 3, ...)
+			Priority:  idx,
 			IsHealthy: func() bool { return true },
 		}
 	}

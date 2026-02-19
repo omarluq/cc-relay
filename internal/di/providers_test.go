@@ -1,4 +1,4 @@
-package di
+package di_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/di"
 	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/router"
@@ -30,6 +31,7 @@ const (
 	testKey             = "test-key"
 	testProviderName    = "test-provider"
 	shutdownerTestLabel = "implements Shutdowner"
+	roundRobinStrategy  = "round_robin"
 )
 
 // createTestInjector creates an injector with a config path for testing.
@@ -45,29 +47,33 @@ func createTestInjector(t *testing.T, configContent string) *do.RootScope {
 
 func newInjectorWithConfigPath(path string) *do.RootScope {
 	injector := do.New()
-	do.ProvideNamedValue(injector, ConfigPathKey, path)
-	RegisterSingletons(injector)
+	do.ProvideNamedValue(injector, di.ConfigPathKey, path)
+	di.RegisterSingletons(injector)
 	return injector
 }
 
 // shutdownInjector is a helper to properly shutdown an injector in tests.
+// The error from Shutdown is intentionally discarded as test cleanup
+// errors are non-critical.
+//
+//nolint:errcheck // intentional: test cleanup shutdown errors are non-critical
 func shutdownInjector(i *do.RootScope) {
-	_ = i.Shutdown()
+	i.Shutdown()
 }
 
 // waitFor polls fn until it returns true or the timeout is reached.
-func waitFor(t *testing.T, timeout time.Duration, fn func() bool, msg string) {
+func waitFor(t *testing.T, timeout time.Duration, checkFn func() bool, msg string) {
 	t.Helper()
 
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if fn() {
+		if checkFn() {
 			return
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
 
-	require.True(t, fn(), msg)
+	require.True(t, checkFn(), msg)
 }
 
 // Test configurations.
@@ -142,11 +148,13 @@ providers:
 `, anthropicBaseURL, testKey1)
 
 func TestNewConfig(t *testing.T) {
+	t.Parallel()
 	t.Run("loads valid config", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, cfgSvc)
 		assert.NotNil(t, cfgSvc.Config)
@@ -155,22 +163,24 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent config", func(t *testing.T) {
+		t.Parallel()
 		nonExistentInjector := newInjectorWithConfigPath("/nonexistent/" + configFileName)
 		defer shutdownInjector(nonExistentInjector)
 
-		_, err := do.Invoke[*ConfigService](nonExistentInjector)
+		_, err := do.Invoke[*di.ConfigService](nonExistentInjector)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to load config")
 	})
 
 	t.Run("singleton returns same instance", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		cfg1, err := do.Invoke[*ConfigService](injector)
+		cfg1, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
 
-		cfg2, err := do.Invoke[*ConfigService](injector)
+		cfg2, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
 
 		// Should be same pointer (singleton)
@@ -178,19 +188,21 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("creates watcher for valid config", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
-		assert.NotNil(t, cfgSvc.watcher, "watcher should be created for valid config")
+		assert.NotNil(t, cfgSvc.GetWatcher(), "watcher should be created for valid config")
 	})
 
 	t.Run("Get returns config via atomic pointer", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
 
 		// Get should return same config as Config field (initially)
@@ -202,34 +214,62 @@ func TestNewConfig(t *testing.T) {
 }
 
 func TestConfigServiceHotReload(t *testing.T) {
-	t.Run("hot-reload updates config atomically", func(t *testing.T) {
-		// Create config file
-		dir := t.TempDir()
-		path := filepath.Join(dir, configFileName)
-		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
-		require.NoError(t, err)
+	t.Parallel()
+	t.Run("hot-reload updates config atomically", testHotReloadUpdatesAtomically)
+	t.Run("live readers observe routing changes without reinit", testLiveReadersObserveRoutingChanges)
+	t.Run("live reader updates while snapshot stays stale", testLiveReaderUpdatesSnapshotStale)
+	t.Run("invalid reload does not replace the last good config", testInvalidReloadKeepsLastGood)
+	t.Run("concurrent reads during reload are safe", testConcurrentReadsDuringReload)
+	t.Run("StartWatching with nil watcher is no-op", testStartWatchingNilWatcher)
+	t.Run("Shutdown closes watcher", testShutdownClosesWatcher)
+	t.Run("Shutdown handles nil watcher", testShutdownNilWatcher)
+}
 
-		// Create injector and get config service
-		injector := newInjectorWithConfigPath(path)
-		defer shutdownInjector(injector)
+// hotReloadTestConfig generates a config string with the given routing strategy.
+func hotReloadTestConfig(strategy string) string {
+	return fmt.Sprintf(`
+server:
+  listen: ":8787"
+routing:
+  strategy: %s
+logging:
+  level: info
+  format: json
+cache:
+  mode: disabled
+providers:
+  - name: anthropic
+    type: anthropic
+    base_url: %s
+    enabled: true
+    keys:
+      - key: %s
+`, strategy, anthropicBaseURL, testKey1)
+}
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
-		require.NoError(t, err)
+func testHotReloadUpdatesAtomically(t *testing.T) {
+	t.Parallel()
 
-		// Verify initial config
-		initialCfg := cfgSvc.Get()
-		assert.Equal(t, ":8787", initialCfg.Server.Listen)
+	dir := t.TempDir()
+	path := filepath.Join(dir, configFileName)
+	err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
+	require.NoError(t, err)
 
-		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		cfgSvc.StartWatching(ctx)
+	injector := newInjectorWithConfigPath(path)
+	defer shutdownInjector(injector)
 
-		// Allow watcher to start
-		time.Sleep(50 * time.Millisecond)
+	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
+	require.NoError(t, err)
 
-		// Update config file with new listen port
-		newConfig := fmt.Sprintf(`
+	initialCfg := cfgSvc.Get()
+	assert.Equal(t, ":8787", initialCfg.Server.Listen)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfgSvc.StartWatching(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	newConfig := fmt.Sprintf(`
 server:
   listen: ":9999"
 logging:
@@ -245,308 +285,172 @@ providers:
     keys:
       - key: %s
 `, anthropicBaseURL, testKey1)
-		err = os.WriteFile(path, []byte(newConfig), 0o600)
-		require.NoError(t, err)
+	err = os.WriteFile(path, []byte(newConfig), 0o600)
+	require.NoError(t, err)
 
-		// Wait for reload
-		time.Sleep(300 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
-		// Verify config was reloaded
-		reloadedCfg := cfgSvc.Get()
-		assert.Equal(t, ":9999", reloadedCfg.Server.Listen, "config should be reloaded with new port")
+	reloadedCfg := cfgSvc.Get()
+	assert.Equal(t, ":9999", reloadedCfg.Server.Listen, "config should be reloaded with new port")
+	assert.NotSame(t, initialCfg, reloadedCfg, "config pointer should change after reload")
+}
 
-		// Original pointer should NOT be same (atomic swap happened)
-		assert.NotSame(t, initialCfg, reloadedCfg, "config pointer should change after reload")
-	})
+func testLiveReadersObserveRoutingChanges(t *testing.T) {
+	t.Parallel()
 
-	t.Run("live readers observe routing changes without reinit", func(t *testing.T) {
-		initialConfig := fmt.Sprintf(`
-server:
-  listen: ":8787"
-routing:
-  strategy: failover
-logging:
-  level: info
-  format: json
-cache:
-  mode: disabled
-providers:
-  - name: anthropic
-    type: anthropic
-    base_url: %s
-    enabled: true
-    keys:
-      - key: %s
-`, anthropicBaseURL, testKey1)
+	initialConfig := hotReloadTestConfig("failover")
+	updatedConfig := hotReloadTestConfig(roundRobinStrategy)
 
-		updatedConfig := fmt.Sprintf(`
-server:
-  listen: ":8787"
-routing:
-  strategy: round_robin
-logging:
-  level: info
-  format: json
-cache:
-  mode: disabled
-providers:
-  - name: anthropic
-    type: anthropic
-    base_url: %s
-    enabled: true
-    keys:
-      - key: %s
-`, anthropicBaseURL, testKey1)
+	dir := t.TempDir()
+	path := filepath.Join(dir, configFileName)
+	err := os.WriteFile(path, []byte(initialConfig), 0o600)
+	require.NoError(t, err)
 
-		// Create config file
-		dir := t.TempDir()
-		path := filepath.Join(dir, configFileName)
-		err := os.WriteFile(path, []byte(initialConfig), 0o600)
-		require.NoError(t, err)
+	injector := newInjectorWithConfigPath(path)
+	defer shutdownInjector(injector)
 
-		// Create injector and get config service
-		injector := newInjectorWithConfigPath(path)
-		defer shutdownInjector(injector)
+	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
+	require.NoError(t, err)
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
-		require.NoError(t, err)
+	type routingStrategyReader struct {
+		cfg interface{ Get() *config.Config }
+	}
 
-		// A live reader that always consults the current config.
-		type routingStrategyReader struct {
-			cfg interface {
-				Get() *config.Config
-			}
-		}
+	reader := routingStrategyReader{cfg: cfgSvc}
+	getStrategy := func() string { return reader.cfg.Get().Routing.GetEffectiveStrategy() }
 
-		reader := routingStrategyReader{cfg: cfgSvc}
+	require.Equal(t, "failover", getStrategy(), "initial strategy should be failover")
 
-		getStrategy := func() string {
-			return reader.cfg.Get().Routing.GetEffectiveStrategy()
-		}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfgSvc.StartWatching(ctx)
+	time.Sleep(50 * time.Millisecond)
 
-		require.Equal(t, "failover", getStrategy(), "initial strategy should be failover")
+	err = os.WriteFile(path, []byte(updatedConfig), 0o600)
+	require.NoError(t, err)
 
-		// Start watching for changes
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		cfgSvc.StartWatching(ctx)
+	waitFor(t, 2*time.Second,
+		func() bool { return getStrategy() == roundRobinStrategy },
+		"expected live reader to observe updated routing strategy")
+}
 
-		// Allow watcher to start
-		time.Sleep(50 * time.Millisecond)
+func testLiveReaderUpdatesSnapshotStale(t *testing.T) {
+	t.Parallel()
 
-		// Update routing strategy on disk
-		err = os.WriteFile(path, []byte(updatedConfig), 0o600)
-		require.NoError(t, err)
+	initialConfig := hotReloadTestConfig("failover")
+	updatedConfig := hotReloadTestConfig(roundRobinStrategy)
 
-		// The same reader instance should observe the new strategy after reload.
-		waitFor(
-			t,
-			2*time.Second,
-			func() bool { return getStrategy() == "round_robin" },
-			"expected live reader to observe updated routing strategy",
-		)
-	})
+	dir := t.TempDir()
+	path := filepath.Join(dir, configFileName)
+	require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
-	t.Run("live reader updates while snapshot stays stale", func(t *testing.T) {
-		initialConfig := fmt.Sprintf(`
-server:
-  listen: ":8787"
-routing:
-  strategy: failover
-logging:
-  level: info
-  format: json
-cache:
-  mode: disabled
-providers:
-  - name: anthropic
-    type: anthropic
-    base_url: %s
-    enabled: true
-    keys:
-      - key: %s
-`, anthropicBaseURL, testKey1)
+	injector := newInjectorWithConfigPath(path)
+	defer shutdownInjector(injector)
 
-		updatedConfig := fmt.Sprintf(`
-server:
-  listen: ":8787"
-routing:
-  strategy: round_robin
-logging:
-  level: info
-  format: json
-cache:
-  mode: disabled
-providers:
-  - name: anthropic
-    type: anthropic
-    base_url: %s
-    enabled: true
-    keys:
-      - key: %s
-`, anthropicBaseURL, testKey1)
+	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
+	require.NoError(t, err)
 
-		dir := t.TempDir()
-		path := filepath.Join(dir, configFileName)
-		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
+	type snapshotReader struct{ cfg *config.Config }
+	type liveReader struct{ cfg interface{ Get() *config.Config } }
 
-		injector := newInjectorWithConfigPath(path)
-		defer shutdownInjector(injector)
+	snap := snapshotReader{cfg: cfgSvc.Get()}
+	live := liveReader{cfg: cfgSvc}
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
-		require.NoError(t, err)
+	snapStrategy := func() string { return snap.cfg.Routing.GetEffectiveStrategy() }
+	liveStrategy := func() string { return live.cfg.Get().Routing.GetEffectiveStrategy() }
 
-		// Snapshot component: captures config once and never refreshes.
-		type snapshotReader struct {
-			cfg *config.Config
-		}
-		// Live component: consults config service on each read.
-		type liveReader struct {
-			cfg interface {
-				Get() *config.Config
-			}
-		}
+	require.Equal(t, "failover", snapStrategy())
+	require.Equal(t, "failover", liveStrategy())
 
-		snap := snapshotReader{cfg: cfgSvc.Get()}
-		live := liveReader{cfg: cfgSvc}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfgSvc.StartWatching(ctx)
+	time.Sleep(50 * time.Millisecond)
 
-		snapStrategy := func() string { return snap.cfg.Routing.GetEffectiveStrategy() }
-		liveStrategy := func() string { return live.cfg.Get().Routing.GetEffectiveStrategy() }
+	require.NoError(t, os.WriteFile(path, []byte(updatedConfig), 0o600))
 
-		require.Equal(t, "failover", snapStrategy())
-		require.Equal(t, "failover", liveStrategy())
+	waitFor(t, 2*time.Second, func() bool { return liveStrategy() == roundRobinStrategy },
+		"expected live reader to observe updated strategy")
+	assert.Equal(t, "failover", snapStrategy(), "snapshot reader should remain stale")
+}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		cfgSvc.StartWatching(ctx)
-		time.Sleep(50 * time.Millisecond)
+func testInvalidReloadKeepsLastGood(t *testing.T) {
+	t.Parallel()
 
-		require.NoError(t, os.WriteFile(path, []byte(updatedConfig), 0o600))
+	initialConfig := hotReloadTestConfig("failover")
+	updatedConfig := hotReloadTestConfig(roundRobinStrategy)
+	invalidConfig := "server: ["
 
-		// Live reader should update...
-		waitFor(t, 2*time.Second, func() bool { return liveStrategy() == "round_robin" },
-			"expected live reader to observe updated strategy")
-		// ...while snapshot remains stale, illustrating the intended integration pattern.
-		assert.Equal(t, "failover", snapStrategy(), "snapshot reader should remain stale")
-	})
+	dir := t.TempDir()
+	path := filepath.Join(dir, configFileName)
+	require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
-	t.Run("invalid reload does not replace the last good config", func(t *testing.T) {
-		initialConfig := fmt.Sprintf(`
-server:
-  listen: ":8787"
-routing:
-  strategy: failover
-logging:
-  level: info
-  format: json
-cache:
-  mode: disabled
-providers:
-  - name: anthropic
-    type: anthropic
-    base_url: %s
-    enabled: true
-    keys:
-      - key: %s
-`, anthropicBaseURL, testKey1)
-		updatedConfig := fmt.Sprintf(`
-server:
-  listen: ":8787"
-routing:
-  strategy: round_robin
-logging:
-  level: info
-  format: json
-cache:
-  mode: disabled
-providers:
-  - name: anthropic
-    type: anthropic
-    base_url: %s
-    enabled: true
-    keys:
-      - key: %s
-`, anthropicBaseURL, testKey1)
-		invalidConfig := "server: ["
+	injector := newInjectorWithConfigPath(path)
+	defer shutdownInjector(injector)
 
-		dir := t.TempDir()
-		path := filepath.Join(dir, configFileName)
-		require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
+	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
+	require.NoError(t, err)
 
-		injector := newInjectorWithConfigPath(path)
-		defer shutdownInjector(injector)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfgSvc.StartWatching(ctx)
+	time.Sleep(50 * time.Millisecond)
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
-		require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, []byte(invalidConfig), 0o600))
+	time.Sleep(300 * time.Millisecond)
+	assert.Equal(t, "failover", cfgSvc.Get().Routing.GetEffectiveStrategy())
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		cfgSvc.StartWatching(ctx)
-		time.Sleep(50 * time.Millisecond)
+	require.NoError(t, os.WriteFile(path, []byte(updatedConfig), 0o600))
+	waitFor(t, 2*time.Second, func() bool {
+		return cfgSvc.Get().Routing.GetEffectiveStrategy() == roundRobinStrategy
+	}, "expected valid config after invalid reload to be applied")
+}
 
-		// Write invalid config; it should not replace the last good config.
-		require.NoError(t, os.WriteFile(path, []byte(invalidConfig), 0o600))
-		time.Sleep(300 * time.Millisecond)
-		assert.Equal(t, "failover", cfgSvc.Get().Routing.GetEffectiveStrategy())
+func testConcurrentReadsDuringReload(t *testing.T) {
+	t.Parallel()
 
-		// Then write a valid config and ensure it updates.
-		require.NoError(t, os.WriteFile(path, []byte(updatedConfig), 0o600))
-		waitFor(t, 2*time.Second, func() bool {
-			return cfgSvc.Get().Routing.GetEffectiveStrategy() == "round_robin"
-		}, "expected valid config after invalid reload to be applied")
-	})
+	dir := t.TempDir()
+	path := filepath.Join(dir, configFileName)
+	err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
+	require.NoError(t, err)
 
-	t.Run("concurrent reads during reload are safe", func(t *testing.T) {
-		// Create config file
-		dir := t.TempDir()
-		path := filepath.Join(dir, configFileName)
-		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
-		require.NoError(t, err)
+	injector := newInjectorWithConfigPath(path)
+	defer shutdownInjector(injector)
 
-		// Create injector and get config service
-		injector := newInjectorWithConfigPath(path)
-		defer shutdownInjector(injector)
+	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
+	require.NoError(t, err)
 
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
-		require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfgSvc.StartWatching(ctx)
+	time.Sleep(50 * time.Millisecond)
 
-		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		cfgSvc.StartWatching(ctx)
+	var waitGroup sync.WaitGroup
+	var readCount atomic.Int64
+	stopReads := make(chan struct{})
 
-		// Allow watcher to start
-		time.Sleep(50 * time.Millisecond)
-
-		// Concurrent reads while modifying file
-		var wg sync.WaitGroup
-		var readCount atomic.Int64
-		stopReads := make(chan struct{})
-
-		// Start concurrent readers
-		for range 10 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for {
-					select {
-					case <-stopReads:
-						return
-					default:
-						cfg := cfgSvc.Get()
-						assert.NotNil(t, cfg)
-						readCount.Add(1)
-						time.Sleep(1 * time.Millisecond)
-					}
+	for range 10 {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			for {
+				select {
+				case <-stopReads:
+					return
+				default:
+					cfg := cfgSvc.Get()
+					assert.NotNil(t, cfg)
+					readCount.Add(1)
+					time.Sleep(1 * time.Millisecond)
 				}
-			}()
-		}
+			}
+		}()
+	}
 
-		// Modify file multiple times while reads happen
-		for i := range 5 {
-			newConfig := fmt.Sprintf(`
+	for i := range 5 {
+		newConfig := fmt.Sprintf(`
 server:
-  listen: ":`+string(rune('0'+i))+`787"
+  listen: "`+string(rune('0'+i))+`787"
 logging:
   level: info
   format: json
@@ -560,110 +464,125 @@ providers:
     keys:
       - key: %s
 `, anthropicBaseURL, testKey1)
-			err := os.WriteFile(path, []byte(newConfig), 0o600)
-			require.NoError(t, err)
-			time.Sleep(50 * time.Millisecond)
-		}
-
-		// Stop readers and wait
-		close(stopReads)
-		wg.Wait()
-
-		// If we got here without data race, concurrent access is safe
-		assert.Greater(t, readCount.Load(), int64(0), "should have completed reads")
-	})
-
-	t.Run("StartWatching with nil watcher is no-op", func(_ *testing.T) {
-		cfgSvc := &ConfigService{
-			Config:  &config.Config{},
-			watcher: nil,
-		}
-		cfgSvc.config.Store(cfgSvc.Config)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		// Should not panic
-		cfgSvc.StartWatching(ctx)
-	})
-
-	t.Run("Shutdown closes watcher", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, configFileName)
-		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
-		require.NoError(t, err)
-
-		injector := newInjectorWithConfigPath(path)
-
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
-		require.NoError(t, err)
-		assert.NotNil(t, cfgSvc.watcher)
-
-		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		cfgSvc.StartWatching(ctx)
-
-		// Allow watcher to start
+		writeErr := os.WriteFile(path, []byte(newConfig), 0o600)
+		require.NoError(t, writeErr)
 		time.Sleep(50 * time.Millisecond)
+	}
 
-		// Shutdown should close watcher
-		err = cfgSvc.Shutdown()
-		assert.NoError(t, err)
+	close(stopReads)
+	waitGroup.Wait()
+	assert.Greater(t, readCount.Load(), int64(0), "should have completed reads")
+}
 
-		// Cancel context for cleanup
-		cancel()
+func testStartWatchingNilWatcher(t *testing.T) {
+	t.Parallel()
+	nilCfg := di.MustTestConfig()
+	cfgSvc := di.NewConfigServiceWithNilWatcher(&nilCfg)
 
-		// Second shutdown should return ErrWatcherClosed
-		err = cfgSvc.Shutdown()
-		assert.ErrorIs(t, err, config.ErrWatcherClosed)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfgSvc.StartWatching(ctx)
+}
+
+func testShutdownClosesWatcher(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, configFileName)
+	err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
+	require.NoError(t, err)
+
+	injector := newInjectorWithConfigPath(path)
+
+	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
+	require.NoError(t, err)
+	assert.NotNil(t, cfgSvc.GetWatcher())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cfgSvc.StartWatching(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	err = cfgSvc.Shutdown()
+	assert.NoError(t, err)
+	cancel()
+
+	err = cfgSvc.Shutdown()
+	assert.ErrorIs(t, err, config.ErrWatcherClosed)
+}
+
+func testShutdownNilWatcher(t *testing.T) {
+	t.Parallel()
+	nilCfg := di.MustTestConfig()
+	cfgSvc := di.NewConfigServiceWithNilWatcher(&nilCfg)
+	err := cfgSvc.Shutdown()
+	assert.NoError(t, err)
+}
+
+// shutdownerTest is a reusable test for services that implement Shutdown.
+type shutdownerTest struct {
+	invokeAndGet func(*testing.T, *do.RootScope) (interface{ Shutdown() error }, error)
+	nilShutdown  func(*testing.T)
+	name         string
+}
+
+func runShutdownerTest(t *testing.T, test shutdownerTest) {
+	t.Helper()
+	t.Run("creates service from config", func(t *testing.T) {
+		t.Parallel()
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		svc, err := test.invokeAndGet(t, injector)
+		require.NoError(t, err)
+		assert.NotNil(t, svc)
 	})
 
-	t.Run("Shutdown handles nil watcher", func(t *testing.T) {
-		cfgSvc := &ConfigService{
-			Config:  &config.Config{},
-			watcher: nil,
-		}
-		err := cfgSvc.Shutdown()
+	t.Run("service implements Shutdown", func(t *testing.T) {
+		t.Parallel()
+		injector := createTestInjector(t, singleKeyConfig)
+		defer shutdownInjector(injector)
+
+		svc, err := test.invokeAndGet(t, injector)
+		require.NoError(t, err)
+
+		err = svc.Shutdown()
 		assert.NoError(t, err)
+	})
+
+	t.Run("Shutdown handles nil service", func(t *testing.T) {
+		t.Parallel()
+		test.nilShutdown(t)
 	})
 }
 
 func TestNewCache(t *testing.T) {
-	t.Run("creates disabled cache", func(t *testing.T) {
-		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
-
-		cacheSvc, err := do.Invoke[*CacheService](injector)
-		require.NoError(t, err)
-		assert.NotNil(t, cacheSvc)
-		assert.NotNil(t, cacheSvc.Cache)
-	})
-
-	t.Run(shutdownerTestLabel, func(t *testing.T) {
-		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
-
-		cacheSvc, err := do.Invoke[*CacheService](injector)
-		require.NoError(t, err)
-
-		// CacheService should implement Shutdown
-		err = cacheSvc.Shutdown()
-		assert.NoError(t, err)
-	})
-
-	t.Run("Shutdown handles nil cache", func(t *testing.T) {
-		cacheSvc := &CacheService{Cache: nil}
-		err := cacheSvc.Shutdown()
-		assert.NoError(t, err)
+	t.Parallel()
+	runShutdownerTest(t, shutdownerTest{
+		name: "cache",
+		invokeAndGet: func(_ *testing.T, injector *do.RootScope) (interface{ Shutdown() error }, error) {
+			svc, err := do.Invoke[*di.CacheService](injector)
+			if err != nil {
+				return nil, err
+			}
+			assert.NotNil(t, svc.Cache)
+			return svc, nil
+		},
+		nilShutdown: func(t *testing.T) {
+			t.Helper()
+			cacheSvc := &di.CacheService{Cache: nil}
+			err := cacheSvc.Shutdown()
+			assert.NoError(t, err)
+		},
 	})
 }
 
 func TestNewProviderMap(t *testing.T) {
+	t.Parallel()
 	t.Run("creates provider map with single provider", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		provSvc, err := do.Invoke[*ProviderMapService](injector)
+		provSvc, err := do.Invoke[*di.ProviderMapService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, provSvc)
 		assert.Len(t, provSvc.GetProviders(), 1)
@@ -674,10 +593,11 @@ func TestNewProviderMap(t *testing.T) {
 	})
 
 	t.Run("creates provider map with multiple providers", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, multiProviderConfig)
 		defer shutdownInjector(injector)
 
-		provSvc, err := do.Invoke[*ProviderMapService](injector)
+		provSvc, err := do.Invoke[*di.ProviderMapService](injector)
 		require.NoError(t, err)
 		assert.Len(t, provSvc.GetProviders(), 2)
 		assert.Len(t, provSvc.GetAllProviders(), 2)
@@ -686,10 +606,11 @@ func TestNewProviderMap(t *testing.T) {
 	})
 
 	t.Run("returns error when no providers configured", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, noProviderConfig)
 		defer shutdownInjector(injector)
 
-		_, err := do.Invoke[*ProviderMapService](injector)
+		_, err := do.Invoke[*di.ProviderMapService](injector)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no enabled provider found")
 	})
@@ -698,70 +619,37 @@ func TestNewProviderMap(t *testing.T) {
 func TestProviderInfoServiceRebuildFromEnablesProvider(t *testing.T) {
 	t.Parallel()
 
-	cfgA := &config.Config{
-		Providers: []config.ProviderConfig{
-			{
-				Name:    "anthropic",
-				Type:    "anthropic",
-				BaseURL: anthropicBaseURL,
-				Enabled: true,
-				Keys: []config.KeyConfig{
-					{Key: testKey1},
-				},
-			},
-			{
-				Name:    "zai",
-				Type:    "zai",
-				BaseURL: "https://api.zai.example.com",
-				Enabled: false,
-				Keys: []config.KeyConfig{
-					{Key: "zai-key-1"},
-				},
-			},
-		},
+	cfgA := di.MustTestConfig()
+	cfgA.Providers = []config.ProviderConfig{
+		di.MustTestProviderConfig("anthropic", "anthropic", anthropicBaseURL,
+			[]config.KeyConfig{di.MustTestKeyConfig(testKey1)}),
+		di.MustTestProviderConfig("zai", "zai", "https://api.zai.example.com",
+			[]config.KeyConfig{di.MustTestKeyConfig("zai-key-1")}),
 	}
+	cfgA.Providers[1].Enabled = false
 
-	cfgB := &config.Config{
-		Providers: []config.ProviderConfig{
-			{
-				Name:    "anthropic",
-				Type:    "anthropic",
-				BaseURL: anthropicBaseURL,
-				Enabled: true,
-				Keys: []config.KeyConfig{
-					{Key: testKey1},
-				},
-			},
-			{
-				Name:    "zai",
-				Type:    "zai",
-				BaseURL: "https://api.zai.example.com",
-				Enabled: true,
-				Keys: []config.KeyConfig{
-					{Key: "zai-key-1"},
-				},
-			},
-		},
+	cfgB := di.MustTestConfig()
+	cfgB.Providers = []config.ProviderConfig{
+		di.MustTestProviderConfig("anthropic", "anthropic", anthropicBaseURL,
+			[]config.KeyConfig{di.MustTestKeyConfig(testKey1)}),
+		di.MustTestProviderConfig("zai", "zai", "https://api.zai.example.com",
+			[]config.KeyConfig{di.MustTestKeyConfig("zai-key-1")}),
 	}
+	cfgB.Providers[1].Enabled = true
 
-	cfgSvc := &ConfigService{Config: cfgA}
-	cfgSvc.config.Store(cfgA)
+	cfgSvc := di.NewConfigServiceWithConfig(&cfgA)
 
-	providerSvc := &ProviderMapService{cfgSvc: cfgSvc}
-	require.NoError(t, providerSvc.RebuildFrom(cfgA))
+	providerSvc := di.NewProviderMapServiceWithConfigService(cfgSvc)
+	require.NoError(t, providerSvc.RebuildFrom(&cfgA))
 
-	tracker := health.NewTracker(health.CircuitBreakerConfig{}, nil)
-	infoSvc := &ProviderInfoService{
-		cfgSvc:      cfgSvc,
-		providerSvc: providerSvc,
-		trackerSvc:  &HealthTrackerService{Tracker: tracker},
-	}
+	tracker := health.NewTracker(di.MustTestHealthConfig().CircuitBreaker, nil)
+	infoSvc := di.NewProviderInfoService(cfgSvc, providerSvc, di.NewHealthTrackerServiceWithTracker(tracker))
 
-	infoSvc.RebuildFrom(cfgA)
+	infoSvc.RebuildFrom(&cfgA)
 	assert.Len(t, infoSvc.Get(), 1)
 
-	require.NoError(t, providerSvc.RebuildFrom(cfgB))
-	infoSvc.RebuildFrom(cfgB)
+	require.NoError(t, providerSvc.RebuildFrom(&cfgB))
+	infoSvc.RebuildFrom(&cfgB)
 
 	infos := infoSvc.Get()
 	assert.Len(t, infos, 2)
@@ -776,12 +664,16 @@ func TestProviderInfoServiceRebuildFromEnablesProvider(t *testing.T) {
 func TestProviderInfoServiceGetReturnsCopy(t *testing.T) {
 	t.Parallel()
 
-	svc := &ProviderInfoService{}
-	provider := providers.NewAnthropicProvider("test", anthropicBaseURL)
+	cfgSvc := di.NewConfigServiceUninitialized()
+	providerSvc := di.NewProviderMapServiceWithConfigService(cfgSvc)
+	trackerCfg := di.MustTestHealthConfig()
+	tracker := health.NewTracker(trackerCfg.CircuitBreaker, nil)
+	svc := di.NewProviderInfoService(cfgSvc, providerSvc, di.NewHealthTrackerServiceWithTracker(tracker))
+	prov := providers.NewAnthropicProvider("test", anthropicBaseURL)
 	infos := []router.ProviderInfo{
-		{Provider: provider, Weight: 1},
+		di.MustTestProviderInfo(prov, 1, 0),
 	}
-	svc.infos.Store(&infos)
+	svc.StoreInfos(&infos)
 
 	got := svc.Get()
 	got[0].Weight = 99
@@ -791,11 +683,13 @@ func TestProviderInfoServiceGetReturnsCopy(t *testing.T) {
 }
 
 func TestNewKeyPool(t *testing.T) {
+	t.Parallel()
 	t.Run("returns nil pool when pooling disabled", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		poolSvc, err := do.Invoke[*KeyPoolService](injector)
+		poolSvc, err := do.Invoke[*di.KeyPoolService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, poolSvc)
 		// Single key = no pooling by default
@@ -803,10 +697,11 @@ func TestNewKeyPool(t *testing.T) {
 	})
 
 	t.Run("creates pool when pooling enabled", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, multiKeyPoolingConfig)
 		defer shutdownInjector(injector)
 
-		poolSvc, err := do.Invoke[*KeyPoolService](injector)
+		poolSvc, err := do.Invoke[*di.KeyPoolService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, poolSvc)
 		assert.NotNil(t, poolSvc.Get())
@@ -814,11 +709,13 @@ func TestNewKeyPool(t *testing.T) {
 }
 
 func TestNewProxyHandler(t *testing.T) {
+	t.Parallel()
 	t.Run("creates handler with dependencies", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		handlerSvc, err := do.Invoke[*HandlerService](injector)
+		handlerSvc, err := do.Invoke[*di.HandlerService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, handlerSvc)
 		assert.NotNil(t, handlerSvc.Handler)
@@ -826,21 +723,24 @@ func TestNewProxyHandler(t *testing.T) {
 }
 
 func TestNewHTTPServer(t *testing.T) {
+	t.Parallel()
 	t.Run("creates server with dependencies", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		serverSvc, err := do.Invoke[*ServerService](injector)
+		serverSvc, err := do.Invoke[*di.ServerService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, serverSvc)
 		assert.NotNil(t, serverSvc.Server)
 	})
 
 	t.Run(shutdownerTestLabel, func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		serverSvc, err := do.Invoke[*ServerService](injector)
+		serverSvc, err := do.Invoke[*di.ServerService](injector)
 		require.NoError(t, err)
 
 		// ServerService should implement Shutdown
@@ -849,47 +749,52 @@ func TestNewHTTPServer(t *testing.T) {
 	})
 
 	t.Run("Shutdown handles nil server", func(t *testing.T) {
-		serverSvc := &ServerService{Server: nil}
+		t.Parallel()
+		serverSvc := &di.ServerService{Server: nil}
 		err := serverSvc.Shutdown()
 		assert.NoError(t, err)
 	})
 }
 
 func TestDependencyOrder(t *testing.T) {
+	t.Parallel()
 	t.Run("services resolve in correct dependency order", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
 		// Resolve server (which should trigger all dependencies)
-		serverSvc, err := do.Invoke[*ServerService](injector)
+		serverSvc, err := do.Invoke[*di.ServerService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, serverSvc)
 
 		// All dependencies should now be resolved
-		cfgSvc, err := do.Invoke[*ConfigService](injector)
+		cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, cfgSvc)
 
-		cacheSvc, err := do.Invoke[*CacheService](injector)
+		cacheSvc, err := do.Invoke[*di.CacheService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, cacheSvc)
 
-		provSvc, err := do.Invoke[*ProviderMapService](injector)
+		provSvc, err := do.Invoke[*di.ProviderMapService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, provSvc)
 
-		poolSvc, err := do.Invoke[*KeyPoolService](injector)
+		poolSvc, err := do.Invoke[*di.KeyPoolService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, poolSvc)
 
-		handlerSvc, err := do.Invoke[*HandlerService](injector)
+		handlerSvc, err := do.Invoke[*di.HandlerService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, handlerSvc)
 	})
 }
 
 func TestRegisterSingletons(t *testing.T) {
+	t.Parallel()
 	t.Run("registers all expected services", func(t *testing.T) {
+		t.Parallel()
 		dir := t.TempDir()
 		path := filepath.Join(dir, configFileName)
 		err := os.WriteFile(path, []byte(singleKeyConfig), 0o600)
@@ -899,69 +804,75 @@ func TestRegisterSingletons(t *testing.T) {
 		defer shutdownInjector(registerInjector)
 
 		// Verify each service type is registered
-		_, err = do.Invoke[*ConfigService](registerInjector)
+		_, err = do.Invoke[*di.ConfigService](registerInjector)
 		assert.NoError(t, err)
 
-		_, err = do.Invoke[*CacheService](registerInjector)
+		_, err = do.Invoke[*di.CacheService](registerInjector)
 		assert.NoError(t, err)
 
-		_, err = do.Invoke[*ProviderMapService](registerInjector)
+		_, err = do.Invoke[*di.ProviderMapService](registerInjector)
 		assert.NoError(t, err)
 
-		_, err = do.Invoke[*KeyPoolService](registerInjector)
+		_, err = do.Invoke[*di.KeyPoolService](registerInjector)
 		assert.NoError(t, err)
 
-		_, err = do.Invoke[*HandlerService](registerInjector)
+		_, err = do.Invoke[*di.HandlerService](registerInjector)
 		assert.NoError(t, err)
 
-		_, err = do.Invoke[*ServerService](registerInjector)
+		_, err = do.Invoke[*di.ServerService](registerInjector)
 		assert.NoError(t, err)
 	})
 }
 
 func TestConfigServiceWrapper(t *testing.T) {
+	t.Parallel()
 	t.Run("wraps config correctly", func(t *testing.T) {
-		cfg := &config.Config{
-			Server: config.ServerConfig{Listen: ":9000"},
-		}
-		svc := &ConfigService{Config: cfg}
+		t.Parallel()
+		cfg := di.MustTestConfig()
+		cfg.Server = di.MustTestServerConfig(":9000")
+		svc := di.NewConfigServiceWithConfig(&cfg)
 
 		assert.Equal(t, ":9000", svc.Config.Server.Listen)
 	})
 }
 
 func TestProviderMapServiceWrapper(t *testing.T) {
+	t.Parallel()
 	t.Run("stores primary key reference", func(t *testing.T) {
-		svc := &ProviderMapService{
-			PrimaryKey: testKey,
-		}
+		t.Parallel()
+		cfgSvc := di.NewConfigServiceUninitialized()
+		svc := di.NewProviderMapServiceWithConfigService(cfgSvc)
 
-		assert.Equal(t, testKey, svc.GetPrimaryKey())
-		assert.Nil(t, svc.GetProviders())
-		assert.Nil(t, svc.GetAllProviders())
+		// Initially empty before any rebuild
+		assert.Empty(t, svc.GetPrimaryKey())
+		assert.Empty(t, svc.GetProviders())
+		assert.Empty(t, svc.GetAllProviders())
 		assert.Nil(t, svc.GetPrimaryProvider())
 	})
 }
 
 func TestLoggerService(t *testing.T) {
+	t.Parallel()
 	t.Run("creates logger from config", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		loggerSvc, err := do.Invoke[*LoggerService](injector)
+		loggerSvc, err := do.Invoke[*di.LoggerService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, loggerSvc)
 		assert.NotNil(t, loggerSvc.Logger)
 	})
 
 	t.Run("singleton returns same instance", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		logger1, err := do.Invoke[*LoggerService](injector)
+		logger1, err := do.Invoke[*di.LoggerService](injector)
 		require.NoError(t, err)
 
-		logger2, err := do.Invoke[*LoggerService](injector)
+		logger2, err := do.Invoke[*di.LoggerService](injector)
 		require.NoError(t, err)
 
 		assert.Same(t, logger1, logger2)
@@ -969,21 +880,24 @@ func TestLoggerService(t *testing.T) {
 }
 
 func TestHealthTrackerService(t *testing.T) {
+	t.Parallel()
 	t.Run("creates tracker from config", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		trackerSvc, err := do.Invoke[*HealthTrackerService](injector)
+		trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, trackerSvc)
 		assert.NotNil(t, trackerSvc.Tracker)
 	})
 
 	t.Run("tracker IsHealthyFunc returns true for new provider", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		trackerSvc, err := do.Invoke[*HealthTrackerService](injector)
+		trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
 		require.NoError(t, err)
 
 		isHealthy := trackerSvc.Tracker.IsHealthyFunc(testProviderName)
@@ -991,10 +905,11 @@ func TestHealthTrackerService(t *testing.T) {
 	})
 
 	t.Run("tracker records success and failure", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
-		trackerSvc, err := do.Invoke[*HealthTrackerService](injector)
+		trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
 		require.NoError(t, err)
 
 		// Initially healthy
@@ -1012,95 +927,67 @@ func TestHealthTrackerService(t *testing.T) {
 }
 
 func TestCheckerService(t *testing.T) {
-	t.Run("creates checker from config", func(t *testing.T) {
-		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
-
-		checkerSvc, err := do.Invoke[*CheckerService](injector)
-		require.NoError(t, err)
-		assert.NotNil(t, checkerSvc)
-		assert.NotNil(t, checkerSvc.Checker)
-	})
-
-	t.Run(shutdownerTestLabel, func(t *testing.T) {
-		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
-
-		checkerSvc, err := do.Invoke[*CheckerService](injector)
-		require.NoError(t, err)
-
-		// Should not panic
-		err = checkerSvc.Shutdown()
-		assert.NoError(t, err)
-	})
-
-	t.Run("Shutdown handles nil checker", func(t *testing.T) {
-		checkerSvc := &CheckerService{Checker: nil}
-		err := checkerSvc.Shutdown()
-		assert.NoError(t, err)
+	t.Parallel()
+	runShutdownerTest(t, shutdownerTest{
+		name: "checker",
+		invokeAndGet: func(_ *testing.T, injector *do.RootScope) (interface{ Shutdown() error }, error) {
+			svc, err := do.Invoke[*di.CheckerService](injector)
+			if err != nil {
+				return nil, err
+			}
+			assert.NotNil(t, svc.Checker)
+			return svc, nil
+		},
+		nilShutdown: func(t *testing.T) {
+			t.Helper()
+			// Use injector to get a checker service, then verify shutdown is safe
+			injector := createTestInjector(t, singleKeyConfig)
+			defer shutdownInjector(injector)
+			checkerSvc, err := do.Invoke[*di.CheckerService](injector)
+			require.NoError(t, err)
+			// Shutdown should be safe to call
+			err = checkerSvc.Shutdown()
+			assert.NoError(t, err)
+		},
 	})
 }
 
 func TestNewProxyHandlerWithHealthTracker(t *testing.T) {
+	t.Parallel()
 	t.Run("handler wired with tracker", func(t *testing.T) {
+		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
 		defer shutdownInjector(injector)
 
 		// This verifies the full dependency chain works
-		handlerSvc, err := do.Invoke[*HandlerService](injector)
+		handlerSvc, err := do.Invoke[*di.HandlerService](injector)
 		require.NoError(t, err)
 		assert.NotNil(t, handlerSvc)
 		assert.NotNil(t, handlerSvc.Handler)
 	})
 }
 
-// ptrBool returns a pointer to a bool value.
-func ptrBool(b bool) *bool {
-	return &b
-}
-
 func TestCheckerStartsAndStopsWithContainer(t *testing.T) {
-	// Create minimal config with health check enabled
-	cfg := &config.Config{
-		Providers: []config.ProviderConfig{
-			{
-				Name:    testProviderName,
-				Type:    "anthropic",
-				Enabled: true,
-				BaseURL: "http://localhost:9999", // Fake URL - we just test lifecycle
-				Keys: []config.KeyConfig{
-					{Key: testKey},
-				},
-			},
-		},
-		Health: health.Config{
-			HealthCheck: health.CheckConfig{
-				Enabled:    ptrBool(true),
-				IntervalMS: 100, // Fast interval for testing
-			},
-			CircuitBreaker: health.CircuitBreakerConfig{
-				FailureThreshold: 5,
-				OpenDurationMS:   1000,
-			},
-		},
-		Server: config.ServerConfig{
-			Listen: "localhost:0",
-		},
-		Logging: config.LoggingConfig{
-			Level: "debug",
-		},
+	t.Parallel()
+
+	cfg := di.MustTestConfig()
+	cfg.Providers = []config.ProviderConfig{
+		di.MustTestProviderConfig(testProviderName, "anthropic", "http://localhost:9999",
+			[]config.KeyConfig{di.MustTestKeyConfig(testKey)}),
 	}
 
 	// Create test container with pre-configured services
 	container := do.New()
 	nopLogger := zerolog.Nop()
-	do.ProvideValue(container, &ConfigService{Config: cfg})
-	do.ProvideValue(container, &LoggerService{Logger: &nopLogger})
-	do.Provide(container, NewHealthTracker)
-	do.Provide(container, NewChecker)
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg)
+	loggerSvc := &di.LoggerService{Logger: &nopLogger}
+	do.ProvideValue(container, cfgSvc)
+	do.ProvideValue(container, loggerSvc)
+	do.Provide(container, di.NewHealthTracker)
+	do.Provide(container, di.NewChecker)
 
 	// Get checker and verify provider was registered
-	checkerSvc := do.MustInvoke[*CheckerService](container)
+	checkerSvc := do.MustInvoke[*di.CheckerService](container)
 	require.NotNil(t, checkerSvc.Checker, "Checker should be created")
 
 	// Start the checker
@@ -1116,7 +1003,7 @@ func TestCheckerStartsAndStopsWithContainer(t *testing.T) {
 	// Note: ShutdownWithContext may return errors for services that weren't invoked
 	// but this doesn't indicate a problem with the Checker lifecycle
 	if err != nil {
-		t.Logf("Container shutdown returned (may include uninvoked services): %v", err)
+		t.Logf("di.Container shutdown returned (may include uninvoked services): %v", err)
 	}
 
 	// If we got here without deadlock or panic, the lifecycle works

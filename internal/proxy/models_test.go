@@ -1,5 +1,5 @@
-// Package proxy implements the HTTP proxy server for cc-relay.
-package proxy
+// Package proxy_test implements tests for the HTTP proxy server.
+package proxy_test
 
 import (
 	"encoding/json"
@@ -7,63 +7,46 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
+
+// serveModels creates a GET /v1/models request and records the response.
+func serveModels(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
 
 func TestModelsHandlerReturnsCorrectFormat(t *testing.T) {
 	t.Parallel()
 
-	// Create providers with models
 	anthropicProvider := providers.NewAnthropicProviderWithModels(
 		"anthropic-primary",
 		"https://api.anthropic.com",
 		[]string{"claude-sonnet-4-5-20250514", "claude-opus-4-5-20250514"},
 	)
 
-	handler := NewModelsHandler([]providers.Provider{anthropicProvider})
+	handler := proxy.NewModelsHandler([]providers.Provider{anthropicProvider})
+	rec := serveModels(t, handler)
 
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
-	rec := httptest.NewRecorder()
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, proxy.JSONContentType, rec.Header().Get("Content-Type"))
 
-	handler.ServeHTTP(rec, req)
+	var response proxy.ModelsResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("Expected 200, got %d", rec.Code)
-	}
-
-	// Verify Content-Type
-	if rec.Header().Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type=application/json, got %s", rec.Header().Get("Content-Type"))
-	}
-
-	// Parse response
-	var response ModelsResponse
-	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-
-	// Verify response structure
-	if response.Object != "list" {
-		t.Errorf("Expected object=list, got %s", response.Object)
-	}
-
-	if len(response.Data) != 2 {
-		t.Fatalf("Expected 2 models, got %d", len(response.Data))
-	}
-
-	// Verify first model
-	if response.Data[0].ID != "claude-sonnet-4-5-20250514" {
-		t.Errorf("Expected first model ID=claude-sonnet-4-5-20250514, got %s", response.Data[0].ID)
-	}
-	if response.Data[0].Object != "model" {
-		t.Errorf("Expected object=model, got %s", response.Data[0].Object)
-	}
-	if response.Data[0].OwnedBy != "anthropic" {
-		t.Errorf("Expected owned_by=anthropic, got %s", response.Data[0].OwnedBy)
-	}
-	if response.Data[0].Provider != "anthropic-primary" {
-		t.Errorf("Expected provider=anthropic-primary, got %s", response.Data[0].Provider)
-	}
+	assert.Equal(t, proxy.ListObject, response.Object)
+	require.Len(t, response.Data, 2)
+	assert.Equal(t, "claude-sonnet-4-5-20250514", response.Data[0].ID)
+	assert.Equal(t, "model", response.Data[0].Object)
+	assert.Equal(t, "anthropic", response.Data[0].OwnedBy)
+	assert.Equal(t, "anthropic-primary", response.Data[0].Provider)
 }
 
 func TestModelsHandlerMultipleProviders(t *testing.T) {
@@ -81,7 +64,7 @@ func TestModelsHandlerMultipleProviders(t *testing.T) {
 		[]string{"glm-4", "glm-4-plus"},
 	)
 
-	handler := NewModelsHandler([]providers.Provider{anthropicProvider, zaiProvider})
+	handler := proxy.NewModelsHandler([]providers.Provider{anthropicProvider, zaiProvider})
 
 	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
 	rec := httptest.NewRecorder()
@@ -92,7 +75,7 @@ func TestModelsHandlerMultipleProviders(t *testing.T) {
 		t.Fatalf("Expected 200, got %d", rec.Code)
 	}
 
-	var response ModelsResponse
+	var response proxy.ModelsResponse
 	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
@@ -119,84 +102,41 @@ func TestModelsHandlerMultipleProviders(t *testing.T) {
 func TestModelsHandlerEmptyProviders(t *testing.T) {
 	t.Parallel()
 
-	handler := NewModelsHandler([]providers.Provider{})
+	handler := proxy.NewModelsHandler([]providers.Provider{})
+	rec := serveModels(t, handler)
 
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
-	rec := httptest.NewRecorder()
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("Expected 200, got %d", rec.Code)
-	}
-
-	var response ModelsResponse
-	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-
-	if response.Object != "list" {
-		t.Errorf("Expected object=list, got %s", response.Object)
-	}
-
-	if len(response.Data) != 0 {
-		t.Errorf("Expected 0 models, got %d", len(response.Data))
-	}
+	var response proxy.ModelsResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
+	assert.Equal(t, proxy.ListObject, response.Object)
+	assert.Empty(t, response.Data)
 }
 
 func TestModelsHandlerProviderWithDefaultModels(t *testing.T) {
 	t.Parallel()
 
-	// Provider without configured models gets default models
 	provider := providers.NewAnthropicProvider("anthropic", "https://api.anthropic.com")
+	handler := proxy.NewModelsHandler([]providers.Provider{provider})
+	rec := serveModels(t, handler)
 
-	handler := NewModelsHandler([]providers.Provider{provider})
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("Expected 200, got %d", rec.Code)
-	}
-
-	var response ModelsResponse
-	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-
-	// Provider should return default models when none are explicitly configured
-	expectedCount := len(providers.DefaultAnthropicModels)
-	if len(response.Data) != expectedCount {
-		t.Errorf("Expected %d default models, got %d", expectedCount, len(response.Data))
-	}
+	var response proxy.ModelsResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
+	assert.Len(t, response.Data, len(providers.DefaultAnthropicModels))
 }
 
 func TestModelsHandlerNilProviders(t *testing.T) {
 	t.Parallel()
 
-	handler := NewModelsHandler(nil)
+	handler := proxy.NewModelsHandler(nil)
+	rec := serveModels(t, handler)
 
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
-	rec := httptest.NewRecorder()
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("Expected 200, got %d", rec.Code)
-	}
-
-	var response ModelsResponse
-	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-
-	if response.Object != "list" {
-		t.Errorf("Expected object=list, got %s", response.Object)
-	}
-
-	if len(response.Data) != 0 {
-		t.Errorf("Expected 0 models, got %d", len(response.Data))
-	}
+	var response proxy.ModelsResponse
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
+	assert.Equal(t, proxy.ListObject, response.Object)
+	assert.Empty(t, response.Data)
 }

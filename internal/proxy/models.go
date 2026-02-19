@@ -27,7 +27,8 @@ type ProvidersGetter func() []providers.Provider
 // NewModelsHandler creates a new models handler with the given providers.
 func NewModelsHandler(providerList []providers.Provider) *ModelsHandler {
 	return &ModelsHandler{
-		providers: providerList,
+		getProviders: nil,
+		providers:    providerList,
 	}
 }
 
@@ -35,6 +36,7 @@ func NewModelsHandler(providerList []providers.Provider) *ModelsHandler {
 func NewModelsHandlerWithProviderFunc(getProviders ProvidersGetter) *ModelsHandler {
 	return &ModelsHandler{
 		getProviders: getProviders,
+		providers:    nil,
 	}
 }
 
@@ -46,7 +48,7 @@ func (h *ModelsHandler) providerList() []providers.Provider {
 }
 
 // ServeHTTP handles GET /v1/models requests.
-func (h *ModelsHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (h *ModelsHandler) ServeHTTP(writer http.ResponseWriter, _ *http.Request) {
 	// Collect all models from all providers using lo.FlatMap
 	allModels := lo.FlatMap(h.providerList(), func(provider providers.Provider, _ int) []providers.Model {
 		return provider.ListModels()
@@ -57,5 +59,5 @@ func (h *ModelsHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		Data:   allModels,
 	}
 
-	writeJSON(w, http.StatusOK, response)
+	writeJSON(writer, http.StatusOK, response)
 }

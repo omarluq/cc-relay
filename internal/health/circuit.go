@@ -40,18 +40,18 @@ func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Lo
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 			return counts.ConsecutiveFailures >= failureLimit
 		},
-		OnStateChange: func(name string, from, to gobreaker.State) {
+		OnStateChange: func(name string, from, newState gobreaker.State) {
 			if logger == nil {
 				return
 			}
 			event := logger.Info()
-			if to == gobreaker.StateOpen {
+			if newState == gobreaker.StateOpen {
 				event = logger.Warn()
 			}
 			event.
 				Str("provider", name).
 				Str("from", from.String()).
-				Str("to", to.String()).
+				Str("to", newState.String()).
 				Msg("circuit breaker state change")
 		},
 		IsSuccessful: func(err error) bool {

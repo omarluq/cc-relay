@@ -1,20 +1,24 @@
-package keypool
+package keypool_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/omarluq/cc-relay/internal/keypool"
 )
 
 // createBenchPool creates a pool with n keys for benchmarking.
-func createBenchPool(n int) *KeyPool {
-	cfg := PoolConfig{
-		Strategy: StrategyLeastLoaded,
-		Keys:     make([]KeyConfig, n),
+func createBenchPool(tb testing.TB, numKeys int) *keypool.KeyPool {
+	tb.Helper()
+	cfg := keypool.PoolConfig{
+		Strategy: keypool.StrategyLeastLoaded,
+		Keys:     make([]keypool.KeyConfig, numKeys),
 	}
-	for i := range cfg.Keys {
-		cfg.Keys[i] = KeyConfig{
-			APIKey:    "sk-test-key-" + string(rune('A'+i%26)),
+	for idx := range cfg.Keys {
+		cfg.Keys[idx] = keypool.KeyConfig{
+			APIKey:    "sk-test-key-" + string(rune('A'+idx%26)),
 			RPMLimit:  50,
 			ITPMLimit: 30000,
 			OTPMLimit: 30000,
@@ -22,7 +26,10 @@ func createBenchPool(n int) *KeyPool {
 			Weight:    1,
 		}
 	}
-	pool, _ := NewKeyPool("bench-provider", cfg)
+	pool, poolErr := keypool.NewKeyPool("bench-provider", cfg)
+	if poolErr != nil {
+		tb.Fatal(fmt.Errorf("createBenchPool: %w", poolErr))
+	}
 	return pool
 }
 
@@ -31,13 +38,15 @@ func BenchmarkKeyPoolGetKey(b *testing.B) {
 	sizes := []int{3, 10, 50, 100}
 
 	for _, size := range sizes {
-		pool := createBenchPool(size)
+		pool := createBenchPool(b, size)
 		ctx := context.Background()
 
 		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, _, _ = pool.GetKey(ctx)
+			for iteration := 0; iteration < b.N; iteration++ {
+				if _, _, getKeyErr := pool.GetKey(ctx); getKeyErr != nil {
+					continue
+				}
 			}
 		})
 	}
@@ -45,23 +54,28 @@ func BenchmarkKeyPoolGetKey(b *testing.B) {
 
 // BenchmarkKeyPoolGetKeyParallel benchmarks concurrent key selection.
 func BenchmarkKeyPoolGetKeyParallel(b *testing.B) {
-	pool := createBenchPool(10)
+	pool := createBenchPool(b, 10)
 	ctx := context.Background()
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _, _ = pool.GetKey(ctx)
+			if _, _, parallelErr := pool.GetKey(ctx); parallelErr != nil {
+				continue
+			}
 		}
 	})
 }
 
 // BenchmarkKeyPoolUpdateFromHeaders benchmarks header parsing.
 func BenchmarkKeyPoolUpdateFromHeaders(b *testing.B) {
-	pool := createBenchPool(10)
+	pool := createBenchPool(b, 10)
 
 	// Get a key ID to update
 	ctx := context.Background()
-	keyID, _, _ := pool.GetKey(ctx)
+	keyID, _, keyErr := pool.GetKey(ctx)
+	if keyErr != nil {
+		b.Fatal(keyErr)
+	}
 
 	// Create headers with rate limit info
 	headers := http.Header{}
@@ -74,8 +88,10 @@ func BenchmarkKeyPoolUpdateFromHeaders(b *testing.B) {
 	headers.Set("anthropic-ratelimit-output-tokens-remaining", "29000")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = pool.UpdateKeyFromHeaders(keyID, headers)
+	for iteration := 0; iteration < b.N; iteration++ {
+		if updateErr := pool.UpdateKeyFromHeaders(keyID, headers); updateErr != nil {
+			b.Fatal(updateErr)
+		}
 	}
 }
 
@@ -84,11 +100,11 @@ func BenchmarkKeyPoolGetStats(b *testing.B) {
 	sizes := []int{3, 10, 50, 100}
 
 	for _, size := range sizes {
-		pool := createBenchPool(size)
+		pool := createBenchPool(b, size)
 
 		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for iteration := 0; iteration < b.N; iteration++ {
 				_ = pool.GetStats()
 			}
 		})
@@ -100,12 +116,34 @@ func BenchmarkKeyPoolGetEarliestResetTime(b *testing.B) {
 	sizes := []int{3, 10, 50, 100}
 
 	for _, size := range sizes {
-		pool := createBenchPool(size)
+		pool := createBenchPool(b, size)
 
 		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for iteration := 0; iteration < b.N; iteration++ {
 				_ = pool.GetEarliestResetTime()
+			}
+		})
+	}
+}
+
+// benchmarkSelector is a shared helper for benchmarking selector implementations.
+func benchmarkSelector(b *testing.B, selector keypool.KeySelector) {
+	b.Helper()
+	sizes := []int{3, 10, 50, 100}
+
+	for _, size := range sizes {
+		keys := make([]*keypool.KeyMetadata, size)
+		for idx := range keys {
+			keys[idx] = keypool.NewKeyMetadata("sk-test-"+string(rune('A'+idx%26)), 50, 30000, 30000)
+		}
+
+		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
+			b.ResetTimer()
+			for iteration := 0; iteration < b.N; iteration++ {
+				if _, selectErr := selector.Select(keys); selectErr != nil {
+					b.Fatal(selectErr)
+				}
 			}
 		})
 	}
@@ -113,40 +151,10 @@ func BenchmarkKeyPoolGetEarliestResetTime(b *testing.B) {
 
 // BenchmarkLeastLoadedSelector benchmarks the least-loaded selector directly.
 func BenchmarkLeastLoadedSelector(b *testing.B) {
-	sizes := []int{3, 10, 50, 100}
-
-	for _, size := range sizes {
-		selector := NewLeastLoadedSelector()
-		keys := make([]*KeyMetadata, size)
-		for i := range keys {
-			keys[i] = NewKeyMetadata("sk-test-"+string(rune('A'+i%26)), 50, 30000, 30000)
-		}
-
-		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, _ = selector.Select(keys)
-			}
-		})
-	}
+	benchmarkSelector(b, keypool.NewLeastLoadedSelector())
 }
 
 // BenchmarkRoundRobinSelector benchmarks the round-robin selector directly.
 func BenchmarkRoundRobinSelector(b *testing.B) {
-	sizes := []int{3, 10, 50, 100}
-
-	for _, size := range sizes {
-		selector := NewRoundRobinSelector()
-		keys := make([]*KeyMetadata, size)
-		for i := range keys {
-			keys[i] = NewKeyMetadata("sk-test-"+string(rune('A'+i%26)), 50, 30000, 30000)
-		}
-
-		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, _ = selector.Select(keys)
-			}
-		})
-	}
+	benchmarkSelector(b, keypool.NewRoundRobinSelector())
 }

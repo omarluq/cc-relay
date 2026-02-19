@@ -24,13 +24,14 @@ func NewChainAuthenticator(authenticators ...Authenticator) *ChainAuthenticator 
 
 // Validate tries each authenticator in order until one succeeds.
 // Returns the first successful result, or the last failure if all fail.
-func (c *ChainAuthenticator) Validate(r *http.Request) Result {
+func (c *ChainAuthenticator) Validate(request *http.Request) Result {
 	// Handle empty chain case
 	if len(c.authenticators) == 0 {
 		return Result{
 			Valid: false,
 			Type:  TypeNone,
 			Error: "no authentication configured",
+			Token: "",
 		}
 	}
 
@@ -42,8 +43,8 @@ func (c *ChainAuthenticator) Validate(r *http.Request) Result {
 		if acc.Valid {
 			return acc
 		}
-		return auth.Validate(r)
-	}, Result{Valid: false, Type: TypeNone})
+		return auth.Validate(request)
+	}, Result{Valid: false, Type: TypeNone, Token: "", Error: ""})
 
 	// If still not valid, normalize the error response
 	if !result.Valid {
@@ -51,6 +52,7 @@ func (c *ChainAuthenticator) Validate(r *http.Request) Result {
 			Valid: false,
 			Type:  TypeNone,
 			Error: result.Error,
+			Token: "",
 		}
 	}
 
@@ -66,8 +68,8 @@ func (c *ChainAuthenticator) Type() Type {
 // This is an alternative API that supports Railway-Oriented Programming patterns.
 // Returns mo.Ok(Result) if any authenticator succeeds.
 // Returns mo.Err with the last error if all fail.
-func (c *ChainAuthenticator) ValidateResult(r *http.Request) mo.Result[Result] {
-	result := c.Validate(r)
+func (c *ChainAuthenticator) ValidateResult(request *http.Request) mo.Result[Result] {
+	result := c.Validate(request)
 	if result.Valid {
 		return mo.Ok(result)
 	}

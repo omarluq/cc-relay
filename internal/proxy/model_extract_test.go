@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"bytes"
@@ -10,6 +10,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 func TestExtractModelFromRequest(t *testing.T) {
@@ -65,20 +68,20 @@ func TestExtractModelFromRequest(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("POST", "/v1/messages", bytes.NewBufferString(tt.body))
-			result := ExtractModelFromRequest(req)
+			req := httptest.NewRequest("POST", "/v1/messages", bytes.NewBufferString(testCase.body))
+			result := proxy.ExtractModelFromRequest(req)
 
-			assert.Equal(t, tt.isPresent, result.IsPresent())
-			assert.Equal(t, tt.expected, result.OrEmpty())
+			assert.Equal(t, testCase.isPresent, result.IsPresent())
+			assert.Equal(t, testCase.expected, result.OrEmpty())
 
 			// Verify body is restored for downstream use
 			restored, err := io.ReadAll(req.Body)
 			require.NoError(t, err)
-			assert.Equal(t, tt.body, string(restored))
+			assert.Equal(t, testCase.body, string(restored))
 		})
 	}
 }
@@ -89,7 +92,7 @@ func TestExtractModelFromRequestNilBody(t *testing.T) {
 	req := httptest.NewRequest("GET", "/v1/messages", http.NoBody)
 	req.Body = nil
 
-	result := ExtractModelFromRequest(req)
+	result := proxy.ExtractModelFromRequest(req)
 	assert.False(t, result.IsPresent())
 	assert.Equal(t, "", result.OrEmpty())
 }
@@ -100,10 +103,10 @@ func TestCacheModelInContext(t *testing.T) {
 	ctx := context.Background()
 	model := "claude-opus-4"
 
-	newCtx := CacheModelInContext(ctx, model)
+	newCtx := proxy.CacheModelInContext(ctx, model)
 
 	// Verify model can be retrieved
-	retrieved, ok := GetModelFromContext(newCtx)
+	retrieved, ok := proxy.GetModelFromContext(newCtx)
 	assert.True(t, ok)
 	assert.Equal(t, model, retrieved)
 }
@@ -113,7 +116,7 @@ func TestGetModelFromContextNotCached(t *testing.T) {
 
 	ctx := context.Background()
 
-	retrieved, ok := GetModelFromContext(ctx)
+	retrieved, ok := proxy.GetModelFromContext(ctx)
 	assert.False(t, ok)
 	assert.Equal(t, "", retrieved)
 }
@@ -121,9 +124,9 @@ func TestGetModelFromContextNotCached(t *testing.T) {
 func TestGetModelFromContextEmptyModel(t *testing.T) {
 	t.Parallel()
 
-	ctx := CacheModelInContext(context.Background(), "")
+	ctx := proxy.CacheModelInContext(context.Background(), "")
 
-	retrieved, ok := GetModelFromContext(ctx)
+	retrieved, ok := proxy.GetModelFromContext(ctx)
 	assert.True(t, ok) // Key exists
 	assert.Equal(t, "", retrieved)
 }

@@ -143,22 +143,22 @@ func (r *FailoverRouter) parallelRace(
 	resultCh := make(chan RoutingResult, len(providers))
 
 	// Launch all attempts in parallel
-	var wg sync.WaitGroup
-	for _, p := range providers {
-		wg.Add(1)
+	var waitGroup sync.WaitGroup
+	for _, providerInfo := range providers {
+		waitGroup.Add(1)
 		go func(provider ProviderInfo) {
-			defer wg.Done()
+			defer waitGroup.Done()
 
 			_, err := tryProvider(raceCtx, provider)
 			// Always send result - buffer size equals provider count
 			// so this will never block
 			resultCh <- RoutingResult{Provider: provider, Err: err}
-		}(p)
+		}(providerInfo)
 	}
 
 	// Close result channel when all done
 	go func() {
-		wg.Wait()
+		waitGroup.Wait()
 		close(resultCh)
 	}()
 

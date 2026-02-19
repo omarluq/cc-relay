@@ -32,6 +32,17 @@ const (
 	headerValueTruncatedFmt = "header value truncated for %q"
 )
 
+// fixedSizeHeaderTypes maps header type bytes to their size in bytes.
+// Used to reduce cyclomatic complexity in skipNonStringHeader.
+var fixedSizeHeaderTypes = map[byte]int{
+	2: 1,  // byte
+	3: 2,  // short
+	4: 4,  // int
+	5: 8,  // long
+	8: 8,  // timestamp
+	9: 16, // uuid
+}
+
 // ErrMessageSkipped indicates a message was skipped due to a parse error.
 // This is not a fatal error - the stream can continue processing.
 var ErrMessageSkipped = errors.New("eventstream: message skipped due to parse error")
@@ -71,8 +82,8 @@ func ParseEventStreamMessage(data []byte) (*EventStreamMessage, int, error) {
 	payloadLen := totalLen - eventStreamPreludeLen - headersLen - eventStreamTrailerLen
 
 	// Verify message CRC
-	if err := verifyMessageCRC(data, totalLen); err != nil {
-		return nil, 0, err
+	if verifyErr := verifyMessageCRC(data, totalLen); verifyErr != nil {
+		return nil, 0, verifyErr
 	}
 
 	// Parse headers
@@ -228,31 +239,27 @@ func skipNonStringHeader(
 	headerType byte,
 	name string,
 ) (value *string, newOffset int, err error) {
-	switch headerType {
-	case 0, 1: // bool true/false - no value bytes
+	// Handle bool types (no value bytes)
+	if headerType == 0 || headerType == 1 {
 		return nil, offset, nil
-	case 2: // byte
-		return advanceOffset(data, offset, 1, name)
-	case 3: // short
-		return advanceOffset(data, offset, 2, name)
-	case 4: // int
-		return advanceOffset(data, offset, 4, name)
-	case 5: // long
-		return advanceOffset(data, offset, 8, name)
-	case 6: // bytes
-		lenBytes, next, err := readSlice(data, offset, 2)
-		if err != nil {
+	}
+
+	// Handle fixed-size types via lookup table
+	if size, ok := fixedSizeHeaderTypes[headerType]; ok {
+		return advanceOffset(data, offset, size, name)
+	}
+
+	// Handle variable-length bytes type
+	if headerType == 6 {
+		lenBytes, next, readErr := readSlice(data, offset, 2)
+		if readErr != nil {
 			return nil, 0, fmt.Errorf("bytes header length truncated for %q", name)
 		}
 		bLen := int(binary.BigEndian.Uint16(lenBytes))
 		return advanceOffset(data, next, bLen, name)
-	case 8: // timestamp
-		return advanceOffset(data, offset, 8, name)
-	case 9: // uuid
-		return advanceOffset(data, offset, 16, name)
-	default:
-		return nil, 0, fmt.Errorf("unknown header type %d for %q", headerType, name)
 	}
+
+	return nil, 0, fmt.Errorf("unknown header type %d for %q", headerType, name)
 }
 
 func readByte(data []byte, offset int) (b byte, next int, err error) {
@@ -279,25 +286,25 @@ func advanceOffset(data []byte, offset, length int, name string) (val *string, n
 // EventStreamToSSE converts an AWS Event Stream response to SSE format.
 // It reads Event Stream messages from the response body and writes SSE events to the writer.
 // Returns the number of events converted.
-func EventStreamToSSE(resp *http.Response, w http.ResponseWriter) (int, error) {
-	setSSEHeaders(w, resp)
+func EventStreamToSSE(resp *http.Response, writer http.ResponseWriter) (int, error) {
+	setSSEHeaders(writer, resp)
 
-	w.WriteHeader(resp.StatusCode)
+	writer.WriteHeader(resp.StatusCode)
 
-	flusher, ok := w.(http.Flusher)
+	flusher, ok := writer.(http.Flusher)
 	if !ok {
 		return 0, fmt.Errorf("eventstream: response writer does not support flushing")
 	}
 
-	return processEventStream(resp.Body, w, flusher)
+	return processEventStream(resp.Body, writer, flusher)
 }
 
 // setSSEHeaders sets the SSE response headers.
-func setSSEHeaders(w http.ResponseWriter, resp *http.Response) {
-	w.Header().Set("Content-Type", ContentTypeSSE)
-	w.Header().Set("Cache-Control", "no-cache, no-transform")
-	w.Header().Set("X-Accel-Buffering", "no")
-	w.Header().Set("Connection", "keep-alive")
+func setSSEHeaders(writer http.ResponseWriter, resp *http.Response) {
+	writer.Header().Set("Content-Type", ContentTypeSSE)
+	writer.Header().Set("Cache-Control", "no-cache, no-transform")
+	writer.Header().Set("X-Accel-Buffering", "no")
+	writer.Header().Set("Connection", "keep-alive")
 
 	// Copy non-content headers from response
 	for key, values := range resp.Header {
@@ -306,7 +313,7 @@ func setSSEHeaders(w http.ResponseWriter, resp *http.Response) {
 			continue
 		}
 		for _, v := range values {
-			w.Header().Add(key, v)
+			writer.Header().Add(key, v)
 		}
 	}
 }
@@ -321,7 +328,7 @@ func isContentHeader(lowerKey string) bool {
 // processEventStream reads and processes Event Stream messages.
 func processEventStream(
 	body io.Reader,
-	w http.ResponseWriter,
+	writer http.ResponseWriter,
 	flusher http.Flusher,
 ) (int, error) {
 	reader := bufio.NewReaderSize(body, 64*1024)
@@ -340,7 +347,7 @@ func processEventStream(
 			return eventCount, err
 		}
 
-		written, err := writeSSEEvent(w, flusher, msg)
+		written, err := writeSSEEvent(writer, flusher, msg)
 		if err != nil {
 			return eventCount, err
 		}
@@ -383,7 +390,7 @@ func readNextMessage(reader *bufio.Reader) (*EventStreamMessage, error) {
 // writeSSEEvent writes an Event Stream message as an SSE event.
 // Returns true if an event was written.
 func writeSSEEvent(
-	w http.ResponseWriter,
+	writer http.ResponseWriter,
 	flusher http.Flusher,
 	msg *EventStreamMessage,
 ) (bool, error) {
@@ -393,7 +400,7 @@ func writeSSEEvent(
 
 	// Check for exception
 	if exceptionType := msg.Headers[":exception-type"]; exceptionType != "" {
-		return writeExceptionEvent(w, flusher, exceptionType, msg.Payload)
+		return writeExceptionEvent(writer, flusher, exceptionType, msg.Payload)
 	}
 
 	// Get event type from headers
@@ -405,7 +412,7 @@ func writeSSEEvent(
 	// Convert to SSE format
 	sseEvent := formatSSEEvent(eventType, msg.Payload)
 
-	if err := writeSSEBytes(w, flusher, sseEvent); err != nil {
+	if err := writeSSEBytes(writer, flusher, sseEvent); err != nil {
 		return false, fmt.Errorf("eventstream: failed to write SSE event: %w", err)
 	}
 
@@ -414,7 +421,7 @@ func writeSSEEvent(
 
 // writeExceptionEvent writes an exception as an SSE error event.
 func writeExceptionEvent(
-	w http.ResponseWriter,
+	writer http.ResponseWriter,
 	flusher http.Flusher,
 	exceptionType string,
 	payload []byte,
@@ -423,7 +430,7 @@ func writeExceptionEvent(
 		"event: error\ndata: {\"error\":{\"type\":%q,\"message\":%q}}\n\n",
 		exceptionType, string(payload),
 	)
-	if err := writeSSEBytes(w, flusher, []byte(errEvent)); err != nil {
+	if err := writeSSEBytes(writer, flusher, []byte(errEvent)); err != nil {
 		return false, fmt.Errorf("eventstream: failed to write error event: %w", err)
 	}
 	return true, nil
@@ -431,9 +438,9 @@ func writeExceptionEvent(
 
 // writeSSEBytes writes pre-formatted SSE data to the response and flushes.
 // Content-Type is set to text/event-stream before writing.
-func writeSSEBytes(w http.ResponseWriter, flusher http.Flusher, data []byte) error {
-	w.Header().Set("Content-Type", ContentTypeSSE)
-	if _, err := io.Writer(w).Write(data); err != nil {
+func writeSSEBytes(writer http.ResponseWriter, flusher http.Flusher, data []byte) error {
+	writer.Header().Set("Content-Type", ContentTypeSSE)
+	if _, err := io.Writer(writer).Write(data); err != nil {
 		return err
 	}
 	flusher.Flush()

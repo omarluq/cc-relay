@@ -50,8 +50,9 @@ func NewProviderProxy(
 		return nil, fmt.Errorf("invalid provider base URL %q: %w", provider.BaseURL(), err)
 	}
 
-	pp := &ProviderProxy{
+	providerProxy := &ProviderProxy{
 		Provider:           provider,
+		Proxy:              nil,
 		KeyPool:            pool,
 		APIKey:             apiKey,
 		debugOpts:          debugOpts,
@@ -59,16 +60,16 @@ func NewProviderProxy(
 		modifyResponseHook: modifyResponseHook,
 	}
 
-	pp.Proxy = &httputil.ReverseProxy{
-		Rewrite:        pp.rewrite,
+	providerProxy.Proxy = &httputil.ReverseProxy{
+		Rewrite:        providerProxy.rewrite,
 		FlushInterval:  -1, // Immediate flush for SSE
-		ModifyResponse: pp.modifyResponse,
+		ModifyResponse: providerProxy.modifyResponse,
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
 			WriteError(w, http.StatusBadGateway, "api_error", "upstream connection failed")
 		},
 	}
 
-	return pp, nil
+	return providerProxy, nil
 }
 
 // modifyResponse handles SSE headers, Event Stream conversion, and calls the optional hook.
@@ -111,18 +112,18 @@ func (pp *ProviderProxy) modifyResponse(resp *http.Response) error {
 }
 
 // rewrite creates the Rewrite function for this provider's proxy.
-func (pp *ProviderProxy) rewrite(r *httputil.ProxyRequest) {
+func (pp *ProviderProxy) rewrite(proxyRequest *httputil.ProxyRequest) {
 	// Handle body transformation for cloud providers (Bedrock, Vertex)
 	// This must happen before SetURL because cloud providers return a dynamic target URL
 	if pp.Provider.RequiresBodyTransform() {
-		pp.rewriteWithTransform(r)
+		pp.rewriteWithTransform(proxyRequest)
 		return
 	}
 
 	// Standard providers: use static target URL
-	r.SetURL(pp.targetURL)
-	r.SetXForwarded()
-	pp.setAuth(r)
+	proxyRequest.SetURL(pp.targetURL)
+	proxyRequest.SetXForwarded()
+	pp.setAuth(proxyRequest)
 }
 
 // rewriteWithTransform handles cloud providers that need body transformation.
@@ -130,36 +131,36 @@ func (pp *ProviderProxy) rewrite(r *httputil.ProxyRequest) {
 // 1. Extract model from request body
 // 2. Remove model from body and add anthropic_version
 // 3. Construct dynamic URL with model in path.
-func (pp *ProviderProxy) rewriteWithTransform(r *httputil.ProxyRequest) {
+func (pp *ProviderProxy) rewriteWithTransform(proxyRequest *httputil.ProxyRequest) {
 	// Read the original body
 	var originalBody []byte
-	if r.In.Body != nil {
+	if proxyRequest.In.Body != nil {
 		var err error
-		originalBody, err = io.ReadAll(r.In.Body)
-		if closeErr := r.In.Body.Close(); closeErr != nil {
+		originalBody, err = io.ReadAll(proxyRequest.In.Body)
+		if closeErr := proxyRequest.In.Body.Close(); closeErr != nil {
 			log.Error().Err(closeErr).Msg("failed to close request body")
 		}
 		if err != nil {
 			// If we can't read body, fall back to static URL
-			r.SetURL(pp.targetURL)
-			r.SetXForwarded()
-			pp.setAuth(r)
+			proxyRequest.SetURL(pp.targetURL)
+			proxyRequest.SetXForwarded()
+			pp.setAuth(proxyRequest)
 			return
 		}
 	}
 
 	// Get the endpoint path for transform (e.g., "/v1/messages")
-	endpoint := r.In.URL.Path
+	endpoint := proxyRequest.In.URL.Path
 
 	// Transform the request body and get the dynamic target URL
 	newBody, targetURLStr, err := pp.Provider.TransformRequest(originalBody, endpoint)
 	if err != nil {
 		// On transform error, fall back to static URL with original body
-		r.Out.Body = io.NopCloser(bytes.NewReader(originalBody))
-		r.Out.ContentLength = int64(len(originalBody))
-		r.SetURL(pp.targetURL)
-		r.SetXForwarded()
-		pp.setAuth(r)
+		proxyRequest.Out.Body = io.NopCloser(bytes.NewReader(originalBody))
+		proxyRequest.Out.ContentLength = int64(len(originalBody))
+		proxyRequest.SetURL(pp.targetURL)
+		proxyRequest.SetXForwarded()
+		pp.setAuth(proxyRequest)
 		return
 	}
 
@@ -167,60 +168,60 @@ func (pp *ProviderProxy) rewriteWithTransform(r *httputil.ProxyRequest) {
 	targetURL, err := url.Parse(targetURLStr)
 	if err != nil {
 		// On URL parse error, fall back to static URL with original body
-		r.Out.Body = io.NopCloser(bytes.NewReader(originalBody))
-		r.Out.ContentLength = int64(len(originalBody))
-		r.SetURL(pp.targetURL)
-		r.SetXForwarded()
-		pp.setAuth(r)
+		proxyRequest.Out.Body = io.NopCloser(bytes.NewReader(originalBody))
+		proxyRequest.Out.ContentLength = int64(len(originalBody))
+		proxyRequest.SetURL(pp.targetURL)
+		proxyRequest.SetXForwarded()
+		pp.setAuth(proxyRequest)
 		return
 	}
 
 	// Set the transformed body
-	r.Out.Body = io.NopCloser(bytes.NewReader(newBody))
-	r.Out.ContentLength = int64(len(newBody))
+	proxyRequest.Out.Body = io.NopCloser(bytes.NewReader(newBody))
+	proxyRequest.Out.ContentLength = int64(len(newBody))
 
 	// For cloud providers, the targetURL contains the complete path including model.
-	// We set r.Out.URL directly instead of using SetURL which would append the original path.
-	r.Out.URL = targetURL
-	r.Out.Host = targetURL.Host
-	r.SetXForwarded()
-	pp.setAuth(r)
+	// We set proxyRequest.Out.URL directly instead of using SetURL which would append the original path.
+	proxyRequest.Out.URL = targetURL
+	proxyRequest.Out.Host = targetURL.Host
+	proxyRequest.SetXForwarded()
+	pp.setAuth(proxyRequest)
 }
 
 // setAuth handles authentication and header forwarding.
-func (pp *ProviderProxy) setAuth(r *httputil.ProxyRequest) {
+func (pp *ProviderProxy) setAuth(proxyReq *httputil.ProxyRequest) {
 	// Remove internal header before proxying to avoid key leakage
-	r.Out.Header.Del("X-Selected-Key")
+	proxyReq.Out.Header.Del("X-Selected-Key")
 
-	clientAuth := r.In.Header.Get("Authorization")
-	clientAPIKey := r.In.Header.Get("x-api-key")
+	clientAuth := proxyReq.In.Header.Get("Authorization")
+	clientAPIKey := proxyReq.In.Header.Get("x-api-key")
 	hasClientAuth := clientAuth != "" || clientAPIKey != ""
 
 	if hasClientAuth && pp.Provider.SupportsTransparentAuth() {
 		// TRANSPARENT MODE: Client has auth AND provider accepts it
 		// Forward client auth unchanged alongside anthropic-* headers
-		lo.ForEach(lo.Entries(r.In.Header), func(entry lo.Entry[string, []string], _ int) {
+		lo.ForEach(lo.Entries(proxyReq.In.Header), func(entry lo.Entry[string, []string], _ int) {
 			canonicalKey := http.CanonicalHeaderKey(entry.Key)
 			if len(canonicalKey) >= 10 && canonicalKey[:10] == "Anthropic-" {
-				r.Out.Header[canonicalKey] = entry.Value
+				proxyReq.Out.Header[canonicalKey] = entry.Value
 			}
 		})
-		r.Out.Header.Set("Content-Type", "application/json")
+		proxyReq.Out.Header.Set("Content-Type", "application/json")
 	} else {
 		// CONFIGURED KEY MODE: Use our configured keys
 		// Either client has no auth, or provider doesn't accept client auth
-		r.Out.Header.Del("Authorization")
-		r.Out.Header.Del("x-api-key")
+		proxyReq.Out.Header.Del("Authorization")
+		proxyReq.Out.Header.Del("x-api-key")
 
 		// Get the selected API key from context (set in ServeHTTP via header)
-		selectedKey := r.In.Header.Get("X-Selected-Key")
+		selectedKey := proxyReq.In.Header.Get("X-Selected-Key")
 		if selectedKey == "" {
 			selectedKey = pp.APIKey // Fallback to single-key mode
 		}
 
 		// Only authenticate if we have a key to use
 		if selectedKey != "" {
-			if err := pp.Provider.Authenticate(r.Out, selectedKey); err != nil {
+			if err := pp.Provider.Authenticate(proxyReq.Out, selectedKey); err != nil {
 				log.Error().
 					Err(err).
 					Str("provider", pp.Provider.Name()).
@@ -230,9 +231,9 @@ func (pp *ProviderProxy) setAuth(r *httputil.ProxyRequest) {
 		// If no key available, let backend return 401 (transparent error)
 
 		// Forward anthropic-* headers
-		forwardHeaders := pp.Provider.ForwardHeaders(r.In.Header)
+		forwardHeaders := pp.Provider.ForwardHeaders(proxyReq.In.Header)
 		lo.ForEach(lo.Entries(forwardHeaders), func(entry lo.Entry[string, []string], _ int) {
-			r.Out.Header[entry.Key] = entry.Value
+			proxyReq.Out.Header[entry.Key] = entry.Value
 		})
 	}
 }
@@ -259,6 +260,7 @@ func newEventStreamToSSEBody(original io.ReadCloser) *eventStreamToSSEBody {
 		original:  original,
 		sseBuffer: bytes.NewBuffer(nil),
 		esBuffer:  make([]byte, 0, 32*1024),
+		done:      false,
 	}
 }
 

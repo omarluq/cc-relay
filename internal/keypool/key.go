@@ -55,21 +55,35 @@ type KeyMetadata struct {
 // The key ID appears in logs for debugging purposes. It's not used for authentication.
 func NewKeyMetadata(apiKey string, rpm, itpm, otpm int) *KeyMetadata {
 	hasher := fnv.New64a()
-	_, _ = hasher.Write([]byte(apiKey))
-	id := hex.EncodeToString(hasher.Sum(nil))[:8]
+
+	var keyID string
+	if _, hashErr := hasher.Write([]byte(apiKey)); hashErr != nil {
+		// fnv hash.Write never returns an error per Go's hash.Hash contract,
+		// but we handle it defensively
+		keyID = "00000000"
+	} else {
+		keyID = hex.EncodeToString(hasher.Sum(nil))[:8]
+	}
 
 	return &KeyMetadata{
-		ID:            id,
+		RPMResetAt:    time.Time{},
+		ITPMResetAt:   time.Time{},
+		OTPMResetAt:   time.Time{},
+		LastErrorAt:   time.Time{},
+		CooldownUntil: time.Time{},
+		LastError:     nil,
 		APIKey:        apiKey,
+		ID:            keyID,
 		RPMLimit:      rpm,
 		ITPMLimit:     itpm,
 		OTPMLimit:     otpm,
 		RPMRemaining:  rpm,
 		ITPMRemaining: itpm,
 		OTPMRemaining: otpm,
-		Healthy:       true,
 		Priority:      1, // Normal priority
 		Weight:        1, // Default weight
+		mu:            sync.RWMutex{},
+		Healthy:       true,
 	}
 }
 

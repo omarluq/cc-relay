@@ -24,50 +24,58 @@ func init() {
 // proxyEnvVars are the environment variables that cc-relay sets in Claude Code settings.
 var proxyEnvVars = []string{"ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"}
 
-func runConfigCCRemove(_ *cobra.Command, _ []string) error {
-	settingsPath, err := getClaudeSettingsPath()
+func runConfigCCRemove(cmd *cobra.Command, _ []string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	removed, settingsPath, err := removeCCRelayConfig(home)
 	if err != nil {
 		return err
 	}
 
-	settings, err := readClaudeSettings(settingsPath)
-	if errors.Is(err, ErrSettingsNotFound) {
-		fmt.Println("No Claude Code settings found. Nothing to remove.")
+	if removed == nil {
+		cmd.Println("No cc-relay configuration found in Claude Code settings.")
 		return nil
 	}
+
+	printRemovalSummary(cmd, settingsPath, removed)
+	return nil
+}
+
+// removeCCRelayConfig removes cc-relay env vars from Claude Code settings.
+// Returns the list of removed keys and the settings path, or nil if nothing was removed.
+func removeCCRelayConfig(home string) (removed []string, settingsPath string, err error) {
+	settingsPath = filepath.Join(home, ".claude", "settings.json")
+
+	var settings map[string]interface{}
+	settings, err = readClaudeSettings(settingsPath)
+	if errors.Is(err, ErrSettingsNotFound) {
+		return nil, settingsPath, nil
+	}
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 
 	env, ok := settings["env"].(map[string]interface{})
 	if !ok {
-		fmt.Println("No environment variables found in settings. Nothing to remove.")
-		return nil
+		return nil, settingsPath, nil
 	}
 
-	removed := removeProxyEnvVars(env)
+	removed = removeProxyEnvVars(env)
 	if len(removed) == 0 {
-		fmt.Println("No cc-relay configuration found in Claude Code settings.")
-		return nil
+		return nil, settingsPath, nil
 	}
 
 	updateSettingsEnv(settings, env)
 
-	if err := writeClaudeSettings(settingsPath, settings); err != nil {
-		return err
+	writeErr := writeClaudeSettings(settingsPath, settings)
+	if writeErr != nil {
+		return nil, "", writeErr
 	}
 
-	printRemovalSummary(settingsPath, removed)
-	return nil
-}
-
-// getClaudeSettingsPath returns the path to Claude Code settings.json.
-func getClaudeSettingsPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-	return filepath.Join(home, ".claude", "settings.json"), nil
+	return removed, settingsPath, nil
 }
 
 // ErrSettingsNotFound indicates the Claude Code settings file doesn't exist.
@@ -76,6 +84,8 @@ var ErrSettingsNotFound = errors.New("settings file not found")
 // readClaudeSettings reads and parses the Claude Code settings.json.
 // Returns ErrSettingsNotFound if the file doesn't exist.
 func readClaudeSettings(path string) (map[string]interface{}, error) {
+	// Clean the path to avoid directory traversal issues
+	path = filepath.Clean(path)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -118,18 +128,18 @@ func writeClaudeSettings(path string, settings map[string]interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0600); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write settings.json: %w", err)
 	}
 	return nil
 }
 
 // printRemovalSummary prints a summary of the removed configuration.
-func printRemovalSummary(settingsPath string, removed []string) {
-	fmt.Println("Removed cc-relay configuration from Claude Code:")
+func printRemovalSummary(cmd *cobra.Command, settingsPath string, removed []string) {
+	cmd.Println("Removed cc-relay configuration from Claude Code:")
 	for _, key := range removed {
-		fmt.Printf("  - %s\n", key)
+		cmd.Printf("  - %s\n", key)
 	}
-	fmt.Printf("\nSettings file: %s\n", settingsPath)
-	fmt.Println("Restart Claude Code for changes to take effect.")
+	cmd.Printf("\nSettings file: %s\n", settingsPath)
+	cmd.Println("Restart Claude Code for changes to take effect.")
 }

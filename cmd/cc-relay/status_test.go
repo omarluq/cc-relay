@@ -6,124 +6,81 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 const (
-	statusConfigFileName  = "config.yaml"
-	statusRestoreWdErrFmt = "failed to restore working directory: %v"
+	statusConfigFileName = "config.yaml"
 )
 
 func writeStatusConfig(t *testing.T, dir, listenAddr string) string {
 	t.Helper()
 	configPath := filepath.Join(dir, statusConfigFileName)
 	configContent := "server:\n  listen: " + listenAddr + "\n  api_key: test\n"
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return configPath
 }
 
-func saveWdHome(t *testing.T) func() {
-	t.Helper()
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	origHome := os.Getenv("HOME")
-
-	return func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(statusRestoreWdErrFmt, err)
-		}
-		os.Setenv("HOME", origHome)
-	}
-}
-
 func TestFindConfigFileForStatus(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Save original working directory and HOME
-	defer saveWdHome(t)()
+	t.Parallel()
 
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, statusConfigFileName)
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Set HOME to empty temp dir to prevent finding real config
-	os.Setenv("HOME", t.TempDir())
-
-	// Change to temp directory
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test finding config in current directory
-	found := findConfigFileForStatus()
-	if found != statusConfigFileName {
-		t.Errorf("Expected %q, got %q", statusConfigFileName, found)
+	// Test: file exists in given directory
+	found := findConfigIn(tmpDir)
+	if found != filepath.Join(tmpDir, defaultConfigFile) {
+		t.Errorf("Expected config in tmpDir, got %q", found)
 	}
 }
 
 func TestFindConfigFileForStatusNotFound(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Save original working directory and HOME
-	defer saveWdHome(t)()
-
-	// Change to temp directory without config.yaml
+	// Empty temp directory - no config file
 	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
 
-	// Set HOME to temp dir so it won't find user's config
-	os.Setenv("HOME", tmpDir)
-
-	// Should return default even if not found
-	found := findConfigFileForStatus()
-	if found != statusConfigFileName {
-		t.Errorf("Expected %q default, got %q", statusConfigFileName, found)
+	// Should return default when not found
+	found := findConfigIn(tmpDir)
+	if found != defaultConfigFile {
+		t.Errorf("Expected %q default, got %q", defaultConfigFile, found)
 	}
 }
 
 func TestFindConfigFileForStatusInHomeDir(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Save original working directory and HOME
-	defer saveWdHome(t)()
-
-	// Create temp directories
 	tmpDir := t.TempDir()
-	workDir := t.TempDir()
 
 	// Create config in HOME/.config/cc-relay/
 	configDir := filepath.Join(tmpDir, ".config", "cc-relay")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	configPath := filepath.Join(configDir, statusConfigFileName)
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Set HOME and change to work directory
-	os.Setenv("HOME", tmpDir)
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatal(err)
-	}
+	// Use a work directory that does NOT have config.yaml
+	workDir := t.TempDir()
 
-	// Should find config in HOME/.config/cc-relay/
-	found := findConfigFileForStatus()
+	// Should find config in home/.config/cc-relay/
+	found := findConfigInWithHome(workDir, tmpDir)
 	if found != configPath {
 		t.Errorf("Expected %q, got %q", configPath, found)
 	}
 }
 
 func TestRunStatusServerRunning(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	// Create a mock server that returns 200 OK on /health
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -142,41 +99,29 @@ func TestRunStatusServerRunning(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := writeStatusConfig(t, tmpDir, serverAddr)
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runStatus should succeed
-	err := runStatus(nil, nil)
+	// checkStatusWithConfig should succeed
+	err := checkStatusWithConfig(&cobra.Command{}, configPath)
 	if err != nil {
 		t.Errorf("Expected success for running server, got error: %v", err)
 	}
 }
 
 func TestRunStatusServerNotRunning(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	// Create temp config file pointing to a non-existent server
 	tmpDir := t.TempDir()
 	configPath := writeStatusConfig(t, tmpDir, "127.0.0.1:19999")
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runStatus should fail
-	err := runStatus(nil, nil)
+	// checkStatusWithConfig should fail
+	err := checkStatusWithConfig(&cobra.Command{}, configPath)
 	if err == nil {
 		t.Error("Expected error for non-running server")
 	}
 }
 
 func TestRunStatusServerUnhealthy(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	// Create a mock server that returns 500 on /health
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -195,30 +140,18 @@ func TestRunStatusServerUnhealthy(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := writeStatusConfig(t, tmpDir, serverAddr)
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runStatus should fail
-	err := runStatus(nil, nil)
+	// checkStatusWithConfig should fail
+	err := checkStatusWithConfig(&cobra.Command{}, configPath)
 	if err == nil {
 		t.Error("Expected error for unhealthy server")
 	}
 }
 
 func TestRunStatusInvalidConfig(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = "/nonexistent/path/config.yaml"
-
-	// runStatus should fail
-	err := runStatus(nil, nil)
+	// checkStatusWithConfig should fail
+	err := checkStatusWithConfig(&cobra.Command{}, "/nonexistent/path/config.yaml")
 	if err == nil {
 		t.Error("Expected error for invalid config")
 	}

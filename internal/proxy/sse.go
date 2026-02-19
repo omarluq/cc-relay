@@ -58,8 +58,10 @@ type SSESignatureProcessor struct {
 // NewSSESignatureProcessor creates a new SSE signature processor.
 func NewSSESignatureProcessor(cache *SignatureCache, modelName string) *SSESignatureProcessor {
 	return &SSESignatureProcessor{
-		cache:     cache,
-		modelName: modelName,
+		cache:            cache,
+		modelName:        modelName,
+		currentSignature: "",
+		thinkingText:     strings.Builder{},
 	}
 }
 

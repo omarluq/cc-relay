@@ -60,17 +60,19 @@ func NewWatcher(path string, opts ...WatcherOption) (*Watcher, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	w := &Watcher{
-		path:          absPath,
+	watcher := &Watcher{
+		ctx:           ctx,
 		fsWatcher:     fsWatcher,
+		cancel:        cancel,
+		path:          absPath,
 		callbacks:     make([]ReloadCallback, 0),
 		debounceDelay: 100 * time.Millisecond,
-		ctx:           ctx,
-		cancel:        cancel,
+		mu:            sync.RWMutex{},
+		closed:        false,
 	}
 
 	for _, opt := range opts {
-		opt(w)
+		opt(watcher)
 	}
 
 	// Watch parent directory to catch atomic writes (temp + rename pattern)
@@ -82,7 +84,7 @@ func NewWatcher(path string, opts ...WatcherOption) (*Watcher, error) {
 		return nil, err
 	}
 
-	return w, nil
+	return watcher, nil
 }
 
 // Path returns the absolute path being watched.

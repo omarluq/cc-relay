@@ -1,4 +1,4 @@
-package router
+package router_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // mockProvider implements providers.Provider for testing.
@@ -26,11 +27,19 @@ func (m *mockProvider) ListModels() []providers.Model                { return ni
 func (m *mockProvider) GetModelMapping() map[string]string           { return nil }
 func (m *mockProvider) MapModel(model string) string                 { return model }
 
-func (m *mockProvider) TransformRequest(body []byte, endpoint string) (newBody []byte, targetURL string, err error) {
+func (m *mockProvider) TransformRequest(
+	body []byte, endpoint string,
+) (newBody []byte, targetURL string, err error) {
 	return body, "http://test" + endpoint, nil
 }
-func (m *mockProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error { return nil }
-func (m *mockProvider) RequiresBodyTransform() bool                                     { return false }
+
+func (m *mockProvider) TransformResponse(
+	_ *http.Response, _ http.ResponseWriter,
+) error {
+	return nil
+}
+
+func (m *mockProvider) RequiresBodyTransform() bool { return false }
 func (m *mockProvider) StreamingContentType() string {
 	return providers.ContentTypeSSE
 }
@@ -38,50 +47,50 @@ func (m *mockProvider) StreamingContentType() string {
 func TestWeightedRoundRobinRouterSelectNoProviders(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
-	_, err := r.Select(context.Background(), []ProviderInfo{})
+	wrr := router.NewWeightedRoundRobinRouter()
+	_, err := wrr.Select(context.Background(), []router.ProviderInfo{})
 
-	if !errors.Is(err, ErrNoProviders) {
-		t.Errorf("Select() error = %v, want ErrNoProviders", err)
+	if !errors.Is(err, router.ErrNoProviders) {
+		t.Errorf("Select() error = %v, want router.ErrNoProviders", err)
 	}
 }
 
 func TestWeightedRoundRobinRouterSelectAllUnhealthy(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return false }, Weight: 1},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return false }, Weight: 1},
+	wrr := router.NewWeightedRoundRobinRouter()
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return false }, Weight: 1, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return false }, Weight: 1, Priority: 0},
 	}
 
-	_, err := r.Select(context.Background(), infos)
+	_, err := wrr.Select(context.Background(), infos)
 
-	if !errors.Is(err, ErrAllProvidersUnhealthy) {
-		t.Errorf("Select() error = %v, want ErrAllProvidersUnhealthy", err)
+	if !errors.Is(err, router.ErrAllProvidersUnhealthy) {
+		t.Errorf("Select() error = %v, want router.ErrAllProvidersUnhealthy", err)
 	}
 }
 
 func TestWeightedRoundRobinRouterSelectEqualWeights(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 1},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1},
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1},
+	wrr := router.NewWeightedRoundRobinRouter()
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
 	}
 
 	// With equal weights, distribution should be even
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
 	iterations := 300 // Exact multiple of 3 for perfect distribution
 
-	for i := 0; i < iterations; i++ {
-		p, err := r.Select(context.Background(), infos)
+	for idx := 0; idx < iterations; idx++ {
+		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		counts[p.Provider.Name()]++
+		counts[prov.Provider.Name()]++
 	}
 
 	// With Nginx smooth algorithm, equal weights should give exactly equal distribution
@@ -96,24 +105,24 @@ func TestWeightedRoundRobinRouterSelectEqualWeights(t *testing.T) {
 func TestWeightedRoundRobinRouterSelectProportionalWeights(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
+	wrr := router.NewWeightedRoundRobinRouter()
 	// A:3, B:2, C:1 = total 6
 	// Expected: A~50%, B~33%, C~17%
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 3},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 2},
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1},
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 3, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
+		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
 	}
 
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
 	iterations := 600 // Exact multiple of total weight (6) for perfect distribution
 
-	for i := 0; i < iterations; i++ {
-		p, err := r.Select(context.Background(), infos)
+	for idx := 0; idx < iterations; idx++ {
+		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		counts[p.Provider.Name()]++
+		counts[prov.Provider.Name()]++
 	}
 
 	// With Nginx smooth algorithm, distribution should be exactly proportional
@@ -138,22 +147,22 @@ func TestWeightedRoundRobinRouterSelectProportionalWeights(t *testing.T) {
 func TestWeightedRoundRobinRouterSelectDefaultWeight(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
+	wrr := router.NewWeightedRoundRobinRouter()
 	// Provider with Weight=0 should get default weight of 1
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 0}, // Default to 1
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
 	}
 
 	counts := map[string]int{"a": 0, "b": 0}
 	iterations := 300 // Multiple of total weight (3)
 
-	for i := 0; i < iterations; i++ {
-		p, err := r.Select(context.Background(), infos)
+	for idx := 0; idx < iterations; idx++ {
+		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		counts[p.Provider.Name()]++
+		counts[prov.Provider.Name()]++
 	}
 
 	// A: 2/3 * 300 = 200, B: 1/3 * 300 = 100
@@ -164,29 +173,30 @@ func TestWeightedRoundRobinRouterSelectDefaultWeight(t *testing.T) {
 		t.Errorf("Provider A selected %d times, want exactly %d", counts["a"], expectedA)
 	}
 	if counts["b"] != expectedB {
-		t.Errorf("Provider B (weight=0 -> default 1) selected %d times, want exactly %d", counts["b"], expectedB)
+		t.Errorf("Provider B (weight=0 -> default 1) selected %d times, want exactly %d",
+			counts["b"], expectedB)
 	}
 }
 
 func TestWeightedRoundRobinRouterSelectNegativeWeight(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
+	wrr := router.NewWeightedRoundRobinRouter()
 	// Provider with negative weight should get default weight of 1
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: -5}, // Default to 1
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: -5, Priority: 0},
 	}
 
 	counts := map[string]int{"a": 0, "b": 0}
 	iterations := 300
 
-	for i := 0; i < iterations; i++ {
-		p, err := r.Select(context.Background(), infos)
+	for idx := 0; idx < iterations; idx++ {
+		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		counts[p.Provider.Name()]++
+		counts[prov.Provider.Name()]++
 	}
 
 	// A: 2/3 * 300 = 200, B: 1/3 * 300 = 100
@@ -197,31 +207,32 @@ func TestWeightedRoundRobinRouterSelectNegativeWeight(t *testing.T) {
 		t.Errorf("Provider A selected %d times, want exactly %d", counts["a"], expectedA)
 	}
 	if counts["b"] != expectedB {
-		t.Errorf("Provider B (negative weight -> default 1) selected %d times, want exactly %d", counts["b"], expectedB)
+		t.Errorf("Provider B (negative weight -> default 1) selected %d times, want exactly %d",
+			counts["b"], expectedB)
 	}
 }
 
 func TestWeightedRoundRobinRouterSelectSkipsUnhealthy(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
+	wrr := router.NewWeightedRoundRobinRouter()
 	// A:3 healthy, B:2 unhealthy, C:1 healthy
 	// Only A and C should be selected, proportional to their weights (3:1)
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 3},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return false }, Weight: 2},
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1},
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 3, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return false }, Weight: 2, Priority: 0},
+		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
 	}
 
 	counts := map[string]int{"a": 0, "b": 0, "c": 0}
 	iterations := 400 // Multiple of 4 (3+1)
 
-	for i := 0; i < iterations; i++ {
-		p, err := r.Select(context.Background(), infos)
+	for idx := 0; idx < iterations; idx++ {
+		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		counts[p.Provider.Name()]++
+		counts[prov.Provider.Name()]++
 	}
 
 	// B should never be selected
@@ -244,39 +255,39 @@ func TestWeightedRoundRobinRouterSelectSkipsUnhealthy(t *testing.T) {
 func TestWeightedRoundRobinRouterSelectReinitializesOnProviderChange(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
+	wrr := router.NewWeightedRoundRobinRouter()
 
 	// Initial providers
-	infos1 := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 1},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1},
+	infos1 := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
 	}
 
 	// Make some selections to build up state
-	for i := 0; i < 10; i++ {
-		_, err := r.Select(context.Background(), infos1)
+	for idx := 0; idx < 10; idx++ {
+		_, err := wrr.Select(context.Background(), infos1)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
 	}
 
 	// Change provider list
-	infos2 := []ProviderInfo{
-		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1},
-		{Provider: &mockProvider{"d"}, IsHealthy: func() bool { return true }, Weight: 1},
-		{Provider: &mockProvider{"e"}, IsHealthy: func() bool { return true }, Weight: 1},
+	infos2 := []router.ProviderInfo{
+		{Provider: &mockProvider{"c"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		{Provider: &mockProvider{"d"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
+		{Provider: &mockProvider{"e"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
 	}
 
 	// Should work without issue - state reinitializes
 	counts := map[string]int{"c": 0, "d": 0, "e": 0}
 	iterations := 300
 
-	for i := 0; i < iterations; i++ {
-		p, err := r.Select(context.Background(), infos2)
+	for idx := 0; idx < iterations; idx++ {
+		prov, err := wrr.Select(context.Background(), infos2)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		counts[p.Provider.Name()]++
+		counts[prov.Provider.Name()]++
 	}
 
 	// Should have even distribution with new providers
@@ -291,37 +302,37 @@ func TestWeightedRoundRobinRouterSelectReinitializesOnProviderChange(t *testing.
 func TestWeightedRoundRobinRouterSelectConcurrentSafety(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1},
+	wrr := router.NewWeightedRoundRobinRouter()
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
 	}
 
-	var wg sync.WaitGroup
+	var waitGroup sync.WaitGroup
 	goroutines := 10
 	selectionsPerGoroutine := 100
 
-	mu := sync.Mutex{}
+	mutex := sync.Mutex{}
 	counts := map[string]int{"a": 0, "b": 0}
 
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
+	for gIdx := 0; gIdx < goroutines; gIdx++ {
+		waitGroup.Add(1)
 		go func() {
-			defer wg.Done()
-			for j := 0; j < selectionsPerGoroutine; j++ {
-				p, err := r.Select(context.Background(), infos)
+			defer waitGroup.Done()
+			for selIdx := 0; selIdx < selectionsPerGoroutine; selIdx++ {
+				prov, err := wrr.Select(context.Background(), infos)
 				if err != nil {
 					t.Errorf("Select() unexpected error: %v", err)
 					return
 				}
-				mu.Lock()
-				counts[p.Provider.Name()]++
-				mu.Unlock()
+				mutex.Lock()
+				counts[prov.Provider.Name()]++
+				mutex.Unlock()
 			}
 		}()
 	}
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	total := goroutines * selectionsPerGoroutine
 	if counts["a"]+counts["b"] != total {
@@ -334,8 +345,10 @@ func TestWeightedRoundRobinRouterSelectConcurrentSafety(t *testing.T) {
 	expectedAMax := int(float64(total) * 0.8) // At most 80% for A
 
 	if counts["a"] < expectedAMin || counts["a"] > expectedAMax {
-		t.Errorf("Provider A selected %d times (%.1f%%), want between 50%%-80%% of %d",
-			counts["a"], float64(counts["a"])/float64(total)*100, total)
+		t.Errorf(
+			"Provider A selected %d times (%.1f%%), want between 50%%-80%% of %d",
+			counts["a"], float64(counts["a"])/float64(total)*100, total,
+		)
 	}
 }
 
@@ -344,27 +357,27 @@ func TestWeightedRoundRobinRouterSelectSmoothDistribution(t *testing.T) {
 
 	// Test that the Nginx smooth algorithm produces even distribution
 	// rather than clustering (e.g., not AAABBC pattern but ABACAB pattern)
-	r := NewWeightedRoundRobinRouter()
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2},
-		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1},
+	wrr := router.NewWeightedRoundRobinRouter()
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"a"}, IsHealthy: func() bool { return true }, Weight: 2, Priority: 0},
+		{Provider: &mockProvider{"b"}, IsHealthy: func() bool { return true }, Weight: 1, Priority: 0},
 	}
 
 	// Get 6 selections - should see smooth pattern
 	selections := make([]string, 0, 6)
-	for i := 0; i < 6; i++ {
-		p, err := r.Select(context.Background(), infos)
+	for idx := 0; idx < 6; idx++ {
+		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		selections = append(selections, p.Provider.Name())
+		selections = append(selections, prov.Provider.Name())
 	}
 
 	// Count consecutive same provider selections (clustering)
 	maxConsecutive := 1
 	currentConsecutive := 1
-	for i := 1; i < len(selections); i++ {
-		if selections[i] == selections[i-1] {
+	for idx := 1; idx < len(selections); idx++ {
+		if selections[idx] == selections[idx-1] {
 			currentConsecutive++
 			if currentConsecutive > maxConsecutive {
 				maxConsecutive = currentConsecutive
@@ -385,18 +398,18 @@ func TestWeightedRoundRobinRouterSelectSmoothDistribution(t *testing.T) {
 func TestWeightedRoundRobinRouterSelectSingleProvider(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
-	infos := []ProviderInfo{
-		{Provider: &mockProvider{"only"}, IsHealthy: func() bool { return true }, Weight: 5},
+	wrr := router.NewWeightedRoundRobinRouter()
+	infos := []router.ProviderInfo{
+		{Provider: &mockProvider{"only"}, IsHealthy: func() bool { return true }, Weight: 5, Priority: 0},
 	}
 
-	for i := 0; i < 10; i++ {
-		p, err := r.Select(context.Background(), infos)
+	for idx := 0; idx < 10; idx++ {
+		prov, err := wrr.Select(context.Background(), infos)
 		if err != nil {
 			t.Fatalf("Select() unexpected error: %v", err)
 		}
-		if p.Provider.Name() != "only" {
-			t.Errorf("Select() = %s, want 'only'", p.Provider.Name())
+		if prov.Provider.Name() != "only" {
+			t.Errorf("Select() = %s, want 'only'", prov.Provider.Name())
 		}
 	}
 }
@@ -404,9 +417,9 @@ func TestWeightedRoundRobinRouterSelectSingleProvider(t *testing.T) {
 func TestWeightedRoundRobinRouterName(t *testing.T) {
 	t.Parallel()
 
-	r := NewWeightedRoundRobinRouter()
-	if r.Name() != StrategyWeightedRoundRobin {
-		t.Errorf("Name() = %q, want %q", r.Name(), StrategyWeightedRoundRobin)
+	wrr := router.NewWeightedRoundRobinRouter()
+	if wrr.Name() != router.StrategyWeightedRoundRobin {
+		t.Errorf("Name() = %q, want %q", wrr.Name(), router.StrategyWeightedRoundRobin)
 	}
 }
 
@@ -425,12 +438,17 @@ func TestGetEffectiveWeight(t *testing.T) {
 		{"large weight", 100, 100},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			p := ProviderInfo{Weight: tt.weight}
-			if got := getEffectiveWeight(p); got != tt.expected {
-				t.Errorf("getEffectiveWeight() = %d, want %d", got, tt.expected)
+			prov := router.ProviderInfo{
+				Provider:  router.NewTestProvider("test"),
+				Weight:    testCase.weight,
+				Priority:  0,
+				IsHealthy: nil,
+			}
+			if got := router.GetEffectiveWeight(prov); got != testCase.expected {
+				t.Errorf("router.GetEffectiveWeight() = %d, want %d", got, testCase.expected)
 			}
 		})
 	}
@@ -441,8 +459,8 @@ func TestStringSliceEqual(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		a        []string
-		b        []string
+		sliceA   []string
+		sliceB   []string
 		expected bool
 	}{
 		{"both empty", []string{}, []string{}, true},
@@ -455,15 +473,16 @@ func TestStringSliceEqual(t *testing.T) {
 		{"one empty one not", []string{}, []string{"a"}, false},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			if got := stringSliceEqual(tt.a, tt.b); got != tt.expected {
-				t.Errorf("stringSliceEqual(%v, %v) = %v, want %v", tt.a, tt.b, got, tt.expected)
+			if got := router.StringSliceEqual(testCase.sliceA, testCase.sliceB); got != testCase.expected {
+				t.Errorf("router.StringSliceEqual(%v, %v) = %v, want %v",
+					testCase.sliceA, testCase.sliceB, got, testCase.expected)
 			}
 		})
 	}
 }
 
 // Verify interface compliance at compile time.
-var _ ProviderRouter = (*WeightedRoundRobinRouter)(nil)
+var _ router.ProviderRouter = (*router.WeightedRoundRobinRouter)(nil)

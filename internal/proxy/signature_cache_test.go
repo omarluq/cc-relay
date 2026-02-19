@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"context"
@@ -9,9 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/omarluq/cc-relay/internal/cache"
+
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
+// testValidSignature is a valid signature long enough for caching (>= MinSignatureLen).
+const testValidSignature = "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
+
 func TestGetModelGroup(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		model    string
@@ -32,14 +39,29 @@ func TestGetModelGroup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetModelGroup(tt.model)
+			t.Parallel()
+			got := proxy.GetModelGroup(tt.model)
 			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
 
 func TestSignatureCacheCacheKey(t *testing.T) {
+	t.Parallel()
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -48,33 +70,51 @@ func TestSignatureCacheCacheKey(t *testing.T) {
 		},
 	}
 
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sc := NewSignatureCache(c)
-	require.NotNil(t, sc)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
+	require.NotNil(t, sigCache)
 
 	// Test deterministic key generation
-	key1 := sc.cacheKey("claude", "thinking text")
-	key2 := sc.cacheKey("claude", "thinking text")
+	key1 := proxy.CacheKey(sigCache, "claude", "thinking text")
+	key2 := proxy.CacheKey(sigCache, "claude", "thinking text")
 	assert.Equal(t, key1, key2, "same input should produce same key")
 
 	// Test different text produces different key
-	key3 := sc.cacheKey("claude", "different thinking text")
+	key3 := proxy.CacheKey(sigCache, "claude", "different thinking text")
 	assert.NotEqual(t, key1, key3, "different text should produce different key")
 
 	// Test different model group produces different key
-	key4 := sc.cacheKey("gpt", "thinking text")
+	key4 := proxy.CacheKey(sigCache, "gpt", "thinking text")
 	assert.NotEqual(t, key1, key4, "different model group should produce different key")
 
 	// Test key format
 	assert.Contains(t, key1, "sig:claude:")
-	assert.Len(t, key1, len("sig:claude:")+SignatureHashLen)
+	assert.Len(t, key1, len("sig:claude:")+proxy.SignatureHashLen)
 }
 
 func TestSignatureCacheGetSet(t *testing.T) {
+	t.Parallel()
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -83,44 +123,62 @@ func TestSignatureCacheGetSet(t *testing.T) {
 		},
 	}
 
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sc := NewSignatureCache(c)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	// Generate a valid signature (>= MinSignatureLen)
-	validSig := "sig_" + string(make([]byte, MinSignatureLen))
+	validSig := "sig_" + string(make([]byte, proxy.MinSignatureLen))
 	for i := 4; i < len(validSig); i++ {
 		validSig = validSig[:i] + "a" + validSig[i+1:]
 	}
-	validSig = "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
+	validSig = testValidSignature
 
 	// Test cache miss
-	got := sc.Get(ctx, "claude-sonnet-4", "thinking text")
+	got := sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
 	assert.Empty(t, got, "should return empty on cache miss")
 
 	// Test cache set and get
-	sc.Set(ctx, "claude-sonnet-4", "thinking text", validSig)
+	sigCache.Set(ctx, "claude-sonnet-4", "thinking text", validSig)
 
 	// Ristretto needs a small delay for async set
 	time.Sleep(10 * time.Millisecond)
 
-	got = sc.Get(ctx, "claude-sonnet-4", "thinking text")
+	got = sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
 	assert.Equal(t, validSig, got, "should return cached signature")
 
 	// Test same model group retrieval (different model, same group)
-	got = sc.Get(ctx, "claude-3-opus", "thinking text")
+	got = sigCache.Get(ctx, "claude-3-opus", "thinking text")
 	assert.Equal(t, validSig, got, "should return signature for same model group")
 
 	// Test different model group (should miss)
-	got = sc.Get(ctx, "gpt-4", "thinking text")
+	got = sigCache.Get(ctx, "gpt-4", "thinking text")
 	assert.Empty(t, got, "should miss for different model group")
 }
 
 func TestSignatureCacheSkipsShortSignatures(t *testing.T) {
+	t.Parallel()
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -129,31 +187,38 @@ func TestSignatureCacheSkipsShortSignatures(t *testing.T) {
 		},
 	}
 
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sc := NewSignatureCache(c)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	// Try to set a short signature (should be skipped)
 	shortSig := "short"
-	sc.Set(ctx, "claude-sonnet-4", "thinking text", shortSig)
+	sigCache.Set(ctx, "claude-sonnet-4", "thinking text", shortSig)
 
 	time.Sleep(10 * time.Millisecond)
 
 	// Should not be cached
-	got := sc.Get(ctx, "claude-sonnet-4", "thinking text")
+	got := sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
 	assert.Empty(t, got, "short signature should not be cached")
 }
 
 func TestSignatureCacheNilCache(t *testing.T) {
+	t.Parallel(
 	// NewSignatureCache with nil should return nil
-	sc := NewSignatureCache(nil)
-	assert.Nil(t, sc)
+	)
+
+	sigCache := proxy.NewSignatureCache(nil)
+	assert.Nil(t, sigCache)
 
 	// Operations on nil SignatureCache should be safe
-	var nilSC *SignatureCache
+	var nilSC *proxy.SignatureCache
 	ctx := context.Background()
 
 	// Get should return empty
@@ -167,6 +232,7 @@ func TestSignatureCacheNilCache(t *testing.T) {
 }
 
 func TestIsValidSignature(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		modelName string
@@ -175,23 +241,38 @@ func TestIsValidSignature(t *testing.T) {
 	}{
 		{"empty signature", "claude", "", false},
 		{"short signature", "claude", "abc", false},
-		{"just under minimum", "claude", string(make([]byte, MinSignatureLen-1)), false},
-		{"exactly minimum", "claude", string(make([]byte, MinSignatureLen)), true},
+		{"just under minimum", "claude", string(make([]byte, proxy.MinSignatureLen-1)), false},
+		{"exactly minimum", "claude", string(make([]byte, proxy.MinSignatureLen)), true},
 		{"valid long signature", "claude", string(make([]byte, 100)), true},
-		{"gemini sentinel", "gemini-pro", GeminiSignatureSentinel, true},
-		{"gemini sentinel invalid for non-gemini", "claude", GeminiSignatureSentinel, false},
+		{"gemini sentinel", "gemini-pro", proxy.GeminiSignatureSentinel, true},
+		{"gemini sentinel invalid for non-gemini", "claude", proxy.GeminiSignatureSentinel, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := IsValidSignature(tt.modelName, tt.signature)
+			t.Parallel()
+			got := proxy.IsValidSignature(tt.modelName, tt.signature)
 			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
 
 func TestSignatureCacheGeminiSentinel(t *testing.T) {
+	t.Parallel()
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -200,18 +281,22 @@ func TestSignatureCacheGeminiSentinel(t *testing.T) {
 		},
 	}
 
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sc := NewSignatureCache(c)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	// Gemini sentinel should be cached even though it's short
-	sc.Set(ctx, "gemini-pro", "thinking text", GeminiSignatureSentinel)
+	sigCache.Set(ctx, "gemini-pro", "thinking text", proxy.GeminiSignatureSentinel)
 
 	time.Sleep(10 * time.Millisecond)
 
-	got := sc.Get(ctx, "gemini-pro", "thinking text")
-	assert.Equal(t, GeminiSignatureSentinel, got)
+	got := sigCache.Get(ctx, "gemini-pro", "thinking text")
+	assert.Equal(t, proxy.GeminiSignatureSentinel, got)
 }

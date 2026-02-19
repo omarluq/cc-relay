@@ -28,29 +28,31 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
-func runConfigValidate(_ *cobra.Command, _ []string) error {
+func runConfigValidate(cmd *cobra.Command, _ []string) error {
 	// Determine config path
 	configPath := cfgFile
 	if configPath == "" {
 		configPath = findConfigFileForValidate()
 	}
 
-	// Load and validate config
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		fmt.Printf("✗ Config validation failed: %s\n", err)
+	if err := validateConfigAtPath(configPath); err != nil {
+		cmd.Printf("✗ Config validation failed: %s\n", err)
 		return err
 	}
 
-	// Additional validation checks
-	if err := validateConfig(cfg); err != nil {
-		fmt.Printf("✗ Config validation failed: %s\n", err)
-		return err
-	}
-
-	fmt.Printf("✓ %s is valid\n", configPath)
+	cmd.Printf("✓ %s is valid\n", configPath)
 
 	return nil
+}
+
+// validateConfigAtPath validates the config file at the given path.
+func validateConfigAtPath(configPath string) error {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return err
+	}
+
+	return validateConfig(cfg)
 }
 
 // validateConfig performs semantic validation beyond YAML parsing.
@@ -100,5 +102,31 @@ func findConfigFileForValidate() string {
 		}
 	}
 
+	return defaultConfigFile
+}
+
+// findConfigIn searches for defaultConfigFile in workDir, returning full path
+// if found, or just the default name if not found. For testing without global state.
+func findConfigIn(workDir string) string {
+	p := filepath.Join(workDir, defaultConfigFile)
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	return defaultConfigFile
+}
+
+// findConfigInWithHome searches for defaultConfigFile in workDir then
+// homeDir/.config/cc-relay/. For testing without global state.
+func findConfigInWithHome(workDir, homeDir string) string {
+	// Check current directory
+	p := filepath.Join(workDir, defaultConfigFile)
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	// Check homeDir/.config/cc-relay/
+	homeConfig := filepath.Join(homeDir, ".config", "cc-relay", defaultConfigFile)
+	if _, err := os.Stat(homeConfig); err == nil {
+		return homeConfig
+	}
 	return defaultConfigFile
 }

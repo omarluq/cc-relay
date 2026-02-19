@@ -17,12 +17,23 @@ type noopCache struct {
 	closed atomic.Bool
 }
 
+// newNoopCacheWithLog creates a new no-op cache instance with a specific logger.
+func newNoopCacheWithLog(log *zerolog.Logger) *noopCache {
+	l := log.With().Str("component", "cache").Str("backend", "noop").Logger()
+	l.Debug().Str("note", "caching is disabled").Msg("noop cache created")
+	return &noopCache{
+		log:    l,
+		closed: atomic.Bool{},
+	}
+}
+
 // newNoopCache creates a new no-op cache instance.
 func newNoopCache() *noopCache {
 	log := logger().With().Str("backend", "noop").Logger()
 	log.Debug().Str("note", "caching is disabled").Msg("noop cache created")
 	return &noopCache{
-		log: log,
+		log:    log,
+		closed: atomic.Bool{},
 	}
 }
 
@@ -100,7 +111,13 @@ func (c *noopCache) Close() error {
 // Stats returns zeroed cache statistics.
 // The noopCache never stores anything, so all stats are zero.
 func (c *noopCache) Stats() Stats {
-	return Stats{}
+	return Stats{
+		Hits:      0,
+		Misses:    0,
+		KeyCount:  0,
+		BytesUsed: 0,
+		Evictions: 0,
+	}
 }
 
 // Compile-time interface checks ensure noopCache implements required interfaces.

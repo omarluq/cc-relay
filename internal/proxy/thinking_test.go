@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/omarluq/cc-relay/internal/cache"
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 // Test gjson path constants to avoid duplication.
@@ -20,6 +21,7 @@ const (
 )
 
 func TestHasThinkingBlocks(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		body     string
@@ -72,14 +74,29 @@ func TestHasThinkingBlocks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := HasThinkingBlocks([]byte(tt.body))
+			t.Parallel()
+			got := proxy.HasThinkingBlocks([]byte(tt.body))
 			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
 
 func TestProcessRequestThinkingCachedSignature(t *testing.T) {
+	t.Parallel()
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -87,17 +104,21 @@ func TestProcessRequestThinkingCachedSignature(t *testing.T) {
 			BufferItems: 64,
 		},
 	}
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sc := NewSignatureCache(c)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	// Pre-populate cache with a valid signature
 	validSig := "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
 	thinkingText := "Let me think about this..."
-	sc.Set(ctx, "claude-sonnet-4", thinkingText, validSig)
+	sigCache.Set(ctx, "claude-sonnet-4", thinkingText, validSig)
 	time.Sleep(10 * time.Millisecond) // Wait for Ristretto async set
 
 	// Request body with thinking block (no signature - will use cached)
@@ -110,7 +131,7 @@ func TestProcessRequestThinkingCachedSignature(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", sc)
+	modifiedBody, thinkingCtx, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", sigCache)
 	require.NoError(t, err)
 
 	// Verify cached signature was used
@@ -120,9 +141,23 @@ func TestProcessRequestThinkingCachedSignature(t *testing.T) {
 }
 
 func TestProcessRequestThinkingClientSignatureTakesPriority(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -130,11 +165,15 @@ func TestProcessRequestThinkingClientSignatureTakesPriority(t *testing.T) {
 			BufferItems: 64,
 		},
 	}
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sigCache := NewSignatureCache(c)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
 
 	// Pre-populate cache with a DIFFERENT signature for the same thinking text
 	thinkingText := "I need to consider this carefully..."
@@ -157,7 +196,7 @@ func TestProcessRequestThinkingClientSignatureTakesPriority(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, _, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", sigCache)
+	modifiedBody, _, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", sigCache)
 	require.NoError(t, err)
 
 	// Verify the CLIENT signature was used, not the cached one
@@ -166,12 +205,13 @@ func TestProcessRequestThinkingClientSignatureTakesPriority(t *testing.T) {
 }
 
 func TestProcessRequestThinkingDropsAndReordersCorrectly(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Request with unsigned thinking (to drop), text, and thinking (signed)
 	// After dropping unsigned block, the remaining blocks should be reordered:
 	// thinking should come before text
-	validSig := "valid_signature_that_is_definitely_long_enough_for_validation"
+	validSig := proxy.ValidTestSignature
 	body := `{
 		"model": "claude-sonnet-4",
 		"messages": [
@@ -183,7 +223,7 @@ func TestProcessRequestThinkingDropsAndReordersCorrectly(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, _, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	modifiedBody, _, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
 	require.NoError(t, err)
 
 	// Verify unsigned block was dropped
@@ -196,6 +236,7 @@ func TestProcessRequestThinkingDropsAndReordersCorrectly(t *testing.T) {
 }
 
 func TestProcessRequestThinkingClientSignature(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Valid client signature
@@ -210,7 +251,7 @@ func TestProcessRequestThinkingClientSignature(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	modifiedBody, thinkingCtx, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
 	require.NoError(t, err)
 
 	// Verify client signature was preserved
@@ -220,6 +261,7 @@ func TestProcessRequestThinkingClientSignature(t *testing.T) {
 }
 
 func TestProcessRequestThinkingUnsignedBlockDropped(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	body := `{
@@ -232,7 +274,7 @@ func TestProcessRequestThinkingUnsignedBlockDropped(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	modifiedBody, thinkingCtx, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
 	require.NoError(t, err)
 
 	// Verify thinking block was dropped
@@ -243,6 +285,7 @@ func TestProcessRequestThinkingUnsignedBlockDropped(t *testing.T) {
 }
 
 func TestProcessRequestThinkingToolUseInheritance(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Valid signature for thinking block
@@ -258,7 +301,7 @@ func TestProcessRequestThinkingToolUseInheritance(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	modifiedBody, thinkingCtx, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
 	require.NoError(t, err)
 
 	// Verify tool_use does not include signature
@@ -269,10 +312,11 @@ func TestProcessRequestThinkingToolUseInheritance(t *testing.T) {
 }
 
 func TestProcessRequestThinkingBlockReordering(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Valid signature
-	sig := "valid_signature_that_is_definitely_long_enough_for_validation"
+	sig := proxy.ValidTestSignature
 
 	// Text block before thinking block (wrong order)
 	body := `{
@@ -285,7 +329,7 @@ func TestProcessRequestThinkingBlockReordering(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	modifiedBody, thinkingCtx, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
 	require.NoError(t, err)
 
 	// Verify blocks were reordered
@@ -297,6 +341,7 @@ func TestProcessRequestThinkingBlockReordering(t *testing.T) {
 }
 
 func TestFormatSignature(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		modelName string
 		signature string
@@ -310,13 +355,15 @@ func TestFormatSignature(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.modelName, func(t *testing.T) {
-			got := FormatSignature(tt.modelName, tt.signature)
+			t.Parallel()
+			got := proxy.FormatSignature(tt.modelName, tt.signature)
 			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
 
 func TestParseSignature(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		prefixed  string
@@ -331,24 +378,28 @@ func TestParseSignature(t *testing.T) {
 		{"multiple hashes", "claude#sig#extra", "claude", "sig#extra", true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			group, sig, ok := ParseSignature(tt.prefixed)
-			assert.Equal(t, tt.wantGroup, group)
-			assert.Equal(t, tt.wantSig, sig)
-			assert.Equal(t, tt.wantOK, ok)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			group, sig, ok := proxy.ParseSignature(testCase.prefixed)
+			assert.Equal(t, testCase.wantGroup, group)
+			assert.Equal(t, testCase.wantSig, sig)
+			assert.Equal(t, testCase.wantOK, ok)
 		})
 	}
 }
 
 func TestProcessRequestThinkingPreservesUnknownFields(t *testing.T) {
+	t.Parallel(
 	// Regression test for Anthropic API error:
 	// "thinking blocks in the latest assistant message cannot be modified"
 	// The proxy was reconstructing thinking blocks from scratch, losing fields like
 	// 'data' and 'redacted_thinking' that Anthropic now requires to be preserved.
+	)
+
 	ctx := context.Background()
 
-	sig := "valid_signature_that_is_definitely_long_enough_for_validation"
+	sig := proxy.ValidTestSignature
 
 	// Thinking block with additional fields that must be preserved
 	body := `{
@@ -374,7 +425,7 @@ func TestProcessRequestThinkingPreservesUnknownFields(t *testing.T) {
 		]
 	}`
 
-	modifiedBody, thinkingCtx, err := ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
+	modifiedBody, thinkingCtx, err := proxy.ProcessRequestThinking(ctx, []byte(body), "claude-sonnet-4", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, thinkingCtx.DroppedBlocks)
 
@@ -391,7 +442,21 @@ func TestProcessRequestThinkingPreservesUnknownFields(t *testing.T) {
 }
 
 func TestProcessResponseSignature(t *testing.T) {
+	t.Parallel()
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -399,11 +464,15 @@ func TestProcessResponseSignature(t *testing.T) {
 			BufferItems: 64,
 		},
 	}
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sc := NewSignatureCache(c)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	thinkingText := "Let me analyze this..."
@@ -412,26 +481,41 @@ func TestProcessResponseSignature(t *testing.T) {
 	eventData := `{"type": "content_block_delta", "delta": ` +
 		`{"type": "signature_delta", "signature": "` + signature + `"}}`
 
-	modifiedData := ProcessResponseSignature(ctx, []byte(eventData), thinkingText, "claude-sonnet-4", sc)
+	modifiedData := proxy.ProcessResponseSignature(ctx, []byte(eventData), thinkingText, "claude-sonnet-4", sigCache)
 
 	// Verify signature was prefixed
 	var result map[string]interface{}
 	err = json.Unmarshal(modifiedData, &result)
 	require.NoError(t, err)
 
-	delta := result["delta"].(map[string]interface{})
+	delta, ok := result["delta"].(map[string]interface{})
+	require.True(t, ok, "delta should be a map")
 	assert.Equal(t, "claude#"+signature, delta["signature"])
 
 	// Wait for Ristretto async set
 	time.Sleep(10 * time.Millisecond)
 
 	// Verify signature was cached
-	cached := sc.Get(ctx, "claude-sonnet-4", thinkingText)
+	cached := sigCache.Get(ctx, "claude-sonnet-4", thinkingText)
 	assert.Equal(t, signature, cached, "signature should be cached")
 }
 
 func TestProcessNonStreamingResponse(t *testing.T) {
+	t.Parallel()
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -439,11 +523,15 @@ func TestProcessNonStreamingResponse(t *testing.T) {
 			BufferItems: 64,
 		},
 	}
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sc := NewSignatureCache(c)
+	sigCache := proxy.NewSignatureCache(cacheInstance)
 	ctx := context.Background()
 
 	signature := "response_signature_that_is_long_enough_for_validation"
@@ -456,7 +544,7 @@ func TestProcessNonStreamingResponse(t *testing.T) {
 		]
 	}`
 
-	modifiedBody := ProcessNonStreamingResponse(ctx, []byte(body), "claude-sonnet-4", sc)
+	modifiedBody := proxy.ProcessNonStreamingResponse(ctx, []byte(body), "claude-sonnet-4", sigCache)
 
 	// Verify signature was prefixed
 	sig := gjson.GetBytes(modifiedBody, "content.0.signature").String()
@@ -466,7 +554,7 @@ func TestProcessNonStreamingResponse(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Verify signature was cached
-	cached := sc.Get(ctx, "claude-sonnet-4", thinkingText)
+	cached := sigCache.Get(ctx, "claude-sonnet-4", thinkingText)
 	assert.Equal(t, signature, cached)
 }
 
@@ -484,14 +572,17 @@ func BenchmarkHasThinkingBlocks(b *testing.B) {
 
 	b.Run("HasThinkingBlocks", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			HasThinkingBlocks(bodyWithThinking)
+			proxy.HasThinkingBlocks(bodyWithThinking)
 		}
 	})
 
 	b.Run("JSONParse", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			var body map[string]interface{}
-			_ = json.Unmarshal(bodyWithThinking, &body)
+			// Intentionally ignoring errors in benchmark for fair comparison
+			if unmarshalErr := json.Unmarshal(bodyWithThinking, &body); unmarshalErr != nil {
+				b.Fatal(unmarshalErr)
+			}
 		}
 	})
 }
@@ -507,7 +598,7 @@ func BenchmarkHasThinkingBlocksNoThinking(b *testing.B) {
 
 	b.Run("HasThinkingBlocks", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			HasThinkingBlocks(bodyWithoutThinking)
+			proxy.HasThinkingBlocks(bodyWithoutThinking)
 		}
 	})
 }

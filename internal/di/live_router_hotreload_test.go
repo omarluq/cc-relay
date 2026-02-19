@@ -1,12 +1,14 @@
-package di
+package di_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/omarluq/cc-relay/internal/router"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/omarluq/cc-relay/internal/di"
+	"github.com/omarluq/cc-relay/internal/providers"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // TestLiveRouter_HotReloadStrategyChange verifies that changing the routing
@@ -17,29 +19,28 @@ func TestLiveRouterHotReloadStrategyChange(t *testing.T) {
 	t.Parallel()
 
 	// Start with round_robin strategy
-	cfg1 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: "round_robin",
-		},
-	}
-	cfgSvc := &ConfigService{
-		Config: cfg1,
-	}
-	cfgSvc.config.Store(cfg1)
+	cfg1 := di.MustTestConfig()
+	cfg1.Routing = di.MustTestRoutingConfig("round_robin")
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg1)
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouterAsFunc())
 
-	providers := []router.ProviderInfo{
-		{Weight: 1, Priority: 1, IsHealthy: func() bool { return true }},
-		{Weight: 2, Priority: 2, IsHealthy: func() bool { return true }},
-		{Weight: 3, Priority: 3, IsHealthy: func() bool { return true }},
+	// Create test providers with full ProviderInfo
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
+	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com")
+
+	providerInfos := []router.ProviderInfo{
+		di.MustTestProviderInfo(p1, 1, 1),
+		di.MustTestProviderInfo(p2, 2, 2),
+		di.MustTestProviderInfo(p3, 3, 3),
 	}
 
 	// With round_robin, should distribute across providers
 	roundRobinSelections := make([]int, 0, 4)
 	for i := 0; i < 4; i++ {
-		selected, err := liveRouter.Select(context.Background(), providers)
+		selected, err := liveRouter.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		roundRobinSelections = append(roundRobinSelections, selected.Weight)
 	}
@@ -49,18 +50,16 @@ func TestLiveRouterHotReloadStrategyChange(t *testing.T) {
 		"Round-robin should distribute across providers")
 
 	// Now change strategy to failover
-	cfg2 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: "failover",
-		},
-	}
-	cfgSvc.config.Store(cfg2)
+	cfg2 := di.MustTestConfig()
+	cfg2.Routing = di.MustTestRoutingConfig("failover")
+	cfgSvc.GetConfigAtomic().Store(&cfg2)
+	cfgSvc.Config = &cfg2
 
 	// With failover, should always select highest priority (higher priority number = higher priority)
 	// Provider with Priority 3 (Weight 3) should always be selected
 	failoverSelections := make([]int, 0, 4)
 	for i := 0; i < 4; i++ {
-		selected, err := liveRouter.Select(context.Background(), providers)
+		selected, err := liveRouter.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		failoverSelections = append(failoverSelections, selected.Weight)
 	}
@@ -79,31 +78,24 @@ func TestLiveRouterHotReloadStrategyChange(t *testing.T) {
 func TestLiveRouterHotReloadTimeoutChange(t *testing.T) {
 	t.Parallel()
 
-	cfg1 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        "failover",
-			FailoverTimeout: 5000, // 5 seconds
-		},
-	}
-	cfgSvc := &ConfigService{
-		Config: cfg1,
-	}
-	cfgSvc.config.Store(cfg1)
+	cfg1 := di.MustTestConfig()
+	cfg1.Routing = di.MustTestRoutingConfig("failover")
+	cfg1.Routing.FailoverTimeout = 5000
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	cfgSvc := di.NewConfigServiceWithConfig(&cfg1)
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	// Get initial router
 	rr1 := routerSvc.GetRouter()
 	assert.Equal(t, "failover", rr1.Name())
 
 	// Change timeout
-	cfg2 := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        "failover",
-			FailoverTimeout: 10000, // 10 seconds
-		},
-	}
-	cfgSvc.config.Store(cfg2)
+	cfg2 := di.MustTestConfig()
+	cfg2.Routing = di.MustTestRoutingConfig("failover")
+	cfg2.Routing.FailoverTimeout = 10000
+
+	cfgSvc.GetConfigAtomic().Store(&cfg2)
+	cfgSvc.Config = &cfg2
 
 	// Live router should pick up new timeout on next Select
 	rr2 := routerSvc.GetRouter()

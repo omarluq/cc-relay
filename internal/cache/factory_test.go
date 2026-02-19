@@ -1,4 +1,4 @@
-package cache
+package cache_test
 
 import (
 	"bytes"
@@ -6,38 +6,68 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/omarluq/cc-relay/internal/cache"
 )
 
+const factoryTestKey = "test-key"
+
+// emptyOlricConfig returns an empty OlricConfig for test setup.
+func emptyOlricConfig() cache.OlricConfig {
+	return cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          false,
+	}
+}
+
+// emptyRistrettoConfig returns an empty RistrettoConfig for test setup.
+func emptyRistrettoConfig() cache.RistrettoConfig {
+	return cache.RistrettoConfig{
+		NumCounters: 0,
+		MaxCost:     0,
+		BufferItems: 0,
+	}
+}
+
 func TestNewModeSingleCreatesRistretto(t *testing.T) {
-	cfg := Config{
-		Mode: ModeSingle,
-		Ristretto: RistrettoConfig{
-			NumCounters: 1000,
-			MaxCost:     1 << 20, // 1 MB
-			BufferItems: 64,
-		},
+	t.Parallel()
+	cfg := cache.Config{
+		Mode:      cache.ModeSingle,
+		Olric:     emptyOlricConfig(),
+		Ristretto: cache.RistrettoConfig{NumCounters: 1000, MaxCost: 1 << 20, BufferItems: 64},
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, &cfg)
+	cacheInst, err := cache.New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
-	defer c.Close()
+	t.Cleanup(func() {
+		if closeErr := cacheInst.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
 
-	// Verify it's a working cache by using it
-	key := "test-key"
+	key := factoryTestKey
 	value := []byte("test-value")
 
-	err = c.Set(ctx, key, value)
-	if err != nil {
-		t.Fatalf("Set() error = %v, want nil", err)
+	if setErr := cacheInst.Set(ctx, key, value); setErr != nil {
+		t.Fatalf("Set() error = %v, want nil", setErr)
 	}
 
 	// Ristretto is async, wait for write to complete
 	time.Sleep(10 * time.Millisecond)
 
-	got, err := c.Get(ctx, key)
+	got, err := cacheInst.Get(ctx, key)
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
@@ -45,40 +75,43 @@ func TestNewModeSingleCreatesRistretto(t *testing.T) {
 		t.Errorf("Get() = %q, want %q", got, value)
 	}
 
-	// Verify it implements StatsProvider (Ristretto does)
-	if _, ok := c.(StatsProvider); !ok {
+	if _, ok := cacheInst.(cache.StatsProvider); !ok {
 		t.Error("expected cache to implement StatsProvider")
 	}
 }
 
 func TestNewModeDisabledCreatesNoop(t *testing.T) {
-	cfg := Config{
-		Mode: ModeDisabled,
+	t.Parallel()
+	cfg := cache.Config{
+		Mode:      cache.ModeDisabled,
+		Olric:     emptyOlricConfig(),
+		Ristretto: emptyRistrettoConfig(),
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, &cfg)
+	cacheInst, err := cache.New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
-	defer c.Close()
+	t.Cleanup(func() {
+		if closeErr := cacheInst.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
 
-	// Verify noop behavior: Set succeeds but Get returns ErrNotFound
-	key := "test-key"
+	key := factoryTestKey
 	value := []byte("test-value")
 
-	err = c.Set(ctx, key, value)
-	if err != nil {
-		t.Fatalf("Set() error = %v, want nil", err)
+	if setErr := cacheInst.Set(ctx, key, value); setErr != nil {
+		t.Fatalf("Set() error = %v, want nil", setErr)
 	}
 
-	_, err = c.Get(ctx, key)
-	if !errors.Is(err, ErrNotFound) {
+	_, err = cacheInst.Get(ctx, key)
+	if !errors.Is(err, cache.ErrNotFound) {
 		t.Errorf("Get() error = %v, want ErrNotFound", err)
 	}
 
-	// Verify Exists returns false
-	exists, err := c.Exists(ctx, key)
+	exists, err := cacheInst.Exists(ctx, key)
 	if err != nil {
 		t.Fatalf("Exists() error = %v, want nil", err)
 	}
@@ -88,37 +121,52 @@ func TestNewModeDisabledCreatesNoop(t *testing.T) {
 }
 
 func TestNewModeHACreatesOlric(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping HA test in short mode (requires embedded Olric)")
 	}
 
-	// Use embedded mode for testing (no external Olric cluster needed)
-	cfg := Config{
-		Mode: ModeHA,
-		Olric: OlricConfig{
-			Embedded: true,
-			BindAddr: "127.0.0.1:3320", // Default Olric port
-			DMapName: "test-cache",
+	cfg := cache.Config{
+		Mode:  cache.ModeHA,
+		Olric: cache.OlricConfig{
+			DMapName:          "test-cache",
+			BindAddr:          "127.0.0.1:3320",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          true,
+		},
+		Ristretto: cache.RistrettoConfig{
+			NumCounters: 0,
+			MaxCost:     0,
+			BufferItems: 0,
 		},
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, &cfg)
+	cacheInst, err := cache.New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v, want nil", err)
 	}
-	defer c.Close()
+	t.Cleanup(func() {
+		if closeErr := cacheInst.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
 
-	// Verify it's a working cache by using it
-	key := "test-key"
+	key := factoryTestKey
 	value := []byte("test-value")
 
-	err = c.Set(ctx, key, value)
-	if err != nil {
-		t.Fatalf("Set() error = %v, want nil", err)
+	if setErr := cacheInst.Set(ctx, key, value); setErr != nil {
+		t.Fatalf("Set() error = %v, want nil", setErr)
 	}
 
-	got, err := c.Get(ctx, key)
+	got, err := cacheInst.Get(ctx, key)
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
@@ -128,148 +176,132 @@ func TestNewModeHACreatesOlric(t *testing.T) {
 }
 
 func TestNewInvalidModeReturnsError(t *testing.T) {
-	cfg := Config{
-		Mode: Mode("invalid-mode"),
+	t.Parallel()
+	cfg := cache.Config{
+		Mode:      cache.Mode("invalid-mode"),
+		Olric:     emptyOlricConfig(),
+		Ristretto: emptyRistrettoConfig(),
 	}
 
 	ctx := context.Background()
-	_, err := New(ctx, &cfg)
+	_, err := cache.New(ctx, &cfg)
 	if err == nil {
 		t.Fatal("New() error = nil, want error for invalid mode")
 	}
 
-	// Check error message mentions the invalid mode
-	if !containsString(err.Error(), "invalid-mode") {
+	if !cache.ContainsString(err.Error(), "invalid-mode") {
 		t.Errorf("error message %q should mention 'invalid-mode'", err.Error())
 	}
 }
 
 func TestNewInvalidConfigReturnsError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		wantErr string
-		cfg     Config
+		cfg     cache.Config
 	}{
 		{
-			name: "empty mode",
-			cfg: Config{
-				Mode: "",
-			},
+			name:    "empty mode",
+			cfg:     cache.Config{Mode: "", Olric: emptyOlricConfig(), Ristretto: emptyRistrettoConfig()},
 			wantErr: "mode is required",
 		},
 		{
 			name: "single mode with zero max_cost",
-			cfg: Config{
-				Mode: ModeSingle,
-				Ristretto: RistrettoConfig{
-					NumCounters: 1000,
-					MaxCost:     0,
-					BufferItems: 64,
-				},
+			cfg: cache.Config{
+				Mode:      cache.ModeSingle,
+				Olric:     emptyOlricConfig(),
+				Ristretto: cache.RistrettoConfig{NumCounters: 1000, MaxCost: 0, BufferItems: 64},
 			},
 			wantErr: "max_cost must be positive",
 		},
 		{
 			name: "single mode with zero num_counters",
-			cfg: Config{
-				Mode: ModeSingle,
-				Ristretto: RistrettoConfig{
-					NumCounters: 0,
-					MaxCost:     1 << 20,
-					BufferItems: 64,
-				},
+			cfg: cache.Config{
+				Mode:      cache.ModeSingle,
+				Olric:     emptyOlricConfig(),
+				Ristretto: cache.RistrettoConfig{NumCounters: 0, MaxCost: 1 << 20, BufferItems: 64},
 			},
 			wantErr: "num_counters must be positive",
 		},
 		{
-			name: "ha mode without addresses and not embedded",
-			cfg: Config{
-				Mode: ModeHA,
-				Olric: OlricConfig{
-					Embedded:  false,
-					Addresses: nil,
-				},
-			},
+			name:    "ha mode without addresses and not embedded",
+			cfg:     cache.Config{Mode: cache.ModeHA, Olric: emptyOlricConfig(), Ristretto: emptyRistrettoConfig()},
 			wantErr: "addresses required",
 		},
 		{
 			name: "ha mode embedded without bind_addr",
-			cfg: Config{
-				Mode: ModeHA,
-				Olric: OlricConfig{
-					Embedded: true,
-					BindAddr: "",
+			cfg: cache.Config{
+				Mode: cache.ModeHA,
+				Olric: cache.OlricConfig{
+					DMapName:          "",
+					BindAddr:          "",
+					Environment:       "",
+					Addresses:         nil,
+					Peers:             nil,
+					ReplicaCount:      0,
+					ReadQuorum:        0,
+					WriteQuorum:       0,
+					LeaveTimeout:      0,
+					MemberCountQuorum: 0,
+					Embedded:          true,
 				},
+				Ristretto: emptyRistrettoConfig(),
 			},
 			wantErr: "bind_addr required",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
-			_, err := New(ctx, &tt.cfg)
+			_, err := cache.New(ctx, &testCase.cfg)
 			if err == nil {
 				t.Fatal("New() error = nil, want error")
 			}
-			if !containsString(err.Error(), tt.wantErr) {
-				t.Errorf("error message %q should contain %q", err.Error(), tt.wantErr)
+			if !cache.ContainsString(err.Error(), testCase.wantErr) {
+				t.Errorf("error message %q should contain %q", err.Error(), testCase.wantErr)
 			}
 		})
 	}
 }
 
 func TestNewDefaultConfigWorks(t *testing.T) {
+	t.Parallel()
 	// Test that DefaultRistrettoConfig produces a valid single-mode config
-	cfg := Config{
-		Mode:      ModeSingle,
-		Ristretto: DefaultRistrettoConfig(),
+	cfg := cache.Config{
+		Mode:      cache.ModeSingle,
+		Olric:     emptyOlricConfig(),
+		Ristretto: cache.DefaultRistrettoConfig(),
 	}
 
 	ctx := context.Background()
-	c, err := New(ctx, &cfg)
+	cacheInst, err := cache.New(ctx, &cfg)
 	if err != nil {
 		t.Fatalf("New() with DefaultRistrettoConfig error = %v, want nil", err)
 	}
-	defer c.Close()
+	t.Cleanup(func() {
+		if closeErr := cacheInst.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	})
 
-	// Verify basic operations work
 	key := "default-test"
 	value := []byte("default-value")
 
-	err = c.Set(ctx, key, value)
-	if err != nil {
-		t.Fatalf("Set() error = %v, want nil", err)
+	if setErr := cacheInst.Set(ctx, key, value); setErr != nil {
+		t.Fatalf("Set() error = %v, want nil", setErr)
 	}
 
 	// Wait for async write
 	time.Sleep(10 * time.Millisecond)
 
-	got, err := c.Get(ctx, key)
+	got, err := cacheInst.Get(ctx, key)
 	if err != nil {
 		t.Fatalf("Get() error = %v, want nil", err)
 	}
 	if !bytes.Equal(got, value) {
 		t.Errorf("Get() = %q, want %q", got, value)
 	}
-}
-
-// containsString checks if a string contains a substring (case-insensitive not needed here).
-func containsString(s, substr string) bool {
-	if substr == "" {
-		return true
-	}
-	if s == "" {
-		return false
-	}
-	return len(s) >= len(substr) && findSubstring(s, substr)
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

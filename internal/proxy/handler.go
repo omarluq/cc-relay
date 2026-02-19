@@ -127,11 +127,12 @@ func newHandlerWithOptions(opts *HandlerOptions) (*Handler, error) {
 
 	initialInfos := providerInfosFunc()
 
-	h := &Handler{
+	handler := &Handler{
 		providerProxies:  make(map[string]*ProviderProxy),
 		defaultProvider:  opts.Provider,
 		providers:        providerInfosFunc,
 		router:           opts.ProviderRouter,
+		runtimeCfg:       nil,
 		routingConfig:    opts.RoutingConfig,
 		debugOpts:        opts.DebugOptions,
 		routingDebug:     opts.RoutingDebug,
@@ -141,9 +142,10 @@ func newHandlerWithOptions(opts *HandlerOptions) (*Handler, error) {
 		getProviderKeys:  opts.GetProviderKeys,
 		providerPools:    providerPools,
 		providerKeys:     providerKeys,
+		proxyMu:          sync.RWMutex{},
 	}
 
-	if err := initProviderProxies(h, &providerProxyInit{
+	if err := initProviderProxies(handler, &providerProxyInit{
 		provider:      opts.Provider,
 		apiKey:        opts.APIKey,
 		pool:          opts.Pool,
@@ -155,7 +157,7 @@ func newHandlerWithOptions(opts *HandlerOptions) (*Handler, error) {
 		return nil, err
 	}
 
-	return h, nil
+	return handler, nil
 }
 
 func resolveInitialMaps(
@@ -181,13 +183,15 @@ type providerProxyInit struct {
 	debugOpts     config.DebugOptions
 }
 
-func initProviderProxies(h *Handler, init *providerProxyInit) error {
+func initProviderProxies(handler *Handler, init *providerProxyInit) error {
 	if len(init.initialInfos) == 0 {
-		pp, err := NewProviderProxy(init.provider, init.apiKey, init.pool, init.debugOpts, h.modifyResponse)
+		providerProxy, err := NewProviderProxy(init.provider, init.apiKey,
+			init.pool, init.debugOpts, handler.modifyResponse,
+		)
 		if err != nil {
 			return err
 		}
-		h.providerProxies[init.provider.Name()] = pp
+		handler.providerProxies[init.provider.Name()] = providerProxy
 		return nil
 	}
 
@@ -202,11 +206,11 @@ func initProviderProxies(h *Handler, init *providerProxyInit) error {
 			provPool = init.providerPools[prov.Name()]
 		}
 
-		pp, err := NewProviderProxy(prov, key, provPool, init.debugOpts, h.modifyResponse)
+		providerProxy, err := NewProviderProxy(prov, key, provPool, init.debugOpts, handler.modifyResponse)
 		if err != nil {
 			return fmt.Errorf("failed to create proxy for %s: %w", prov.Name(), err)
 		}
-		h.providerProxies[prov.Name()] = pp
+		handler.providerProxies[prov.Name()] = providerProxy
 	}
 
 	return nil
@@ -326,11 +330,11 @@ func (h *Handler) getOrCreateProxy(prov providers.Provider) (*ProviderProxy, err
 
 	// Fast path: read lock to check if proxy exists and matches
 	h.proxyMu.RLock()
-	pp, exists := h.providerProxies[provName]
+	providerProxy, exists := h.providerProxies[provName]
 	h.proxyMu.RUnlock()
 
-	if exists && h.proxyMatches(pp, prov, keys, pools, key, pool) {
-		return pp, nil
+	if exists && h.proxyMatches(providerProxy, prov, keys, pools, key, pool) {
+		return providerProxy, nil
 	}
 
 	// Slow path: write lock to create proxy
@@ -338,23 +342,23 @@ func (h *Handler) getOrCreateProxy(prov providers.Provider) (*ProviderProxy, err
 	defer h.proxyMu.Unlock()
 
 	// Double-check after acquiring write lock
-	pp, exists = h.providerProxies[provName]
-	if exists && h.proxyMatches(pp, prov, keys, pools, key, pool) {
-		return pp, nil
+	providerProxy, exists = h.providerProxies[provName]
+	if exists && h.proxyMatches(providerProxy, prov, keys, pools, key, pool) {
+		return providerProxy, nil
 	}
 
 	// In single-provider mode (maps==nil), preserve existing proxy's values.
 	// This ensures we don't lose values set during handler construction.
-	key, pool = h.preserveProxyAuthInputs(pp, key, pool, keys, pools)
+	key, pool = h.preserveProxyAuthInputs(providerProxy, key, pool, keys, pools)
 
 	// (Re)create proxy if provider instance or auth inputs changed
-	pp, err := NewProviderProxy(prov, key, pool, h.getDebugOptions(), h.modifyResponse)
+	providerProxy, err := NewProviderProxy(prov, key, pool, h.getDebugOptions(), h.modifyResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy for %s: %w", provName, err)
 	}
 
-	h.providerProxies[provName] = pp
-	return pp, nil
+	h.providerProxies[provName] = providerProxy
+	return providerProxy, nil
 }
 
 func (h *Handler) currentKeyPool(
@@ -387,17 +391,17 @@ func (h *Handler) currentKeyPool(
 }
 
 func (h *Handler) preserveProxyAuthInputs(
-	pp *ProviderProxy,
+	providerProxy *ProviderProxy,
 	key string,
 	pool *keypool.KeyPool,
 	keys map[string]string,
 	pools map[string]*keypool.KeyPool,
 ) (string, *keypool.KeyPool) {
-	if keys == nil && pp != nil && pp.APIKey != "" {
-		key = pp.APIKey
+	if keys == nil && providerProxy != nil && providerProxy.APIKey != "" {
+		key = providerProxy.APIKey
 	}
-	if pools == nil && pp != nil && pp.KeyPool != nil {
-		pool = pp.KeyPool
+	if pools == nil && providerProxy != nil && providerProxy.KeyPool != nil {
+		pool = providerProxy.KeyPool
 	}
 	return key, pool
 }
@@ -407,31 +411,31 @@ func (h *Handler) preserveProxyAuthInputs(
 // values set during handler construction. In multi-provider mode, compares values
 // to detect hot-reload changes.
 func (h *Handler) proxyMatches(
-	pp *ProviderProxy,
+	providerProxy *ProviderProxy,
 	prov providers.Provider,
 	keys map[string]string,
 	pools map[string]*keypool.KeyPool,
 	key string,
 	pool *keypool.KeyPool,
 ) bool {
-	if pp == nil {
+	if providerProxy == nil {
 		return false
 	}
 
 	// Provider instance must match; rebuild if provider was recreated on reload.
-	if pp.Provider != prov {
+	if providerProxy.Provider != prov {
 		return false
 	}
 
 	// Provider must match name and base URL
-	if pp.Provider.Name() != prov.Name() || pp.Provider.BaseURL() != prov.BaseURL() {
+	if providerProxy.Provider.Name() != prov.Name() || providerProxy.Provider.BaseURL() != prov.BaseURL() {
 		return false
 	}
 
 	// In single-provider mode (nil maps), keys/pools always match.
 	// This preserves values set during handler construction via NewHandler.
-	keysMatch := keys == nil || pp.APIKey == key
-	poolsMatch := pools == nil || pp.KeyPool == pool
+	keysMatch := keys == nil || providerProxy.APIKey == key
+	poolsMatch := pools == nil || providerProxy.KeyPool == pool
 
 	return keysMatch && poolsMatch
 }
@@ -451,14 +455,14 @@ func (h *Handler) selectProvider(
 		}()
 	}
 
-	candidates, ok := h.providerCandidates()
-	if !ok {
+	candidates, hasCandidates := h.providerCandidates()
+	if !hasCandidates {
 		return h.defaultProviderInfo(), nil
 	}
 
 	// Filter providers if model-based routing is enabled
-	candidates, ok = h.applyModelRouting(candidates, model)
-	if !ok {
+	candidates, hasCandidates = h.applyModelRouting(candidates, model)
+	if !hasCandidates {
 		return h.defaultProviderInfo(), nil
 	}
 
@@ -485,6 +489,8 @@ func (h *Handler) defaultProviderInfo() router.ProviderInfo {
 	return router.ProviderInfo{
 		Provider:  h.defaultProvider,
 		IsHealthy: func() bool { return true },
+		Weight:    0,
+		Priority:  0,
 	}
 }
 
@@ -532,51 +538,51 @@ func (h *Handler) isModelBasedRouting() bool {
 // Returns keyID, key, updated request, and success.
 // If success is false, an error response has been written and caller should return.
 func (h *Handler) selectKeyFromPool(
-	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+	writer http.ResponseWriter, request *http.Request, logger *zerolog.Logger,
 	pool *keypool.KeyPool,
 ) (keyID, selectedKey string, updatedReq *http.Request, ok bool) {
 	var err error
-	keyID, selectedKey, err = pool.GetKey(r.Context())
+	keyID, selectedKey, err = pool.GetKey(request.Context())
 	if errors.Is(err, keypool.ErrAllKeysExhausted) {
 		retryAfter := pool.GetEarliestResetTime()
-		WriteRateLimitError(w, retryAfter)
+		WriteRateLimitError(writer, retryAfter)
 		logger.Warn().
 			Dur("retry_after", retryAfter).
 			Msg("all keys exhausted, returning 429")
-		return "", "", r, false
+		return "", "", request, false
 	}
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "internal_error",
+		WriteError(writer, http.StatusInternalServerError, "internal_error",
 			fmt.Sprintf("failed to select API key: %v", err))
 		logger.Error().Err(err).Msg("failed to select API key")
-		return "", "", r, false
+		return "", "", request, false
 	}
 
 	// Add relay headers to response
-	w.Header().Set(HeaderRelayKeyID, keyID)
+	writer.Header().Set(HeaderRelayKeyID, keyID)
 	stats := pool.GetStats()
-	w.Header().Set(HeaderRelayKeysTotal, strconv.Itoa(stats.TotalKeys))
-	w.Header().Set(HeaderRelayKeysAvail, strconv.Itoa(stats.AvailableKeys))
+	writer.Header().Set(HeaderRelayKeysTotal, strconv.Itoa(stats.TotalKeys))
+	writer.Header().Set(HeaderRelayKeysAvail, strconv.Itoa(stats.AvailableKeys))
 
 	// Store keyID in context for ModifyResponse
-	updatedReq = r.WithContext(context.WithValue(r.Context(), keyIDContextKey, keyID))
+	updatedReq = request.WithContext(context.WithValue(request.Context(), keyIDContextKey, keyID))
 
 	return keyID, selectedKey, updatedReq, true
 }
 
 // ServeHTTP handles the proxy request.
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	start := time.Now()
 
-	prep, ok := h.prepareRequest(w, r)
-	if !ok {
+	prep, requestOK := h.prepareRequest(writer, request)
+	if !requestOK {
 		return
 	}
-	r = prep.request
+	request = prep.request
 
-	selected, release, err := h.selectProviderWithTracking(r.Context(), prep.model, prep.hasThinking)
+	selected, release, err := h.selectProviderWithTracking(request.Context(), prep.model, prep.hasThinking)
 	if err != nil {
-		WriteError(w, http.StatusServiceUnavailable, "api_error",
+		WriteError(writer, http.StatusServiceUnavailable, "api_error",
 			fmt.Sprintf("failed to select provider: %v", err))
 		return
 	}
@@ -584,13 +590,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer release()
 	}
 
-	proxyCtx, ok := h.prepareProxyRequest(w, r, selected.Provider)
-	if !ok {
+	proxyCtx, requestOK := h.prepareProxyRequest(writer, request, selected.Provider)
+	if !requestOK {
 		return
 	}
 
 	backendStart := time.Now()
-	serveReverseProxy(proxyCtx.proxy.Proxy, w, proxyCtx.request)
+	serveReverseProxy(proxyCtx.proxy.Proxy, writer, proxyCtx.request)
 	backendTime := time.Since(backendStart)
 
 	h.logMetricsIfEnabled(proxyCtx.request, &proxyCtx.logger, start, backendTime, proxyCtx.getTLSMetrics)
@@ -599,7 +605,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // serveReverseProxy forwards the request via the pre-configured reverse proxy.
 // The proxy target URL was validated at construction time in NewProviderProxy.
 func serveReverseProxy(proxy *httputil.ReverseProxy, w http.ResponseWriter, r *http.Request) {
-	type httpHandler interface{ ServeHTTP(http.ResponseWriter, *http.Request) }
+	type httpHandler interface {
+		ServeHTTP(http.ResponseWriter, *http.Request)
+	}
 	httpHandler(proxy).ServeHTTP(w, r)
 }
 
@@ -609,38 +617,38 @@ type requestPrep struct {
 	hasThinking bool
 }
 
-func (h *Handler) prepareRequest(w http.ResponseWriter, r *http.Request) (requestPrep, bool) {
-	modelOpt, bodyTooLarge := ExtractModelWithBodyCheck(r)
+func (h *Handler) prepareRequest(writer http.ResponseWriter, request *http.Request) (requestPrep, bool) {
+	modelOpt, bodyTooLarge := ExtractModelWithBodyCheck(request)
 	if bodyTooLarge {
-		WriteBodyTooLargeError(w)
-		return requestPrep{}, false
+		WriteBodyTooLargeError(writer)
+		return requestPrep{request: nil, model: "", hasThinking: false}, false
 	}
 
 	model := modelOpt.OrEmpty()
 	if modelOpt.IsPresent() {
-		r = r.WithContext(CacheModelInContext(r.Context(), model))
+		request = request.WithContext(CacheModelInContext(request.Context(), model))
 	}
 	if model != "" {
-		r = r.WithContext(context.WithValue(r.Context(), modelNameContextKey, model))
+		request = request.WithContext(context.WithValue(request.Context(), modelNameContextKey, model))
 	}
 
-	r = h.processThinkingSignatures(r, model)
+	request = h.processThinkingSignatures(request, model)
 
-	hasThinking := h.detectThinkingAffinity(&r)
-	return requestPrep{request: r, model: model, hasThinking: hasThinking}, true
+	hasThinking := h.detectThinkingAffinity(&request)
+	return requestPrep{request: request, model: model, hasThinking: hasThinking}, true
 }
 
-func (h *Handler) detectThinkingAffinity(r **http.Request) bool {
+func (h *Handler) detectThinkingAffinity(request **http.Request) bool {
 	if h.router == nil || h.providers == nil {
 		return false
 	}
 	if len(h.providers()) <= 1 {
 		return false
 	}
-	if !HasThinkingSignature(*r) {
+	if !HasThinkingSignature(*request) {
 		return false
 	}
-	*r = (*r).WithContext(CacheThinkingAffinityInContext((*r).Context(), true))
+	*request = (*request).WithContext(CacheThinkingAffinityInContext((*request).Context(), true))
 	return true
 }
 
@@ -666,34 +674,34 @@ type proxyContext struct {
 }
 
 func (h *Handler) prepareProxyRequest(
-	w http.ResponseWriter, r *http.Request, selectedProvider providers.Provider,
+	writer http.ResponseWriter, request *http.Request, selectedProvider providers.Provider,
 ) (proxyContext, bool) {
 	providerProxy, err := h.getOrCreateProxy(selectedProvider)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "internal_error",
+		WriteError(writer, http.StatusInternalServerError, "internal_error",
 			fmt.Sprintf("failed to get proxy for provider %s: %v", selectedProvider.Name(), err))
-		return proxyContext{}, false
+		return proxyContext{request: nil, proxy: nil, logger: zerolog.Logger{}, getTLSMetrics: nil}, false
 	}
 
-	logger := h.createProviderLoggerWithProvider(r, selectedProvider)
-	r = r.WithContext(logger.WithContext(r.Context()))
-	r = r.WithContext(context.WithValue(r.Context(), providerNameContextKey, selectedProvider.Name()))
+	logger := h.createProviderLoggerWithProvider(request, selectedProvider)
+	request = request.WithContext(logger.WithContext(request.Context()))
+	request = request.WithContext(context.WithValue(request.Context(), providerNameContextKey, selectedProvider.Name()))
 
-	h.logAndSetDebugHeaders(w, r, &logger, selectedProvider)
+	h.logAndSetDebugHeaders(writer, request, &logger, selectedProvider)
 
 	var authOK bool
-	r, authOK = h.handleAuthAndKeySelection(w, r, &logger, providerProxy)
+	request, authOK = h.handleAuthAndKeySelection(writer, request, &logger, providerProxy)
 	if !authOK {
-		return proxyContext{}, false
+		return proxyContext{request: nil, proxy: nil, logger: zerolog.Logger{}, getTLSMetrics: nil}, false
 	}
 
-	h.rewriteModelIfNeeded(r, &logger, selectedProvider)
+	h.rewriteModelIfNeeded(request, &logger, selectedProvider)
 
-	r, getTLSMetrics := h.attachTLSTraceIfEnabled(r)
+	request, getTLSMetrics := h.attachTLSTraceIfEnabled(request)
 	logger.Debug().Msg("proxying request to backend")
 
 	return proxyContext{
-		request:       r,
+		request:       request,
 		proxy:         providerProxy,
 		logger:        logger,
 		getTLSMetrics: getTLSMetrics,
@@ -702,9 +710,9 @@ func (h *Handler) prepareProxyRequest(
 
 // logAndSetDebugHeaders logs routing strategy and sets debug headers if enabled.
 func (h *Handler) logAndSetDebugHeaders(
-	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger, selectedProvider providers.Provider,
+	writer http.ResponseWriter, request *http.Request, logger *zerolog.Logger, selectedProvider providers.Provider,
 ) {
-	hasThinking := GetThinkingAffinityFromContext(r.Context())
+	hasThinking := GetThinkingAffinityFromContext(request.Context())
 
 	// Log routing strategy if router is available
 	if h.router != nil {
@@ -723,27 +731,27 @@ func (h *Handler) logAndSetDebugHeaders(
 
 	// Add debug headers if routing debug is enabled
 	if h.router != nil {
-		w.Header().Set("X-CC-Relay-Strategy", h.router.Name())
-		w.Header().Set("X-CC-Relay-Provider", selectedProvider.Name())
+		writer.Header().Set("X-CC-Relay-Strategy", h.router.Name())
+		writer.Header().Set("X-CC-Relay-Provider", selectedProvider.Name())
 		if hasThinking {
-			w.Header().Set("X-CC-Relay-Thinking-Affinity", "true")
+			writer.Header().Set("X-CC-Relay-Thinking-Affinity", "true")
 		}
 	}
 
 	// Add health debug header
 	if h.healthTracker != nil {
 		state := h.healthTracker.GetState(selectedProvider.Name())
-		w.Header().Set("X-CC-Relay-Health", state.String())
+		writer.Header().Set("X-CC-Relay-Health", state.String())
 	}
 }
 
 // rewriteModelIfNeeded rewrites model name if provider has model mapping configured.
 func (h *Handler) rewriteModelIfNeeded(
-	r *http.Request, logger *zerolog.Logger, selectedProvider providers.Provider,
+	request *http.Request, logger *zerolog.Logger, selectedProvider providers.Provider,
 ) {
 	if mapping := selectedProvider.GetModelMapping(); len(mapping) > 0 {
 		rewriter := NewModelRewriter(mapping)
-		if err := rewriter.RewriteRequest(r, logger); err != nil {
+		if err := rewriter.RewriteRequest(request, logger); err != nil {
 			logger.Warn().Err(err).Msg("failed to rewrite model in request body")
 			// Continue with original request - don't fail on rewrite errors
 		}
@@ -762,11 +770,11 @@ func (h *Handler) createProviderLoggerWithProvider(r *http.Request, p providers.
 // Returns the updated request and success status.
 // Uses the provider from providerProxy for transparent auth checks and key selection.
 func (h *Handler) handleAuthAndKeySelection(
-	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+	writer http.ResponseWriter, request *http.Request, logger *zerolog.Logger,
 	providerProxy *ProviderProxy,
 ) (*http.Request, bool) {
-	clientAuth := r.Header.Get("Authorization")
-	clientAPIKey := r.Header.Get("x-api-key")
+	clientAuth := request.Header.Get("Authorization")
+	clientAPIKey := request.Header.Get("x-api-key")
 	hasClientAuth := clientAuth != "" || clientAPIKey != ""
 	useTransparentAuth := hasClientAuth && providerProxy.Provider.SupportsTransparentAuth()
 
@@ -775,21 +783,21 @@ func (h *Handler) handleAuthAndKeySelection(
 			Bool("has_authorization", clientAuth != "").
 			Bool("has_x_api_key", clientAPIKey != "").
 			Msg("transparent mode: forwarding client auth")
-		return r, true
+		return request, true
 	}
 
 	if providerProxy.KeyPool != nil {
-		return h.handleKeyPoolSelection(w, r, logger, providerProxy, hasClientAuth, clientAuth, clientAPIKey)
+		return h.handleKeyPoolSelection(writer, request, logger, providerProxy, hasClientAuth, clientAuth, clientAPIKey)
 	}
 
 	// Single key mode - set header directly
-	r.Header.Set("X-Selected-Key", providerProxy.APIKey)
-	return r, true
+	request.Header.Set("X-Selected-Key", providerProxy.APIKey)
+	return request, true
 }
 
 // handleKeyPoolSelection handles key selection from the pool.
 func (h *Handler) handleKeyPoolSelection(
-	w http.ResponseWriter, r *http.Request, logger *zerolog.Logger,
+	writer http.ResponseWriter, request *http.Request, logger *zerolog.Logger,
 	providerProxy *ProviderProxy, hasClientAuth bool, clientAuth, clientAPIKey string,
 ) (*http.Request, bool) {
 	if hasClientAuth {
@@ -800,9 +808,9 @@ func (h *Handler) handleKeyPoolSelection(
 			Msg("provider does not support transparent auth, using configured keys")
 	}
 
-	_, selectedKey, updatedReq, ok := h.selectKeyFromPool(w, r, logger, providerProxy.KeyPool)
-	if !ok {
-		return r, false
+	_, selectedKey, updatedReq, selectionOK := h.selectKeyFromPool(writer, request, logger, providerProxy.KeyPool)
+	if !selectionOK {
+		return request, false
 	}
 
 	updatedReq.Header.Set("X-Selected-Key", selectedKey)
@@ -811,32 +819,35 @@ func (h *Handler) handleKeyPoolSelection(
 }
 
 // attachTLSTraceIfEnabled attaches TLS trace if debug metrics are enabled.
-func (h *Handler) attachTLSTraceIfEnabled(r *http.Request) (req *http.Request, getMetrics func() TLSMetrics) {
+func (h *Handler) attachTLSTraceIfEnabled(request *http.Request) (req *http.Request, getMetrics func() TLSMetrics) {
 	debugOpts := h.getDebugOptions()
 	if !debugOpts.LogTLSMetrics {
-		return r, nil
+		return request, nil
 	}
-	newCtx, metricsFunc := AttachTLSTrace(r.Context(), r)
-	return r.WithContext(newCtx), metricsFunc
+	newCtx, metricsFunc := AttachTLSTrace(request.Context(), request)
+	return request.WithContext(newCtx), metricsFunc
 }
 
 // logMetricsIfEnabled logs TLS and proxy metrics if debug mode is enabled.
 func (h *Handler) logMetricsIfEnabled(
-	r *http.Request, logger *zerolog.Logger, start time.Time,
+	request *http.Request, logger *zerolog.Logger, start time.Time,
 	backendTime time.Duration, getTLSMetrics func() TLSMetrics,
 ) {
 	debugOpts := h.getDebugOptions()
 	if getTLSMetrics != nil {
 		tlsMetrics := getTLSMetrics()
-		LogTLSMetrics(r.Context(), tlsMetrics, debugOpts)
+		LogTLSMetrics(request.Context(), tlsMetrics, debugOpts)
 	}
 
 	if debugOpts.IsEnabled() || logger.GetLevel() <= zerolog.DebugLevel {
 		proxyMetrics := Metrics{
-			BackendTime: backendTime,
-			TotalTime:   time.Since(start),
+			BackendTime:     backendTime,
+			TotalTime:       time.Since(start),
+			BytesSent:       0,
+			BytesReceived:   0,
+			StreamingEvents: 0,
 		}
-		LogProxyMetrics(r.Context(), proxyMetrics, debugOpts)
+		LogProxyMetrics(request.Context(), proxyMetrics, debugOpts)
 	}
 }
 
@@ -867,32 +878,32 @@ func parseRetryAfter(headers http.Header) time.Duration {
 // processThinkingSignatures processes thinking block signatures in the request.
 // Looks up cached signatures and replaces/drops blocks as needed.
 // Returns the potentially modified request.
-func (h *Handler) processThinkingSignatures(r *http.Request, model string) *http.Request {
+func (h *Handler) processThinkingSignatures(request *http.Request, model string) *http.Request {
 	// Skip if no signature cache configured
 	if h.signatureCache == nil {
-		return r
+		return request
 	}
 
 	// Read body for thinking detection
-	if r.Body == nil {
-		return r
+	if request.Body == nil {
+		return request
 	}
-	body, err := io.ReadAll(r.Body)
-	if closeErr := r.Body.Close(); closeErr != nil {
-		zerolog.Ctx(r.Context()).Error().Err(closeErr).Msg("failed to close request body")
+	body, err := io.ReadAll(request.Body)
+	if closeErr := request.Body.Close(); closeErr != nil {
+		zerolog.Ctx(request.Context()).Error().Err(closeErr).Msg("failed to close request body")
 	}
 	// Always restore the body (and ContentLength) using the bytes read,
 	// even if io.ReadAll returned an error, so upstream handlers see
 	// the same body that was available to us.
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	r.ContentLength = int64(len(body))
+	request.Body = io.NopCloser(bytes.NewReader(body))
+	request.ContentLength = int64(len(body))
 	if err != nil {
-		return r
+		return request
 	}
 
 	// Fast path: check if request has thinking blocks
 	if !HasThinkingBlocks(body) {
-		return r
+		return request
 	}
 
 	// Extract model from body if not already known
@@ -902,13 +913,13 @@ func (h *Handler) processThinkingSignatures(r *http.Request, model string) *http
 	}
 
 	// Process thinking blocks
-	logger := zerolog.Ctx(r.Context())
+	logger := zerolog.Ctx(request.Context())
 	modifiedBody, thinkingCtx, err := ProcessRequestThinking(
-		r.Context(), body, modelName, h.signatureCache,
+		request.Context(), body, modelName, h.signatureCache,
 	)
 	if err != nil {
 		logger.Warn().Err(err).Msg("failed to process thinking signatures")
-		return r
+		return request
 	}
 
 	// Log processing results
@@ -922,13 +933,13 @@ func (h *Handler) processThinkingSignatures(r *http.Request, model string) *http
 	}
 
 	// Update request body
-	r.Body = io.NopCloser(bytes.NewReader(modifiedBody))
-	r.ContentLength = int64(len(modifiedBody))
+	request.Body = io.NopCloser(bytes.NewReader(modifiedBody))
+	request.ContentLength = int64(len(modifiedBody))
 
 	// Store thinking context for response processing
-	r = r.WithContext(context.WithValue(r.Context(), thinkingContextContextKey, thinkingCtx))
+	request = request.WithContext(context.WithValue(request.Context(), thinkingContextContextKey, thinkingCtx))
 
-	return r
+	return request
 }
 
 // GetModelNameFromContext retrieves the model name from context.

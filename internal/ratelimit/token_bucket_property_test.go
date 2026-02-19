@@ -1,4 +1,4 @@
-package ratelimit
+package ratelimit_test
 
 import (
 	"context"
@@ -7,11 +7,13 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/omarluq/cc-relay/internal/ratelimit"
 )
 
 // Property-based tests specific to TokenBucketLimiter implementation
 
-func TestTokenBucketLimiterProperties(t *testing.T) {
+func TestTokenBucketLimiterConstructorProperties(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -19,7 +21,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 	// Property 1: Constructor always returns non-nil limiter
 	properties.Property("constructor returns non-nil", prop.ForAll(
 		func(rpm, tpm int) bool {
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			return limiter != nil
 		},
 		gen.IntRange(-100, 1000),
@@ -33,7 +35,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 				return true // Only test negative values
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			usage := limiter.GetUsage()
 
 			// Negative should be treated as unlimited (1M)
@@ -43,6 +45,15 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 		gen.IntRange(-1000000, -1),
 	))
 
+	properties.TestingRun(t)
+}
+
+func TestTokenBucketLimiterContextProperties(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
 	// Property 3: Wait returns immediately or waits (doesn't panic)
 	properties.Property("Wait handles context correctly", prop.ForAll(
 		func(rpm int) bool {
@@ -50,7 +61,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, 100000)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, 100000)
 			ctx := context.Background()
 
 			// First wait should succeed quickly for fresh limiter
@@ -67,7 +78,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, 100000)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, 100000)
 			ctx, cancel := context.WithCancel(context.Background())
 
 			// Cancel immediately
@@ -87,7 +98,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(100, tokens*2)
+			limiter := ratelimit.NewTokenBucketLimiter(100, tokens*2)
 			ctx, cancel := context.WithCancel(context.Background())
 
 			// Cancel immediately
@@ -100,6 +111,15 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 		gen.IntRange(1, 1000),
 	))
 
+	properties.TestingRun(t)
+}
+
+func TestTokenBucketLimiterUsageProperties(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
 	// Property 6: Usage remaining never exceeds limit
 	properties.Property("remaining never exceeds limit", prop.ForAll(
 		func(rpm, tpm int) bool {
@@ -107,7 +127,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			usage := limiter.GetUsage()
 
 			return usage.RequestsRemaining <= usage.RequestsLimit &&
@@ -124,7 +144,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(rpm, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(rpm, tpm)
 			usage := limiter.GetUsage()
 
 			return usage.RequestsUsed >= 0 && usage.TokensUsed >= 0
@@ -137,6 +157,7 @@ func TestTokenBucketLimiterProperties(t *testing.T) {
 }
 
 func TestTokenBucketLimiterReserveProperties(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -148,7 +169,7 @@ func TestTokenBucketLimiterReserveProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(100, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(100, tpm)
 
 			// Reserve a small portion should succeed
 			return limiter.Reserve(10)
@@ -163,14 +184,14 @@ func TestTokenBucketLimiterReserveProperties(t *testing.T) {
 				return true
 			}
 
-			limiter := NewTokenBucketLimiter(100, tpm)
+			limiter := ratelimit.NewTokenBucketLimiter(100, tpm)
 
 			// Multiple reserve calls should all return booleans
-			r1 := limiter.Reserve(tokens)
-			r2 := limiter.Reserve(tokens)
+			firstReserve := limiter.Reserve(tokens)
+			secondReserve := limiter.Reserve(tokens)
 
 			// Both should be valid booleans (either true or false)
-			return (r1 || !r1) && (r2 || !r2)
+			return (firstReserve || !firstReserve) && (secondReserve || !secondReserve)
 		},
 		gen.IntRange(1, 10000),
 		gen.IntRange(1000, 100000),

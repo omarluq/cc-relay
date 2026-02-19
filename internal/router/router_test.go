@@ -1,9 +1,11 @@
-package router
+package router_test
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 func TestStrategyConstants(t *testing.T) {
@@ -16,42 +18,42 @@ func TestStrategyConstants(t *testing.T) {
 	}{
 		{
 			name:     "round robin",
-			constant: StrategyRoundRobin,
+			constant: router.StrategyRoundRobin,
 			expected: "round_robin",
 		},
 		{
 			name:     "weighted round robin",
-			constant: StrategyWeightedRoundRobin,
+			constant: router.StrategyWeightedRoundRobin,
 			expected: "weighted_round_robin",
 		},
 		{
 			name:     "shuffle",
-			constant: StrategyShuffle,
+			constant: router.StrategyShuffle,
 			expected: "shuffle",
 		},
 		{
 			name:     "failover",
-			constant: StrategyFailover,
+			constant: router.StrategyFailover,
 			expected: "failover",
 		},
 		{
 			name:     "least loaded",
-			constant: StrategyLeastLoaded,
+			constant: router.StrategyLeastLoaded,
 			expected: "least_loaded",
 		},
 		{
 			name:     "weighted failover",
-			constant: StrategyWeightedFailover,
+			constant: router.StrategyWeightedFailover,
 			expected: "weighted_failover",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tt.constant != tt.expected {
-				t.Errorf("Strategy constant = %q, want %q", tt.constant, tt.expected)
+			if testCase.constant != testCase.expected {
+				t.Errorf("Strategy constant = %q, want %q", testCase.constant, testCase.expected)
 			}
 		})
 	}
@@ -60,37 +62,37 @@ func TestStrategyConstants(t *testing.T) {
 func TestNewRouterUnknownStrategy(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewRouter("unknown_strategy", 5*time.Second)
+	_, err := router.NewRouter("unknown_strategy", 5*time.Second)
 	if err == nil {
-		t.Error("NewRouter() expected error for unknown strategy, got nil")
+		t.Error("router.NewRouter() expected error for unknown strategy, got nil")
 	}
 
 	// Error should mention "unknown strategy"
 	if err.Error() != `router: unknown strategy "unknown_strategy"` {
-		t.Errorf("NewRouter() error = %q, want mention of unknown strategy", err.Error())
+		t.Errorf("router.NewRouter() error = %q, want mention of unknown strategy", err.Error())
 	}
 }
 
 func TestNewRouterFailover(t *testing.T) {
 	t.Parallel()
 
-	router, err := NewRouter(StrategyFailover, 10*time.Second)
+	rtr, err := router.NewRouter(router.StrategyFailover, 10*time.Second)
 	if err != nil {
-		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyFailover, err)
+		t.Fatalf("router.NewRouter(%q) unexpected error: %v", router.StrategyFailover, err)
 	}
-	if router == nil {
-		t.Fatal("NewRouter() returned nil router")
+	if rtr == nil {
+		t.Fatal("router.NewRouter() returned nil router")
 	}
 
 	// Verify correct type
-	failover, ok := router.(*FailoverRouter)
+	failover, ok := rtr.(*router.FailoverRouter)
 	if !ok {
-		t.Errorf("NewRouter() returned %T, want *FailoverRouter", router)
+		t.Errorf("router.NewRouter() returned %T, want *router.FailoverRouter", rtr)
 	}
 
 	// Verify Name()
-	if failover.Name() != StrategyFailover {
-		t.Errorf("Name() = %q, want %q", failover.Name(), StrategyFailover)
+	if failover.Name() != router.StrategyFailover {
+		t.Errorf("Name() = %q, want %q", failover.Name(), router.StrategyFailover)
 	}
 
 	// Verify timeout is passed correctly
@@ -102,57 +104,57 @@ func TestNewRouterFailover(t *testing.T) {
 func TestNewRouterLeastLoaded(t *testing.T) {
 	t.Parallel()
 
-	router, err := NewRouter(StrategyLeastLoaded, 0)
+	rtr, err := router.NewRouter(router.StrategyLeastLoaded, 0)
 	if err != nil {
-		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyLeastLoaded, err)
+		t.Fatalf("router.NewRouter(%q) unexpected error: %v", router.StrategyLeastLoaded, err)
 	}
 
-	if _, ok := router.(*LeastLoadedRouter); !ok {
-		t.Errorf("NewRouter() returned %T, want *LeastLoadedRouter", router)
+	if _, ok := rtr.(*router.LeastLoadedRouter); !ok {
+		t.Errorf("router.NewRouter() returned %T, want *router.LeastLoadedRouter", rtr)
 	}
 
-	if router.Name() != StrategyLeastLoaded {
-		t.Errorf("Name() = %q, want %q", router.Name(), StrategyLeastLoaded)
+	if rtr.Name() != router.StrategyLeastLoaded {
+		t.Errorf("Name() = %q, want %q", rtr.Name(), router.StrategyLeastLoaded)
 	}
 }
 
 func TestNewRouterWeightedFailover(t *testing.T) {
 	t.Parallel()
 
-	router, err := NewRouter(StrategyWeightedFailover, 0)
+	rtr, err := router.NewRouter(router.StrategyWeightedFailover, 0)
 	if err != nil {
-		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyWeightedFailover, err)
+		t.Fatalf("router.NewRouter(%q) unexpected error: %v", router.StrategyWeightedFailover, err)
 	}
 
-	if _, ok := router.(*WeightedFailoverRouter); !ok {
-		t.Errorf("NewRouter() returned %T, want *WeightedFailoverRouter", router)
+	if _, ok := rtr.(*router.WeightedFailoverRouter); !ok {
+		t.Errorf("router.NewRouter() returned %T, want *router.WeightedFailoverRouter", rtr)
 	}
 
-	if router.Name() != StrategyWeightedFailover {
-		t.Errorf("Name() = %q, want %q", router.Name(), StrategyWeightedFailover)
+	if rtr.Name() != router.StrategyWeightedFailover {
+		t.Errorf("Name() = %q, want %q", rtr.Name(), router.StrategyWeightedFailover)
 	}
 }
 
 func TestNewRouterEmptyDefaultsToFailover(t *testing.T) {
 	t.Parallel()
 
-	router, err := NewRouter("", 0)
+	rtr, err := router.NewRouter("", 0)
 	if err != nil {
-		t.Fatalf("NewRouter(\"\") unexpected error: %v", err)
+		t.Fatalf("router.NewRouter(\"\") unexpected error: %v", err)
 	}
-	if router == nil {
-		t.Fatal("NewRouter() returned nil router")
+	if rtr == nil {
+		t.Fatal("router.NewRouter() returned nil router")
 	}
 
 	// Verify correct type
-	failover, ok := router.(*FailoverRouter)
+	failover, ok := rtr.(*router.FailoverRouter)
 	if !ok {
-		t.Errorf("NewRouter(\"\") returned %T, want *FailoverRouter", router)
+		t.Errorf("router.NewRouter(\"\") returned %T, want *router.FailoverRouter", rtr)
 	}
 
 	// Verify Name()
-	if failover.Name() != StrategyFailover {
-		t.Errorf("Name() = %q, want %q", failover.Name(), StrategyFailover)
+	if failover.Name() != router.StrategyFailover {
+		t.Errorf("Name() = %q, want %q", failover.Name(), router.StrategyFailover)
 	}
 
 	// Verify default timeout (5 seconds when 0 is passed)
@@ -161,131 +163,132 @@ func TestNewRouterEmptyDefaultsToFailover(t *testing.T) {
 	}
 }
 
-func TestNewRouterRoundRobin(t *testing.T) {
+// TestNewRouterStrategies tests that NewRouter returns the correct router type
+// for simple strategies (round_robin, shuffle, weighted_round_robin).
+func TestNewRouterStrategies(t *testing.T) {
 	t.Parallel()
 
-	router, err := NewRouter(StrategyRoundRobin, 5*time.Second)
-	if err != nil {
-		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyRoundRobin, err)
-	}
-	if router == nil {
-		t.Fatal("NewRouter() returned nil router")
-	}
-
-	// Verify correct type
-	if router.Name() != StrategyRoundRobin {
-		t.Errorf("NewRouter() returned router with name %q, want %q", router.Name(), StrategyRoundRobin)
-	}
-
-	// Type assertion to verify it's the right implementation
-	if _, ok := router.(*RoundRobinRouter); !ok {
-		t.Errorf("NewRouter(%q) returned wrong type: got %T", StrategyRoundRobin, router)
-	}
-}
-
-func TestNewRouterShuffle(t *testing.T) {
-	t.Parallel()
-
-	router, err := NewRouter(StrategyShuffle, 5*time.Second)
-	if err != nil {
-		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyShuffle, err)
-	}
-	if router == nil {
-		t.Fatal("NewRouter() returned nil router")
+	tests := []struct {
+		name         string
+		strategy     string
+		wantName     string
+		wantTypeName string
+	}{
+		{
+			name:         "round robin",
+			strategy:     router.StrategyRoundRobin,
+			wantName:     router.StrategyRoundRobin,
+			wantTypeName: "*router.RoundRobinRouter",
+		},
+		{
+			name:         "shuffle",
+			strategy:     router.StrategyShuffle,
+			wantName:     router.StrategyShuffle,
+			wantTypeName: "*router.ShuffleRouter",
+		},
+		{
+			name:         "weighted round robin",
+			strategy:     router.StrategyWeightedRoundRobin,
+			wantName:     router.StrategyWeightedRoundRobin,
+			wantTypeName: "*router.WeightedRoundRobinRouter",
+		},
 	}
 
-	// Verify correct type
-	if router.Name() != StrategyShuffle {
-		t.Errorf("NewRouter() returned router with name %q, want %q", router.Name(), StrategyShuffle)
-	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Type assertion to verify it's the right implementation
-	if _, ok := router.(*ShuffleRouter); !ok {
-		t.Errorf("NewRouter(%q) returned wrong type: got %T", StrategyShuffle, router)
-	}
-}
+			rtr, err := router.NewRouter(testCase.strategy, 5*time.Second)
+			if err != nil {
+				t.Fatalf("router.NewRouter(%q) unexpected error: %v", testCase.strategy, err)
+			}
+			if rtr == nil {
+				t.Fatal("router.NewRouter() returned nil router")
+			}
 
-func TestNewRouterWeightedRoundRobin(t *testing.T) {
-	t.Parallel()
-
-	router, err := NewRouter(StrategyWeightedRoundRobin, 5*time.Second)
-	if err != nil {
-		t.Fatalf("NewRouter(%q) unexpected error: %v", StrategyWeightedRoundRobin, err)
-	}
-	if router == nil {
-		t.Fatal("NewRouter() returned nil router")
-	}
-
-	// Verify correct type
-	wrr, ok := router.(*WeightedRoundRobinRouter)
-	if !ok {
-		t.Errorf("NewRouter() returned %T, want *WeightedRoundRobinRouter", router)
-	}
-
-	// Verify Name()
-	if wrr.Name() != StrategyWeightedRoundRobin {
-		t.Errorf("Name() = %q, want %q", wrr.Name(), StrategyWeightedRoundRobin)
+			if rtr.Name() != testCase.wantName {
+				t.Errorf("Name() = %q, want %q", rtr.Name(), testCase.wantName)
+			}
+		})
 	}
 }
 
 func TestFilterHealthy(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	type filterHealthyTestCase struct {
 		name           string
-		providers      []ProviderInfo
+		providers      []router.ProviderInfo
 		expectedNames  []string
 		healthyResults []bool
 		expectedCount  int
-	}{
+	}
+
+	tests := []filterHealthyTestCase{
 		{
 			name:           "all healthy",
+			providers:      nil,
+			expectedNames:  nil,
 			healthyResults: []bool{true, true, true},
 			expectedCount:  3,
 		},
 		{
 			name:           "all unhealthy",
+			providers:      nil,
+			expectedNames:  nil,
 			healthyResults: []bool{false, false, false},
 			expectedCount:  0,
 		},
 		{
 			name:           "mixed health status",
+			providers:      nil,
+			expectedNames:  nil,
 			healthyResults: []bool{true, false, true, false, true},
 			expectedCount:  3,
 		},
 		{
 			name:           "empty slice",
+			providers:      nil,
+			expectedNames:  nil,
 			healthyResults: []bool{},
 			expectedCount:  0,
 		},
 		{
 			name:           "single healthy",
+			providers:      nil,
+			expectedNames:  nil,
 			healthyResults: []bool{true},
 			expectedCount:  1,
 		},
 		{
 			name:           "single unhealthy",
+			providers:      nil,
+			expectedNames:  nil,
 			healthyResults: []bool{false},
 			expectedCount:  0,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Build providers with IsHealthy closures
-			providers := make([]ProviderInfo, len(tt.healthyResults))
-			for i, healthy := range tt.healthyResults {
-				h := healthy // Capture for closure
-				providers[i] = ProviderInfo{
-					IsHealthy: func() bool { return h },
+			providers := make([]router.ProviderInfo, len(testCase.healthyResults))
+			for idx, healthy := range testCase.healthyResults {
+				isHealthy := healthy // Capture for closure
+				providers[idx] = router.ProviderInfo{
+					Provider:  router.NewTestProvider(string(rune('a' + idx))),
+					Weight:    0,
+					Priority:  0,
+					IsHealthy: func() bool { return isHealthy },
 				}
 			}
 
-			result := FilterHealthy(providers)
-			if len(result) != tt.expectedCount {
-				t.Errorf("FilterHealthy() returned %d providers, want %d", len(result), tt.expectedCount)
+			result := router.FilterHealthy(providers)
+			if len(result) != testCase.expectedCount {
+				t.Errorf("router.FilterHealthy() returned %d providers, want %d",
+					len(result), testCase.expectedCount)
 			}
 		})
 	}
@@ -294,16 +297,17 @@ func TestFilterHealthy(t *testing.T) {
 func TestFilterHealthyNilIsHealthyTreatedAsHealthy(t *testing.T) {
 	t.Parallel()
 
-	providers := []ProviderInfo{
-		{IsHealthy: nil}, // nil = healthy
-		{IsHealthy: func() bool { return true }},
-		{IsHealthy: func() bool { return false }},
-		{IsHealthy: nil}, // nil = healthy
+	providers := []router.ProviderInfo{
+		{Provider: router.NewTestProvider("p1"), Weight: 0, Priority: 0, IsHealthy: nil},
+		{Provider: router.NewTestProvider("p2"), Weight: 0, Priority: 0, IsHealthy: func() bool { return true }},
+		{Provider: router.NewTestProvider("p3"), Weight: 0, Priority: 0, IsHealthy: func() bool { return false }},
+		{Provider: router.NewTestProvider("p4"), Weight: 0, Priority: 0, IsHealthy: nil},
 	}
 
-	result := FilterHealthy(providers)
+	result := router.FilterHealthy(providers)
 	if len(result) != 3 {
-		t.Errorf("FilterHealthy() returned %d providers, want 3 (nil IsHealthy should be healthy)", len(result))
+		t.Errorf("router.FilterHealthy() returned %d providers, want 3 (nil IsHealthy should be healthy)",
+			len(result))
 	}
 }
 
@@ -313,8 +317,10 @@ func TestProviderInfoHealthy(t *testing.T) {
 	t.Run("nil IsHealthy returns true", func(t *testing.T) {
 		t.Parallel()
 
-		p := ProviderInfo{IsHealthy: nil}
-		if !p.Healthy() {
+		prov := router.ProviderInfo{
+			Provider: router.NewTestProvider("test"), Weight: 0, Priority: 0, IsHealthy: nil,
+		}
+		if !prov.Healthy() {
 			t.Error("Healthy() should return true when IsHealthy is nil")
 		}
 	})
@@ -322,8 +328,13 @@ func TestProviderInfoHealthy(t *testing.T) {
 	t.Run("IsHealthy returns true", func(t *testing.T) {
 		t.Parallel()
 
-		p := ProviderInfo{IsHealthy: func() bool { return true }}
-		if !p.Healthy() {
+		prov := router.ProviderInfo{
+			Provider:  router.NewTestProvider("test"),
+			Weight:    0,
+			Priority:  0,
+			IsHealthy: func() bool { return true },
+		}
+		if !prov.Healthy() {
 			t.Error("Healthy() should return true when IsHealthy returns true")
 		}
 	})
@@ -331,8 +342,13 @@ func TestProviderInfoHealthy(t *testing.T) {
 	t.Run("IsHealthy returns false", func(t *testing.T) {
 		t.Parallel()
 
-		p := ProviderInfo{IsHealthy: func() bool { return false }}
-		if p.Healthy() {
+		prov := router.ProviderInfo{
+			Provider:  router.NewTestProvider("test"),
+			Weight:    0,
+			Priority:  0,
+			IsHealthy: func() bool { return false },
+		}
+		if prov.Healthy() {
 			t.Error("Healthy() should return false when IsHealthy returns false")
 		}
 	})
@@ -342,8 +358,7 @@ func TestProviderRouterInterface(t *testing.T) {
 	t.Parallel()
 
 	// Compile-time interface compliance check
-	// When implementations are added, this will verify they implement the interface
-	var _ ProviderRouter = (*mockRouter)(nil)
+	var _ router.ProviderRouter = (*mockRouter)(nil)
 }
 
 // mockRouter is a test implementation of ProviderRouter.
@@ -351,8 +366,13 @@ type mockRouter struct {
 	name string
 }
 
-func (m *mockRouter) Select(_ context.Context, _ []ProviderInfo) (ProviderInfo, error) {
-	return ProviderInfo{}, nil
+func (m *mockRouter) Select(_ context.Context, _ []router.ProviderInfo) (router.ProviderInfo, error) {
+	return router.ProviderInfo{
+		Provider:  router.NewTestProvider("mock"),
+		Weight:    0,
+		Priority:  0,
+		IsHealthy: nil,
+	}, nil
 }
 
 func (m *mockRouter) Name() string {

@@ -11,58 +11,74 @@ import (
 // ErrUnknownProviderType is returned when the provider type is not recognized.
 var ErrUnknownProviderType = fmt.Errorf("unknown provider type")
 
+// Provider type constants.
+const (
+	ProviderTypeAnthropic = "anthropic"
+	ProviderTypeZAI       = "zai"
+	ProviderTypeOllama    = "ollama"
+	ProviderTypeBedrock   = "bedrock"
+	ProviderTypeVertex    = "vertex"
+	ProviderTypeAzure     = "azure"
+)
+
 // supportedProviderTypes is the list of supported provider types for error messages.
 const supportedProviderTypes = "anthropic, zai, ollama, bedrock, vertex, azure"
 
+// createCloudProvider creates a cloud provider (bedrock, vertex, azure) with validation.
+func createCloudProvider(ctx context.Context, providerConfig *config.ProviderConfig) (providers.Provider, error) {
+	if err := providerConfig.ValidateCloudConfig(); err != nil {
+		return nil, fmt.Errorf("%s provider %s: %w", providerConfig.Type, providerConfig.Name, err)
+	}
+
+	switch providerConfig.Type {
+	case ProviderTypeBedrock:
+		return providers.NewBedrockProvider(ctx, &providers.BedrockConfig{
+			Name:         providerConfig.Name,
+			Region:       providerConfig.AWSRegion,
+			Models:       providerConfig.Models,
+			ModelMapping: providerConfig.ModelMapping,
+		})
+	case ProviderTypeVertex:
+		return providers.NewVertexProvider(ctx, &providers.VertexConfig{
+			Name:         providerConfig.Name,
+			ProjectID:    providerConfig.GCPProjectID,
+			Region:       providerConfig.GCPRegion,
+			Models:       providerConfig.Models,
+			ModelMapping: providerConfig.ModelMapping,
+		})
+	case ProviderTypeAzure:
+		return providers.NewAzureProvider(&providers.AzureConfig{
+			Name:         providerConfig.Name,
+			ResourceName: providerConfig.AzureResourceName,
+			DeploymentID: providerConfig.AzureDeploymentID,
+			APIVersion:   providerConfig.GetAzureAPIVersion(),
+			Models:       providerConfig.Models,
+			ModelMapping: providerConfig.ModelMapping,
+			AuthMethod:   "",
+		})
+	default:
+		return nil, ErrUnknownProviderType
+	}
+}
+
 // createProvider creates a provider instance from configuration.
 // Returns ErrUnknownProviderType for unknown provider types.
-func createProvider(ctx context.Context, p *config.ProviderConfig) (providers.Provider, error) {
-	switch p.Type {
-	case "anthropic":
+func createProvider(ctx context.Context, providerConfig *config.ProviderConfig) (providers.Provider, error) {
+	switch providerConfig.Type {
+	case ProviderTypeAnthropic:
 		return providers.NewAnthropicProviderWithMapping(
-			p.Name, p.BaseURL, p.Models, p.ModelMapping,
+			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
-	case "zai":
+	case ProviderTypeZAI:
 		return providers.NewZAIProviderWithMapping(
-			p.Name, p.BaseURL, p.Models, p.ModelMapping,
+			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
-	case "ollama":
+	case ProviderTypeOllama:
 		return providers.NewOllamaProviderWithMapping(
-			p.Name, p.BaseURL, p.Models, p.ModelMapping,
+			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
-	case "bedrock":
-		if err := p.ValidateCloudConfig(); err != nil {
-			return nil, fmt.Errorf("bedrock provider %s: %w", p.Name, err)
-		}
-		return providers.NewBedrockProvider(ctx, &providers.BedrockConfig{
-			Name:         p.Name,
-			Region:       p.AWSRegion,
-			Models:       p.Models,
-			ModelMapping: p.ModelMapping,
-		})
-	case "vertex":
-		if err := p.ValidateCloudConfig(); err != nil {
-			return nil, fmt.Errorf("vertex provider %s: %w", p.Name, err)
-		}
-		return providers.NewVertexProvider(ctx, &providers.VertexConfig{
-			Name:         p.Name,
-			ProjectID:    p.GCPProjectID,
-			Region:       p.GCPRegion,
-			Models:       p.Models,
-			ModelMapping: p.ModelMapping,
-		})
-	case "azure":
-		if err := p.ValidateCloudConfig(); err != nil {
-			return nil, fmt.Errorf("azure provider %s: %w", p.Name, err)
-		}
-		return providers.NewAzureProvider(&providers.AzureConfig{
-			Name:         p.Name,
-			ResourceName: p.AzureResourceName,
-			DeploymentID: p.AzureDeploymentID,
-			APIVersion:   p.GetAzureAPIVersion(),
-			Models:       p.Models,
-			ModelMapping: p.ModelMapping,
-		})
+	case ProviderTypeBedrock, ProviderTypeVertex, ProviderTypeAzure:
+		return createCloudProvider(ctx, providerConfig)
 	default:
 		return nil, ErrUnknownProviderType
 	}

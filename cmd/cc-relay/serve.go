@@ -51,6 +51,11 @@ func runServe(_ *cobra.Command, _ []string) error {
 		configPath = findConfigFile()
 	}
 
+	return runServeWithConfig(configPath)
+}
+
+// runServeWithConfig starts the server using the config at the given path.
+func runServeWithConfig(configPath string) error {
 	// Create DI container with all services
 	container, err := di.NewContainer(configPath)
 	if err != nil {

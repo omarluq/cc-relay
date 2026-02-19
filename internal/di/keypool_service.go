@@ -28,21 +28,21 @@ type KeyPoolService struct {
 	ProviderName string
 }
 
-func buildPoolConfig(p *config.ProviderConfig) keypool.PoolConfig {
+func buildPoolConfig(providerCfg *config.ProviderConfig) keypool.PoolConfig {
 	poolCfg := keypool.PoolConfig{
-		Strategy: p.GetEffectiveStrategy(),
-		Keys:     make([]keypool.KeyConfig, len(p.Keys)),
+		Strategy: providerCfg.GetEffectiveStrategy(),
+		Keys:     make([]keypool.KeyConfig, len(providerCfg.Keys)),
 	}
 
-	for j, k := range p.Keys {
-		itpm, otpm := k.GetEffectiveTPM()
-		poolCfg.Keys[j] = keypool.KeyConfig{
-			APIKey:    k.Key,
-			RPMLimit:  k.RPMLimit,
+	for keyIdx, keyCfg := range providerCfg.Keys {
+		itpm, otpm := keyCfg.GetEffectiveTPM()
+		poolCfg.Keys[keyIdx] = keypool.KeyConfig{
+			APIKey:    keyCfg.Key,
+			RPMLimit:  keyCfg.RPMLimit,
 			ITPMLimit: itpm,
 			OTPMLimit: otpm,
-			Priority:  k.Priority,
-			Weight:    k.Weight,
+			Priority:  keyCfg.Priority,
+			Weight:    keyCfg.Weight,
 		}
 	}
 
@@ -97,28 +97,28 @@ func (s *KeyPoolService) Get() *keypool.KeyPool {
 // Uses the first enabled provider with pooling enabled.
 func (s *KeyPoolService) RebuildFrom(cfg *config.Config) error {
 	for idx := range cfg.Providers {
-		p := &cfg.Providers[idx]
-		if !p.Enabled {
+		providerCfg := &cfg.Providers[idx]
+		if !providerCfg.Enabled {
 			continue
 		}
 
-		if !p.IsPoolingEnabled() {
-			s.data.Store(&keyPoolData{ProviderName: p.Name, Pool: nil})
+		if !providerCfg.IsPoolingEnabled() {
+			s.data.Store(&keyPoolData{ProviderName: providerCfg.Name, Pool: nil})
 			s.Pool = nil
-			s.ProviderName = p.Name
+			s.ProviderName = providerCfg.Name
 			return nil
 		}
 
-		poolCfg := buildPoolConfig(p)
+		poolCfg := buildPoolConfig(providerCfg)
 
-		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
+		pool, err := keypool.NewKeyPool(providerCfg.Name, poolCfg)
 		if err != nil {
-			return fmt.Errorf("failed to create key pool for provider %s: %w", p.Name, err)
+			return fmt.Errorf("failed to create key pool for provider %s: %w", providerCfg.Name, err)
 		}
 
-		s.data.Store(&keyPoolData{ProviderName: p.Name, Pool: pool})
+		s.data.Store(&keyPoolData{ProviderName: providerCfg.Name, Pool: pool})
 		s.Pool = pool
-		s.ProviderName = p.Name
+		s.ProviderName = providerCfg.Name
 		return nil
 	}
 
@@ -183,31 +183,31 @@ func (s *KeyPoolMapService) RebuildFrom(cfg *config.Config) error {
 	var rebuildErr error
 
 	for idx := range cfg.Providers {
-		p := &cfg.Providers[idx]
-		if !p.Enabled {
+		providerCfg := &cfg.Providers[idx]
+		if !providerCfg.Enabled {
 			continue
 		}
 
 		// Store fallback key (first key in list)
-		if len(p.Keys) > 0 {
-			keys[p.Name] = p.Keys[0].Key
+		if len(providerCfg.Keys) > 0 {
+			keys[providerCfg.Name] = providerCfg.Keys[0].Key
 		}
 
 		// Skip pool creation if pooling not enabled for this provider
-		if !p.IsPoolingEnabled() {
+		if !providerCfg.IsPoolingEnabled() {
 			continue
 		}
 
-		poolCfg := buildPoolConfig(p)
+		poolCfg := buildPoolConfig(providerCfg)
 
-		pool, err := keypool.NewKeyPool(p.Name, poolCfg)
+		pool, err := keypool.NewKeyPool(providerCfg.Name, poolCfg)
 		if err != nil {
-			log.Error().Err(err).Str("provider", p.Name).Msg("failed to create key pool on reload")
+			log.Error().Err(err).Str("provider", providerCfg.Name).Msg("failed to create key pool on reload")
 			rebuildErr = err
 			continue // Log and skip, don't fail the entire reload
 		}
 
-		pools[p.Name] = pool
+		pools[providerCfg.Name] = pool
 	}
 
 	s.data.Store(&keyPoolMapData{Pools: pools, Keys: keys})
@@ -232,7 +232,12 @@ func (s *KeyPoolMapService) StartWatching() {
 // NewKeyPool creates the key pool for the primary provider if pooling is enabled.
 func NewKeyPool(i do.Injector) (*KeyPoolService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
-	svc := &KeyPoolService{cfgSvc: cfgSvc}
+	svc := &KeyPoolService{
+		cfgSvc:       cfgSvc,
+		data:         atomic.Pointer[keyPoolData]{},
+		Pool:         nil,
+		ProviderName: "",
+	}
 	if err := initKeyPoolService(cfgSvc, svc.RebuildFrom, svc.StartWatching); err != nil {
 		return nil, err
 	}
@@ -245,7 +250,12 @@ func NewKeyPool(i do.Injector) (*KeyPoolService, error) {
 // Supports hot-reload: call StartWatching() after container init.
 func NewKeyPoolMap(i do.Injector) (*KeyPoolMapService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
-	svc := &KeyPoolMapService{cfgSvc: cfgSvc}
+	svc := &KeyPoolMapService{
+		cfgSvc: cfgSvc,
+		data:   atomic.Pointer[keyPoolMapData]{},
+		Pools:  nil,
+		Keys:   nil,
+	}
 	if err := initKeyPoolService(cfgSvc, svc.RebuildFrom, svc.StartWatching); err != nil {
 		return nil, err
 	}

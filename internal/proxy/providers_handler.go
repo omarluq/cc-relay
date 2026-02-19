@@ -32,7 +32,8 @@ type ProvidersHandler struct {
 // NewProvidersHandler creates a new providers handler with the given providers.
 func NewProvidersHandler(providerList []providers.Provider) *ProvidersHandler {
 	return &ProvidersHandler{
-		providers: providerList,
+		getProviders: nil,
+		providers:    providerList,
 	}
 }
 
@@ -40,6 +41,7 @@ func NewProvidersHandler(providerList []providers.Provider) *ProvidersHandler {
 func NewProvidersHandlerWithProviderFunc(getProviders ProvidersGetter) *ProvidersHandler {
 	return &ProvidersHandler{
 		getProviders: getProviders,
+		providers:    nil,
 	}
 }
 
@@ -51,18 +53,18 @@ func (h *ProvidersHandler) providerList() []providers.Provider {
 }
 
 // ServeHTTP handles GET /v1/providers requests.
-func (h *ProvidersHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (h *ProvidersHandler) ServeHTTP(writer http.ResponseWriter, _ *http.Request) {
 	// Collect provider information using lo.Map
-	data := lo.Map(h.providerList(), func(p providers.Provider, _ int) ProviderInfo {
+	data := lo.Map(h.providerList(), func(provider providers.Provider, _ int) ProviderInfo {
 		// Extract model IDs from provider's models using lo.Map
-		modelIDs := lo.Map(p.ListModels(), func(m providers.Model, _ int) string {
+		modelIDs := lo.Map(provider.ListModels(), func(m providers.Model, _ int) string {
 			return m.ID
 		})
 
 		return ProviderInfo{
-			Name:    p.Name(),
-			Type:    p.Owner(),
-			BaseURL: p.BaseURL(),
+			Name:    provider.Name(),
+			Type:    provider.Owner(),
+			BaseURL: provider.BaseURL(),
 			Models:  modelIDs,
 			Active:  true,
 		}
@@ -73,5 +75,5 @@ func (h *ProvidersHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		Data:   data,
 	}
 
-	writeJSON(w, http.StatusOK, response)
+	writeJSON(writer, http.StatusOK, response)
 }

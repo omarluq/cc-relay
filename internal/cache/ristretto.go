@@ -26,10 +26,21 @@ var (
 	_ StatsProvider = (*ristrettoCache)(nil)
 )
 
+// newRistrettoCacheWithLog creates a new Ristretto cache with a specific logger.
+// The provided logger is tagged with component and backend fields.
+func newRistrettoCacheWithLog(cfg RistrettoConfig, log *zerolog.Logger) (*ristrettoCache, error) {
+	tagged := log.With().Str("component", "cache").Str("backend", "ristretto").Logger()
+	return newRistrettoCacheInternal(cfg, &tagged)
+}
+
 // newRistrettoCache creates a new Ristretto cache with the given configuration.
 func newRistrettoCache(cfg RistrettoConfig) (*ristrettoCache, error) {
 	log := logger().With().Str("backend", "ristretto").Logger()
+	return newRistrettoCacheInternal(cfg, &log)
+}
 
+// newRistrettoCacheInternal creates a new Ristretto cache with the given configuration and logger.
+func newRistrettoCacheInternal(cfg RistrettoConfig, log *zerolog.Logger) (*ristrettoCache, error) {
 	bufferItems := cfg.BufferItems
 	if bufferItems <= 0 {
 		bufferItems = 64 // default buffer items
@@ -53,8 +64,10 @@ func newRistrettoCache(cfg RistrettoConfig) (*ristrettoCache, error) {
 		Msg("ristretto cache created")
 
 	return &ristrettoCache{
-		cache: cache,
-		log:   log,
+		cache:  cache,
+		log:    *log,
+		closed: atomic.Bool{},
+		mu:     sync.RWMutex{},
 	}, nil
 }
 
@@ -247,14 +260,26 @@ func (r *ristrettoCache) Close() error {
 // Stats returns current cache statistics.
 func (r *ristrettoCache) Stats() Stats {
 	if r.closed.Load() {
-		return Stats{}
+		return Stats{
+			Hits:      0,
+			Misses:    0,
+			KeyCount:  0,
+			BytesUsed: 0,
+			Evictions: 0,
+		}
 	}
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.closed.Load() {
-		return Stats{}
+		return Stats{
+			Hits:      0,
+			Misses:    0,
+			KeyCount:  0,
+			BytesUsed: 0,
+			Evictions: 0,
+		}
 	}
 
 	metrics := r.cache.Metrics

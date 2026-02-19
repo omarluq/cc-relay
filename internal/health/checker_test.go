@@ -1,6 +1,7 @@
-package health
+package health_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/health"
 	"context"
 	"errors"
 	"net/http"
@@ -13,18 +14,18 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const testProviderName = "test-provider"
-
-func mustNewHTTPHealthCheck(t *testing.T, name, url string, client *http.Client) *HTTPHealthCheck {
+func mustNewHTTPHealthCheck(t *testing.T, name, url string, client *http.Client) *health.HTTPHealthCheck {
 	t.Helper()
-	check, err := NewHTTPHealthCheck(name, url, client)
+	check, err := health.NewHTTPHealthCheck(name, url, client)
 	if err != nil {
-		t.Fatalf("NewHTTPHealthCheck failed: %v", err)
+		t.Fatalf("health.NewHTTPHealthCheck failed: %v", err)
 	}
 	return check
 }
 
 func TestHTTPHealthCheckSuccess(t *testing.T) {
+	t.Parallel()
+
 	// Create a test server that returns 200 OK
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -40,6 +41,8 @@ func TestHTTPHealthCheckSuccess(t *testing.T) {
 }
 
 func TestHTTPHealthCheckFailure(t *testing.T) {
+	t.Parallel()
+
 	// Create a test server that returns 500
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -55,6 +58,8 @@ func TestHTTPHealthCheckFailure(t *testing.T) {
 }
 
 func TestHTTPHealthCheckTimeout(t *testing.T) {
+	t.Parallel()
+
 	// Create a test server that delays response
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(2 * time.Second)
@@ -76,6 +81,7 @@ func TestHTTPHealthCheckTimeout(t *testing.T) {
 }
 
 func TestHTTPHealthCheckProviderName(t *testing.T) {
+	t.Parallel()
 	check := mustNewHTTPHealthCheck(t, "my-provider", "http://example.com", nil)
 	if check.ProviderName() != "my-provider" {
 		t.Errorf("expected provider name 'my-provider', got %q", check.ProviderName())
@@ -83,15 +89,18 @@ func TestHTTPHealthCheckProviderName(t *testing.T) {
 }
 
 func TestHTTPHealthCheckDefaultClient(t *testing.T) {
+	t.Parallel()
+
 	// When nil client is passed, should create default
 	check := mustNewHTTPHealthCheck(t, "test", "http://localhost", nil)
-	if check.host == "" {
+	if check.GetHost() == "" {
 		t.Error("expected non-empty host")
 	}
 }
 
 func TestNoOpHealthCheckAlwaysHealthy(t *testing.T) {
-	check := NewNoOpHealthCheck(testProviderName)
+	t.Parallel()
+	check := health.NewNoOpHealthCheck(testProviderName)
 
 	// Should always return nil
 	for i := 0; i < 10; i++ {
@@ -103,54 +112,58 @@ func TestNoOpHealthCheckAlwaysHealthy(t *testing.T) {
 }
 
 func TestNoOpHealthCheckProviderName(t *testing.T) {
-	check := NewNoOpHealthCheck("noop-provider")
+	t.Parallel()
+	check := health.NewNoOpHealthCheck("noop-provider")
 	if check.ProviderName() != "noop-provider" {
 		t.Errorf("expected provider name 'noop-provider', got %q", check.ProviderName())
 	}
 }
 
 func TestNewProviderHealthCheckWithURL(t *testing.T) {
-	check := NewProviderHealthCheck("provider", "http://localhost:8080", nil)
+	t.Parallel()
+	check := health.NewProviderHealthCheck("provider", "http://localhost:8080", nil)
 
 	// Should return HTTPHealthCheck
-	_, ok := check.(*HTTPHealthCheck)
+	_, ok := check.(*health.HTTPHealthCheck)
 	if !ok {
-		t.Error("expected HTTPHealthCheck when URL is provided")
+		t.Error("expected health.HTTPHealthCheck when URL is provided")
 	}
 }
 
 func TestNewProviderHealthCheckEmptyURL(t *testing.T) {
-	check := NewProviderHealthCheck("provider", "", nil)
+	t.Parallel()
+	check := health.NewProviderHealthCheck("provider", "", nil)
 
 	// Should return NoOpHealthCheck
-	_, ok := check.(*NoOpHealthCheck)
+	_, ok := check.(*health.NoOpHealthCheck)
 	if !ok {
-		t.Error("expected NoOpHealthCheck when URL is empty")
+		t.Error("expected health.NoOpHealthCheck when URL is empty")
 	}
 }
 
 func TestCheckerRegisterProvider(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	tracker := NewTracker(CircuitBreakerConfig{}, &logger)
-	checker := NewChecker(tracker, CheckConfig{}, &logger)
+	emptyCBCfg := health.CircuitBreakerConfig{
+		OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0,
+	}
+	tracker := health.NewTracker(emptyCBCfg, &logger)
+	checker := health.NewChecker(tracker, health.CheckConfig{Enabled: nil, IntervalMS: 0}, &logger)
 
-	check1 := NewNoOpHealthCheck("provider-a")
-	check2 := NewNoOpHealthCheck("provider-b")
+	check1 := health.NewNoOpHealthCheck("provider-a")
+	check2 := health.NewNoOpHealthCheck("provider-b")
 
 	checker.RegisterProvider(check1)
 	checker.RegisterProvider(check2)
 
 	// Verify both registered
-	checker.mu.RLock()
-	defer checker.mu.RUnlock()
-
-	if len(checker.checks) != 2 {
-		t.Errorf("expected 2 registered providers, got %d", len(checker.checks))
+	if checker.GetChecksCount() != 2 {
+		t.Errorf("expected 2 registered providers, got %d", checker.GetChecksCount())
 	}
-	if _, ok := checker.checks["provider-a"]; !ok {
+	if !checker.HasCheck("provider-a") {
 		t.Error("expected provider-a to be registered")
 	}
-	if _, ok := checker.checks["provider-b"]; !ok {
+	if !checker.HasCheck("provider-b") {
 		t.Error("expected provider-b to be registered")
 	}
 }
@@ -172,22 +185,23 @@ func (m *mockHealthCheck) ProviderName() string {
 }
 
 func TestCheckerChecksOnlyOpenCircuits(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   1,
 	}
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	// Create checker with disabled auto-start
 	enabled := false
-	checkCfg := CheckConfig{Enabled: &enabled}
-	checker := NewChecker(tracker, checkCfg, &logger)
+	checkCfg := health.CheckConfig{Enabled: &enabled, IntervalMS: 0}
+	checker := health.NewChecker(tracker, checkCfg, &logger)
 
 	// Register two providers
-	mockClosed := &mockHealthCheck{name: "closed-provider"}
-	mockOpen := &mockHealthCheck{name: "open-provider"}
+	mockClosed := &mockHealthCheck{name: "closed-provider", checkErr: nil, callCount: atomic.Int32{}}
+	mockOpen := &mockHealthCheck{name: "open-provider", checkErr: nil, callCount: atomic.Int32{}}
 
 	checker.RegisterProvider(mockClosed)
 	checker.RegisterProvider(mockOpen)
@@ -198,15 +212,15 @@ func TestCheckerChecksOnlyOpenCircuits(t *testing.T) {
 	tracker.RecordFailure("open-provider", testErr)
 
 	// Verify states
-	if tracker.GetState("closed-provider") != StateClosed {
+	if tracker.GetState("closed-provider") != health.StateClosed {
 		t.Fatal("expected closed-provider to be CLOSED")
 	}
-	if tracker.GetState("open-provider") != StateOpen {
+	if tracker.GetState("open-provider") != health.StateOpen {
 		t.Fatal("expected open-provider to be OPEN")
 	}
 
 	// Manually trigger checkAllProviders
-	checker.checkAllProviders()
+	checker.CheckAllProviders()
 
 	// Only open-provider should have been checked
 	if mockClosed.callCount.Load() != 0 {
@@ -218,20 +232,21 @@ func TestCheckerChecksOnlyOpenCircuits(t *testing.T) {
 }
 
 func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   100, // Short for testing
 		HalfOpenProbes:   1,
 	}
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	enabled := false
-	checkCfg := CheckConfig{Enabled: &enabled}
-	checker := NewChecker(tracker, checkCfg, &logger)
+	checkCfg := health.CheckConfig{Enabled: &enabled, IntervalMS: 0}
+	checker := health.NewChecker(tracker, checkCfg, &logger)
 
 	// Register provider with successful health check
-	mockCheck := &mockHealthCheck{name: testProviderName, checkErr: nil}
+	mockCheck := &mockHealthCheck{name: testProviderName, checkErr: nil, callCount: atomic.Int32{}}
 	checker.RegisterProvider(mockCheck)
 
 	// Open the circuit
@@ -239,7 +254,7 @@ func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
 	tracker.RecordFailure(testProviderName, testErr)
 	tracker.RecordFailure(testProviderName, testErr)
 
-	if tracker.GetState(testProviderName) != StateOpen {
+	if tracker.GetState(testProviderName) != health.StateOpen {
 		t.Fatal("expected circuit to be OPEN")
 	}
 
@@ -247,17 +262,17 @@ func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Verify circuit is now HALF-OPEN
-	if tracker.GetState(testProviderName) != StateHalfOpen {
+	if tracker.GetState(testProviderName) != health.StateHalfOpen {
 		// Run check to trigger success recording
-		checker.checkAllProviders()
+		checker.CheckAllProviders()
 	}
 
 	// The circuit should still be checked if OPEN, and RecordSuccess called
 	// Reset state for cleaner test
-	tracker2 := NewTracker(cfg, &logger)
-	checker2 := NewChecker(tracker2, checkCfg, &logger)
+	tracker2 := health.NewTracker(cfg, &logger)
+	checker2 := health.NewChecker(tracker2, checkCfg, &logger)
 
-	mockCheck2 := &mockHealthCheck{name: "test-provider2", checkErr: nil}
+	mockCheck2 := &mockHealthCheck{name: "test-provider2", checkErr: nil, callCount: atomic.Int32{}}
 	checker2.RegisterProvider(mockCheck2)
 
 	// Open circuit
@@ -265,12 +280,12 @@ func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
 	tracker2.RecordFailure("test-provider2", testErr)
 
 	// Verify OPEN
-	if tracker2.GetState("test-provider2") != StateOpen {
+	if tracker2.GetState("test-provider2") != health.StateOpen {
 		t.Fatal("expected circuit to be OPEN")
 	}
 
 	// Run health check
-	checker2.checkAllProviders()
+	checker2.CheckAllProviders()
 
 	// Health check should have been called
 	if mockCheck2.callCount.Load() != 1 {
@@ -282,20 +297,24 @@ func TestCheckerRecordsSuccessOnHealthyCheck(t *testing.T) {
 }
 
 func TestCheckerDoesNotRecordSuccessOnFailedCheck(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   1,
 	}
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	enabled := false
-	checkCfg := CheckConfig{Enabled: &enabled}
-	checker := NewChecker(tracker, checkCfg, &logger)
+	checkCfg := health.CheckConfig{Enabled: &enabled, IntervalMS: 0}
+	checker := health.NewChecker(tracker, checkCfg, &logger)
 
 	// Register provider with failing health check
-	mockCheck := &mockHealthCheck{name: testProviderName, checkErr: errors.New("health check failed")}
+	checkFailedErr := errors.New("health check failed")
+	mockCheck := &mockHealthCheck{
+		name: testProviderName, checkErr: checkFailedErr, callCount: atomic.Int32{},
+	}
 	checker.RegisterProvider(mockCheck)
 
 	// Open the circuit
@@ -304,7 +323,7 @@ func TestCheckerDoesNotRecordSuccessOnFailedCheck(t *testing.T) {
 	tracker.RecordFailure(testProviderName, testErr)
 
 	// Run health check
-	checker.checkAllProviders()
+	checker.CheckAllProviders()
 
 	// Health check should have been called
 	if mockCheck.callCount.Load() != 1 {
@@ -312,27 +331,28 @@ func TestCheckerDoesNotRecordSuccessOnFailedCheck(t *testing.T) {
 	}
 
 	// Circuit should still be OPEN (no success recorded)
-	if tracker.GetState(testProviderName) != StateOpen {
+	if tracker.GetState(testProviderName) != health.StateOpen {
 		t.Error("expected circuit to remain OPEN after failed health check")
 	}
 }
 
 func TestCheckerStartStop(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{
+	cfg := health.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		OpenDurationMS:   30000,
 		HalfOpenProbes:   1,
 	}
-	tracker := NewTracker(cfg, &logger)
+	tracker := health.NewTracker(cfg, &logger)
 
 	// Use very short interval for testing
 	// Note: jitter adds 0-2s, so we need to wait long enough
 	enabled := true
-	checkCfg := CheckConfig{Enabled: &enabled, IntervalMS: 50} // 50ms base interval
-	checker := NewChecker(tracker, checkCfg, &logger)
+	checkCfg := health.CheckConfig{Enabled: &enabled, IntervalMS: 50} // 50ms base interval
+	checker := health.NewChecker(tracker, checkCfg, &logger)
 
-	mockCheck := &mockHealthCheck{name: testProviderName}
+	mockCheck := &mockHealthCheck{name: testProviderName, checkErr: nil, callCount: atomic.Int32{}}
 	checker.RegisterProvider(mockCheck)
 
 	// Open the circuit so checks run
@@ -368,16 +388,17 @@ func TestCheckerStartStop(t *testing.T) {
 }
 
 func TestCheckerDisabledDoesNotStart(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{}
-	tracker := NewTracker(cfg, &logger)
+	cfg := health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0}
+	tracker := health.NewTracker(cfg, &logger)
 
 	// Disabled config
 	enabled := false
-	checkCfg := CheckConfig{Enabled: &enabled, IntervalMS: 10}
-	checker := NewChecker(tracker, checkCfg, &logger)
+	checkCfg := health.CheckConfig{Enabled: &enabled, IntervalMS: 10}
+	checker := health.NewChecker(tracker, checkCfg, &logger)
 
-	mockCheck := &mockHealthCheck{name: testProviderName}
+	mockCheck := &mockHealthCheck{name: testProviderName, checkErr: nil, callCount: atomic.Int32{}}
 	checker.RegisterProvider(mockCheck)
 
 	// Start (should not actually start due to disabled)
@@ -396,30 +417,29 @@ func TestCheckerDisabledDoesNotStart(t *testing.T) {
 }
 
 func TestCheckerConcurrentRegister(t *testing.T) {
+	t.Parallel()
 	logger := zerolog.Nop()
-	cfg := CircuitBreakerConfig{}
-	tracker := NewTracker(cfg, &logger)
+	cfg := health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0}
+	tracker := health.NewTracker(cfg, &logger)
 
 	enabled := false
-	checkCfg := CheckConfig{Enabled: &enabled}
-	checker := NewChecker(tracker, checkCfg, &logger)
+	checkCfg := health.CheckConfig{Enabled: &enabled, IntervalMS: 0}
+	checker := health.NewChecker(tracker, checkCfg, &logger)
 
 	// Register providers concurrently
-	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			check := NewNoOpHealthCheck(string(rune('a' + idx%26)))
+	var waitGroup sync.WaitGroup
+	for idx := 0; idx < 100; idx++ {
+		waitGroup.Add(1)
+		go func(providerIdx int) {
+			defer waitGroup.Done()
+			check := health.NewNoOpHealthCheck(string(rune('a' + providerIdx%26)))
 			checker.RegisterProvider(check)
-		}(i)
+		}(idx)
 	}
-	wg.Wait()
+	waitGroup.Wait()
 
 	// Should not panic, and some providers should be registered
-	checker.mu.RLock()
-	count := len(checker.checks)
-	checker.mu.RUnlock()
+	count := checker.GetChecksCount()
 
 	// Due to concurrent registration with same names, we'll have at most 26
 	if count == 0 {
@@ -428,11 +448,13 @@ func TestCheckerConcurrentRegister(t *testing.T) {
 }
 
 func TestCryptoRandDuration(t *testing.T) {
+	t.Parallel()
+
 	// Test that it returns values in expected range
 	maxDur := 2 * time.Second
 
 	for i := 0; i < 100; i++ {
-		d := cryptoRandDuration(maxDur)
+		d := health.CryptoRandDurationExported(maxDur)
 		if d < 0 || d >= maxDur {
 			t.Errorf("expected duration in [0, %v), got %v", maxDur, d)
 		}
@@ -440,14 +462,16 @@ func TestCryptoRandDuration(t *testing.T) {
 }
 
 func TestCryptoRandDurationZeroMax(t *testing.T) {
-	d := cryptoRandDuration(0)
+	t.Parallel()
+	d := health.CryptoRandDurationExported(0)
 	if d != 0 {
 		t.Errorf("expected 0 duration for 0 max, got %v", d)
 	}
 }
 
 func TestCryptoRandDurationNegativeMax(t *testing.T) {
-	d := cryptoRandDuration(-time.Second)
+	t.Parallel()
+	d := health.CryptoRandDurationExported(-time.Second)
 	if d != 0 {
 		t.Errorf("expected 0 duration for negative max, got %v", d)
 	}

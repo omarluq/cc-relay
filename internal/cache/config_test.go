@@ -1,14 +1,30 @@
-package cache
+package cache_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/omarluq/cc-relay/internal/cache"
 )
 
 func TestConfigValidateValidSingleMode(t *testing.T) {
-	cfg := Config{
-		Mode: ModeSingle,
-		Ristretto: RistrettoConfig{
+	t.Parallel()
+	cfg := cache.Config{
+		Mode: cache.ModeSingle,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
+		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1000,
 			MaxCost:     1 << 20,
 			BufferItems: 64,
@@ -21,11 +37,26 @@ func TestConfigValidateValidSingleMode(t *testing.T) {
 }
 
 func TestConfigValidateValidHAMode(t *testing.T) {
-	cfg := Config{
-		Mode: ModeHA,
-		Olric: OlricConfig{
-			Embedded: true,
-			BindAddr: "127.0.0.1:3320",
+	t.Parallel()
+	cfg := cache.Config{
+		Mode: cache.ModeHA,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "127.0.0.1:3320",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          true,
+		},
+		Ristretto: cache.RistrettoConfig{
+			NumCounters: 0,
+			MaxCost:     0,
+			BufferItems: 0,
 		},
 	}
 
@@ -35,8 +66,27 @@ func TestConfigValidateValidHAMode(t *testing.T) {
 }
 
 func TestConfigValidateValidDisabledMode(t *testing.T) {
-	cfg := Config{
-		Mode: ModeDisabled,
+	t.Parallel()
+	cfg := cache.Config{
+		Mode: cache.ModeDisabled,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
+		Ristretto: cache.RistrettoConfig{
+			NumCounters: 0,
+			MaxCost:     0,
+			BufferItems: 0,
+		},
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -44,38 +94,79 @@ func TestConfigValidateValidDisabledMode(t *testing.T) {
 	}
 }
 
-func TestConfigValidateEmptyMode(t *testing.T) {
-	cfg := Config{
-		Mode: "",
+func TestConfigValidateInvalidMode(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		mode    cache.Mode
+		wantErr string
+	}{
+		{
+			name:    "empty mode",
+			mode:    "",
+			wantErr: "mode is required",
+		},
+		{
+			name:    "unknown mode",
+			mode:    "invalid-mode",
+			wantErr: "invalid-mode",
+		},
 	}
 
-	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want error")
-	}
-	if !containsString(err.Error(), "mode is required") {
-		t.Errorf("error %q should contain 'mode is required'", err.Error())
-	}
-}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := cache.Config{
+				Mode: testCase.mode,
+				Olric: cache.OlricConfig{
+					DMapName:          "",
+					BindAddr:          "",
+					Environment:       "",
+					Addresses:         nil,
+					Peers:             nil,
+					ReplicaCount:      0,
+					ReadQuorum:        0,
+					WriteQuorum:       0,
+					LeaveTimeout:      0,
+					MemberCountQuorum: 0,
+					Embedded:          false,
+				},
+				Ristretto: cache.RistrettoConfig{
+					NumCounters: 0,
+					MaxCost:     0,
+					BufferItems: 0,
+				},
+			}
 
-func TestConfigValidateUnknownMode(t *testing.T) {
-	cfg := Config{
-		Mode: "invalid-mode",
-	}
-
-	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want error")
-	}
-	if !containsString(err.Error(), "invalid-mode") {
-		t.Errorf("error %q should contain 'invalid-mode'", err.Error())
+			err := cfg.Validate()
+			if err == nil {
+				t.Fatal("Validate() error = nil, want error")
+			}
+			if !cache.ContainsString(err.Error(), testCase.wantErr) {
+				t.Errorf("error %q should contain %q", err.Error(), testCase.wantErr)
+			}
+		})
 	}
 }
 
 func TestConfigValidateSingleModeZeroMaxCost(t *testing.T) {
-	cfg := Config{
-		Mode: ModeSingle,
-		Ristretto: RistrettoConfig{
+	t.Parallel()
+	cfg := cache.Config{
+		Mode: cache.ModeSingle,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
+		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1000,
 			MaxCost:     0,
 			BufferItems: 64,
@@ -86,15 +177,29 @@ func TestConfigValidateSingleModeZeroMaxCost(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "max_cost must be positive") {
+	if !cache.ContainsString(err.Error(), "max_cost must be positive") {
 		t.Errorf("error %q should contain 'max_cost must be positive'", err.Error())
 	}
 }
 
 func TestConfigValidateSingleModeZeroNumCounters(t *testing.T) {
-	cfg := Config{
-		Mode: ModeSingle,
-		Ristretto: RistrettoConfig{
+	t.Parallel()
+	cfg := cache.Config{
+		Mode: cache.ModeSingle,
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
+		Ristretto: cache.RistrettoConfig{
 			NumCounters: 0,
 			MaxCost:     1 << 20,
 			BufferItems: 64,
@@ -105,158 +210,236 @@ func TestConfigValidateSingleModeZeroNumCounters(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "num_counters must be positive") {
+	if !cache.ContainsString(err.Error(), "num_counters must be positive") {
 		t.Errorf("error %q should contain 'num_counters must be positive'", err.Error())
 	}
 }
 
 func TestOlricConfigValidateEmbeddedNoBindAddr(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded: true,
-		BindAddr: "",
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          true,
 	}
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "bind_addr required") {
+	if !cache.ContainsString(err.Error(), "bind_addr required") {
 		t.Errorf("error %q should contain 'bind_addr required'", err.Error())
 	}
 }
 
 func TestOlricConfigValidateClientModeNoAddresses(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:  false,
-		Addresses: nil,
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          false,
 	}
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "addresses required") {
+	if !cache.ContainsString(err.Error(), "addresses required") {
 		t.Errorf("error %q should contain 'addresses required'", err.Error())
 	}
 }
 
 func TestOlricConfigValidateInvalidEnvironment(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:    true,
-		BindAddr:    "127.0.0.1:3320",
-		Environment: "invalid-env",
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "127.0.0.1:3320",
+		Environment:       "invalid-env",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          true,
 	}
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), `"local", "lan", or "wan"`) {
+	if !cache.ContainsString(err.Error(), `"local", "lan", or "wan"`) {
 		t.Errorf("error %q should list valid environments", err.Error())
 	}
 }
 
 func TestOlricConfigValidateValidEnvironments(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		env  string
 	}{
 		{"empty (default)", ""},
-		{"local", EnvLocal},
-		{"lan", EnvLAN},
-		{"wan", EnvWAN},
+		{"local", cache.EnvLocal},
+		{"lan", cache.EnvLAN},
+		{"wan", cache.EnvWAN},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := OlricConfig{
-				Embedded:    true,
-				BindAddr:    "127.0.0.1:3320",
-				Environment: tt.env,
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := cache.OlricConfig{
+				DMapName:          "",
+				BindAddr:          "127.0.0.1:3320",
+				Environment:       testCase.env,
+				Addresses:         nil,
+				Peers:             nil,
+				ReplicaCount:      0,
+				ReadQuorum:        0,
+				WriteQuorum:       0,
+				LeaveTimeout:      0,
+				MemberCountQuorum: 0,
+				Embedded:          true,
 			}
 
 			if err := cfg.Validate(); err != nil {
-				t.Errorf("Validate() error = %v, want nil for env %q", err, tt.env)
+				t.Errorf("Validate() error = %v, want nil for env %q", err, testCase.env)
 			}
 		})
 	}
 }
 
 func TestOlricConfigValidateWriteQuorumExceedsReplicaCount(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:     true,
-		BindAddr:     "127.0.0.1:3320",
-		ReplicaCount: 2,
-		WriteQuorum:  3,
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "127.0.0.1:3320",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      2,
+		ReadQuorum:        0,
+		WriteQuorum:       3,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          true,
 	}
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "write_quorum cannot exceed replica_count") {
+	if !cache.ContainsString(err.Error(), "write_quorum cannot exceed replica_count") {
 		t.Errorf("error %q should mention write_quorum exceeding replica_count", err.Error())
 	}
 }
 
 func TestOlricConfigValidateReadQuorumExceedsReplicaCount(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:     true,
-		BindAddr:     "127.0.0.1:3320",
-		ReplicaCount: 2,
-		ReadQuorum:   3,
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "127.0.0.1:3320",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      2,
+		ReadQuorum:        3,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          true,
 	}
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "read_quorum cannot exceed replica_count") {
+	if !cache.ContainsString(err.Error(), "read_quorum cannot exceed replica_count") {
 		t.Errorf("error %q should mention read_quorum exceeding replica_count", err.Error())
 	}
 }
 
 func TestOlricConfigValidateNegativeMemberCountQuorum(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:          true,
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
 		BindAddr:          "127.0.0.1:3320",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
 		MemberCountQuorum: -1,
+		Embedded:          true,
 	}
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "member_count_quorum cannot be negative") {
+	if !cache.ContainsString(err.Error(), "member_count_quorum cannot be negative") {
 		t.Errorf("error %q should mention negative member_count_quorum", err.Error())
 	}
 }
 
 func TestOlricConfigValidateNegativeLeaveTimeout(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:     true,
-		BindAddr:     "127.0.0.1:3320",
-		LeaveTimeout: -1 * time.Second,
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "127.0.0.1:3320",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      -1 * time.Second,
+		MemberCountQuorum: 0,
+		Embedded:          true,
 	}
 
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !containsString(err.Error(), "leave_timeout cannot be negative") {
+	if !cache.ContainsString(err.Error(), "leave_timeout cannot be negative") {
 		t.Errorf("error %q should mention negative leave_timeout", err.Error())
 	}
 }
 
 func TestOlricConfigValidateValidQuorum(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:          true,
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
 		BindAddr:          "127.0.0.1:3320",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
 		ReplicaCount:      3,
 		ReadQuorum:        2,
 		WriteQuorum:       2,
-		MemberCountQuorum: 1,
 		LeaveTimeout:      5 * time.Second,
+		MemberCountQuorum: 1,
+		Embedded:          true,
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -265,7 +448,8 @@ func TestOlricConfigValidateValidQuorum(t *testing.T) {
 }
 
 func TestDefaultRistrettoConfig(t *testing.T) {
-	cfg := DefaultRistrettoConfig()
+	t.Parallel()
+	cfg := cache.DefaultRistrettoConfig()
 
 	if cfg.NumCounters != 1_000_000 {
 		t.Errorf("NumCounters = %d, want 1000000", cfg.NumCounters)
@@ -279,7 +463,8 @@ func TestDefaultRistrettoConfig(t *testing.T) {
 }
 
 func TestDefaultOlricConfig(t *testing.T) {
-	cfg := DefaultOlricConfig()
+	t.Parallel()
+	cfg := cache.DefaultOlricConfig()
 
 	if cfg.DMapName != "cc-relay" {
 		t.Errorf("DMapName = %q, want 'cc-relay'", cfg.DMapName)
@@ -305,9 +490,19 @@ func TestDefaultOlricConfig(t *testing.T) {
 }
 
 func TestOlricConfigValidateClientModeWithAddresses(t *testing.T) {
-	cfg := OlricConfig{
-		Embedded:  false,
-		Addresses: []string{"127.0.0.1:3320", "127.0.0.1:3321"},
+	t.Parallel()
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "",
+		Environment:       "",
+		Addresses:         []string{"127.0.0.1:3320", "127.0.0.1:3321"},
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          false,
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -316,13 +511,20 @@ func TestOlricConfigValidateClientModeWithAddresses(t *testing.T) {
 }
 
 func TestOlricConfigValidateZeroQuorumValues(t *testing.T) {
+	t.Parallel()
 	// Zero quorum values should be valid (uses Olric defaults)
-	cfg := OlricConfig{
-		Embedded:     true,
-		BindAddr:     "127.0.0.1:3320",
-		ReplicaCount: 0,
-		ReadQuorum:   0,
-		WriteQuorum:  0,
+	cfg := cache.OlricConfig{
+		DMapName:          "",
+		BindAddr:          "127.0.0.1:3320",
+		Environment:       "",
+		Addresses:         nil,
+		Peers:             nil,
+		ReplicaCount:      0,
+		ReadQuorum:        0,
+		WriteQuorum:       0,
+		LeaveTimeout:      0,
+		MemberCountQuorum: 0,
+		Embedded:          true,
 	}
 
 	if err := cfg.Validate(); err != nil {

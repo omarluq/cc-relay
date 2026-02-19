@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"context"
@@ -10,13 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/omarluq/cc-relay/internal/cache"
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 func TestIsStreamingRequestTrue(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{"stream": true}`)
-	if !IsStreamingRequest(body) {
+	if !proxy.IsStreamingRequest(body) {
 		t.Error("Expected IsStreamingRequest to return true for stream: true")
 	}
 }
@@ -25,7 +26,7 @@ func TestIsStreamingRequestFalse(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{"stream": false}`)
-	if IsStreamingRequest(body) {
+	if proxy.IsStreamingRequest(body) {
 		t.Error("Expected IsStreamingRequest to return false for stream: false")
 	}
 }
@@ -34,7 +35,7 @@ func TestIsStreamingRequestMissing(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{}`)
-	if IsStreamingRequest(body) {
+	if proxy.IsStreamingRequest(body) {
 		t.Error("Expected IsStreamingRequest to return false when stream field is missing")
 	}
 }
@@ -43,16 +44,16 @@ func TestIsStreamingRequestInvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{invalid json}`)
-	if IsStreamingRequest(body) {
+	if proxy.IsStreamingRequest(body) {
 		t.Error("Expected IsStreamingRequest to return false for invalid JSON")
 	}
 }
 
-func TestSetSSEHeaders(t *testing.T) {
+func TestProxy_SetSSEHeaders(t *testing.T) {
 	t.Parallel()
 
-	h := make(http.Header)
-	SetSSEHeaders(h)
+	headers := make(http.Header)
+	proxy.SetSSEHeaders(headers)
 
 	tests := []struct {
 		name     string
@@ -65,13 +66,13 @@ func TestSetSSEHeaders(t *testing.T) {
 		{"Connection", "Connection", "keep-alive"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := h.Get(tt.key)
-			if got != tt.expected {
-				t.Errorf("Expected %s header to be %q, got %q", tt.key, tt.expected, got)
+			got := headers.Get(testCase.key)
+			if got != testCase.expected {
+				t.Errorf("Expected %s header to be %q, got %q", testCase.key, testCase.expected, got)
 			}
 		})
 	}
@@ -80,7 +81,7 @@ func TestSetSSEHeaders(t *testing.T) {
 func TestSSESignatureProcessorAccumulatesThinking(t *testing.T) {
 	t.Parallel()
 
-	processor := NewSSESignatureProcessor(nil, "claude-sonnet-4")
+	processor := proxy.NewSSESignatureProcessor(nil, "claude-sonnet-4")
 
 	// Simulate thinking_delta events
 	thinkingEvent1 := []byte(
@@ -103,6 +104,19 @@ func TestSSESignatureProcessorCachesSignature(t *testing.T) {
 	t.Parallel()
 
 	cfg := cache.Config{
+		Olric: cache.OlricConfig{
+			DMapName:          "",
+			BindAddr:          "",
+			Environment:       "",
+			Addresses:         nil,
+			Peers:             nil,
+			ReplicaCount:      0,
+			ReadQuorum:        0,
+			WriteQuorum:       0,
+			LeaveTimeout:      0,
+			MemberCountQuorum: 0,
+			Embedded:          false,
+		},
 		Mode: cache.ModeSingle,
 		Ristretto: cache.RistrettoConfig{
 			NumCounters: 1e4,
@@ -110,12 +124,16 @@ func TestSSESignatureProcessorCachesSignature(t *testing.T) {
 			BufferItems: 64,
 		},
 	}
-	c, err := cache.New(context.Background(), &cfg)
+	cacheInstance, err := cache.New(context.Background(), &cfg)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		if closeErr := cacheInstance.Close(); closeErr != nil {
+			t.Logf("cache close error: %v", closeErr)
+		}
+	}()
 
-	sigCache := NewSignatureCache(c)
-	processor := NewSSESignatureProcessor(sigCache, "claude-sonnet-4")
+	sigCache := proxy.NewSignatureCache(cacheInstance)
+	processor := proxy.NewSSESignatureProcessor(sigCache, "claude-sonnet-4")
 	ctx := context.Background()
 
 	// Simulate thinking followed by signature
@@ -140,7 +158,7 @@ func TestSSESignatureProcessorCachesSignature(t *testing.T) {
 func TestSSESignatureProcessorPassesThroughNonThinking(t *testing.T) {
 	t.Parallel()
 
-	processor := NewSSESignatureProcessor(nil, "claude-sonnet-4")
+	processor := proxy.NewSSESignatureProcessor(nil, "claude-sonnet-4")
 	ctx := context.Background()
 
 	// Regular text event should pass through unchanged
@@ -150,6 +168,7 @@ func TestSSESignatureProcessorPassesThroughNonThinking(t *testing.T) {
 }
 
 func TestExtractSSEData(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    []byte
@@ -179,7 +198,8 @@ func TestExtractSSEData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractSSEData(tt.input)
+			t.Parallel()
+			got := proxy.ExtractSSEData(tt.input)
 			assert.Equal(t, tt.expected, got)
 		})
 	}

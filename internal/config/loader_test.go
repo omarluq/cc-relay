@@ -1,25 +1,95 @@
-package config
+package config_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/config"
 	"errors"
 	"os"
 	"strings"
 	"testing"
 )
 
+// Helper to verify server config.
+func assertServerConfig(t *testing.T, listen string, timeoutMS, maxConcurrent int, apiKey string, cfg *config.Config) {
+	t.Helper()
+	if cfg.Server.Listen != listen {
+		t.Errorf("Expected listen=%s, got %s", listen, cfg.Server.Listen)
+	}
+	if cfg.Server.TimeoutMS != timeoutMS {
+		t.Errorf("Expected timeout_ms=%d, got %d", timeoutMS, cfg.Server.TimeoutMS)
+	}
+	if cfg.Server.MaxConcurrent != maxConcurrent {
+		t.Errorf("Expected max_concurrent=%d, got %d", maxConcurrent, cfg.Server.MaxConcurrent)
+	}
+	if cfg.Server.APIKey != apiKey {
+		t.Errorf("Expected api_key=%s, got %s", apiKey, cfg.Server.APIKey)
+	}
+}
+
+// Helper to verify provider config.
+func assertProviderConfig(
+	t *testing.T,
+	name, pType string,
+	enabled bool,
+	cfg *config.Config,
+	providerIdx int,
+) *config.KeyConfig {
+	t.Helper()
+	if len(cfg.Providers) <= providerIdx {
+		t.Fatalf("Expected at least %d provider(s), got %d", providerIdx+1, len(cfg.Providers))
+	}
+	provider := cfg.Providers[providerIdx]
+	if provider.Name != name {
+		t.Errorf("Expected provider name=%s, got %s", name, provider.Name)
+	}
+	if provider.Type != pType {
+		t.Errorf("Expected provider type=%s, got %s", pType, provider.Type)
+	}
+	if provider.Enabled != enabled {
+		t.Errorf("Expected provider enabled=%v, got %v", enabled, provider.Enabled)
+	}
+	if len(provider.Keys) != 1 {
+		t.Fatalf("Expected 1 key, got %d", len(provider.Keys))
+	}
+	return &provider.Keys[0]
+}
+
+// Helper to verify key config.
+func assertKeyConfig(t *testing.T, key string, rpm, tpm int, actual *config.KeyConfig) {
+	t.Helper()
+	if actual.Key != key {
+		t.Errorf("Expected key=%s, got %s", key, actual.Key)
+	}
+	if actual.RPMLimit != rpm {
+		t.Errorf("Expected rpm_limit=%d, got %d", rpm, actual.RPMLimit)
+	}
+	if actual.TPMLimit != tpm {
+		t.Errorf("Expected tpm_limit=%d, got %d", tpm, actual.TPMLimit)
+	}
+}
+
+// Helper to verify logging config.
+func assertLoggingConfig(t *testing.T, cfg *config.Config) {
+	t.Helper()
+	if cfg.Logging.Level != logLevelInfo {
+		t.Errorf("Expected logging level=info, got %s", cfg.Logging.Level)
+	}
+	if cfg.Logging.Format != logFormatJSON {
+		t.Errorf("Expected logging format=json, got %s", cfg.Logging.Format)
+	}
+}
+
 func TestLoadValidYAML(t *testing.T) {
 	t.Parallel()
 
-	yamlContent := `
-server:
-  listen: "127.0.0.1:8787"
+	yamlContent := `server:
+  listen: "` + defaultListenAddr + `"
   timeout_ms: 60000
   max_concurrent: 10
   api_key: "test-key"
 
 providers:
-  - name: "anthropic"
-    type: "anthropic"
+  - name: "` + testProviderType + `"
+    type: "` + testProviderType + `"
     enabled: true
     keys:
       - key: "sk-ant-test"
@@ -31,72 +101,15 @@ logging:
   format: "json"
 `
 
-	cfg, err := LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
 	if err != nil {
-		t.Fatalf("LoadFromReader failed: %v", err)
+		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
 
-	// Verify server config
-	if cfg.Server.Listen != "127.0.0.1:8787" {
-		t.Errorf("Expected listen=127.0.0.1:8787, got %s", cfg.Server.Listen)
-	}
-
-	if cfg.Server.TimeoutMS != 60000 {
-		t.Errorf("Expected timeout_ms=60000, got %d", cfg.Server.TimeoutMS)
-	}
-
-	if cfg.Server.MaxConcurrent != 10 {
-		t.Errorf("Expected max_concurrent=10, got %d", cfg.Server.MaxConcurrent)
-	}
-
-	if cfg.Server.APIKey != "test-key" {
-		t.Errorf("Expected api_key=test-key, got %s", cfg.Server.APIKey)
-	}
-
-	// Verify providers
-	if len(cfg.Providers) != 1 {
-		t.Fatalf("Expected 1 provider, got %d", len(cfg.Providers))
-	}
-
-	provider := cfg.Providers[0]
-	if provider.Name != "anthropic" {
-		t.Errorf("Expected provider name=anthropic, got %s", provider.Name)
-	}
-
-	if provider.Type != "anthropic" {
-		t.Errorf("Expected provider type=anthropic, got %s", provider.Type)
-	}
-
-	if !provider.Enabled {
-		t.Error("Expected provider enabled=true, got false")
-	}
-
-	// Verify keys
-	if len(provider.Keys) != 1 {
-		t.Fatalf("Expected 1 key, got %d", len(provider.Keys))
-	}
-
-	key := provider.Keys[0]
-	if key.Key != "sk-ant-test" {
-		t.Errorf("Expected key=sk-ant-test, got %s", key.Key)
-	}
-
-	if key.RPMLimit != 60 {
-		t.Errorf("Expected rpm_limit=60, got %d", key.RPMLimit)
-	}
-
-	if key.TPMLimit != 100000 {
-		t.Errorf("Expected tpm_limit=100000, got %d", key.TPMLimit)
-	}
-
-	// Verify logging
-	if cfg.Logging.Level != "info" {
-		t.Errorf("Expected logging level=info, got %s", cfg.Logging.Level)
-	}
-
-	if cfg.Logging.Format != "json" {
-		t.Errorf("Expected logging format=json, got %s", cfg.Logging.Format)
-	}
+	assertServerConfig(t, defaultListenAddr, 60000, 10, "test-key", cfg)
+	key := assertProviderConfig(t, testProviderType, testProviderType, true, cfg, 0)
+	assertKeyConfig(t, "sk-ant-test", 60, 100000, key)
+	assertLoggingConfig(t, cfg)
 }
 
 func TestLoadEnvironmentExpansion(t *testing.T) {
@@ -105,18 +118,23 @@ func TestLoadEnvironmentExpansion(t *testing.T) {
 	// Set a test environment variable
 	testKey := "TEST_API_KEY_12345"
 	testValue := "sk-test-value"
-	os.Setenv(testKey, testValue)
+	if err := os.Setenv(testKey, testValue); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 
-	defer os.Unsetenv(testKey)
+	defer func() {
+		if err := os.Unsetenv(testKey); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
-	yamlContent := `
-server:
-  listen: "127.0.0.1:8787"
+	yamlContent := `server:
+  listen: "` + defaultListenAddr + `"
   api_key: "${` + testKey + `}"
 
 providers:
   - name: "test"
-    type: "anthropic"
+    type: "` + testProviderType + `"
     enabled: true
     keys:
       - key: "${` + testKey + `}"
@@ -126,9 +144,9 @@ logging:
   format: "text"
 `
 
-	cfg, err := LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
 	if err != nil {
-		t.Fatalf("LoadFromReader failed: %v", err)
+		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
 
 	// Verify environment variable was expanded in server config
@@ -160,7 +178,7 @@ server:
   timeout_ms: not_a_number
 `
 
-	_, err := LoadFromReader(strings.NewReader(yamlContent))
+	_, err := config.LoadFromReader(strings.NewReader(yamlContent))
 	if err == nil {
 		t.Fatal("Expected error for invalid YAML, got nil")
 	}
@@ -173,7 +191,7 @@ server:
 func TestLoadMissingFile(t *testing.T) {
 	t.Parallel()
 
-	_, err := Load("/nonexistent/path/to/config.yaml")
+	_, err := config.Load("/nonexistent/path/to/config.yaml")
 	if err == nil {
 		t.Fatal("Expected error for missing file, got nil")
 	}
@@ -186,9 +204,8 @@ func TestLoadMissingFile(t *testing.T) {
 func TestLoadServerAPIKey(t *testing.T) {
 	t.Parallel()
 
-	yamlContent := `
-server:
-  listen: "127.0.0.1:8787"
+	yamlContent := `server:
+  listen: "` + defaultListenAddr + `"
   api_key: "my-secret-key"
 
 providers: []
@@ -198,9 +215,9 @@ logging:
   format: "text"
 `
 
-	cfg, err := LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
 	if err != nil {
-		t.Fatalf("LoadFromReader failed: %v", err)
+		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
 
 	if cfg.Server.APIKey != "my-secret-key" {
@@ -211,13 +228,12 @@ logging:
 func TestLoadProviderModels(t *testing.T) {
 	t.Parallel()
 
-	yamlContent := `
-server:
-  listen: "127.0.0.1:8787"
+	yamlContent := `server:
+  listen: "` + defaultListenAddr + `"
 
 providers:
   - name: "anthropic-primary"
-    type: "anthropic"
+    type: "` + testProviderType + `"
     enabled: true
     models:
       - "claude-sonnet-4-5-20250514"
@@ -230,9 +246,9 @@ logging:
   level: "info"
 `
 
-	cfg, err := LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
 	if err != nil {
-		t.Fatalf("LoadFromReader failed: %v", err)
+		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
 
 	if len(cfg.Providers) != 1 {
@@ -260,13 +276,12 @@ logging:
 func TestLoadProviderModelsEmpty(t *testing.T) {
 	t.Parallel()
 
-	yamlContent := `
-server:
-  listen: "127.0.0.1:8787"
+	yamlContent := `server:
+  listen: "` + defaultListenAddr + `"
 
 providers:
-  - name: "anthropic"
-    type: "anthropic"
+  - name: "` + testProviderType + `"
+    type: "` + testProviderType + `"
     enabled: true
     keys:
       - key: "sk-ant-test"
@@ -275,9 +290,9 @@ logging:
   level: "info"
 `
 
-	cfg, err := LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
 	if err != nil {
-		t.Fatalf("LoadFromReader failed: %v", err)
+		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
 
 	if len(cfg.Providers) != 1 {
@@ -293,13 +308,12 @@ logging:
 func TestLoadMultipleProvidersWithModels(t *testing.T) {
 	t.Parallel()
 
-	yamlContent := `
-server:
-  listen: "127.0.0.1:8787"
+	yamlContent := `server:
+  listen: "` + defaultListenAddr + `"
 
 providers:
   - name: "anthropic-primary"
-    type: "anthropic"
+    type: "` + testProviderType + `"
     enabled: true
     models:
       - "claude-sonnet-4-5-20250514"
@@ -318,9 +332,9 @@ logging:
   level: "info"
 `
 
-	cfg, err := LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
 	if err != nil {
-		t.Fatalf("LoadFromReader failed: %v", err)
+		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
 
 	if len(cfg.Providers) != 2 {
@@ -350,16 +364,15 @@ logging:
 func TestLoadTOMLFormat(t *testing.T) {
 	t.Parallel()
 
-	tomlContent := `
-[server]
-listen = "127.0.0.1:8787"
+	tomlContent := `[server]
+listen = "` + defaultListenAddr + `"
 timeout_ms = 60000
 max_concurrent = 10
 api_key = "test-key"
 
 [[providers]]
-name = "anthropic"
-type = "anthropic"
+name = "` + testProviderType + `"
+type = "` + testProviderType + `"
 enabled = true
 
 [[providers.keys]]
@@ -372,72 +385,15 @@ level = "info"
 format = "json"
 `
 
-	cfg, err := LoadFromReaderWithFormat(strings.NewReader(tomlContent), FormatTOML)
+	cfg, err := config.LoadFromReaderWithFormat(strings.NewReader(tomlContent), config.FormatTOML)
 	if err != nil {
-		t.Fatalf("LoadFromReaderWithFormat failed: %v", err)
+		t.Fatalf("config.LoadFromReaderWithFormat failed: %v", err)
 	}
 
-	// Verify server config
-	if cfg.Server.Listen != "127.0.0.1:8787" {
-		t.Errorf("Expected listen=127.0.0.1:8787, got %s", cfg.Server.Listen)
-	}
-
-	if cfg.Server.TimeoutMS != 60000 {
-		t.Errorf("Expected timeout_ms=60000, got %d", cfg.Server.TimeoutMS)
-	}
-
-	if cfg.Server.MaxConcurrent != 10 {
-		t.Errorf("Expected max_concurrent=10, got %d", cfg.Server.MaxConcurrent)
-	}
-
-	if cfg.Server.APIKey != "test-key" {
-		t.Errorf("Expected api_key=test-key, got %s", cfg.Server.APIKey)
-	}
-
-	// Verify providers
-	if len(cfg.Providers) != 1 {
-		t.Fatalf("Expected 1 provider, got %d", len(cfg.Providers))
-	}
-
-	provider := cfg.Providers[0]
-	if provider.Name != "anthropic" {
-		t.Errorf("Expected provider name=anthropic, got %s", provider.Name)
-	}
-
-	if provider.Type != "anthropic" {
-		t.Errorf("Expected provider type=anthropic, got %s", provider.Type)
-	}
-
-	if !provider.Enabled {
-		t.Error("Expected provider enabled=true, got false")
-	}
-
-	// Verify keys
-	if len(provider.Keys) != 1 {
-		t.Fatalf("Expected 1 key, got %d", len(provider.Keys))
-	}
-
-	key := provider.Keys[0]
-	if key.Key != "sk-ant-test" {
-		t.Errorf("Expected key=sk-ant-test, got %s", key.Key)
-	}
-
-	if key.RPMLimit != 60 {
-		t.Errorf("Expected rpm_limit=60, got %d", key.RPMLimit)
-	}
-
-	if key.TPMLimit != 100000 {
-		t.Errorf("Expected tpm_limit=100000, got %d", key.TPMLimit)
-	}
-
-	// Verify logging
-	if cfg.Logging.Level != "info" {
-		t.Errorf("Expected logging level=info, got %s", cfg.Logging.Level)
-	}
-
-	if cfg.Logging.Format != "json" {
-		t.Errorf("Expected logging format=json, got %s", cfg.Logging.Format)
-	}
+	assertServerConfig(t, defaultListenAddr, 60000, 10, "test-key", cfg)
+	key := assertProviderConfig(t, testProviderType, testProviderType, true, cfg, 0)
+	assertKeyConfig(t, "sk-ant-test", 60, 100000, key)
+	assertLoggingConfig(t, cfg)
 }
 
 func TestLoadTOMLEnvironmentExpansion(t *testing.T) {
@@ -446,18 +402,23 @@ func TestLoadTOMLEnvironmentExpansion(t *testing.T) {
 	// Set a test environment variable
 	testKey := "TEST_TOML_API_KEY_12345"
 	testValue := "sk-toml-test-value"
-	os.Setenv(testKey, testValue)
+	if err := os.Setenv(testKey, testValue); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 
-	defer os.Unsetenv(testKey)
+	defer func() {
+		if err := os.Unsetenv(testKey); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
-	tomlContent := `
-[server]
-listen = "127.0.0.1:8787"
+	tomlContent := `[server]
+listen = "` + defaultListenAddr + `"
 api_key = "${` + testKey + `}"
 
 [[providers]]
 name = "test"
-type = "anthropic"
+type = "` + testProviderType + `"
 enabled = true
 
 [[providers.keys]]
@@ -468,9 +429,9 @@ level = "info"
 format = "text"
 `
 
-	cfg, err := LoadFromReaderWithFormat(strings.NewReader(tomlContent), FormatTOML)
+	cfg, err := config.LoadFromReaderWithFormat(strings.NewReader(tomlContent), config.FormatTOML)
 	if err != nil {
-		t.Fatalf("LoadFromReaderWithFormat failed: %v", err)
+		t.Fatalf("config.LoadFromReaderWithFormat failed: %v", err)
 	}
 
 	// Verify environment variable was expanded in server config
@@ -499,13 +460,12 @@ func TestLoadTOMLFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	tomlPath := tmpDir + "/config.toml"
 
-	tomlContent := `
-[server]
-listen = "127.0.0.1:8787"
+	tomlContent := `[server]
+listen = "` + defaultListenAddr + `"
 
 [[providers]]
-name = "anthropic"
-type = "anthropic"
+name = "` + testProviderType + `"
+type = "` + testProviderType + `"
 enabled = true
 
 [[providers.keys]]
@@ -515,40 +475,40 @@ key = "sk-ant-test"
 level = "info"
 `
 
-	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0o644); err != nil {
+	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0o600); err != nil {
 		t.Fatalf("Failed to write temp TOML file: %v", err)
 	}
 
-	cfg, err := Load(tomlPath)
+	cfg, err := config.Load(tomlPath)
 	if err != nil {
-		t.Fatalf("Load failed: %v", err)
+		t.Fatalf("config.Load failed: %v", err)
 	}
 
-	if cfg.Server.Listen != "127.0.0.1:8787" {
-		t.Errorf("Expected listen=127.0.0.1:8787, got %s", cfg.Server.Listen)
+	if cfg.Server.Listen != defaultListenAddr {
+		t.Errorf("Expected listen=%s, got %s", defaultListenAddr, cfg.Server.Listen)
 	}
 
 	if len(cfg.Providers) != 1 {
 		t.Fatalf("Expected 1 provider, got %d", len(cfg.Providers))
 	}
 
-	if cfg.Providers[0].Name != "anthropic" {
-		t.Errorf("Expected provider name=anthropic, got %s", cfg.Providers[0].Name)
+	if cfg.Providers[0].Name != testProviderType {
+		t.Errorf("Expected provider name=%s, got %s", testProviderType, cfg.Providers[0].Name)
 	}
 }
 
 func TestLoadUnsupportedFormat(t *testing.T) {
 	t.Parallel()
 
-	_, err := Load("/path/to/config.json")
+	_, err := config.Load("/path/to/config.json")
 	if err == nil {
 		t.Fatal("Expected error for unsupported format, got nil")
 	}
 
 	// Check it's an UnsupportedFormatError using errors.As
-	var unsupportedErr *UnsupportedFormatError
+	var unsupportedErr *config.UnsupportedFormatError
 	if !errors.As(err, &unsupportedErr) {
-		t.Fatalf("Expected UnsupportedFormatError, got %T: %v", err, err)
+		t.Fatalf("Expected config.UnsupportedFormatError, got %T: %v", err, err)
 	}
 
 	if unsupportedErr.Extension != ".json" {
@@ -567,14 +527,14 @@ func TestLoadUnsupportedFormat(t *testing.T) {
 func TestLoadUnsupportedFormatNoExtension(t *testing.T) {
 	t.Parallel()
 
-	_, err := Load("/path/to/config")
+	_, err := config.Load("/path/to/config")
 	if err == nil {
 		t.Fatal("Expected error for file without extension, got nil")
 	}
 
-	var unsupportedErr *UnsupportedFormatError
+	var unsupportedErr *config.UnsupportedFormatError
 	if !errors.As(err, &unsupportedErr) {
-		t.Fatalf("Expected UnsupportedFormatError, got %T: %v", err, err)
+		t.Fatalf("Expected config.UnsupportedFormatError, got %T: %v", err, err)
 	}
 
 	if unsupportedErr.Extension != "" {
@@ -587,37 +547,37 @@ func TestDetectFormat(t *testing.T) {
 
 	tests := []struct {
 		path     string
-		expected Format
+		expected config.Format
 		wantErr  bool
 	}{
-		{"config.yaml", FormatYAML, false},
-		{"config.yml", FormatYAML, false},
-		{"config.YAML", FormatYAML, false},
-		{"config.YML", FormatYAML, false},
-		{"config.toml", FormatTOML, false},
-		{"config.TOML", FormatTOML, false},
-		{"/path/to/config.yaml", FormatYAML, false},
-		{"/path/to/config.toml", FormatTOML, false},
+		{"config.yaml", config.FormatYAML, false},
+		{"config.yml", config.FormatYAML, false},
+		{"config.YAML", config.FormatYAML, false},
+		{"config.YML", config.FormatYAML, false},
+		{"config.toml", config.FormatTOML, false},
+		{"config.TOML", config.FormatTOML, false},
+		{"/path/to/config.yaml", config.FormatYAML, false},
+		{"/path/to/config.toml", config.FormatTOML, false},
 		{"config.json", "", true},
 		{"config.xml", "", true},
 		{"config", "", true},
 		{"", "", true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.path, func(t *testing.T) {
 			t.Parallel()
-			format, err := detectFormat(tt.path)
-			if tt.wantErr {
+			format, err := config.DetectFormat(testCase.path)
+			if testCase.wantErr {
 				if err == nil {
-					t.Errorf("detectFormat(%q) expected error, got nil", tt.path)
+					t.Errorf("config.DetectFormat(%q) expected error, got nil", testCase.path)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("detectFormat(%q) unexpected error: %v", tt.path, err)
+					t.Errorf("config.DetectFormat(%q) unexpected error: %v", testCase.path, err)
 				}
-				if format != tt.expected {
-					t.Errorf("detectFormat(%q) = %v, want %v", tt.path, format, tt.expected)
+				if format != testCase.expected {
+					t.Errorf("config.DetectFormat(%q) = %v, want %v", testCase.path, format, testCase.expected)
 				}
 			}
 		})
@@ -633,7 +593,7 @@ listen = "127.0.0.1:8787
 # Missing closing quote above
 `
 
-	_, err := LoadFromReaderWithFormat(strings.NewReader(tomlContent), FormatTOML)
+	_, err := config.LoadFromReaderWithFormat(strings.NewReader(tomlContent), config.FormatTOML)
 	if err == nil {
 		t.Fatal("Expected error for invalid TOML, got nil")
 	}

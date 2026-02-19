@@ -88,6 +88,7 @@ func NewVertexProvider(ctx context.Context, cfg *VertexConfig) (*VertexProvider,
 		projectID:    cfg.ProjectID,
 		region:       cfg.Region,
 		tokenSource:  creds.TokenSource,
+		tokenMu:      sync.RWMutex{},
 	}, nil
 }
 
@@ -106,6 +107,7 @@ func NewVertexProviderWithTokenSource(cfg *VertexConfig, tokenSource oauth2.Toke
 		projectID:    cfg.ProjectID,
 		region:       cfg.Region,
 		tokenSource:  tokenSource,
+		tokenMu:      sync.RWMutex{},
 	}
 }
 
@@ -113,14 +115,14 @@ func NewVertexProviderWithTokenSource(cfg *VertexConfig, tokenSource oauth2.Toke
 // The key parameter is ignored - we use the TokenSource instead.
 func (p *VertexProvider) Authenticate(req *http.Request, _ string) error {
 	p.tokenMu.RLock()
-	ts := p.tokenSource
+	tokenSource := p.tokenSource
 	p.tokenMu.RUnlock()
 
-	if ts == nil {
+	if tokenSource == nil {
 		return fmt.Errorf("vertex: no token source configured")
 	}
 
-	token, err := ts.Token()
+	token, err := tokenSource.Token()
 	if err != nil {
 		return fmt.Errorf("vertex: failed to get token: %w", err)
 	}
@@ -196,15 +198,15 @@ func (p *VertexProvider) RequiresBodyTransform() bool {
 // This is a proactive refresh to avoid token expiration mid-stream.
 func (p *VertexProvider) RefreshToken(ctx context.Context) error {
 	p.tokenMu.RLock()
-	ts := p.tokenSource
+	tokenSource := p.tokenSource
 	p.tokenMu.RUnlock()
 
-	if ts == nil {
+	if tokenSource == nil {
 		return fmt.Errorf("vertex: no token source configured")
 	}
 
 	// TokenSource automatically handles refresh, just request a new token
-	token, err := ts.Token()
+	token, err := tokenSource.Token()
 	if err != nil {
 		return fmt.Errorf("vertex: refresh failed: %w", err)
 	}

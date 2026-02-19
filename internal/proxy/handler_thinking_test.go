@@ -1,4 +1,4 @@
-package proxy
+package proxy_test
 
 import (
 	"bytes"
@@ -13,63 +13,78 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/router"
+
+
+	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 const signatureJSONPath = "messages.0.content.0.signature"
 
-func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
-	t.Parallel()
+// testSignatureCacheScenario tests that a pre-cached signature is used in a request
+// to the backend when the request thinking block has an empty signature.
+func testSignatureCacheScenario(
+	t *testing.T,
+	cacheModel, requestModel, thinkingText, expectedSig, assertionMsg string,
+) {
+	t.Helper()
 
-	sigCache, cleanup := newTestSignatureCache(t)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
 
-	// Pre-populate cache with signature
-	validSig := "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
-	thinkingText := "Let me think about this..."
-	sigCache.Set(context.Background(), "claude-sonnet-4", thinkingText, validSig)
+	sigCache.Set(context.Background(), cacheModel, thinkingText, expectedSig)
 	time.Sleep(10 * time.Millisecond) // Wait for Ristretto
 
-	backend, recorder := newRecordingBackend(t)
+	backend, recorder := proxy.NewRecordingBackend(t)
 
-	provider := newTestProvider(backend.URL)
-	handler := newHandlerWithSignatureCache(t, provider, sigCache)
+	provider := proxy.NewTestProvider(backend.URL)
+	handler := proxy.NewHandlerWithSignatureCache(t, provider, sigCache)
 
-	// Request with thinking block (no signature - should use cached)
 	body := `{
-		"model": "claude-sonnet-4",
+		"model": "` + requestModel + `",
 		"messages": [
 			{"role": "assistant", "content": [
-				{"type": "thinking", "thinking": "Let me think about this...", "signature": ""}
+				{"type": "thinking", "thinking": "` + thinkingText + `", "signature": ""}
 			]}
 		]
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
-	rr := httptest.NewRecorder()
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
+	responseRec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rr, req)
+	handler.ServeHTTP(responseRec, req)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, http.StatusOK, responseRec.Code)
 
-	// Verify cached signature was used in request to backend
 	sig := gjson.GetBytes(recorder.Body(), signatureJSONPath).String()
-	assert.Equal(t, validSig, sig, "should use cached signature")
+	assert.Equal(t, expectedSig, sig, assertionMsg)
+}
+
+func TestHandlerThinkingSignatureCacheHit(t *testing.T) {
+	t.Parallel()
+
+	testSignatureCacheScenario(
+		t,
+		"claude-sonnet-4",            // cacheModel
+		"claude-sonnet-4",            // requestModel
+		"Let me think about this...", // thinkingText
+		"abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz", // expectedSig
+		"should use cached signature",                                    // assertionMsg
+	)
 }
 
 func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 	t.Parallel()
 
-	sigCache, cleanup := newTestSignatureCache(t)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
 
-	backend, recorder := newRecordingBackend(t)
+	backend, recorder := proxy.NewRecordingBackend(t)
 
-	provider := newTestProvider(backend.URL)
-	handler := newHandlerWithSignatureCache(t, provider, sigCache)
+	provider := proxy.NewTestProvider(backend.URL)
+	handler := proxy.NewHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with valid client signature
 	clientSig := "client_signature_that_is_definitely_long_enough_for_validation"
@@ -83,7 +98,7 @@ func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -98,13 +113,13 @@ func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 	t.Parallel()
 
-	sigCache, cleanup := newTestSignatureCache(t)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
 
-	backend, recorder := newRecordingBackend(t)
+	backend, recorder := proxy.NewRecordingBackend(t)
 
-	provider := newTestProvider(backend.URL)
-	handler := newHandlerWithSignatureCache(t, provider, sigCache)
+	provider := proxy.NewTestProvider(backend.URL)
+	handler := proxy.NewHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with unsigned thinking block
 	body := `{
@@ -118,7 +133,7 @@ func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -134,13 +149,13 @@ func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 func TestHandlerThinkingSignatureDropsEmptyAssistantMessage(t *testing.T) {
 	t.Parallel()
 
-	sigCache, cleanup := newTestSignatureCache(t)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
 
-	backend, recorder := newRecordingBackend(t)
+	backend, recorder := proxy.NewRecordingBackend(t)
 
-	provider := newTestProvider(backend.URL)
-	handler := newHandlerWithSignatureCache(t, provider, sigCache)
+	provider := proxy.NewTestProvider(backend.URL)
+	handler := proxy.NewHandlerWithSignatureCache(t, provider, sigCache)
 
 	body := `{
 		"model": "claude-sonnet-4",
@@ -154,7 +169,7 @@ func TestHandlerThinkingSignatureDropsEmptyAssistantMessage(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -170,13 +185,13 @@ func TestHandlerThinkingSignatureDropsEmptyAssistantMessage(t *testing.T) {
 func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 	t.Parallel()
 
-	sigCache, cleanup := newTestSignatureCache(t)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
 
-	backend, recorder := newRecordingBackend(t)
+	backend, recorder := proxy.NewRecordingBackend(t)
 
-	provider := newTestProvider(backend.URL)
-	handler := newHandlerWithSignatureCache(t, provider, sigCache)
+	provider := proxy.NewTestProvider(backend.URL)
+	handler := proxy.NewHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with thinking block followed by tool_use
 	thinkingSig := "thinking_signature_that_is_definitely_long_enough_for_validation"
@@ -191,7 +206,7 @@ func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -207,16 +222,16 @@ func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {
 	t.Parallel()
 
-	sigCache, cleanup := newTestSignatureCache(t)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
 
-	backend, recorder := newRecordingBackend(t)
+	backend, recorder := proxy.NewRecordingBackend(t)
 
-	provider := newTestProvider(backend.URL)
-	handler := newHandlerWithSignatureCache(t, provider, sigCache)
+	provider := proxy.NewTestProvider(backend.URL)
+	handler := proxy.NewHandlerWithSignatureCache(t, provider, sigCache)
 
 	// Request with text before thinking (wrong order)
-	sig := "valid_signature_that_is_definitely_long_enough_for_validation"
+	sig := proxy.ValidTestSignature
 	body := `{
 		"model": "claude-sonnet-4",
 		"messages": [
@@ -228,7 +243,7 @@ func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -245,47 +260,20 @@ func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {
 func TestHandlerThinkingSignatureModelGroupSharing(t *testing.T) {
 	t.Parallel()
 
-	sigCache, cleanup := newTestSignatureCache(t)
-	defer cleanup()
-
-	// Cache signature with claude-sonnet-4
-	validSig := "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
-	thinkingText := "Shared thinking text"
-	sigCache.Set(context.Background(), "claude-sonnet-4", thinkingText, validSig)
-	time.Sleep(10 * time.Millisecond) // Wait for Ristretto
-
-	backend, recorder := newRecordingBackend(t)
-
-	provider := newTestProvider(backend.URL)
-	handler := newHandlerWithSignatureCache(t, provider, sigCache)
-
-	// Request with different model but same group
-	body := `{
-		"model": "claude-3-opus",
-		"messages": [
-			{"role": "assistant", "content": [
-				{"type": "thinking", "thinking": "Shared thinking text", "signature": ""}
-			]}
-		]
-	}`
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	// Verify shared signature was used
-	sig := gjson.GetBytes(recorder.Body(), signatureJSONPath).String()
-	assert.Equal(t, validSig, sig, "should use signature from same model group")
+	testSignatureCacheScenario(
+		t,
+		"claude-sonnet-4",    // cacheModel
+		"claude-3-opus",      // requestModel (different group)
+		"Shared thinking text", // thinkingText
+		"abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz",
+		"should use signature from same model group",
+	)
 }
 
 func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 	t.Parallel()
 
-	sigCache, cleanup := newTestSignatureCache(t)
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
 
 	// Track which providers were called
@@ -293,7 +281,7 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 	var provider2Calls int
 
 	// Create backend servers
-	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	backend1 := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		provider1Calls++
 		// Return response with signature (use printable chars, not null bytes)
 		resp := map[string]interface{}{
@@ -305,46 +293,57 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 				},
 			},
 		}
-		w.Header().Set(contentTypeHeader, jsonContentType)
-		json.NewEncoder(w).Encode(resp)
+		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
+		if err := json.NewEncoder(writer).Encode(resp); err != nil {
+			return
+		}
 	}))
 	defer backend1.Close()
 
 	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		provider2Calls++
-		w.Header().Set(contentTypeHeader, jsonContentType)
-		w.Write([]byte(`{"content": []}`))
+		w.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
+		if _, err := w.Write([]byte(`{"content": []}`)); err != nil {
+			return
+		}
 	}))
 	defer backend2.Close()
 
 	// Create providers
-	provider1 := newNamedProvider("provider1", backend1.URL)
-	provider2 := newNamedProvider("provider2", backend2.URL)
+	provider1 := proxy.NewNamedProvider("provider1", backend1.URL)
+	provider2 := proxy.NewNamedProvider("provider2", backend2.URL)
 
 	providerInfos := []router.ProviderInfo{
-		{Provider: provider1, IsHealthy: func() bool { return true }},
-		{Provider: provider2, IsHealthy: func() bool { return true }},
+		{Provider: provider1, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
+		{Provider: provider2, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
 	}
 
 	// Create round-robin router
 	mockRouter := &roundRobinMock{providers: providerInfos, index: 0}
 
-	handler, err := NewHandler(&HandlerOptions{
-		Provider:       provider1,
-		ProviderInfos:  providerInfos,
-		ProviderRouter: mockRouter,
-		APIKey:         "test-key",
-		ProviderPools:  map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		ProviderKeys:   map[string]string{"provider1": "key1", "provider2": "key2"},
-		DebugOptions:   config.DebugOptions{},
-		SignatureCache: sigCache,
+	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
+		Provider:          provider1,
+		ProviderInfos:     providerInfos,
+		ProviderRouter:    mockRouter,
+		APIKey:            "test-key",
+		ProviderPools:     map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
+		ProviderKeys:      map[string]string{"provider1": "key1", "provider2": "key2"},
+		DebugOptions:      proxy.TestDebugOptions(),
+		SignatureCache:    sigCache,
+		ProviderInfosFunc: nil,
+		Pool:              nil,
+		GetProviderPools:  nil,
+		GetProviderKeys:   nil,
+		RoutingConfig:     nil,
+		HealthTracker:     nil,
+		RoutingDebug:      false,
 	})
 	require.NoError(t, err)
 
 	// First request - should go to first provider
 	body := `{"model": "claude-sonnet-4", "messages": [{"role": "user", "content": "Hello"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -377,20 +376,31 @@ func (r *roundRobinMock) Name() string {
 func TestHandlerNoSignatureCachePassesThrough(t *testing.T) {
 	t.Parallel()
 
-	backend, recorder := newRecordingBackend(t)
+	backend, recorder := proxy.NewRecordingBackend(t)
 
 	// Create handler without signature cache
-	provider := newTestProvider(backend.URL)
-	handler, err := NewHandler(&HandlerOptions{
-		Provider:     provider,
-		APIKey:       "test-key",
-		DebugOptions: config.DebugOptions{},
-		// nil signature cache
+	provider := proxy.NewTestProvider(backend.URL)
+	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
+		Provider:          provider,
+		ProviderRouter:    nil,
+		ProviderPools:     nil,
+		ProviderInfosFunc: nil,
+		Pool:              nil,
+		ProviderKeys:      nil,
+		GetProviderPools:  nil,
+		GetProviderKeys:   nil,
+		RoutingConfig:     nil,
+		HealthTracker:     nil,
+		SignatureCache:    nil,
+		APIKey:            "test-key",
+		ProviderInfos:     nil,
+		DebugOptions:      proxy.TestDebugOptions(),
+		RoutingDebug:      false,
 	})
 	require.NoError(t, err)
 
 	// Request with thinking block
-	sig := "valid_signature_that_is_definitely_long_enough_for_validation"
+	sig := proxy.ValidTestSignature
 	body := `{
 		"model": "claude-sonnet-4",
 		"messages": [
@@ -401,7 +411,7 @@ func TestHandlerNoSignatureCachePassesThrough(t *testing.T) {
 	}`
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
-	req.Header.Set(contentTypeHeader, jsonContentType)
+	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)

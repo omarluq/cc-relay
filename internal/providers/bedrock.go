@@ -245,7 +245,7 @@ func (p *BedrockProvider) TransformRequest(
 
 // TransformResponse handles Bedrock's Event Stream response format.
 // Converts Event Stream to SSE for Claude Code compatibility.
-func (p *BedrockProvider) TransformResponse(resp *http.Response, w http.ResponseWriter) error {
+func (p *BedrockProvider) TransformResponse(resp *http.Response, writer http.ResponseWriter) error {
 	// Check if this is an Event Stream response
 	if resp.Header.Get("Content-Type") != ContentTypeEventStream {
 		// Not a streaming response, let standard proxy handle it
@@ -253,7 +253,7 @@ func (p *BedrockProvider) TransformResponse(resp *http.Response, w http.Response
 	}
 
 	// Convert Event Stream to SSE
-	_, err := EventStreamToSSE(resp, w)
+	_, err := EventStreamToSSE(resp, writer)
 	if err != nil {
 		return fmt.Errorf("bedrock: event stream conversion failed: %w", err)
 	}

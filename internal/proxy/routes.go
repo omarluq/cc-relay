@@ -78,10 +78,21 @@ func SetupRoutesWithProviders(
 	// Pass nil for healthTracker - this legacy function doesn't support health tracking
 	// Single-provider mode: nil maps for providerPools, providerKeys, and routingConfig
 	handler, err := NewHandler(&HandlerOptions{
-		Provider:     provider,
-		APIKey:       providerKey,
-		Pool:         pool,
-		DebugOptions: debugOpts,
+		ProviderRouter:    nil,
+		Provider:          provider,
+		ProviderPools:     nil,
+		ProviderInfosFunc: nil,
+		Pool:              pool,
+		ProviderKeys:      nil,
+		GetProviderPools:  nil,
+		GetProviderKeys:   nil,
+		RoutingConfig:     nil,
+		HealthTracker:     nil,
+		SignatureCache:    nil,
+		APIKey:            providerKey,
+		ProviderInfos:     nil,
+		DebugOptions:      debugOpts,
+		RoutingDebug:      false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create handler: %w", err)
@@ -234,7 +245,12 @@ func buildMessagesHandler(opts *RoutesOptions) (http.Handler, error) {
 	messagesHandler = LoggingMiddlewareWithProvider(func() config.DebugOptions {
 		cfg := opts.ConfigProvider.Get()
 		if cfg == nil {
-			return config.DebugOptions{}
+			return config.DebugOptions{
+				LogRequestBody:     false,
+				LogResponseHeaders: false,
+				LogTLSMetrics:      false,
+				MaxBodyLogSize:     0,
+			}
 		}
 		return cfg.Logging.DebugOptions
 	})(messagesHandler)
@@ -252,6 +268,8 @@ func buildProxyHandler(opts *RoutesOptions) (*Handler, error) {
 		Provider:          opts.Provider,
 		ProviderInfosFunc: opts.ProviderInfosFunc,
 		ProviderRouter:    opts.ProviderRouter,
+		ProviderPools:     nil,
+		ProviderKeys:      nil,
 		APIKey:            opts.ProviderKey,
 		Pool:              opts.Pool,
 		GetProviderPools:  opts.GetProviderPools,
@@ -261,6 +279,7 @@ func buildProxyHandler(opts *RoutesOptions) (*Handler, error) {
 		RoutingDebug:      cfg.Routing.IsDebugEnabled(),
 		HealthTracker:     opts.HealthTracker,
 		SignatureCache:    opts.SignatureCache,
+		ProviderInfos:     nil,
 	},
 	)
 	if err != nil {

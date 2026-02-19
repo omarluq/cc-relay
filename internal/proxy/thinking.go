@@ -60,7 +60,12 @@ func ProcessRequestThinking(
 	modelName string,
 	cache *SignatureCache,
 ) ([]byte, *ThinkingContext, error) {
-	thinkingCtx := &ThinkingContext{}
+	thinkingCtx := &ThinkingContext{
+		CurrentSignature:        "",
+		AccumulatedThinkingText: strings.Builder{},
+		DroppedBlocks:           0,
+		ReorderedBlocks:         false,
+	}
 
 	// Parse messages array
 	messages := gjson.GetBytes(body, "messages")
@@ -196,7 +201,10 @@ func rebuildContent(
 	needsReorder bool,
 ) ([]byte, error) {
 	thinkingCtx.ReorderedBlocks = needsReorder
-	collector := &blockCollector{}
+	collector := &blockCollector{
+		modifiedBlocks: nil,
+		modifiedTypes:  nil,
+	}
 	collectBlocks(ctx, content, modelName, cache, thinkingCtx, collector)
 
 	if needsReorder {

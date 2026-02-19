@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/health"
 )
 
 const (
@@ -15,27 +17,102 @@ const (
 	defaultAPIKey     = "test-key"
 	configFileName    = "config.yaml"
 	unexpectedErrFmt  = "Unexpected error: %v"
-	restoreWdErrFmt   = "failed to restore working directory: %v"
+	providerAnthropic = "anthropic"
 )
 
+// Helper functions to create zero-filled config structs for testing.
+func emptyRoutingConfig() config.RoutingConfig {
+	return config.RoutingConfig{
+		ModelMapping: nil, Strategy: "",
+		DefaultProvider: "", FailoverTimeout: 0, Debug: false,
+	}
+}
+
+func emptyLoggingConfig() config.LoggingConfig {
+	return config.LoggingConfig{
+		Level: "", Format: "", Output: "", Pretty: false,
+		DebugOptions: config.DebugOptions{
+			LogRequestBody: false, LogResponseHeaders: false,
+			LogTLSMetrics: false, MaxBodyLogSize: 0,
+		},
+	}
+}
+
+func emptyHealthConfig() health.Config {
+	return health.Config{
+		HealthCheck: health.CheckConfig{Enabled: nil, IntervalMS: 0},
+		CircuitBreaker: health.CircuitBreakerConfig{
+			OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0,
+		},
+	}
+}
+
+func emptyCacheConfig() cache.Config {
+	return cache.Config{
+		Mode: "",
+		Olric: cache.OlricConfig{
+			DMapName: "", BindAddr: "", Environment: "",
+			Addresses: nil, Peers: nil, ReplicaCount: 0,
+			ReadQuorum: 0, WriteQuorum: 0,
+			LeaveTimeout: 0, MemberCountQuorum: 0, Embedded: false,
+		},
+		Ristretto: cache.RistrettoConfig{
+			NumCounters: 0, MaxCost: 0, BufferItems: 0,
+		},
+	}
+}
+
+func emptyAuthConfig() config.AuthConfig {
+	return config.AuthConfig{
+		APIKey: "", BearerSecret: "",
+		AllowBearer: false, AllowSubscription: false,
+	}
+}
+
+func emptyKeyConfig(key string) config.KeyConfig {
+	return config.KeyConfig{
+		Key: key, RPMLimit: 0, ITPMLimit: 0,
+		OTPMLimit: 0, Priority: 0, Weight: 0, TPMLimit: 0,
+	}
+}
+
+func emptyProviderConfig() config.ProviderConfig {
+	return config.ProviderConfig{
+		ModelMapping: nil, AWSRegion: "",
+		GCPProjectID: "", AzureAPIVersion: "",
+		Name: "", Type: "", BaseURL: "",
+		AzureDeploymentID: "", AWSAccessKeyID: "",
+		AzureResourceName: "", AWSSecretAccessKey: "",
+		GCPRegion: "", Keys: nil, Models: nil,
+		Pooling: config.PoolingConfig{Strategy: "", Enabled: false},
+		Enabled: false,
+	}
+}
+
 func TestValidateConfigValid(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
+
+	provider := emptyProviderConfig()
+	provider.Name = providerAnthropic
+	provider.Type = providerAnthropic
+	provider.Enabled = true
+	provider.Keys = []config.KeyConfig{emptyKeyConfig("test-api-key")}
 
 	cfg := &config.Config{
+		Routing: emptyRoutingConfig(),
+		Logging: emptyLoggingConfig(),
+		Health:  emptyHealthConfig(),
+		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
-			Listen: defaultListenAddr,
-			APIKey: defaultAPIKey,
+			Listen:        defaultListenAddr,
+			APIKey:        defaultAPIKey,
+			Auth:          emptyAuthConfig(),
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
 		},
-		Providers: []config.ProviderConfig{
-			{
-				Name:    "anthropic",
-				Type:    "anthropic",
-				Enabled: true,
-				Keys: []config.KeyConfig{
-					{Key: "test-api-key"},
-				},
-			},
-		},
+		Providers: []config.ProviderConfig{provider},
 	}
 
 	if err := validateConfig(cfg); err != nil {
@@ -44,12 +121,23 @@ func TestValidateConfigValid(t *testing.T) {
 }
 
 func TestValidateConfigNoListen(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	cfg := &config.Config{
+		Routing: emptyRoutingConfig(),
+		Logging: emptyLoggingConfig(),
+		Health:  emptyHealthConfig(),
+		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
-			APIKey: defaultAPIKey,
+			Listen:        "",
+			APIKey:        defaultAPIKey,
+			Auth:          emptyAuthConfig(),
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
 		},
+		Providers: nil,
 	}
 
 	err := validateConfig(cfg)
@@ -63,12 +151,23 @@ func TestValidateConfigNoListen(t *testing.T) {
 }
 
 func TestValidateConfigNoAPIKey(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	cfg := &config.Config{
+		Routing: emptyRoutingConfig(),
+		Logging: emptyLoggingConfig(),
+		Health:  emptyHealthConfig(),
+		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
-			Listen: defaultListenAddr,
+			Listen:        defaultListenAddr,
+			APIKey:        "",
+			Auth:          emptyAuthConfig(),
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
 		},
+		Providers: nil,
 	}
 
 	err := validateConfig(cfg)
@@ -82,19 +181,27 @@ func TestValidateConfigNoAPIKey(t *testing.T) {
 }
 
 func TestValidateConfigNoEnabledProvider(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
+
+	provider := emptyProviderConfig()
+	provider.Name = providerAnthropic
+	provider.Enabled = false
 
 	cfg := &config.Config{
+		Routing: emptyRoutingConfig(),
+		Logging: emptyLoggingConfig(),
+		Health:  emptyHealthConfig(),
+		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
-			Listen: defaultListenAddr,
-			APIKey: defaultAPIKey,
+			Listen:        defaultListenAddr,
+			APIKey:        defaultAPIKey,
+			Auth:          emptyAuthConfig(),
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
 		},
-		Providers: []config.ProviderConfig{
-			{
-				Name:    "anthropic",
-				Enabled: false,
-			},
-		},
+		Providers: []config.ProviderConfig{provider},
 	}
 
 	err := validateConfig(cfg)
@@ -108,20 +215,28 @@ func TestValidateConfigNoEnabledProvider(t *testing.T) {
 }
 
 func TestValidateConfigProviderNoKeys(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
+
+	provider := emptyProviderConfig()
+	provider.Name = providerAnthropic
+	provider.Enabled = true
+	provider.Keys = []config.KeyConfig{}
 
 	cfg := &config.Config{
+		Routing: emptyRoutingConfig(),
+		Logging: emptyLoggingConfig(),
+		Health:  emptyHealthConfig(),
+		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
-			Listen: defaultListenAddr,
-			APIKey: defaultAPIKey,
+			Listen:        defaultListenAddr,
+			APIKey:        defaultAPIKey,
+			Auth:          emptyAuthConfig(),
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
 		},
-		Providers: []config.ProviderConfig{
-			{
-				Name:    "anthropic",
-				Enabled: true,
-				Keys:    []config.KeyConfig{},
-			},
-		},
+		Providers: []config.ProviderConfig{provider},
 	}
 
 	err := validateConfig(cfg)
@@ -131,27 +246,35 @@ func TestValidateConfigProviderNoKeys(t *testing.T) {
 }
 
 func TestValidateConfigMultipleProviders(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
+
+	provider1 := emptyProviderConfig()
+	provider1.Name = providerAnthropic
+	provider1.Type = providerAnthropic
+	provider1.Enabled = true
+	provider1.Keys = []config.KeyConfig{emptyKeyConfig("key1")}
+
+	provider2 := emptyProviderConfig()
+	provider2.Name = "zai"
+	provider2.Type = "zai"
+	provider2.Enabled = true
+	provider2.Keys = []config.KeyConfig{emptyKeyConfig("key2")}
 
 	cfg := &config.Config{
+		Routing: emptyRoutingConfig(),
+		Logging: emptyLoggingConfig(),
+		Health:  emptyHealthConfig(),
+		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
-			Listen: defaultListenAddr,
-			APIKey: defaultAPIKey,
+			Listen:        defaultListenAddr,
+			APIKey:        defaultAPIKey,
+			Auth:          emptyAuthConfig(),
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
 		},
-		Providers: []config.ProviderConfig{
-			{
-				Name:    "anthropic",
-				Type:    "anthropic",
-				Enabled: true,
-				Keys:    []config.KeyConfig{{Key: "key1"}},
-			},
-			{
-				Name:    "zai",
-				Type:    "zai",
-				Enabled: true,
-				Keys:    []config.KeyConfig{{Key: "key2"}},
-			},
-		},
+		Providers: []config.ProviderConfig{provider1, provider2},
 	}
 
 	if err := validateConfig(cfg); err != nil {
@@ -160,12 +283,21 @@ func TestValidateConfigMultipleProviders(t *testing.T) {
 }
 
 func TestValidateConfigEmptyProviders(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	cfg := &config.Config{
+		Routing: emptyRoutingConfig(),
+		Logging: emptyLoggingConfig(),
+		Health:  emptyHealthConfig(),
+		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
-			Listen: defaultListenAddr,
-			APIKey: defaultAPIKey,
+			Listen:        defaultListenAddr,
+			APIKey:        defaultAPIKey,
+			Auth:          emptyAuthConfig(),
+			TimeoutMS:     0,
+			MaxConcurrent: 0,
+			MaxBodyBytes:  0,
+			EnableHTTP2:   false,
 		},
 		Providers: []config.ProviderConfig{},
 	}
@@ -177,74 +309,37 @@ func TestValidateConfigEmptyProviders(t *testing.T) {
 }
 
 func TestFindConfigFileForValidate(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
-
-	// Save original working directory
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(restoreWdErrFmt, err)
-		}
-	}()
+	t.Parallel()
 
 	// Create temp directory with config.yaml
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, configFileName)
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: "+defaultListenAddr+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("server:\n  listen: "+defaultListenAddr+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Change to temp directory
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test finding config in current directory
-	found := findConfigFileForValidate()
-	if found != configFileName {
-		t.Errorf("Expected %q, got %q", configFileName, found)
+	// Test finding config in given directory
+	found := findConfigIn(tmpDir)
+	if found != filepath.Join(tmpDir, defaultConfigFile) {
+		t.Errorf("Expected config in tmpDir, got %q", found)
 	}
 }
 
 func TestFindConfigFileForValidateNotFound(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Save original working directory and HOME
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	origHome := os.Getenv("HOME")
-
-	defer func() {
-		if err := os.Chdir(origWd); err != nil {
-			t.Logf(restoreWdErrFmt, err)
-		}
-		os.Setenv("HOME", origHome)
-	}()
-
-	// Change to temp directory without config.yaml
+	// Empty temp directory - no config file
 	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
 
-	// Set HOME to temp dir so it won't find user's config
-	os.Setenv("HOME", tmpDir)
-
-	// Should return default even if not found
-	found := findConfigFileForValidate()
-	if found != configFileName {
-		t.Errorf("Expected %q default, got %q", configFileName, found)
+	// Should return default when not found
+	found := findConfigIn(tmpDir)
+	if found != defaultConfigFile {
+		t.Errorf("Expected %q default, got %q", defaultConfigFile, found)
 	}
 }
 
 func TestRunConfigValidateValidConfig(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	// Create a valid config file
 	tmpDir := t.TempDir()
@@ -254,79 +349,61 @@ server:
   listen: "` + localListenAddr + `"
   api_key: "` + defaultAPIKey + `"
 providers:
-  - name: "anthropic"
-    type: "anthropic"
+  - name: "` + providerAnthropic + `"
+    type: "` + providerAnthropic + `"
     enabled: true
     base_url: "https://api.anthropic.com"
     keys:
       - key: "test-api-key"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runConfigValidate should succeed
-	err := runConfigValidate(nil, nil)
+	// validateConfigAtPath should succeed
+	err := validateConfigAtPath(configPath)
 	if err != nil {
 		t.Errorf("Expected valid config, got error: %v", err)
 	}
 }
 
 func TestRunConfigValidateInvalidYAML(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	// Create a config file with invalid YAML
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, configFileName)
-	if err := os.WriteFile(configPath, []byte("invalid: yaml: : content"), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte("invalid: yaml: : content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runConfigValidate should fail
-	err := runConfigValidate(nil, nil)
+	// validateConfigAtPath should fail
+	err := validateConfigAtPath(configPath)
 	if err == nil {
 		t.Error("Expected error for invalid YAML")
 	}
 }
 
 func TestRunConfigValidateMissingServer(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
 	// Create a config file missing server section
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, configFileName)
 	configContent := `
 providers:
-  - name: "anthropic"
-    type: "anthropic"
+  - name: "` + providerAnthropic + `"
+    type: "` + providerAnthropic + `"
     enabled: true
     keys:
       - key: "test-api-key"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = configPath
-
-	// runConfigValidate should fail
-	err := runConfigValidate(nil, nil)
+	// validateConfigAtPath should fail
+	err := validateConfigAtPath(configPath)
 	if err == nil {
 		t.Error("Expected error for missing server section")
 	}
@@ -336,16 +413,10 @@ providers:
 }
 
 func TestRunConfigValidateNonexistentFile(t *testing.T) {
-	// Note: Cannot use t.Parallel() (modifies global cfgFile)
+	t.Parallel()
 
-	// Save original cfgFile
-	origCfgFile := cfgFile
-	defer func() { cfgFile = origCfgFile }()
-
-	cfgFile = "/nonexistent/path/" + configFileName
-
-	// runConfigValidate should fail
-	err := runConfigValidate(nil, nil)
+	// validateConfigAtPath should fail
+	err := validateConfigAtPath("/nonexistent/path/" + configFileName)
 	if err == nil {
 		t.Error("Expected error for nonexistent file")
 	}

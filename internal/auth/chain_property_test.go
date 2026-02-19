@@ -1,4 +1,4 @@
-package auth
+package auth_test
 
 import (
 	"net/http"
@@ -8,6 +8,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/omarluq/cc-relay/internal/auth"
 )
 
 // Reusable generator functions to avoid gocritic dupOption warnings.
@@ -21,7 +22,8 @@ var (
 
 // Property-based tests for ChainAuthenticator
 
-func TestChainAuthenticatorProperties(t *testing.T) {
+func TestChainAuthenticatorCoreProperties(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -33,7 +35,7 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 				return true // Skip empty keys
 			}
 
-			chain := NewChainAuthenticator(NewAPIKeyAuthenticator(key))
+			chain := auth.NewChainAuthenticator(auth.NewAPIKeyAuthenticator(key))
 			req := createRequestWithAPIKey(key)
 
 			result := chain.Validate(req)
@@ -50,7 +52,7 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			chain := NewChainAuthenticator(NewAPIKeyAuthenticator(validKey))
+			chain := auth.NewChainAuthenticator(auth.NewAPIKeyAuthenticator(validKey))
 			req := createRequestWithAPIKey(providedKey)
 
 			result := chain.Validate(req)
@@ -63,11 +65,11 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 	// Property 3: Empty chain returns invalid
 	properties.Property("empty chain returns invalid", prop.ForAll(
 		func(_ bool) bool {
-			chain := NewChainAuthenticator()
+			chain := auth.NewChainAuthenticator()
 			req := createRequestWithAPIKey("any-key")
 
 			result := chain.Validate(req)
-			return !result.Valid && result.Type == TypeNone
+			return !result.Valid && result.Type == auth.TypeNone
 		},
 		gen.Bool(),
 	))
@@ -80,17 +82,26 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 			}
 
 			// Chain with the same key in two authenticators
-			auth1 := NewAPIKeyAuthenticator(key)
-			auth2 := NewAPIKeyAuthenticator("different-key")
+			auth1 := auth.NewAPIKeyAuthenticator(key)
+			auth2 := auth.NewAPIKeyAuthenticator("different-key")
 
-			chain := NewChainAuthenticator(auth1, auth2)
+			chain := auth.NewChainAuthenticator(auth1, auth2)
 			req := createRequestWithAPIKey(key)
 
 			result := chain.Validate(req)
-			return result.Valid && result.Type == TypeAPIKey
+			return result.Valid && result.Type == auth.TypeAPIKey
 		},
 		genNonEmptyAlpha,
 	))
+
+	properties.TestingRun(t)
+}
+
+func TestChainAuthenticatorResultProperties(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
 
 	// Property 5: ValidateResult returns Ok for valid authentication
 	properties.Property("ValidateResult returns Ok for valid auth", prop.ForAll(
@@ -99,7 +110,7 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			chain := NewChainAuthenticator(NewAPIKeyAuthenticator(key))
+			chain := auth.NewChainAuthenticator(auth.NewAPIKeyAuthenticator(key))
 			req := createRequestWithAPIKey(key)
 
 			result := chain.ValidateResult(req)
@@ -115,7 +126,7 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			chain := NewChainAuthenticator(NewAPIKeyAuthenticator(validKey))
+			chain := auth.NewChainAuthenticator(auth.NewAPIKeyAuthenticator(validKey))
 			req := createRequestWithAPIKey(providedKey)
 
 			result := chain.ValidateResult(req)
@@ -125,11 +136,11 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 		genMinLen4Alpha, // Use different length to avoid dupOption
 	))
 
-	// Property 7: Type is always TypeNone for chain
-	properties.Property("Type returns TypeNone", prop.ForAll(
+	// Property 7: Type is always auth.TypeNone for chain
+	properties.Property("Type returns auth.TypeNone", prop.ForAll(
 		func(_ bool) bool {
-			chain := NewChainAuthenticator()
-			return chain.Type() == TypeNone
+			chain := auth.NewChainAuthenticator()
+			return chain.Type() == auth.TypeNone
 		},
 		gen.Bool(),
 	))
@@ -138,6 +149,7 @@ func TestChainAuthenticatorProperties(t *testing.T) {
 }
 
 func TestAPIKeyAuthenticatorProperties(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -149,11 +161,11 @@ func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			auth := NewAPIKeyAuthenticator(key)
+			authenticator := auth.NewAPIKeyAuthenticator(key)
 			req := createRequestWithAPIKey(key)
 
-			result := auth.Validate(req)
-			return result.Valid && result.Type == TypeAPIKey
+			result := authenticator.Validate(req)
+			return result.Valid && result.Type == auth.TypeAPIKey
 		},
 		genNonEmptyAlpha,
 	))
@@ -165,10 +177,10 @@ func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			auth := NewAPIKeyAuthenticator(key)
+			authenticator := auth.NewAPIKeyAuthenticator(key)
 			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
-			result := auth.Validate(req)
+			result := authenticator.Validate(req)
 			return !result.Valid && result.Error == "missing x-api-key header"
 		},
 		genNonEmptyAlpha,
@@ -181,11 +193,11 @@ func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			auth := NewAPIKeyAuthenticator(key)
+			authenticator := auth.NewAPIKeyAuthenticator(key)
 			req := createRequestWithAPIKey(provided)
 
-			validateResult := auth.Validate(req)
-			resultMonad := auth.ValidateResult(req)
+			validateResult := authenticator.Validate(req)
+			resultMonad := authenticator.ValidateResult(req)
 
 			// Results should be consistent
 			if validateResult.Valid {
@@ -197,15 +209,15 @@ func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 		genMinLen6Alpha, // Different to avoid dupOption
 	))
 
-	// Property 4: Type returns TypeAPIKey
-	properties.Property("Type returns TypeAPIKey", prop.ForAll(
+	// Property 4: Type returns auth.TypeAPIKey
+	properties.Property("Type returns auth.TypeAPIKey", prop.ForAll(
 		func(key string) bool {
 			if key == "" {
 				return true
 			}
 
-			auth := NewAPIKeyAuthenticator(key)
-			return auth.Type() == TypeAPIKey
+			authenticator := auth.NewAPIKeyAuthenticator(key)
+			return authenticator.Type() == auth.TypeAPIKey
 		},
 		genNonEmptyAlpha,
 	))
@@ -213,7 +225,8 @@ func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-func TestBearerAuthenticatorProperties(t *testing.T) {
+func TestBearerAuthenticatorValidationProperties(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -225,11 +238,11 @@ func TestBearerAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			auth := NewBearerAuthenticator(secret)
+			authenticator := auth.NewBearerAuthenticator(secret)
 			req := createRequestWithBearerToken(secret)
 
-			result := auth.Validate(req)
-			return result.Valid && result.Type == TypeBearer
+			result := authenticator.Validate(req)
+			return result.Valid && result.Type == auth.TypeBearer
 		},
 		genNonEmptyAlpha,
 	))
@@ -241,11 +254,11 @@ func TestBearerAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			auth := NewBearerAuthenticator("") // No secret = passthrough
+			authenticator := auth.NewBearerAuthenticator("") // No secret = passthrough
 			req := createRequestWithBearerToken(token)
 
-			result := auth.Validate(req)
-			return result.Valid && result.Type == TypeBearer
+			result := authenticator.Validate(req)
+			return result.Valid && result.Type == auth.TypeBearer
 		},
 		genNonEmptyAlpha,
 	))
@@ -253,10 +266,10 @@ func TestBearerAuthenticatorProperties(t *testing.T) {
 	// Property 3: Missing Authorization header fails
 	properties.Property("missing Authorization fails", prop.ForAll(
 		func(secret string) bool {
-			auth := NewBearerAuthenticator(secret)
+			authenticator := auth.NewBearerAuthenticator(secret)
 			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 
-			result := auth.Validate(req)
+			result := authenticator.Validate(req)
 			return !result.Valid && result.Error == "missing authorization header"
 		},
 		genAnyAlpha,
@@ -265,34 +278,43 @@ func TestBearerAuthenticatorProperties(t *testing.T) {
 	// Property 4: Invalid scheme fails
 	properties.Property("invalid scheme fails", prop.ForAll(
 		func(secret string) bool {
-			auth := NewBearerAuthenticator(secret)
+			authenticator := auth.NewBearerAuthenticator(secret)
 			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 			req.Header.Set("Authorization", "Basic dXNlcjpwYXNz") // Basic auth instead of Bearer
 
-			result := auth.Validate(req)
+			result := authenticator.Validate(req)
 			return !result.Valid && result.Error == "invalid authorization scheme"
 		},
 		genAnyAlpha,
 	))
 
+	properties.TestingRun(t)
+}
+
+func TestBearerAuthenticatorResultProperties(t *testing.T) {
+	t.Parallel()
+	parameters := gopter.DefaultTestParameters()
+	parameters.MinSuccessfulTests = 100
+	properties := gopter.NewProperties(parameters)
+
 	// Property 5: Empty token after "Bearer " fails
 	properties.Property("empty token fails", prop.ForAll(
 		func(secret string) bool {
-			auth := NewBearerAuthenticator(secret)
+			authenticator := auth.NewBearerAuthenticator(secret)
 			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 			req.Header.Set("Authorization", "Bearer ")
 
-			result := auth.Validate(req)
+			result := authenticator.Validate(req)
 			return !result.Valid && result.Error == "empty bearer token"
 		},
 		genAnyAlpha,
 	))
 
-	// Property 6: Type returns TypeBearer
-	properties.Property("Type returns TypeBearer", prop.ForAll(
+	// Property 6: Type returns auth.TypeBearer
+	properties.Property("Type returns auth.TypeBearer", prop.ForAll(
 		func(secret string) bool {
-			auth := NewBearerAuthenticator(secret)
-			return auth.Type() == TypeBearer
+			bearer := auth.NewBearerAuthenticator(secret)
+			return bearer.Type() == auth.TypeBearer
 		},
 		genAnyAlpha,
 	))
@@ -304,11 +326,11 @@ func TestBearerAuthenticatorProperties(t *testing.T) {
 				return true
 			}
 
-			auth := NewBearerAuthenticator(secret)
+			bearer := auth.NewBearerAuthenticator(secret)
 			req := createRequestWithBearerToken(token)
 
-			validateResult := auth.Validate(req)
-			resultMonad := auth.ValidateResult(req)
+			validateResult := bearer.Validate(req)
+			resultMonad := bearer.ValidateResult(req)
 
 			if validateResult.Valid {
 				return resultMonad.IsOk()
@@ -323,6 +345,7 @@ func TestBearerAuthenticatorProperties(t *testing.T) {
 }
 
 func TestValidationErrorProperties(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)
@@ -330,7 +353,7 @@ func TestValidationErrorProperties(t *testing.T) {
 	// Property: Error() returns the message
 	properties.Property("Error returns message", prop.ForAll(
 		func(message string) bool {
-			err := NewValidationError(TypeAPIKey, message)
+			err := auth.NewValidationError(auth.TypeAPIKey, message)
 			return err.Error() == message
 		},
 		genAnyAlpha,
@@ -339,10 +362,10 @@ func TestValidationErrorProperties(t *testing.T) {
 	// Property: Type is preserved
 	properties.Property("Type is preserved", prop.ForAll(
 		func(typeIdx int) bool {
-			types := []Type{TypeAPIKey, TypeBearer, TypeNone}
+			types := []auth.Type{auth.TypeAPIKey, auth.TypeBearer, auth.TypeNone}
 			authType := types[typeIdx%len(types)]
 
-			err := NewValidationError(authType, "test message")
+			err := auth.NewValidationError(authType, "test message")
 			return err.Type == authType
 		},
 		gen.IntRange(0, 2),

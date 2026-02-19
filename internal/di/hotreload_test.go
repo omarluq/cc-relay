@@ -1,4 +1,4 @@
-package di
+package di_test
 
 import (
 	"context"
@@ -8,8 +8,17 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/di"
 	"github.com/omarluq/cc-relay/internal/router"
 )
+
+// mustTestConfigWithStrategy creates a full config.Config with the given routing strategy and timeout.
+func mustTestConfigWithStrategy(strategy string, failoverTimeout int) *config.Config {
+	cfg := di.MustTestConfig()
+	cfg.Routing = di.MustTestRoutingConfig(strategy)
+	cfg.Routing.FailoverTimeout = failoverTimeout
+	return &cfg
+}
 
 // TestHotReload_RoutingStrategy verifies that changing routing strategy
 // in config and triggering reload updates the router without restart.
@@ -17,20 +26,15 @@ func TestHotReloadRoutingStrategy(t *testing.T) {
 	t.Parallel()
 
 	// Start with config A: round_robin strategy
-	configA := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        router.StrategyRoundRobin,
-			FailoverTimeout: 5000,
-		},
-	}
+	configA := mustTestConfigWithStrategy(router.StrategyRoundRobin, 5000)
 
 	// Create config service with initial config
-	cfgSvc := &ConfigService{}
-	cfgSvc.config.Store(configA)
+	cfgSvc := di.NewConfigServiceUninitialized()
+	cfgSvc.GetConfigAtomic().Store(configA)
 	cfgSvc.Config = configA
 
 	// Create router service
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	// Verify initial strategy is round_robin
 	router1 := routerSvc.GetRouter()
@@ -38,15 +42,10 @@ func TestHotReloadRoutingStrategy(t *testing.T) {
 		"Initial router should use round_robin strategy")
 
 	// Update to config B: failover strategy
-	configB := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        router.StrategyFailover,
-			FailoverTimeout: 3000,
-		},
-	}
+	configB := mustTestConfigWithStrategy(router.StrategyFailover, 3000)
 
 	// Simulate hot-reload by storing new config
-	cfgSvc.config.Store(configB)
+	cfgSvc.GetConfigAtomic().Store(configB)
 	cfgSvc.Config = configB
 
 	// Verify router now uses failover strategy
@@ -60,25 +59,14 @@ func TestHotReloadRoutingStrategy(t *testing.T) {
 func TestHotReloadLiveRouter(t *testing.T) {
 	t.Parallel()
 
-	configA := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        router.StrategyShuffle,
-			FailoverTimeout: 5000,
-		},
-	}
+	configA := mustTestConfigWithStrategy(router.StrategyShuffle, 5000)
+	configB := mustTestConfigWithStrategy(router.StrategyRoundRobin, 5000)
 
-	configB := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        router.StrategyRoundRobin,
-			FailoverTimeout: 5000,
-		},
-	}
-
-	cfgSvc := &ConfigService{}
-	cfgSvc.config.Store(configA)
+	cfgSvc := di.NewConfigServiceUninitialized()
+	cfgSvc.GetConfigAtomic().Store(configA)
 	cfgSvc.Config = configA
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	// Create a LiveRouter that uses GetRouter
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouter)
@@ -88,7 +76,7 @@ func TestHotReloadLiveRouter(t *testing.T) {
 		"LiveRouter should initially use shuffle")
 
 	// Hot-reload to round_robin
-	cfgSvc.config.Store(configB)
+	cfgSvc.GetConfigAtomic().Store(configB)
 	cfgSvc.Config = configB
 
 	// LiveRouter should now delegate to round_robin
@@ -98,6 +86,7 @@ func TestHotReloadLiveRouter(t *testing.T) {
 
 // TestHotReload_ConcurrentAccess verifies that concurrent config reads
 // during hot-reload don't cause races or panics.
+//nolint:cyclop // test requires multiple concurrent paths
 func TestHotReloadConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
@@ -105,14 +94,11 @@ func TestHotReloadConcurrentAccess(t *testing.T) {
 		t.Skip("Skipping concurrent test in short mode")
 	}
 
-	cfgSvc := &ConfigService{}
-	cfgSvc.config.Store(&config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: router.StrategyRoundRobin,
-		},
-	})
+	initialCfg := mustTestConfigWithStrategy(router.StrategyRoundRobin, 0)
+	cfgSvc := di.NewConfigServiceUninitialized()
+	cfgSvc.GetConfigAtomic().Store(initialCfg)
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -140,20 +126,16 @@ func TestHotReloadConcurrentAccess(t *testing.T) {
 			router.StrategyShuffle,
 			router.StrategyFailover,
 		}
-		i := 0
+		idx := 0
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				newCfg := &config.Config{
-					Routing: config.RoutingConfig{
-						Strategy: strategies[i%len(strategies)],
-					},
-				}
-				cfgSvc.config.Store(newCfg)
+				newCfg := mustTestConfigWithStrategy(strategies[idx%len(strategies)], 0)
+				cfgSvc.GetConfigAtomic().Store(newCfg)
 				cfgSvc.Config = newCfg
-				i++
+				idx++
 			}
 		}
 	}()
@@ -187,13 +169,9 @@ func TestHotReloadConcurrentAccess(t *testing.T) {
 func TestConfigServiceGetVsDirect(t *testing.T) {
 	t.Parallel()
 
-	cfgSvc := &ConfigService{}
-	initialCfg := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: router.StrategyRoundRobin,
-		},
-	}
-	cfgSvc.config.Store(initialCfg)
+	cfgSvc := di.NewConfigServiceUninitialized()
+	initialCfg := mustTestConfigWithStrategy(router.StrategyRoundRobin, 0)
+	cfgSvc.GetConfigAtomic().Store(initialCfg)
 	cfgSvc.Config = initialCfg // Both point to same initially
 
 	// Initially both should return the same
@@ -201,12 +179,8 @@ func TestConfigServiceGetVsDirect(t *testing.T) {
 		"Initially Config and Get() should return same")
 
 	// Simulate hot-reload: update atomic pointer but not Config field
-	newCfg := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: router.StrategyFailover,
-		},
-	}
-	cfgSvc.config.Store(newCfg)
+	newCfg := mustTestConfigWithStrategy(router.StrategyFailover, 0)
+	cfgSvc.GetConfigAtomic().Store(newCfg)
 	cfgSvc.Config = newCfg // Also update Config field (as the watcher does)
 
 	// Get() returns the new config
@@ -221,16 +195,12 @@ func TestConfigServiceGetVsDirect(t *testing.T) {
 // BenchmarkHotReload_GetRouter benchmarks the per-request router creation.
 // This establishes a baseline for hot-reload performance overhead.
 func BenchmarkHotReloadGetRouter(b *testing.B) {
-	cfgSvc := &ConfigService{}
-	cfgSvc.config.Store(&config.Config{
-		Routing: config.RoutingConfig{
-			Strategy:        router.StrategyRoundRobin,
-			FailoverTimeout: 5000,
-		},
-	})
-	cfgSvc.Config = cfgSvc.config.Load()
+	cfgSvc := di.NewConfigServiceUninitialized()
+	benchCfg := mustTestConfigWithStrategy(router.StrategyRoundRobin, 5000)
+	cfgSvc.GetConfigAtomic().Store(benchCfg)
+	cfgSvc.Config = cfgSvc.GetConfigAtomic().Load()
 
-	routerSvc := &RouterService{cfgSvc: cfgSvc}
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -240,18 +210,15 @@ func BenchmarkHotReloadGetRouter(b *testing.B) {
 
 // BenchmarkHotReload_AtomicStore benchmarks the config swap operation.
 func BenchmarkHotReloadAtomicStore(b *testing.B) {
-	cfgSvc := &ConfigService{}
-	cfgSvc.config.Store(&config.Config{})
-	_ = cfgSvc.config.Load() // Initialize Config field (unused in benchmark)
+	cfgSvc := di.NewConfigServiceUninitialized()
+	storeCfg := di.MustTestConfig()
+	cfgSvc.GetConfigAtomic().Store(&storeCfg)
+	_ = cfgSvc.GetConfigAtomic().Load() // Initialize Config field (unused in benchmark)
 
-	newCfg := &config.Config{
-		Routing: config.RoutingConfig{
-			Strategy: router.StrategyFailover,
-		},
-	}
+	newCfg := mustTestConfigWithStrategy(router.StrategyFailover, 0)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cfgSvc.config.Store(newCfg)
+		cfgSvc.GetConfigAtomic().Store(newCfg)
 	}
 }

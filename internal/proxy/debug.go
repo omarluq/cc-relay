@@ -50,7 +50,7 @@ type Metrics struct {
 
 // LogRequestDetails logs request body and headers in debug mode.
 // Respects DebugOptions.LogRequestBody and MaxBodyLogSize.
-func LogRequestDetails(ctx context.Context, r *http.Request, opts config.DebugOptions) {
+func LogRequestDetails(ctx context.Context, req *http.Request, opts config.DebugOptions) {
 	if !opts.LogRequestBody {
 		return
 	}
@@ -60,7 +60,7 @@ func LogRequestDetails(ctx context.Context, r *http.Request, opts config.DebugOp
 		return
 	}
 
-	bodyBytes := readAndRestoreBody(r, logger)
+	bodyBytes := readAndRestoreBody(req, logger)
 	if bodyBytes == nil {
 		return
 	}
@@ -75,23 +75,23 @@ func LogRequestDetails(ctx context.Context, r *http.Request, opts config.DebugOp
 	bodyStr := redactSensitiveFields(string(bodyBytes))
 
 	// Log with context
-	logRequestBody(logger, r.Header.Get("Content-Type"), bodyBytes, model, maxTokens, bodyStr)
+	logRequestBody(logger, req.Header.Get("Content-Type"), bodyBytes, model, maxTokens, bodyStr)
 }
 
 // readAndRestoreBody reads the request body and restores it for downstream handlers.
-func readAndRestoreBody(r *http.Request, logger *zerolog.Logger) []byte {
-	if r.Body == nil {
+func readAndRestoreBody(req *http.Request, logger *zerolog.Logger) []byte {
+	if req.Body == nil {
 		return nil
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(req.Body)
 	if err != nil {
 		logger.Debug().Err(err).Msg("failed to read request body")
 		return nil
 	}
 
 	// Restore body for downstream handlers
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	return bodyBytes
 }
 
@@ -255,7 +255,14 @@ func LogProxyMetrics(ctx context.Context, metrics Metrics, _ config.DebugOptions
 // AttachTLSTrace attaches httptrace to request for TLS metric collection.
 // Returns updated context with trace and a function to retrieve metrics.
 func AttachTLSTrace(ctx context.Context, _ *http.Request) (newCtx context.Context, getMetrics func() TLSMetrics) {
-	metrics := &TLSMetrics{}
+	metrics := &TLSMetrics{
+		Version:     "",
+		DNSTime:     0,
+		ConnectTime: 0,
+		TLSTime:     0,
+		Reused:      false,
+		HasMetrics:  false,
+	}
 	var dnsStart, connectStart, tlsStart time.Time
 
 	trace := &httptrace.ClientTrace{

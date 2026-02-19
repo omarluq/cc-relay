@@ -163,7 +163,7 @@ type Checker struct {
 	logger  *zerolog.Logger
 	cancel  context.CancelFunc
 	config  CheckConfig
-	wg      sync.WaitGroup
+	waitGroup sync.WaitGroup
 	mu      sync.RWMutex
 }
 
@@ -171,12 +171,14 @@ type Checker struct {
 func NewChecker(tracker *Tracker, cfg CheckConfig, logger *zerolog.Logger) *Checker {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Checker{
-		tracker: tracker,
-		config:  cfg,
-		checks:  make(map[string]ProviderHealthCheck),
-		logger:  logger,
-		ctx:     ctx,
-		cancel:  cancel,
+		tracker:   tracker,
+		config:    cfg,
+		checks:    make(map[string]ProviderHealthCheck),
+		logger:    logger,
+		ctx:       ctx,
+		cancel:    cancel,
+		waitGroup: sync.WaitGroup{},
+		mu:        sync.RWMutex{},
 	}
 }
 
@@ -202,9 +204,9 @@ func (h *Checker) Start() {
 	jitter := cryptoRandDuration(2 * time.Second)
 	ticker := time.NewTicker(interval + jitter)
 
-	h.wg.Add(1)
+	h.waitGroup.Add(1)
 	go func() {
-		defer h.wg.Done()
+		defer h.waitGroup.Done()
 		defer ticker.Stop()
 
 		if h.logger != nil {
@@ -231,7 +233,7 @@ func (h *Checker) Start() {
 // Stop stops the health checker and waits for the goroutine to finish.
 func (h *Checker) Stop() {
 	h.cancel()
-	h.wg.Wait()
+	h.waitGroup.Wait()
 }
 
 // checkAllProviders runs health checks for all providers with OPEN circuits.

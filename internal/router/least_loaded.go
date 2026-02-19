@@ -19,6 +19,7 @@ type LeastLoadedRouter struct {
 func NewLeastLoadedRouter() *LeastLoadedRouter {
 	return &LeastLoadedRouter{
 		inFlight: make(map[string]*atomic.Int64),
+		mu:       sync.Mutex{},
 	}
 }
 
@@ -35,15 +36,15 @@ func (r *LeastLoadedRouter) Select(_ context.Context, infos []ProviderInfo) (Pro
 
 	minLoad := int64(-1)
 	var candidates []ProviderInfo
-	for _, p := range healthy {
-		load := r.getCounter(p.Provider.Name()).Load()
+	for _, providerInfo := range healthy {
+		load := r.getCounter(providerInfo.Provider.Name()).Load()
 		if minLoad == -1 || load < minLoad {
 			minLoad = load
-			candidates = []ProviderInfo{p}
+			candidates = []ProviderInfo{providerInfo}
 			continue
 		}
 		if load == minLoad {
-			candidates = append(candidates, p)
+			candidates = append(candidates, providerInfo)
 		}
 	}
 
@@ -51,11 +52,11 @@ func (r *LeastLoadedRouter) Select(_ context.Context, infos []ProviderInfo) (Pro
 	candidates = sortByPriority(candidates)
 	highestPriority := candidates[0].Priority
 	var priorityTies []ProviderInfo
-	for _, p := range candidates {
-		if p.Priority != highestPriority {
+	for _, providerInfo := range candidates {
+		if providerInfo.Priority != highestPriority {
 			break
 		}
-		priorityTies = append(priorityTies, p)
+		priorityTies = append(priorityTies, providerInfo)
 	}
 
 	if len(priorityTies) == 1 {

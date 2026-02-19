@@ -67,7 +67,7 @@ var validLogFormats = map[string]bool{
 // It validates all required fields, valid values, and cross-field constraints.
 // Returns a ValidationError containing all errors found, or nil if valid.
 func (c *Config) Validate() error {
-	errs := &ValidationError{}
+	errs := &ValidationError{Errors: nil}
 
 	validateServer(c, errs)
 	validateProviders(c, errs)
@@ -78,27 +78,27 @@ func (c *Config) Validate() error {
 }
 
 // validateServer validates the server configuration section.
-func validateServer(c *Config, errs *ValidationError) {
+func validateServer(cfg *Config, errs *ValidationError) {
 	// Server.Listen is required
-	if c.Server.Listen == "" {
+	if cfg.Server.Listen == "" {
 		errs.Add("server.listen is required")
 	} else {
 		// Validate listen address format (host:port)
-		validateListenAddress(c.Server.Listen, errs)
+		validateListenAddress(cfg.Server.Listen, errs)
 	}
 
 	// Validate timeout if set
-	if c.Server.TimeoutMS < 0 {
+	if cfg.Server.TimeoutMS < 0 {
 		errs.Add("server.timeout_ms must be >= 0")
 	}
 
 	// Validate max_concurrent if set
-	if c.Server.MaxConcurrent < 0 {
+	if cfg.Server.MaxConcurrent < 0 {
 		errs.Add("server.max_concurrent must be >= 0")
 	}
 
 	// Validate max_body_bytes if set
-	if c.Server.MaxBodyBytes < 0 {
+	if cfg.Server.MaxBodyBytes < 0 {
 		errs.Add("server.max_body_bytes must be >= 0")
 	}
 }
@@ -129,84 +129,84 @@ func validateListenAddress(addr string, errs *ValidationError) {
 }
 
 // validateProviders validates the providers configuration section.
-func validateProviders(c *Config, errs *ValidationError) {
-	if len(c.Providers) == 0 {
+func validateProviders(cfg *Config, errs *ValidationError) {
+	if len(cfg.Providers) == 0 {
 		// No providers is valid - might be used for testing or placeholder config
 		return
 	}
 
 	seenNames := make(map[string]bool)
 
-	for i := range c.Providers {
-		validateProvider(&c.Providers[i], i, seenNames, errs)
+	for idx := range cfg.Providers {
+		validateProvider(&cfg.Providers[idx], idx, seenNames, errs)
 	}
 }
 
 // validateProvider validates a single provider configuration.
-func validateProvider(p *ProviderConfig, index int, seenNames map[string]bool, errs *ValidationError) {
+func validateProvider(provider *ProviderConfig, index int, seenNames map[string]bool, errs *ValidationError) {
 	prefix := func(field string) string {
-		if p.Name != "" {
-			return fmt.Sprintf("provider[%s].%s", p.Name, field)
+		if provider.Name != "" {
+			return fmt.Sprintf("provider[%s].%s", provider.Name, field)
 		}
 		return fmt.Sprintf("providers[%d].%s", index, field)
 	}
 
 	// Name is required
-	if p.Name == "" {
+	if provider.Name == "" {
 		errs.Addf("providers[%d].name is required", index)
 	} else {
 		// Check for duplicate names
-		if seenNames[p.Name] {
-			errs.Addf("duplicate provider name: %s", p.Name)
+		if seenNames[provider.Name] {
+			errs.Addf("duplicate provider name: %s", provider.Name)
 		}
-		seenNames[p.Name] = true
+		seenNames[provider.Name] = true
 	}
 
 	// Type is required
-	if p.Type == "" {
+	if provider.Type == "" {
 		errs.Addf("%s is required", prefix("type"))
-	} else if !validProviderTypes[p.Type] {
+	} else if !validProviderTypes[provider.Type] {
 		errs.Addf("%s is invalid (got %q, valid: anthropic, zai, ollama, bedrock, vertex, azure)",
-			prefix("type"), p.Type)
+			prefix("type"), provider.Type)
 	}
 
 	// Validate cloud provider fields
-	validateCloudProviderConfig(p, prefix, errs)
+	validateCloudProviderConfig(provider, prefix, errs)
 
 	// Validate keys
-	for j, key := range p.Keys {
-		validateProviderKey(&key, p.Name, j, errs)
+	for keyIdx, key := range provider.Keys {
+		validateProviderKey(&key, provider.Name, keyIdx, errs)
 	}
 
 	// Validate pooling strategy if set
-	if p.Pooling.Strategy != "" && !validPoolingStrategies[p.Pooling.Strategy] {
-		errs.Addf("%s is invalid (got %q)", prefix("pooling.strategy"), p.Pooling.Strategy)
+	if provider.Pooling.Strategy != "" && !validPoolingStrategies[provider.Pooling.Strategy] {
+		errs.Addf("%s is invalid (got %q)", prefix("pooling.strategy"), provider.Pooling.Strategy)
 	}
 }
 
 // validateCloudProviderConfig validates cloud provider-specific fields.
-func validateCloudProviderConfig(p *ProviderConfig, prefix func(string) string, errs *ValidationError) {
-	switch p.Type {
+func validateCloudProviderConfig(provider *ProviderConfig, prefix func(string) string, errs *ValidationError) {
+	switch provider.Type {
 	case ProviderBedrock:
-		if p.AWSRegion == "" {
+		if provider.AWSRegion == "" {
 			errs.Addf("%s is required for bedrock provider", prefix("aws_region"))
 		}
 	case ProviderVertex:
-		if p.GCPProjectID == "" {
+		if provider.GCPProjectID == "" {
 			errs.Addf("%s is required for vertex provider", prefix("gcp_project_id"))
 		}
-		if p.GCPRegion == "" {
+		if provider.GCPRegion == "" {
 			errs.Addf("%s is required for vertex provider", prefix("gcp_region"))
 		}
 	case ProviderAzure:
-		if p.AzureResourceName == "" {
+		if provider.AzureResourceName == "" {
 			errs.Addf("%s is required for azure provider", prefix("azure_resource_name"))
 		}
 	}
 }
 
 // validateProviderKey validates a single API key configuration.
-func validateProviderKey(k *KeyConfig, providerName string, index int, errs *ValidationError) {
+func validateProviderKey(keyCfg *KeyConfig, providerName string, index int, errs *ValidationError) {
 	prefix := func(field string) string {
 		if providerName != "" {
 			return fmt.Sprintf("provider[%s].keys[%d].%s", providerName, index, field)
@@ -215,71 +215,71 @@ func validateProviderKey(k *KeyConfig, providerName string, index int, errs *Val
 	}
 
 	// Key is required (will be expanded from env var later)
-	if k.Key == "" {
+	if keyCfg.Key == "" {
 		errs.Addf("%s is required", prefix("key"))
 	}
 
 	// Priority must be 0-2
-	if k.Priority < 0 || k.Priority > 2 {
-		errs.Addf("%s must be 0-2 (got %d)", prefix("priority"), k.Priority)
+	if keyCfg.Priority < 0 || keyCfg.Priority > 2 {
+		errs.Addf("%s must be 0-2 (got %d)", prefix("priority"), keyCfg.Priority)
 	}
 
 	// Weight must be non-negative
-	if k.Weight < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("weight"), k.Weight)
+	if keyCfg.Weight < 0 {
+		errs.Addf("%s must be >= 0 (got %d)", prefix("weight"), keyCfg.Weight)
 	}
 
 	// Rate limits must be non-negative
-	if k.RPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("rpm_limit"), k.RPMLimit)
+	if keyCfg.RPMLimit < 0 {
+		errs.Addf("%s must be >= 0 (got %d)", prefix("rpm_limit"), keyCfg.RPMLimit)
 	}
-	if k.TPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("tpm_limit"), k.TPMLimit)
+	if keyCfg.TPMLimit < 0 {
+		errs.Addf("%s must be >= 0 (got %d)", prefix("tpm_limit"), keyCfg.TPMLimit)
 	}
-	if k.ITPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("itpm_limit"), k.ITPMLimit)
+	if keyCfg.ITPMLimit < 0 {
+		errs.Addf("%s must be >= 0 (got %d)", prefix("itpm_limit"), keyCfg.ITPMLimit)
 	}
-	if k.OTPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("otpm_limit"), k.OTPMLimit)
+	if keyCfg.OTPMLimit < 0 {
+		errs.Addf("%s must be >= 0 (got %d)", prefix("otpm_limit"), keyCfg.OTPMLimit)
 	}
 }
 
 // validateRouting validates the routing configuration section.
-func validateRouting(c *Config, errs *ValidationError) {
+func validateRouting(cfg *Config, errs *ValidationError) {
 	// Strategy must be valid if set
-	if c.Routing.Strategy != "" && !validRoutingStrategies[c.Routing.Strategy] {
+	if cfg.Routing.Strategy != "" && !validRoutingStrategies[cfg.Routing.Strategy] {
 		errs.Addf("routing.strategy is invalid (got %q, valid: failover, round_robin, "+
 			"weighted_round_robin, shuffle, model_based, least_loaded, weighted_failover)",
-			c.Routing.Strategy)
+			cfg.Routing.Strategy)
 	}
 
 	// FailoverTimeout must be non-negative
-	if c.Routing.FailoverTimeout < 0 {
+	if cfg.Routing.FailoverTimeout < 0 {
 		errs.Add("routing.failover_timeout must be >= 0")
 	}
 
 	// Model-based routing requires model_mapping
-	if c.Routing.Strategy == "model_based" && len(c.Routing.ModelMapping) == 0 {
+	if cfg.Routing.Strategy == "model_based" && len(cfg.Routing.ModelMapping) == 0 {
 		errs.Add("routing.model_mapping is required when strategy is model_based")
 	}
 }
 
 // validateLogging validates the logging configuration section.
-func validateLogging(c *Config, errs *ValidationError) {
+func validateLogging(cfg *Config, errs *ValidationError) {
 	// Level must be valid if set
-	if !validLogLevels[c.Logging.Level] {
+	if !validLogLevels[cfg.Logging.Level] {
 		errs.Addf("logging.level is invalid (got %q, valid: debug, info, warn, error)",
-			c.Logging.Level)
+			cfg.Logging.Level)
 	}
 
 	// Format must be valid if set
-	if !validLogFormats[c.Logging.Format] {
+	if !validLogFormats[cfg.Logging.Format] {
 		errs.Addf("logging.format is invalid (got %q, valid: json, console, text, pretty)",
-			c.Logging.Format)
+			cfg.Logging.Format)
 	}
 
 	// MaxBodyLogSize must be non-negative
-	if c.Logging.DebugOptions.MaxBodyLogSize < 0 {
+	if cfg.Logging.DebugOptions.MaxBodyLogSize < 0 {
 		errs.Add("logging.debug_options.max_body_log_size must be >= 0")
 	}
 }

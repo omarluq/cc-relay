@@ -32,14 +32,33 @@ func runConfigCCInit(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	settingsPath, err := applyCCRelayConfig(home, proxyURL)
+	if err != nil {
+		return err
+	}
+
+	cmd.Printf("Claude Code configured to use cc-relay at %s\n", proxyURL)
+	cmd.Printf("Settings file: %s\n", settingsPath)
+	cmd.Println("\nEnvironment variables added:")
+	cmd.Printf("  ANTHROPIC_BASE_URL=%s\n", proxyURL)
+	cmd.Println("  ANTHROPIC_AUTH_TOKEN=managed-by-cc-relay")
+	cmd.Println("\nRestart Claude Code for changes to take effect.")
+
+	return nil
+}
+
+// applyCCRelayConfig applies cc-relay configuration to Claude Code settings.
+// Returns the path to the settings file.
+func applyCCRelayConfig(home, proxyURL string) (string, error) {
+	settingsPath := filepath.Clean(filepath.Join(home, ".claude", "settings.json"))
 
 	// Read existing settings or create new
 	var settings map[string]interface{}
 
-	if data, err := os.ReadFile(settingsPath); err == nil {
-		if err := json.Unmarshal(data, &settings); err != nil {
-			return fmt.Errorf("failed to parse settings.json: %w", err)
+	data, readErr := os.ReadFile(settingsPath)
+	if readErr == nil {
+		if unmarshalErr := json.Unmarshal(data, &settings); unmarshalErr != nil {
+			return "", fmt.Errorf("failed to parse settings.json: %w", unmarshalErr)
 		}
 	} else {
 		settings = make(map[string]interface{})
@@ -59,26 +78,19 @@ func runConfigCCInit(cmd *cobra.Command, _ []string) error {
 
 	// Create directory if needed
 	dir := filepath.Dir(settingsPath)
-	if err := os.MkdirAll(dir, 0750); err != nil {
-		return fmt.Errorf("failed to create .claude directory: %w", err)
+	if mkdirErr := os.MkdirAll(dir, 0o750); mkdirErr != nil {
+		return "", fmt.Errorf("failed to create .claude directory: %w", mkdirErr)
 	}
 
 	// Write settings with pretty formatting
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal settings: %w", err)
+		return "", fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	if err := os.WriteFile(settingsPath, data, 0600); err != nil {
-		return fmt.Errorf("failed to write settings.json: %w", err)
+	if err := os.WriteFile(settingsPath, data, 0o600); err != nil {
+		return "", fmt.Errorf("failed to write settings.json: %w", err)
 	}
 
-	fmt.Printf("Claude Code configured to use cc-relay at %s\n", proxyURL)
-	fmt.Printf("Settings file: %s\n", settingsPath)
-	fmt.Println("\nEnvironment variables added:")
-	fmt.Printf("  ANTHROPIC_BASE_URL=%s\n", proxyURL)
-	fmt.Println("  ANTHROPIC_AUTH_TOKEN=managed-by-cc-relay")
-	fmt.Println("\nRestart Claude Code for changes to take effect.")
-
-	return nil
+	return settingsPath, nil
 }

@@ -12,6 +12,7 @@ import (
 
 // TestOlricCluster_Formation tests that multiple nodes can form a cluster.
 func TestOlricClusterFormation(t *testing.T) {
+	t.Parallel()
 	cluster := newTestCacheCluster(t)
 
 	// Start first node
@@ -49,6 +50,7 @@ func TestOlricClusterFormation(t *testing.T) {
 
 // TestOlricCluster_DataReplication tests that data is replicated across nodes.
 func TestOlricClusterDataReplication(t *testing.T) {
+	t.Parallel()
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -89,6 +91,7 @@ func TestOlricClusterDataReplication(t *testing.T) {
 
 // TestOlricCluster_NodeLeave tests that a node can leave gracefully.
 func TestOlricClusterNodeLeave(t *testing.T) {
+	t.Parallel()
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -142,6 +145,7 @@ func TestOlricClusterNodeLeave(t *testing.T) {
 
 // TestOlricCluster_DynamicJoin tests that new nodes can join an existing cluster.
 func TestOlricClusterDynamicJoin(t *testing.T) {
+	t.Parallel()
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -195,6 +199,7 @@ func TestOlricClusterDynamicJoin(t *testing.T) {
 
 // TestOlricCluster_ThreeNode tests a 3-node cluster with full replication.
 func TestOlricClusterThreeNode(t *testing.T) {
+	t.Parallel()
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -248,6 +253,7 @@ func TestOlricClusterThreeNode(t *testing.T) {
 
 // TestOlricCluster_WriteReadConsistency tests that writes are immediately readable.
 func TestOlricClusterWriteReadConsistency(t *testing.T) {
+	t.Parallel()
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 
@@ -297,6 +303,7 @@ func TestOlricClusterWriteReadConsistency(t *testing.T) {
 
 // TestOlricCluster_TTLReplication tests that TTL is preserved across nodes.
 func TestOlricClusterTTLReplication(t *testing.T) {
+	t.Parallel()
 	cluster := newTestCacheCluster(t)
 	ctx := context.Background()
 

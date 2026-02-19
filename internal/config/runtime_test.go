@@ -1,84 +1,84 @@
-package config
+package config_test
 
 import (
+	"github.com/omarluq/cc-relay/internal/config"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	strategyRoundRobin = "round_robin"
+	strategyFailover   = "failover"
+)
+
 // TestRuntime_GetStore verifies atomic config storage and retrieval.
 func TestRuntimeGetStore(t *testing.T) {
 	t.Parallel()
 
-	cfg1 := &Config{
-		Routing: RoutingConfig{
-			Strategy: "round_robin",
-		},
-	}
+	cfg1 := config.MakeTestConfig()
+	cfg1.Routing.Strategy = strategyRoundRobin
 
-	runtime := NewRuntime(cfg1)
+	runtime := config.NewRuntime(cfg1)
 
 	// Initial config should be retrievable
 	retrieved := runtime.Get()
 	assert.Equal(t, cfg1, retrieved, "Initial config should be retrievable")
-	assert.Equal(t, "round_robin", retrieved.Routing.Strategy)
+	assert.Equal(t, strategyRoundRobin, retrieved.Routing.Strategy)
 
 	// Store a new config
-	cfg2 := &Config{
-		Routing: RoutingConfig{
-			Strategy: "failover",
-		},
-	}
+	cfg2 := config.MakeTestConfig()
+	cfg2.Routing.Strategy = strategyFailover
 	runtime.Store(cfg2)
 
 	// New config should be retrievable
 	retrieved2 := runtime.Get()
 	assert.Equal(t, cfg2, retrieved2, "New config should be retrievable")
-	assert.Equal(t, "failover", retrieved2.Routing.Strategy)
+	assert.Equal(t, strategyFailover, retrieved2.Routing.Strategy)
 }
 
 // TestRuntime_ConcurrentAccess verifies thread-safe config access.
 func TestRuntimeConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
-	runtime := NewRuntime(&Config{
-		Routing: RoutingConfig{Strategy: "round_robin"},
-	})
+	cfg := config.MakeTestConfig()
+	cfg.Routing.Strategy = strategyRoundRobin
+	runtime := config.NewRuntime(cfg)
 
 	// Concurrent reads and writes with WaitGroup to ensure both goroutines complete
-	var wg sync.WaitGroup
-	wg.Add(2)
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(2)
 
 	go func() {
-		defer wg.Done()
-		for i := 0; i < 1000; i++ {
+		defer waitGroup.Done()
+		for idx := 0; idx < 1000; idx++ {
 			_ = runtime.Get()
 		}
 	}()
 
 	go func() {
-		defer wg.Done()
-		for i := 0; i < 100; i++ {
-			runtime.Store(&Config{
-				Routing: RoutingConfig{Strategy: "failover"},
-			})
+		defer waitGroup.Done()
+		for idx := 0; idx < 100; idx++ {
+			cfg := config.MakeTestConfig()
+			cfg.Routing.Strategy = strategyFailover
+			runtime.Store(cfg)
 		}
 	}()
 
-	wg.Wait()
+	waitGroup.Wait()
 
 	// Final retrieval should work
-	cfg := runtime.Get()
-	assert.NotNil(t, cfg)
+	finalCfg := runtime.Get()
+	assert.NotNil(t, finalCfg)
 }
 
 // TestRuntime_ImplementsRuntimeConfigGetter verifies interface compliance.
 func TestRuntimeImplementsRuntimeConfigGetter(t *testing.T) {
 	t.Parallel()
 
-	var _ RuntimeConfigGetter = (*Runtime)(nil)
+	var _ config.RuntimeConfigGetter = (*config.Runtime)(nil)
 
-	runtime := NewRuntime(&Config{})
-	assert.Implements(t, (*RuntimeConfigGetter)(nil), runtime)
+	runtime := config.NewRuntime(config.MakeTestConfig())
+	assert.Implements(t, (*config.RuntimeConfigGetter)(nil), runtime)
 }
