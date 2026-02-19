@@ -18,8 +18,8 @@ const (
 	typeToolResult = "tool_result"
 )
 
-// TestWouldOrphanToolResults_ToolResultInNextMessage tests detection when next message has tool_result.
-func TestWouldOrphanToolResults_ToolResultInNextMessage(t *testing.T) {
+// TestWouldOrphanToolResultsNextMessageHasResult tests detection when next message has tool_result.
+func TestWouldOrphanToolResultsNextMessageHasResult(t *testing.T) {
 	t.Parallel()
 
 	body := `{
@@ -44,8 +44,8 @@ func TestWouldOrphanToolResults_ToolResultInNextMessage(t *testing.T) {
 	}
 }
 
-// TestWouldOrphanToolResults_SafeToDrop tests detection when safe to drop (last message).
-func TestWouldOrphanToolResults_SafeToDrop(t *testing.T) {
+// TestWouldOrphanToolResultsSafeToDrop tests detection when safe to drop (last message).
+func TestWouldOrphanToolResultsSafeToDrop(t *testing.T) {
 	t.Parallel()
 
 	// An assistant at the end with no following user message is safe to drop.
@@ -64,8 +64,8 @@ func TestWouldOrphanToolResults_SafeToDrop(t *testing.T) {
 	}
 }
 
-// TestWouldOrphanToolResults_ConsecutiveUsers tests that dropping between two user msgs is blocked.
-func TestWouldOrphanToolResults_ConsecutiveUsers(t *testing.T) {
+// TestWouldOrphanToolResultsConsecutiveUsers tests that dropping between two user msgs is blocked.
+func TestWouldOrphanToolResultsConsecutiveUsers(t *testing.T) {
 	t.Parallel()
 
 	// Dropping this assistant would create consecutive user messages
@@ -85,8 +85,8 @@ func TestWouldOrphanToolResults_ConsecutiveUsers(t *testing.T) {
 	}
 }
 
-// TestWouldOrphanToolResults_EmptyMessages tests empty messages array.
-func TestWouldOrphanToolResults_EmptyMessages(t *testing.T) {
+// TestWouldOrphanToolResultsEmptyMessages tests empty messages array.
+func TestWouldOrphanToolResultsEmptyMessages(t *testing.T) {
 	t.Parallel()
 
 	body := `{"messages": []}`

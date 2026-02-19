@@ -211,8 +211,7 @@ func rebuildContent(
 		collector.modifiedBlocks = reorderBlocks(collector.modifiedBlocks, collector.modifiedTypes)
 	}
 
-	path := fmt.Sprintf("messages.%d.content", msgIndex)
-	return sjson.SetBytes(body, path, collector.modifiedBlocks)
+	return sjson.SetBytes(body, messageContentPath(msgIndex), collector.modifiedBlocks)
 }
 
 func processAssistantContent(
@@ -356,13 +355,23 @@ func assistantContent(msg *gjson.Result) (gjson.Result, bool) {
 	return content, true
 }
 
+// messagePath returns the gjson path for a message at index.
+func messagePath(idx int64) string {
+	return fmt.Sprintf("messages.%d", idx)
+}
+
+// messageContentPath returns the gjson path for a message's content array.
+func messageContentPath(idx int64) string {
+	return fmt.Sprintf("messages.%d.content", idx)
+}
+
 func dropMessagesByIndex(body []byte, indexes []int) ([]byte, error) {
 	sort.Sort(sort.Reverse(sort.IntSlice(indexes)))
 	modifiedBody := body
 
 	for _, idx := range indexes {
 		var err error
-		modifiedBody, err = sjson.DeleteBytes(modifiedBody, fmt.Sprintf("messages.%d", idx))
+		modifiedBody, err = sjson.DeleteBytes(modifiedBody, messagePath(int64(idx)))
 		if err != nil {
 			return body, err
 		}
@@ -454,8 +463,8 @@ func countMessages(body []byte) int64 {
 
 // isConsecutiveUserPair checks if both messages at the given indices are user messages.
 func isConsecutiveUserPair(body []byte, idxA, idxB int64) bool {
-	msgA := gjson.GetBytes(body, fmt.Sprintf("messages.%d", idxA))
-	msgB := gjson.GetBytes(body, fmt.Sprintf("messages.%d", idxB))
+	msgA := gjson.GetBytes(body, messagePath(idxA))
+	msgB := gjson.GetBytes(body, messagePath(idxB))
 
 	return msgA.Get("role").String() == roleUser &&
 		msgB.Get("role").String() == roleUser
@@ -464,7 +473,7 @@ func isConsecutiveUserPair(body []byte, idxA, idxB int64) bool {
 // nextMessageHasToolResult checks if the message at nextIdx is a user message
 // containing tool_result blocks.
 func nextMessageHasToolResult(body []byte, nextIdx int64) bool {
-	nextMsg := gjson.GetBytes(body, fmt.Sprintf("messages.%d", nextIdx))
+	nextMsg := gjson.GetBytes(body, messagePath(nextIdx))
 	if nextMsg.Get("role").String() != roleUser {
 		return false
 	}
@@ -491,8 +500,7 @@ func ReplaceContentWithPlaceholder(body []byte, msgIndex int64) []byte {
 			"text": "",
 		},
 	}
-	path := fmt.Sprintf("messages.%d.content", msgIndex)
-	modifiedBody, err := sjson.SetBytes(body, path, placeholder)
+	modifiedBody, err := sjson.SetBytes(body, messageContentPath(msgIndex), placeholder)
 	if err != nil {
 		return body
 	}
