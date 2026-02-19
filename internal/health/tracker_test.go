@@ -242,13 +242,13 @@ func TestTrackerConcurrentAccess(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer waitGroup.Done()
 			providerName := "provider"
 			testErr := errors.New("test error")
 
-			for j := 0; j < numOperations; j++ {
+			for j := range numOperations {
 				// Mix of operations
 				switch j % 5 {
 				case 0:

@@ -242,7 +242,7 @@ func TestVertexTransformRequestBasicFields(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse result to verify
-		var result map[string]interface{}
+		var result map[string]any
 		err = json.Unmarshal(newBody, &result)
 		require.NoError(t, err)
 

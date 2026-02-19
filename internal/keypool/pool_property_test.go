@@ -183,11 +183,11 @@ func TestKeyPoolConcurrentGetKeyProperty(t *testing.T) {
 			pool := createTestPoolWithNKeys(5)
 			done := make(chan bool, goroutines)
 
-			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+			for range goroutines {
 				go safeGetKey(pool, done)
 			}
 
-			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+			for range goroutines {
 				if !<-done {
 					return false
 				}
@@ -216,7 +216,7 @@ func TestKeyPoolConcurrentGetStatsProperty(t *testing.T) {
 			pool := createTestPoolWithNKeys(5)
 			done := make(chan bool, goroutines)
 
-			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+			for range goroutines {
 				go func() {
 					defer func() {
 						if recovered := recover(); recovered != nil {
@@ -229,7 +229,7 @@ func TestKeyPoolConcurrentGetStatsProperty(t *testing.T) {
 				}()
 			}
 
-			for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+			for range goroutines {
 				if !<-done {
 					return false
 				}
@@ -247,7 +247,7 @@ func TestKeyPoolConcurrentGetStatsProperty(t *testing.T) {
 
 func createTestPoolWithNKeys(numKeys int) *keypool.KeyPool {
 	keys := make([]keypool.KeyConfig, numKeys)
-	for idx := 0; idx < numKeys; idx++ {
+	for idx := range numKeys {
 		keys[idx] = keypool.KeyConfig{
 			APIKey:    fmt.Sprintf("sk-test-property-%d", idx),
 			RPMLimit:  100, // High limit to avoid rate limiting in tests

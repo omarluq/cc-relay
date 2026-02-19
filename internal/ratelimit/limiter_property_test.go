@@ -19,7 +19,7 @@ func verifyConcurrentSafety(t *testing.T, goroutines int, work func()) bool {
 	var waitGroup sync.WaitGroup
 	panicked := make(chan bool, goroutines)
 
-	for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+	for range goroutines {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
@@ -52,7 +52,7 @@ func verifyConcurrentSafetyWithIdx(t *testing.T, goroutines int, work func(idx i
 	var waitGroup sync.WaitGroup
 	panicked := make(chan bool, goroutines)
 
-	for goroutineIdx := 0; goroutineIdx < goroutines; goroutineIdx++ {
+	for goroutineIdx := range goroutines {
 		waitGroup.Add(1)
 		go func(idx int) {
 			defer waitGroup.Done()
@@ -278,7 +278,7 @@ func TestRateLimiterConcurrentAllowProperty(t *testing.T) {
 			ctx := context.Background()
 
 			return verifyConcurrentSafety(t, goroutines, func() {
-				for step := 0; step < 10; step++ {
+				for range 10 {
 					_ = limiter.Allow(ctx)
 				}
 			})
@@ -305,7 +305,7 @@ func TestRateLimiterConcurrentGetUsageProperty(t *testing.T) {
 			limiter := ratelimit.NewTokenBucketLimiter(100, 100000)
 
 			return verifyConcurrentSafety(t, goroutines, func() {
-				for step := 0; step < 10; step++ {
+				for range 10 {
 					_ = limiter.GetUsage()
 				}
 			})

@@ -32,7 +32,7 @@ func (s *RoundRobinSelector) Select(keys []*KeyMetadata) (*KeyMetadata, error) {
 	startIdx := int(startIdx64)
 
 	// Try each key starting from startIdx, wrapping around
-	for i := 0; i < len(keys); i++ {
+	for i := range keys {
 		idx := (startIdx + i) % len(keys)
 		key := keys[idx]
 

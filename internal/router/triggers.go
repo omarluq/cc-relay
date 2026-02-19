@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"slices"
 )
 
 // Trigger name constants for logging.
@@ -46,12 +47,7 @@ func NewStatusCodeTrigger(codes ...int) *StatusCodeTrigger {
 
 // ShouldFailover returns true if statusCode matches any configured code.
 func (t *StatusCodeTrigger) ShouldFailover(_ error, statusCode int) bool {
-	for _, code := range t.codes {
-		if statusCode == code {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(t.codes, statusCode)
 }
 
 // Name returns TriggerStatusCode for logging.

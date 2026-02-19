@@ -49,7 +49,7 @@ func runConfigCCRemove(cmd *cobra.Command, _ []string) error {
 func removeCCRelayConfig(home string) (removed []string, settingsPath string, err error) {
 	settingsPath = filepath.Join(home, ".claude", "settings.json")
 
-	var settings map[string]interface{}
+	var settings map[string]any
 	settings, err = readClaudeSettings(settingsPath)
 	if errors.Is(err, ErrSettingsNotFound) {
 		return nil, settingsPath, nil
@@ -58,7 +58,7 @@ func removeCCRelayConfig(home string) (removed []string, settingsPath string, er
 		return nil, "", err
 	}
 
-	env, ok := settings["env"].(map[string]interface{})
+	env, ok := settings["env"].(map[string]any)
 	if !ok {
 		return nil, settingsPath, nil
 	}
@@ -83,7 +83,7 @@ var ErrSettingsNotFound = errors.New("settings file not found")
 
 // readClaudeSettings reads and parses the Claude Code settings.json.
 // Returns ErrSettingsNotFound if the file doesn't exist.
-func readClaudeSettings(path string) (map[string]interface{}, error) {
+func readClaudeSettings(path string) (map[string]any, error) {
 	// Clean the path to avoid directory traversal issues
 	path = filepath.Clean(path)
 	data, err := os.ReadFile(path)
@@ -94,7 +94,7 @@ func readClaudeSettings(path string) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to read settings.json: %w", err)
 	}
 
-	var settings map[string]interface{}
+	var settings map[string]any
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return nil, fmt.Errorf("failed to parse settings.json: %w", err)
 	}
@@ -102,7 +102,7 @@ func readClaudeSettings(path string) (map[string]interface{}, error) {
 }
 
 // removeProxyEnvVars removes cc-relay environment variables and returns the list of removed keys.
-func removeProxyEnvVars(env map[string]interface{}) []string {
+func removeProxyEnvVars(env map[string]any) []string {
 	var removed []string
 	for _, key := range proxyEnvVars {
 		if _, exists := env[key]; exists {
@@ -114,7 +114,7 @@ func removeProxyEnvVars(env map[string]interface{}) []string {
 }
 
 // updateSettingsEnv updates the settings map with the modified env.
-func updateSettingsEnv(settings, env map[string]interface{}) {
+func updateSettingsEnv(settings, env map[string]any) {
 	if len(env) == 0 {
 		delete(settings, "env")
 	} else {
@@ -123,7 +123,7 @@ func updateSettingsEnv(settings, env map[string]interface{}) {
 }
 
 // writeClaudeSettings writes the settings back to disk.
-func writeClaudeSettings(path string, settings map[string]interface{}) error {
+func writeClaudeSettings(path string, settings map[string]any) error {
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)

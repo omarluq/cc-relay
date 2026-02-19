@@ -136,7 +136,7 @@ func TestWait(t *testing.T) {
 		ctx := context.Background()
 
 		// Exhaust the burst capacity (60 requests available immediately)
-		for burstIdx := 0; burstIdx < 60; burstIdx++ {
+		for burstIdx := range 60 {
 			if err := limiter.Wait(ctx); err != nil {
 				t.Fatalf("Wait() %d failed: %v", burstIdx, err)
 			}
@@ -213,7 +213,7 @@ func TestSetLimitUpdates(t *testing.T) {
 		ctx := context.Background()
 
 		// Exhaust initial limit
-		for exhaustIdx := 0; exhaustIdx < 5; exhaustIdx++ {
+		for range 5 {
 			limiter.Allow(ctx)
 		}
 
@@ -242,11 +242,11 @@ func TestSetLimitThreadSafety(t *testing.T) {
 	errorsChan := make(chan error, 100)
 
 	// Spawn multiple goroutines updating limits
-	for goroutineIdx := 0; goroutineIdx < 10; goroutineIdx++ {
+	for goroutineIdx := range 10 {
 		waitGroup.Add(1)
 		go func(iteration int) {
 			defer waitGroup.Done()
-			for step := 0; step < 10; step++ {
+			for range 10 {
 				limiter.SetLimit(50+iteration, 5000+iteration*1000)
 				_ = limiter.Allow(ctx)
 				usage := limiter.GetUsage()
@@ -290,7 +290,7 @@ func TestGetUsage(t *testing.T) {
 		ctx := context.Background()
 
 		// Exhaust all capacity
-		for exhaustIdx := 0; exhaustIdx < 10; exhaustIdx++ {
+		for range 10 {
 			limiter.Allow(ctx)
 		}
 
@@ -402,7 +402,7 @@ func TestReserve(t *testing.T) {
 		limiter := ratelimit.NewTokenBucketLimiter(100, 10000)
 
 		// Reserve tokens multiple times
-		for reserveIdx := 0; reserveIdx < 5; reserveIdx++ {
+		for reserveIdx := range 5 {
 			if !limiter.Reserve(1000) {
 				t.Errorf("Reserve(1000) call %d failed", reserveIdx+1)
 			}
@@ -421,7 +421,7 @@ func TestReserve(t *testing.T) {
 // Returns the number of successful Allow calls.
 func concurrentAllowAndWaitWorker(ctx context.Context, limiter *ratelimit.TokenBucketLimiter) int32 {
 	var count int32
-	for requestIdx := 0; requestIdx < 10; requestIdx++ {
+	for requestIdx := range 10 {
 		if limiter.Allow(ctx) {
 			count++
 		}
@@ -447,7 +447,7 @@ func TestConcurrencyAllowAndWait(t *testing.T) {
 	var successCount atomic.Int32
 
 	// Spawn 50 goroutines trying to use the limiter
-	for goroutineIdx := 0; goroutineIdx < 50; goroutineIdx++ {
+	for range 50 {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
@@ -472,7 +472,7 @@ func TestConcurrencyGetUsage(t *testing.T) {
 	errorsChan := make(chan error, 100)
 
 	// Spawn many goroutines reading usage
-	for goroutineIdx := 0; goroutineIdx < 100; goroutineIdx++ {
+	for range 100 {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
@@ -504,11 +504,11 @@ func TestConcurrencyConsumeTokens(t *testing.T) {
 	errorsChan := make(chan error, 100)
 
 	// Spawn goroutines consuming tokens
-	for goroutineIdx := 0; goroutineIdx < 50; goroutineIdx++ {
+	for range 50 {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			for consumeIdx := 0; consumeIdx < 10; consumeIdx++ {
+			for range 10 {
 				if err := limiter.ConsumeTokens(ctx, 100); err != nil {
 					errorsChan <- err
 					return

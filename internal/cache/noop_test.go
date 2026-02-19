@@ -288,10 +288,10 @@ func TestNoopCacheConcurrentAccess(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(goroutines)
 
-	for idx := 0; idx < goroutines; idx++ {
+	for range goroutines {
 		go func() {
 			defer waitGroup.Done()
-			for operationIdx := 0; operationIdx < operations; operationIdx++ {
+			for operationIdx := range operations {
 				runNoopCacheOp(ctx, t, noopCache, operationIdx)
 			}
 		}()

@@ -60,10 +60,9 @@ func WriteError(writer http.ResponseWriter, statusCode int, errorType, message s
 // The retryAfter parameter specifies when capacity will be available.
 func WriteRateLimitError(writer http.ResponseWriter, retryAfter time.Duration) {
 	// Set Retry-After header (RFC 6585)
-	seconds := int(retryAfter.Seconds())
-	if seconds < 1 {
-		seconds = 1 // Minimum 1 second
-	}
+	seconds := max(int(retryAfter.Seconds()),
+		// Minimum 1 second
+		1)
 	writer.Header().Set("Retry-After", strconv.Itoa(seconds))
 
 	log.Warn().

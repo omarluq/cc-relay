@@ -53,7 +53,7 @@ func TestCircuitBreakerOpensAfterThresholdFailures(t *testing.T) {
 	breaker := health.NewTestBreaker(3, 1000, 1)
 	testErr := errors.New("test error")
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("iteration %d: Allow failed before threshold: %v", i, allowErr)
@@ -80,7 +80,7 @@ func TestCircuitBreakerTransitionsToHalfOpenAfterTimeout(t *testing.T) {
 	breaker := health.NewTestBreaker(2, 100, 1)
 	testErr := errors.New("test error")
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("Allow failed: %v", allowErr)
@@ -112,7 +112,7 @@ func TestCircuitBreakerClosesAfterSuccessfulProbes(t *testing.T) {
 	breaker := health.NewTestBreaker(2, 50, 2)
 	testErr := errors.New("test error")
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("iteration %d: Allow failed: %v", i, allowErr)
@@ -122,7 +122,7 @@ func TestCircuitBreakerClosesAfterSuccessfulProbes(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("probe %d: expected Allow to succeed, got error: %v", i, allowErr)
@@ -140,7 +140,7 @@ func TestCircuitBreakerContextCanceledNotFailure(t *testing.T) {
 
 	breaker := health.NewTestBreaker(2, 1000, 1)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("iteration %d: Allow failed unexpectedly: %v", i, allowErr)
@@ -197,7 +197,7 @@ func TestCircuitBreakerReportSuccessWhenOpen(t *testing.T) {
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("Allow failed: %v", allowErr)
@@ -228,7 +228,7 @@ func TestCircuitBreakerReportFailureWhenOpen(t *testing.T) {
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("Allow failed: %v", allowErr)
@@ -259,7 +259,7 @@ func TestCircuitBreakerReportSuccessWhenHalfOpen(t *testing.T) {
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("Allow failed: %v", allowErr)
@@ -292,7 +292,7 @@ func TestCircuitBreakerReportFailureWhenHalfOpen(t *testing.T) {
 	testErr := errors.New("test error")
 
 	// Trip the circuit breaker to OPEN state
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		done, allowErr := breaker.Allow()
 		if allowErr != nil {
 			t.Fatalf("Allow failed: %v", allowErr)

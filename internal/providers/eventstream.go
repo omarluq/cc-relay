@@ -511,8 +511,8 @@ func FormatMessageAsSSE(msg *EventStreamMessage) []byte {
 
 // formatExceptionAsSSE formats an exception as an SSE error event.
 func formatExceptionAsSSE(exceptionType string, payload []byte) []byte {
-	return []byte(fmt.Sprintf(
+	return fmt.Appendf(nil,
 		"event: error\ndata: {\"error\":{\"type\":%q,\"message\":%q}}\n\n",
 		exceptionType, string(payload),
-	))
+	)
 }

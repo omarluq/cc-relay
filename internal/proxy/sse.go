@@ -16,7 +16,7 @@ import (
 // Returns false if the body is invalid JSON or stream field is missing/false.
 func IsStreamingRequest(body []byte) bool {
 	// Parse as map to check stream field
-	var req map[string]interface{}
+	var req map[string]any
 	if err := json.Unmarshal(body, &req); err != nil {
 		return false
 	}
@@ -131,17 +131,17 @@ func (p *SSESignatureProcessor) GetCurrentSignature() string {
 // Returns nil if no data field is found or if data is empty.
 func extractSSEData(eventLine []byte) []byte {
 	// Find "data:" prefix
-	idx := bytes.Index(eventLine, eventDataPrefix)
-	if idx == -1 {
+	_, after, ok := bytes.Cut(eventLine, eventDataPrefix)
+	if !ok {
 		return nil
 	}
 
 	// Extract data after "data:" prefix, trim spaces
-	data := bytes.TrimSpace(eventLine[idx+len(eventDataPrefix):])
+	data := bytes.TrimSpace(after)
 
 	// Handle multi-line data (lines joined by \n)
-	if bytes.HasSuffix(data, []byte("\n")) {
-		data = bytes.TrimSuffix(data, []byte("\n"))
+	if before, ok := bytes.CutSuffix(data, []byte("\n")); ok {
+		data = before
 	}
 
 	// Return nil for empty data to match documented contract

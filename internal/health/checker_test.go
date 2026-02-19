@@ -103,7 +103,7 @@ func TestNoOpHealthCheckAlwaysHealthy(t *testing.T) {
 	check := health.NewNoOpHealthCheck(testProviderName)
 
 	// Should always return nil
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		err := check.Check(context.Background())
 		if err != nil {
 			t.Errorf("iteration %d: expected nil error, got %v", i, err)
@@ -428,7 +428,7 @@ func TestCheckerConcurrentRegister(t *testing.T) {
 
 	// Register providers concurrently
 	var waitGroup sync.WaitGroup
-	for idx := 0; idx < 100; idx++ {
+	for idx := range 100 {
 		waitGroup.Add(1)
 		go func(providerIdx int) {
 			defer waitGroup.Done()
@@ -453,7 +453,7 @@ func TestCryptoRandDuration(t *testing.T) {
 	// Test that it returns values in expected range
 	maxDur := 2 * time.Second
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		d := health.CryptoRandDurationExported(maxDur)
 		if d < 0 || d >= maxDur {
 			t.Errorf("expected duration in [0, %v), got %v", maxDur, d)

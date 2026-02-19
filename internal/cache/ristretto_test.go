@@ -240,7 +240,7 @@ func TestRistrettoCacheStats(t *testing.T) {
 	ctx := context.Background()
 
 	// Set some values
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		key := fmt.Sprintf("key-%d", i)
 		value := []byte("value")
 		err := ristrettoCache.Set(ctx, key, value)
@@ -251,11 +251,11 @@ func TestRistrettoCacheStats(t *testing.T) {
 	cache.RistrettoWait(ristrettoCache)
 
 	// Get some values (some hits, some misses)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		key := fmt.Sprintf("key-%d", i)
 		_, _ = ristrettoCache.Get(ctx, key) //nolint:errcheck,gosec // testing cache hits
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		key := fmt.Sprintf("key-%d", 25-i)
 		_, _ = ristrettoCache.Get(ctx, key) //nolint:errcheck,gosec // testing cache misses
 	}
@@ -327,10 +327,10 @@ func TestRistrettoCacheConcurrentAccess(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(numGoroutines)
 
-	for goroutineIdx := 0; goroutineIdx < numGoroutines; goroutineIdx++ {
+	for goroutineIdx := range numGoroutines {
 		go func(id int) {
 			defer waitGroup.Done()
-			for opIdx := 0; opIdx < numOperations; opIdx++ {
+			for opIdx := range numOperations {
 				key := fmt.Sprintf("key-%d", (id+opIdx)%26)
 				value := []byte("value")
 
@@ -478,7 +478,7 @@ func TestRistrettoCacheStatsAfterClose(t *testing.T) {
 	ctx := context.Background()
 
 	// Set some values
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		key := fmt.Sprintf("key-%d", i)
 		_ = ristrettoCache.Set(ctx, key, []byte("value")) //nolint:errcheck,gosec // stats-after-close test setup
 	}
@@ -574,7 +574,7 @@ func BenchmarkRistrettoCacheMixed(b *testing.B) {
 	value := []byte("benchmark-value-with-some-reasonable-length")
 
 	// Pre-populate with some data
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		key := fmt.Sprintf("key-%d-%d", i%26, i%10)
 		_ = ristrettoCache.Set(ctx, key, value) //nolint:errcheck,gosec // benchmark setup
 	}

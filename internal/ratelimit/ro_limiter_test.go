@@ -142,7 +142,7 @@ func TestLimitConcurrentAccess(t *testing.T) {
 	// Send items from multiple goroutines
 	waitGroup.Add(1)
 	var sendWaitGroup sync.WaitGroup
-	for senderIdx := 0; senderIdx < 10; senderIdx++ {
+	for senderIdx := range 10 {
 		sendWaitGroup.Add(1)
 		go func(val int) {
 			defer sendWaitGroup.Done()

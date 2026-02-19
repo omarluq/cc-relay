@@ -52,7 +52,7 @@ func TestRouterServiceCachesRoundRobinState(t *testing.T) {
 
 	// Perform selections and verify round-robin distributes across providers
 	selectedWeights := make([]int, 0, 6)
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		selected, err := rr1.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		selectedWeights = append(selectedWeights, selected.Weight)
@@ -150,7 +150,7 @@ func TestLiveRouterDoesNotResetRoundRobinState(t *testing.T) {
 
 	// Perform multiple selections via LiveRouter
 	selectedWeights := make([]int, 0, 6)
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		selected, err := liveRouter.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		selectedWeights = append(selectedWeights, selected.Weight)
@@ -176,14 +176,14 @@ func TestRouterServiceConcurrentAccess(t *testing.T) {
 	// Concurrently access router
 	done := make(chan struct{})
 	go func() {
-		for i := 0; i < 1000; i++ {
+		for range 1000 {
 			_ = routerSvc.GetRouter()
 		}
 		close(done)
 	}()
 
 	// Also access from main goroutine
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		_ = routerSvc.GetRouter()
 	}
 
@@ -201,7 +201,7 @@ func TestRouterServiceConcurrentAccess(t *testing.T) {
 
 	// Verify round-robin state is preserved
 	selectedWeights := make([]int, 0, 4)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		selected, err := roundRobin.Select(context.Background(), providerInfos)
 		assert.NoError(t, err)
 		selectedWeights = append(selectedWeights, selected.Weight)

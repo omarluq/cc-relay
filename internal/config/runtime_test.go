@@ -52,14 +52,14 @@ func TestRuntimeConcurrentAccess(t *testing.T) {
 
 	go func() {
 		defer waitGroup.Done()
-		for idx := 0; idx < 1000; idx++ {
+		for range 1000 {
 			_ = runtime.Get()
 		}
 	}()
 
 	go func() {
 		defer waitGroup.Done()
-		for idx := 0; idx < 100; idx++ {
+		for range 100 {
 			cfg := config.MakeTestConfig()
 			cfg.Routing.Strategy = strategyFailover
 			runtime.Store(cfg)

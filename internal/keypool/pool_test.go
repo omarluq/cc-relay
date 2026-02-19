@@ -17,7 +17,7 @@ import (
 
 func newTestPool(numKeys int, strategy string) *keypool.KeyPool {
 	keys := make([]keypool.KeyConfig, numKeys)
-	for idx := 0; idx < numKeys; idx++ {
+	for idx := range numKeys {
 		keys[idx] = keypool.KeyConfig{
 			APIKey:    fmt.Sprintf("sk-test-key-%d", idx),
 			RPMLimit:  50,
@@ -159,7 +159,7 @@ func TestGetKeyAllExhausted(t *testing.T) {
 
 		// Exhaust rate limiters by consuming all capacity
 		// Each key has burst=50, so 2 keys * 50 = 100 total capacity
-		for iteration := 0; iteration < 100; iteration++ {
+		for range 100 {
 			if _, _, exhaustErr := pool.GetKey(ctx); exhaustErr != nil {
 				break
 			}
@@ -237,7 +237,7 @@ func TestGetKeySkipsUnavailable(t *testing.T) {
 
 		// Exhaust first key
 		firstKey := pool.GetKeys()[0]
-		for iteration := 0; iteration < 60; iteration++ { // Exhaust burst capacity
+		for range 60 { // Exhaust burst capacity
 			limiter := pool.GetLimiters()[firstKey.ID]
 			_ = limiter.Allow(ctx)
 		}
@@ -475,10 +475,10 @@ func TestConcurrencyGetKey(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(numGoroutines)
 
-	for idx := 0; idx < numGoroutines; idx++ {
+	for range numGoroutines {
 		go func() {
 			defer waitGroup.Done()
-			for iteration := 0; iteration < requestsPerGoroutine; iteration++ {
+			for range requestsPerGoroutine {
 				if _, _, getKeyErr := pool.GetKey(ctx); getKeyErr != nil {
 					continue
 				}
@@ -499,7 +499,7 @@ func TestConcurrencyUpdateHeaders(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(numGoroutines)
 
-	for idx := 0; idx < numGoroutines; idx++ {
+	for idx := range numGoroutines {
 		go func(iteration int) {
 			defer waitGroup.Done()
 
@@ -528,11 +528,11 @@ func TestConcurrencyNoRace(t *testing.T) {
 	waitGroup.Add(numGoroutines * 2)
 
 	// Half reading, half writing
-	for idx := 0; idx < numGoroutines; idx++ {
+	for idx := range numGoroutines {
 		// Reader goroutine
 		go func() {
 			defer waitGroup.Done()
-			for iteration := 0; iteration < 10; iteration++ {
+			for range 10 {
 				if _, _, getErr := pool.GetKey(ctx); getErr != nil {
 					continue
 				}
@@ -544,7 +544,7 @@ func TestConcurrencyNoRace(t *testing.T) {
 		// Writer goroutine
 		go func(iteration int) {
 			defer waitGroup.Done()
-			for writerIter := 0; writerIter < 10; writerIter++ {
+			for range 10 {
 				keyIdx := iteration % len(pool.GetKeys())
 				key := pool.GetKeys()[keyIdx]
 
@@ -576,7 +576,7 @@ func TestConcurrencyFairDistribution(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(numRequests)
 
-	for idx := 0; idx < numRequests; idx++ {
+	for range numRequests {
 		go func() {
 			defer waitGroup.Done()
 			keyID, _, err := pool.GetKey(ctx)

@@ -115,7 +115,7 @@ func ProcessRequestThinking(
 
 // blockCollector collects and categorizes content blocks during processing.
 type blockCollector struct {
-	modifiedBlocks []interface{}
+	modifiedBlocks []any
 	modifiedTypes  []string // Tracks type of each kept block for reordering
 }
 
@@ -414,9 +414,9 @@ func findFirstNonIndex(types []string, target string) int {
 
 // reorderBlocks moves thinking blocks before other blocks.
 // Preserves relative order within each group and runs in O(n).
-func reorderBlocks(blocks []interface{}, types []string) []interface{} {
-	thinking := make([]interface{}, 0, len(blocks))
-	other := make([]interface{}, 0, len(blocks))
+func reorderBlocks(blocks []any, types []string) []any {
+	thinking := make([]any, 0, len(blocks))
+	other := make([]any, 0, len(blocks))
 
 	for i, t := range types {
 		if t == blockTypeThinking {
@@ -439,7 +439,7 @@ func processThinkingBlock(
 	modelName string,
 	cache *SignatureCache,
 	thinkingCtx *ThinkingContext,
-) (interface{}, bool) {
+) (any, bool) {
 	signature := resolveThinkingSignature(ctx, block, modelName, cache)
 
 	// Drop block if no valid signature
@@ -453,7 +453,7 @@ func processThinkingBlock(
 
 	// Preserve entire original block, only updating the signature field.
 	// This ensures fields like 'data', 'redacted_thinking', etc. are preserved.
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 	block.ForEach(func(key, value gjson.Result) bool {
 		result[key.String()] = value.Value()
 		return true
@@ -464,8 +464,8 @@ func processThinkingBlock(
 }
 
 // processToolUseBlock processes a tool_use block, ensuring no signature field is sent.
-func processToolUseBlock(block *gjson.Result, _ string) interface{} {
-	result := make(map[string]interface{})
+func processToolUseBlock(block *gjson.Result, _ string) any {
+	result := make(map[string]any)
 
 	// Copy all fields from original block
 	block.ForEach(func(key, value gjson.Result) bool {
@@ -531,11 +531,11 @@ func FormatSignature(modelName, signature string) string {
 // ParseSignature extracts modelGroup and raw signature from prefixed format.
 // Returns modelGroup, signature, ok.
 func ParseSignature(prefixed string) (modelGroup, signature string, ok bool) {
-	idx := strings.Index(prefixed, "#")
-	if idx == -1 {
+	before, after, ok0 := strings.Cut(prefixed, "#")
+	if !ok0 {
 		return "", "", false
 	}
-	return prefixed[:idx], prefixed[idx+1:], true
+	return before, after, true
 }
 
 // ProcessNonStreamingResponse processes thinking blocks in a non-streaming response.

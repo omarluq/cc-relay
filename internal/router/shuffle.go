@@ -77,7 +77,7 @@ func (r *ShuffleRouter) Select(_ context.Context, providers []ProviderInfo) (Pro
 func (r *ShuffleRouter) reshuffle(numProviders int) {
 	// Create index slice [0, 1, 2, ..., numProviders-1]
 	r.shuffledOrder = make([]int, numProviders)
-	for idx := 0; idx < numProviders; idx++ {
+	for idx := range numProviders {
 		r.shuffledOrder[idx] = idx
 	}
 

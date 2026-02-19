@@ -429,7 +429,7 @@ func TestStreamSSERoundTrip(t *testing.T) {
 
 func BenchmarkStreamSSE(b *testing.B) {
 	var buf bytes.Buffer
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		buf.WriteString("event: content_block_delta\n")
 		buf.WriteString("data: {\"delta\":\"some text content\"}\n")
 		buf.WriteString("\n")

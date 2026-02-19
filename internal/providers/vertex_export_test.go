@@ -19,7 +19,7 @@ func AssertPreservesBodyFields(
 ) {
 	t.Helper()
 
-	var result map[string]interface{}
+	var result map[string]any
 	err := json.Unmarshal(newBody, &result)
 	require.NoError(t, err)
 

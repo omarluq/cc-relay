@@ -451,7 +451,7 @@ func TestROCacheErrorHandling(t *testing.T) {
 
 func runROCacheSetOps(ctx context.Context, t *testing.T, roCache *cache.ROCache, goroutineID, numOps int) {
 	t.Helper()
-	for opIdx := 0; opIdx < numOps; opIdx++ {
+	for range numOps {
 		key := fmt.Sprintf("key-%d", goroutineID)
 		if _, err := ro.Collect(roCache.Set(ctx, key, []byte("value"))); err != nil {
 			t.Errorf("Set() error = %v", err)
@@ -461,7 +461,7 @@ func runROCacheSetOps(ctx context.Context, t *testing.T, roCache *cache.ROCache,
 
 func runROCacheGetOps(ctx context.Context, t *testing.T, roCache *cache.ROCache, goroutineID, numOps int) {
 	t.Helper()
-	for opIdx := 0; opIdx < numOps; opIdx++ {
+	for range numOps {
 		key := fmt.Sprintf("key-%d", goroutineID)
 		if _, err := ro.Collect(roCache.Get(ctx, key)); err != nil && !errors.Is(err, cache.ErrNotFound) {
 			t.Errorf("Get() unexpected error = %v", err)
@@ -483,7 +483,7 @@ func TestROCacheConcurrentAccess(t *testing.T) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(2 * numGoroutines)
 
-	for goroutineID := 0; goroutineID < numGoroutines; goroutineID++ {
+	for goroutineID := range numGoroutines {
 		go func(gID int) {
 			defer waitGroup.Done()
 			runROCacheSetOps(ctx, t, roCache, gID, numOps)
