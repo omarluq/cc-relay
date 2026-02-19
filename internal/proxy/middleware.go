@@ -216,7 +216,7 @@ func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Hand
 				ResponseWriter: writer,
 				statusCode:     http.StatusOK,
 				sseEvents:      0,
-				isStreaming:     false,
+				isStreaming:    false,
 			}
 
 			// Get request ID for logging

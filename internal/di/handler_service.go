@@ -40,8 +40,8 @@ func NewProxyHandler(injector do.Injector) (*HandlerService, error) {
 		ProviderRouter:     liveRouter,          // Live router for strategy changes
 		ProviderKey:        providerSvc.GetPrimaryKey(),
 		Pool:               poolSvc.Get(),
-		GetProviderPools:   poolMapSvc.GetPools,    // Live key pools accessor
-		GetProviderKeys:    poolMapSvc.GetKeys,     // Live fallback keys accessor
+		GetProviderPools:   poolMapSvc.GetPools, // Live key pools accessor
+		GetProviderKeys:    poolMapSvc.GetKeys,  // Live fallback keys accessor
 		GetAllProviders:    providerSvc.GetAllProviders,
 		AllProviders:       providerSvc.GetAllProviders(),
 		HealthTracker:      trackerSvc.Tracker,

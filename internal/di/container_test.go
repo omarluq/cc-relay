@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/omarluq/cc-relay/internal/router"
 	"github.com/omarluq/cc-relay/internal/di"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // shutdownContainer shuts down the container and logs any error (for use in t.Cleanup).

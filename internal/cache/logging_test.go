@@ -73,7 +73,6 @@ func TestRistrettoCacheLogsCreation(t *testing.T) {
 	}
 }
 
-
 func TestRistrettoCacheLogsGetHit(t *testing.T) {
 	t.Parallel()
 	buf, testLogger := cache.NewTestLogger(zerolog.DebugLevel)

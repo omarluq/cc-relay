@@ -351,7 +351,9 @@ func testLiveReaderUpdatesSnapshotStale(t *testing.T) {
 	require.NoError(t, err)
 
 	type snapshotReader struct{ cfg *config.Config }
-	type liveReader struct{ cfg interface{ Get() *config.Config } }
+	type liveReader struct {
+		cfg interface{ Get() *config.Config }
+	}
 
 	snap := snapshotReader{cfg: cfgSvc.Get()}
 	live := liveReader{cfg: cfgSvc}

@@ -29,6 +29,7 @@ import (
 
 // ErrCacheFetchFailed is returned when a fetch operation fails.
 var ErrCacheFetchFailed = errors.New("cache: fetch operation failed")
+
 // ErrCacheCorrupt indicates cached data could not be decoded and should be refetched.
 var ErrCacheCorrupt = errors.New("cache: corrupt cached data")
 

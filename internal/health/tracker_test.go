@@ -1,8 +1,8 @@
 package health_test
 
 import (
-	"github.com/omarluq/cc-relay/internal/health"
 	"errors"
+	"github.com/omarluq/cc-relay/internal/health"
 	"sync"
 	"testing"
 	"time"

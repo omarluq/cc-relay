@@ -1,9 +1,9 @@
 package health_test
 
 import (
-	"github.com/omarluq/cc-relay/internal/health"
 	"context"
 	"errors"
+	"github.com/omarluq/cc-relay/internal/health"
 	"net/http"
 	"net/http/httptest"
 	"sync"

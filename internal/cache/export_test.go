@@ -226,4 +226,3 @@ func NewTestNoopCacheWithCleanup(t *testing.T, testLogger *zerolog.Logger) *noop
 	})
 	return cache
 }
-
