@@ -16,19 +16,19 @@ const (
 
 // Valid routing strategies.
 var validRoutingStrategies = map[string]bool{
-	"":                    true, // Empty defaults to failover
-	"failover":            true,
-	"round_robin":         true,
+	"":                     true, // Empty defaults to failover
+	"failover":             true,
+	"round_robin":          true,
 	"weighted_round_robin": true,
-	"shuffle":             true,
-	"model_based":         true,
-	"least_loaded":        true,
-	"weighted_failover":   true,
+	"shuffle":              true,
+	"model_based":          true,
+	"least_loaded":         true,
+	"weighted_failover":    true,
 }
 
 // Valid keypool strategies.
 var validPoolingStrategies = map[string]bool{
-	"":            true, // Empty defaults to least_loaded
+	"":             true, // Empty defaults to least_loaded
 	"least_loaded": true,
 	"round_robin":  true,
 	"random":       true,

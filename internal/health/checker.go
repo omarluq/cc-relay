@@ -157,14 +157,14 @@ func NewProviderHealthCheck(name, baseURL string, client *http.Client) ProviderH
 // It runs periodic health checks against providers with OPEN circuits
 // to detect recovery faster than waiting for the full cooldown period.
 type Checker struct {
-	ctx     context.Context
-	tracker *Tracker
-	checks  map[string]ProviderHealthCheck
-	logger  *zerolog.Logger
-	cancel  context.CancelFunc
-	config  CheckConfig
+	ctx       context.Context
+	tracker   *Tracker
+	checks    map[string]ProviderHealthCheck
+	logger    *zerolog.Logger
+	cancel    context.CancelFunc
+	config    CheckConfig
 	waitGroup sync.WaitGroup
-	mu      sync.RWMutex
+	mu        sync.RWMutex
 }
 
 // NewChecker creates a new Checker.

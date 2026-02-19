@@ -10,8 +10,7 @@ type WeightedSelector struct {
 
 // NewWeightedSelector creates a new weighted selector.
 func NewWeightedSelector() *WeightedSelector {
-	return &WeightedSelector{
-	}
+	return &WeightedSelector{}
 }
 
 // Select picks a key using weighted random selection.

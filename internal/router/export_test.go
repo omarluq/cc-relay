@@ -11,16 +11,16 @@ type testProvider struct {
 	name string
 }
 
-func (t *testProvider) Name() string                              { return t.name }
-func (t *testProvider) BaseURL() string                           { return "http://test" }
-func (t *testProvider) Owner() string                             { return "test" }
+func (t *testProvider) Name() string                                 { return t.name }
+func (t *testProvider) BaseURL() string                              { return "http://test" }
+func (t *testProvider) Owner() string                                { return "test" }
 func (t *testProvider) Authenticate(_ *http.Request, _ string) error { return nil }
-func (t *testProvider) ForwardHeaders(_ http.Header) http.Header  { return http.Header{} }
-func (t *testProvider) SupportsStreaming() bool                   { return true }
-func (t *testProvider) SupportsTransparentAuth() bool             { return false }
-func (t *testProvider) ListModels() []providers.Model              { return nil }
-func (t *testProvider) GetModelMapping() map[string]string        { return nil }
-func (t *testProvider) MapModel(model string) string              { return model }
+func (t *testProvider) ForwardHeaders(_ http.Header) http.Header     { return http.Header{} }
+func (t *testProvider) SupportsStreaming() bool                      { return true }
+func (t *testProvider) SupportsTransparentAuth() bool                { return false }
+func (t *testProvider) ListModels() []providers.Model                { return nil }
+func (t *testProvider) GetModelMapping() map[string]string           { return nil }
+func (t *testProvider) MapModel(model string) string                 { return model }
 func (t *testProvider) TransformRequest(body []byte, endpoint string) (newBody []byte, targetURL string, err error) {
 	return body, "http://test" + endpoint, nil
 }
@@ -48,9 +48,9 @@ func NeverHealthy() func() bool {
 // NewTestProviderInfo creates a ProviderInfo for testing.
 func NewTestProviderInfo(name string, priority, weight int, isHealthy func() bool) ProviderInfo {
 	return ProviderInfo{
-		Provider: NewTestProvider(name),
-		Priority: priority,
-		Weight:   weight,
+		Provider:  NewTestProvider(name),
+		Priority:  priority,
+		Weight:    weight,
 		IsHealthy: isHealthy,
 	}
 }

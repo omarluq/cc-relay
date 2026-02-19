@@ -10,8 +10,7 @@ type RandomSelector struct {
 
 // NewRandomSelector creates a new random selector.
 func NewRandomSelector() *RandomSelector {
-	return &RandomSelector{
-	}
+	return &RandomSelector{}
 }
 
 // Select picks a random available key.

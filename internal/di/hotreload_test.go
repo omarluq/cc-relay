@@ -86,6 +86,7 @@ func TestHotReloadLiveRouter(t *testing.T) {
 
 // TestHotReload_ConcurrentAccess verifies that concurrent config reads
 // during hot-reload don't cause races or panics.
+//
 //nolint:cyclop // test requires multiple concurrent paths
 func TestHotReloadConcurrentAccess(t *testing.T) {
 	t.Parallel()

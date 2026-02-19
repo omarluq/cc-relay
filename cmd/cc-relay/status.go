@@ -82,7 +82,6 @@ func findConfigFileForStatus() string {
 	return defaultConfigFile
 }
 
-
 // checkHealth performs an HTTP health check against the server's listen address.
 // Sends a raw HTTP GET request to /health endpoint without using http.Client.
 func checkHealth(listenAddr string) error {

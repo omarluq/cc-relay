@@ -1,8 +1,8 @@
 package config_test
 
 import (
-	"github.com/omarluq/cc-relay/internal/config"
 	"errors"
+	"github.com/omarluq/cc-relay/internal/config"
 	"os"
 	"strings"
 	"testing"

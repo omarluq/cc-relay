@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 

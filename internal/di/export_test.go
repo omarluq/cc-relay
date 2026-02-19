@@ -28,23 +28,23 @@ func MustTestConfig() config.Config {
 	return config.Config{
 		Providers: []config.ProviderConfig{},
 		Routing: config.RoutingConfig{
-			ModelMapping:     map[string]string{},
+			ModelMapping:    map[string]string{},
 			DefaultProvider: "",
 			Strategy:        "",
 			FailoverTimeout: 0,
 			Debug:           false,
 		},
 		Logging: config.LoggingConfig{
-			Level:        "info",
-			Format:       "json",
-			Output:       "stdout",
-			Pretty:       false,
+			Level:  "info",
+			Format: "json",
+			Output: "stdout",
+			Pretty: false,
 			DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
+				LogRequestBody:     false,
+				LogResponseHeaders: false,
+				LogTLSMetrics:      false,
+				MaxBodyLogSize:     0,
+			},
 		},
 		Health: health.Config{
 			HealthCheck: health.CheckConfig{
@@ -58,14 +58,14 @@ func MustTestConfig() config.Config {
 			},
 		},
 		Server: config.ServerConfig{
-			Listen:        ":8787",
-			APIKey:        "",
+			Listen: ":8787",
+			APIKey: "",
 			Auth: config.AuthConfig{
-			APIKey:           "",
-			BearerSecret:     "",
-			AllowBearer:      false,
-			AllowSubscription: false,
-		},
+				APIKey:            "",
+				BearerSecret:      "",
+				AllowBearer:       false,
+				AllowSubscription: false,
+			},
 			TimeoutMS:     0,
 			MaxConcurrent: 0,
 			MaxBodyBytes:  0,
@@ -98,7 +98,7 @@ func MustTestConfig() config.Config {
 // mustTestRoutingConfig creates a minimal RoutingConfig for testing.
 func MustTestRoutingConfig(strategy string) config.RoutingConfig {
 	return config.RoutingConfig{
-		ModelMapping:     map[string]string{},
+		ModelMapping:    map[string]string{},
 		DefaultProvider: "",
 		Strategy:        strategy,
 		FailoverTimeout: 5000,
@@ -126,21 +126,21 @@ func MustTestProviderConfig(name, pType, baseURL string, keys []config.KeyConfig
 			Enabled:  false,
 			Strategy: "",
 		},
-		Keys:               keys,
-		Enabled:            true,
+		Keys:    keys,
+		Enabled: true,
 	}
 }
 
 // mustTestKeyConfig creates a minimal KeyConfig for testing.
 func MustTestKeyConfig(key string) config.KeyConfig {
 	return config.KeyConfig{
-		Key:          key,
-		RPMLimit:     0,
-		ITPMLimit:    0,
-		OTPMLimit:    0,
-		Priority:     0,
-		Weight:       0,
-		TPMLimit:     0,
+		Key:       key,
+		RPMLimit:  0,
+		ITPMLimit: 0,
+		OTPMLimit: 0,
+		Priority:  0,
+		Weight:    0,
+		TPMLimit:  0,
 	}
 }
 
@@ -162,12 +162,12 @@ func MustTestHealthConfig() health.Config {
 // mustTestServerConfig creates a minimal ServerConfig for testing.
 func MustTestServerConfig(listen string) config.ServerConfig {
 	return config.ServerConfig{
-		Listen:        listen,
-		APIKey:        "",
+		Listen: listen,
+		APIKey: "",
 		Auth: config.AuthConfig{
-			APIKey:           "",
-			BearerSecret:     "",
-			AllowBearer:      false,
+			APIKey:            "",
+			BearerSecret:      "",
+			AllowBearer:       false,
 			AllowSubscription: false,
 		},
 		TimeoutMS:     0,
@@ -180,10 +180,10 @@ func MustTestServerConfig(listen string) config.ServerConfig {
 // mustTestLoggingConfig creates a minimal LoggingConfig for testing.
 func MustTestLoggingConfig(level string) config.LoggingConfig {
 	return config.LoggingConfig{
-		Level:        level,
-		Format:       "json",
-		Output:       "stdout",
-		Pretty:       false,
+		Level:  level,
+		Format: "json",
+		Output: "stdout",
+		Pretty: false,
 		DebugOptions: config.DebugOptions{
 			LogRequestBody:     false,
 			LogResponseHeaders: false,

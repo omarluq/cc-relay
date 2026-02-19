@@ -16,7 +16,6 @@ import (
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/router"
 
-
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
@@ -262,8 +261,8 @@ func TestHandlerThinkingSignatureModelGroupSharing(t *testing.T) {
 
 	testSignatureCacheScenario(
 		t,
-		"claude-sonnet-4",    // cacheModel
-		"claude-3-opus",      // requestModel (different group)
+		"claude-sonnet-4",      // cacheModel
+		"claude-3-opus",        // requestModel (different group)
 		"Shared thinking text", // thinkingText
 		"abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz",
 		"should use signature from same model group",

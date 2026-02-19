@@ -468,7 +468,7 @@ func TestValidateMultipleErrors(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.MakeTestConfig()
-	cfg.Server.Listen = ""   // Missing listen
+	cfg.Server.Listen = ""    // Missing listen
 	cfg.Server.TimeoutMS = -1 // Invalid
 
 	invalidProv := config.MakeTestProviderConfig()

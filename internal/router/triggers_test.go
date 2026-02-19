@@ -345,8 +345,8 @@ func TestFindMatchingTrigger(t *testing.T) {
 			statusCode: 0, wantName: router.TriggerTimeout, wantNilResult: false,
 		},
 		{
-			name: "net.Error finds connection",
-			err:  &mockNetError{timeout: false, temporary: false},
+			name:       "net.Error finds connection",
+			err:        &mockNetError{timeout: false, temporary: false},
 			statusCode: 0, wantName: router.TriggerConnection, wantNilResult: false,
 		},
 		{

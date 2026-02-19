@@ -153,17 +153,17 @@ func TestBearerAuthenticatorValidate(t *testing.T) {
 		{
 			name: "valid bearer token with secret", secret: "my-secret-token",
 			authHeader: "Bearer my-secret-token",
-			wantValid: true, wantType: auth.TypeBearer, wantErrMsg: "",
+			wantValid:  true, wantType: auth.TypeBearer, wantErrMsg: "",
 		},
 		{
 			name: "invalid bearer token with secret", secret: "my-secret-token",
 			authHeader: "Bearer wrong-token",
-			wantValid: false, wantType: auth.TypeBearer, wantErrMsg: "invalid bearer token",
+			wantValid:  false, wantType: auth.TypeBearer, wantErrMsg: "invalid bearer token",
 		},
 		{
 			name: "any bearer token without secret", secret: "",
 			authHeader: "Bearer any-token-works",
-			wantValid: true, wantType: auth.TypeBearer, wantErrMsg: "",
+			wantValid:  true, wantType: auth.TypeBearer, wantErrMsg: "",
 		},
 		{
 			name: "missing authorization header", secret: "", authHeader: "",
@@ -173,18 +173,18 @@ func TestBearerAuthenticatorValidate(t *testing.T) {
 		{
 			name: "without bearer prefix", secret: "",
 			authHeader: "Basic dXNlcjpwYXNz",
-			wantValid: false, wantType: auth.TypeBearer,
+			wantValid:  false, wantType: auth.TypeBearer,
 			wantErrMsg: "invalid authorization scheme",
 		},
 		{
 			name: "bearer prefix only, no token", secret: "",
 			authHeader: "Bearer ",
-			wantValid: false, wantType: auth.TypeBearer, wantErrMsg: "empty bearer token",
+			wantValid:  false, wantType: auth.TypeBearer, wantErrMsg: "empty bearer token",
 		},
 		{
 			name: "bearer prefix case insensitive", secret: "",
 			authHeader: "bearer token-123",
-			wantValid: true, wantType: auth.TypeBearer, wantErrMsg: "",
+			wantValid:  true, wantType: auth.TypeBearer, wantErrMsg: "",
 		},
 	}
 
