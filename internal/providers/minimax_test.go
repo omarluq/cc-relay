@@ -8,6 +8,12 @@ import (
 	"github.com/omarluq/cc-relay/internal/providers"
 )
 
+const (
+	testMiniMaxName  = "test-minimax"
+	modelMiniMaxM25  = "MiniMax-M2.5"
+	modelMiniMaxM21  = "MiniMax-M2.1"
+)
+
 func TestNewMiniMaxProvider(t *testing.T) {
 	t.Parallel()
 
@@ -35,7 +41,7 @@ func TestNewMiniMaxProvider(t *testing.T) {
 func TestMiniMaxAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProvider("test-minimax", "")
+	provider := providers.NewMiniMaxProvider(testMiniMaxName, "")
 
 	testURL := "https://api.minimax.io/anthropic/v1/messages"
 	req, err := http.NewRequestWithContext(
@@ -69,7 +75,7 @@ func TestMiniMaxAuthenticate(t *testing.T) {
 func TestMiniMaxForwardHeaders(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProvider("test-minimax", "")
+	provider := providers.NewMiniMaxProvider(testMiniMaxName, "")
 
 	assertForwardHeaders(t, provider)
 }
@@ -77,7 +83,7 @@ func TestMiniMaxForwardHeaders(t *testing.T) {
 func TestMiniMaxSupportsStreaming(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProvider("test-minimax", "")
+	provider := providers.NewMiniMaxProvider(testMiniMaxName, "")
 
 	if !provider.SupportsStreaming() {
 		t.Error("Expected MiniMaxProvider to support streaming")
@@ -87,7 +93,7 @@ func TestMiniMaxSupportsStreaming(t *testing.T) {
 func TestMiniMaxForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProvider("test-minimax", "")
+	provider := providers.NewMiniMaxProvider(testMiniMaxName, "")
 
 	assertForwardHeadersEdgeCases(t, provider)
 }
@@ -102,7 +108,7 @@ func TestMiniMaxProviderInterface(t *testing.T) {
 func TestMiniMaxOwner(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProvider("test-minimax", "")
+	provider := providers.NewMiniMaxProvider(testMiniMaxName, "")
 
 	if provider.Owner() != "minimax" {
 		t.Errorf("Expected owner=minimax, got %s", provider.Owner())
@@ -112,7 +118,7 @@ func TestMiniMaxOwner(t *testing.T) {
 func TestMiniMaxSupportsTransparentAuth(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProvider("test-minimax", "")
+	provider := providers.NewMiniMaxProvider(testMiniMaxName, "")
 
 	if provider.SupportsTransparentAuth() {
 		t.Error("Expected MiniMaxProvider to NOT support transparent auth")
@@ -122,7 +128,7 @@ func TestMiniMaxSupportsTransparentAuth(t *testing.T) {
 func TestMiniMaxListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
-	models := []string{"MiniMax-M2.5", "MiniMax-M2.1"}
+	models := []string{modelMiniMaxM25, modelMiniMaxM21}
 	provider := providers.NewMiniMaxProviderWithModels(
 		"minimax-primary", "", models,
 	)
@@ -134,14 +140,14 @@ func TestMiniMaxListModelsWithConfiguredModels(t *testing.T) {
 	)
 
 	// Verify specific model IDs
-	if result[0].ID != "MiniMax-M2.5" {
-		t.Errorf("Expected model ID=MiniMax-M2.5, got %s", result[0].ID)
+	if result[0].ID != modelMiniMaxM25 {
+		t.Errorf("Expected model ID=%s, got %s", modelMiniMaxM25, result[0].ID)
 	}
 
-	if result[1].ID != "MiniMax-M2.1" {
+	if result[1].ID != modelMiniMaxM21 {
 		t.Errorf(
-			"Expected model ID=MiniMax-M2.1, got %s",
-			result[1].ID,
+			"Expected model ID=%s, got %s",
+			modelMiniMaxM21, result[1].ID,
 		)
 	}
 }
@@ -149,7 +155,7 @@ func TestMiniMaxListModelsWithConfiguredModels(t *testing.T) {
 func TestMiniMaxListModelsDefaults(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProvider("test-minimax", "")
+	provider := providers.NewMiniMaxProvider(testMiniMaxName, "")
 
 	result := provider.ListModels()
 
@@ -165,7 +171,7 @@ func TestMiniMaxListModelsDefaults(t *testing.T) {
 func TestMiniMaxListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewMiniMaxProviderWithModels("test-minimax", "", nil)
+	provider := providers.NewMiniMaxProviderWithModels(testMiniMaxName, "", nil)
 
 	result := provider.ListModels()
 
@@ -185,11 +191,11 @@ func TestMiniMaxModelMapping(t *testing.T) {
 		"claude-sonnet-4-5-20250514": "MiniMax-M2.5",
 	}
 	provider := providers.NewMiniMaxProviderWithMapping(
-		"test-minimax", "", nil, mapping,
+		testMiniMaxName, "", nil, mapping,
 	)
 
 	// Mapped model should resolve
-	if provider.MapModel("claude-sonnet-4-5-20250514") != "MiniMax-M2.5" {
+	if provider.MapModel("claude-sonnet-4-5-20250514") != modelMiniMaxM25 {
 		t.Error("Expected model mapping to resolve")
 	}
 

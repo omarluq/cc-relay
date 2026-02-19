@@ -56,7 +56,7 @@ flowchart LR
         direction TB
         ANT["🤖 Anthropic"]
         ZAI["🤖 Z.AI"]
-        MINI["🔹 MiniMax"]
+        MINI["🤖 MiniMax"]
         OLL["🦙 Ollama"]
         BED["🤖 AWS Bedrock"]
         AZU["🤖 Azure Foundry"]
