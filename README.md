@@ -35,7 +35,8 @@ Boost Claude Code by routing to multiple Anthropic-compatible providers
   <strong>🔑 Pool rate limits</strong> across multiple Anthropic API keys<br>
   <strong>💰 Save money</strong> by routing simple tasks to lighter models<br>
   <strong>🛡️ Never get stuck</strong> with automatic failover between providers<br>
-  <strong>🏢 Use your company's Bedrock/Azure/Vertex</strong> alongside personal API keys
+  <strong>🏢 Use your company's Bedrock/Azure/Vertex</strong> alongside personal API keys<br>
+  <strong>🆕 Add Anthropic-compatible providers</strong> like MiniMax, Z.AI, Ollama
 </p>
 
 <p>
@@ -55,6 +56,7 @@ flowchart LR
         direction TB
         ANT["🤖 Anthropic"]
         ZAI["🤖 Z.AI"]
+        MINI["🔹 MiniMax"]
         OLL["🦙 Ollama"]
         BED["🤖 AWS Bedrock"]
         AZU["🤖 Azure Foundry"]
@@ -64,6 +66,7 @@ flowchart LR
     CC --> RELAY
     RELAY --> ANT
     RELAY --> ZAI
+    RELAY --> MINI
     RELAY --> OLL
     RELAY --> BED
     RELAY --> AZU
@@ -73,6 +76,7 @@ flowchart LR
     style RELAY fill:#6366f1,stroke:#4f46e5,stroke-width:3px,color:#fff
     style ANT fill:#ff6b35,stroke:#e55a2b,stroke-width:2px,color:#fff
     style ZAI fill:#3b82f6,stroke:#2563eb,stroke-width:2px,color:#fff
+    style MINI fill:#06b6d4,stroke:#0891b2,stroke-width:2px,color:#fff
     style OLL fill:#22c55e,stroke:#16a34a,stroke-width:2px,color:#fff
     style BED fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff
     style AZU fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
