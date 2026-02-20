@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	testMiniMaxName  = "test-minimax"
-	modelMiniMaxM25  = "MiniMax-M2.5"
-	modelMiniMaxM21  = "MiniMax-M2.1"
+	testMiniMaxName = "test-minimax"
+	modelMiniMaxM25 = "MiniMax-M2.5"
+	modelMiniMaxM21 = "MiniMax-M2.1"
 )
 
 func TestNewMiniMaxProvider(t *testing.T) {
