@@ -343,7 +343,7 @@ func checkReorderNeeded(blockTypes []string) bool {
 }
 
 func assistantContent(msg *gjson.Result) (gjson.Result, bool) {
-	if msg.Get("role").String() != "assistant" {
+	if msg.Get("role").String() != roleAssistant {
 		return gjson.Result{}, false
 	}
 
@@ -415,6 +415,7 @@ func collectBlocks(
 const (
 	blockTypeToolResult = "tool_result"
 	roleUser            = "user"
+	roleAssistant       = "assistant"
 )
 
 // WouldOrphanToolResults checks if dropping the assistant message at msgIndex
@@ -451,14 +452,7 @@ func countMessages(body []byte) int64 {
 	if !messages.Exists() || !messages.IsArray() {
 		return 0
 	}
-
-	count := int64(0)
-	messages.ForEach(func(_, _ gjson.Result) bool {
-		count++
-		return true
-	})
-
-	return count
+	return messages.Get("#").Int()
 }
 
 // isConsecutiveUserPair checks if both messages at the given indices are user messages.
