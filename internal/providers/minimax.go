@@ -1,6 +1,10 @@
 package providers
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/rs/zerolog/log"
+)
 
 const (
 	// DefaultMiniMaxBaseURL is the default MiniMax API base URL.
@@ -68,6 +72,10 @@ func NewMiniMaxProviderWithMapping(
 // MiniMax uses Bearer token authentication instead of x-api-key.
 func (p *MiniMaxProvider) Authenticate(req *http.Request, key string) error {
 	req.Header.Set("Authorization", "Bearer "+key)
+
+	log.Ctx(req.Context()).Debug().
+		Str("provider", p.name).
+		Msg("added authentication header")
 
 	return nil
 }

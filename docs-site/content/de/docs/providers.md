@@ -213,7 +213,6 @@ model_mapping:
 | claude-haiku-3-5 | $0.25 Input / $1.25 Output | GLM-4.5-Air | ~$0.04 / $0.18 |
 
 *Preise sind ungefaehr und koennen sich aendern.*
-*Preise sind ungefaehr und koennen sich aendern.*
 
 ## MiniMax Anbieter
 
