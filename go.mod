@@ -19,7 +19,7 @@ require (
 	github.com/samber/lo v1.52.0
 	github.com/samber/mo v1.16.0
 	github.com/samber/ro v0.2.0
-	github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260221175615-74c1393dba8c
+	github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260225192527-84beb9283483
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
