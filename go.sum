@@ -476,6 +476,8 @@ github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260225192527-84beb9283483
 github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260225192527-84beb9283483/go.mod h1:C0laFtlm/3PynV/leZf4iOlEAOtiuQ9scIcXYlOyLDo=
 github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260227213813-1d3b970cd41c h1:RWkn9EoMTi9os5LjlxlLVvtzTYlzCiliQpTIBtXmbBw=
 github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260227213813-1d3b970cd41c/go.mod h1:C0laFtlm/3PynV/leZf4iOlEAOtiuQ9scIcXYlOyLDo=
+github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260302151101-d01566665f73 h1:vxW30PMOxoA3dlNwHgNPgnpASpELbEZfDrCk6/3r8Ks=
+github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260302151101-d01566665f73/go.mod h1:C0laFtlm/3PynV/leZf4iOlEAOtiuQ9scIcXYlOyLDo=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 h1:nn5Wsu0esKSJiIVhscUtVbo7ada43DJhG55ua/hjS5I=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/shurcooL/go v0.0.0-20200502201357-93f07166e636/go.mod h1:TDJrrUr11Vxrven61rcy3hJMUqaf/CLWYhHNPmT14Lk=
