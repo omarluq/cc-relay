@@ -16,7 +16,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/do/v2 v2.0.0
-	github.com/samber/lo v1.52.0
+	github.com/samber/lo v1.53.0
 	github.com/samber/mo v1.16.0
 	github.com/samber/ro v0.2.0
 	github.com/samber/ro/plugins/ratelimit/native v0.0.0-20260227213813-1d3b970cd41c
