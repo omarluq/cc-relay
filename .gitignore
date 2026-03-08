@@ -36,3 +36,6 @@ tmp/
 # Git worktrees (Crystal)
 /worktrees/
 /worktree-*/
+
+.claude
+.planning
