@@ -49,7 +49,8 @@ func testSignatureCacheScenario(
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	responseRec := httptest.NewRecorder()
 
@@ -96,7 +97,8 @@ func TestHandlerThinkingSignatureCacheMissClientSignature(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
@@ -131,7 +133,8 @@ func TestHandlerThinkingSignatureUnsignedBlockDropped(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
@@ -167,7 +170,8 @@ func TestHandlerThinkingSignatureDropsEmptyAssistantMessage(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
@@ -210,7 +214,8 @@ func TestHandlerThinkingSignatureToolUseInheritance(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
@@ -247,7 +252,8 @@ func TestHandlerThinkingSignatureBlockReordering(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
@@ -347,7 +353,8 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 
 	// First request - should go to first provider
 	body := `{"model": "claude-sonnet-4", "messages": [{"role": "user", "content": "Hello"}]}`
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 
@@ -415,7 +422,8 @@ func TestHandlerNoSignatureCachePassesThrough(t *testing.T) {
 		]
 	}`
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	req.Header.Set(proxy.ContentTypeHeader, proxy.JSONContentType)
 	rr := httptest.NewRecorder()
 

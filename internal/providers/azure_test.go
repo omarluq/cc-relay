@@ -1,6 +1,7 @@
 package providers_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -44,7 +45,7 @@ func testAzureAuthenticate(
 	provider, err := providers.NewAzureProvider(cfg)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 	err = provider.Authenticate(req, key)
 	require.NoError(t, err)
 
@@ -158,7 +159,7 @@ func TestAzureProviderAuthenticate(t *testing.T) {
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		err = provider.Authenticate(req, "entra-token-xyz")
 
 		require.NoError(t, err)
@@ -172,7 +173,7 @@ func TestAzureProviderAuthenticate(t *testing.T) {
 		provider, err := providers.NewAzureProvider(cfg)
 		require.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		err = provider.Authenticate(req, "default-key")
 
 		require.NoError(t, err)

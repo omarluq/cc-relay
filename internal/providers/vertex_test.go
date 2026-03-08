@@ -129,7 +129,7 @@ func TestVertexProviderAuthenticateSuccess(t *testing.T) {
 		tokenSource := newMockTokenSource("gcp-oauth-token-xyz")
 		provider := providers.NewVertexProviderWithTokenSource(cfg, tokenSource)
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		err := provider.Authenticate(req, "") // key param ignored
 
 		require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestVertexProviderAuthenticateSuccess(t *testing.T) {
 		tokenSource := newMockTokenSource("oauth-token")
 		provider := providers.NewVertexProviderWithTokenSource(cfg, tokenSource)
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		err := provider.Authenticate(req, "ignored-api-key")
 
 		require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestVertexProviderAuthenticateErrors(t *testing.T) {
 		}
 		provider := providers.NewVertexProviderWithTokenSource(cfg, tokenSource)
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		err := provider.Authenticate(req, "")
 
 		assert.Error(t, err)
@@ -179,7 +179,7 @@ func TestVertexProviderAuthenticateErrors(t *testing.T) {
 		cfg := newTestVertexConfig()
 		provider := providers.NewVertexProviderWithTokenSource(cfg, nil)
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		err := provider.Authenticate(req, "")
 
 		assert.Error(t, err)

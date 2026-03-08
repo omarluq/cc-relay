@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -65,7 +66,7 @@ func TestProviderProxySetsCorrectTargetURL(t *testing.T) {
 	assert.Equal(t, backendURL, providerProxy.GetTargetURL().String())
 
 	// Make a request through the proxy
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
@@ -141,7 +142,7 @@ func TestProviderProxyAuthBehavior(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+			req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 			for headerKey, headerValue := range testCase.requestHeaders {
 				req.Header.Set(headerKey, headerValue)
 			}
@@ -172,7 +173,7 @@ func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make request with client auth (but provider doesn't support transparent)
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer client-token")
 	// Handler sets X-Selected-Key since provider doesn't support transparent auth
 	req.Header.Set("X-Selected-Key", "zai-key")
@@ -195,7 +196,7 @@ func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Anthropic-Version", proxy.AnthropicVersion2024)
 	req.Header.Set("Anthropic-Beta", "extended-thinking")
@@ -224,7 +225,7 @@ func TestProviderProxySSEHeadersSet(t *testing.T) {
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)
@@ -257,7 +258,7 @@ func TestProviderProxyModifyResponseHookCalled(t *testing.T) {
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), hook)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)
@@ -274,7 +275,7 @@ func TestProviderProxyErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)
@@ -364,7 +365,7 @@ func TestProviderProxyTransformRequestCalledForCloudProviders(t *testing.T) {
 	require.NoError(t, err)
 
 	// Send request with original body
-	req := httptest.NewRequest("POST", "/v1/messages",
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages",
 		strings.NewReader(`{"model":"claude-3","max_tokens":100}`))
 	req.Header.Set("X-Selected-Key", "key")
 	recorder := httptest.NewRecorder()
@@ -402,7 +403,7 @@ func TestProviderProxyTransformRequestNotCalledForStandardProviders(t *testing.T
 	require.NoError(t, err)
 
 	originalBody := `{"model":"claude-3","max_tokens":100}`
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(originalBody))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader(originalBody))
 	req.Header.Set("X-Selected-Key", "key")
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)
@@ -437,7 +438,7 @@ func TestProviderProxyEventStreamConversion(t *testing.T) {
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("{}"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	req.Header.Set("X-Selected-Key", "key")
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)

@@ -2,6 +2,7 @@
 package proxy_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +18,7 @@ import (
 // serveModels creates a GET /v1/models request and records the response.
 func serveModels(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/v1/models", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
@@ -66,7 +67,7 @@ func TestModelsHandlerMultipleProviders(t *testing.T) {
 
 	handler := proxy.NewModelsHandler([]providers.Provider{anthropicProvider, zaiProvider})
 
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/v1/models", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)

@@ -719,7 +719,7 @@ func TestAzureProviderIntegration(t *testing.T) {
 			t.Fatalf("NewAzureProvider failed: %v", err)
 		}
 
-		req := httptest.NewRequest("POST", "https://example.com", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "POST", "https://example.com", nil)
 		err = provider.Authenticate(req, "azure-api-key-123")
 
 		if err != nil {

@@ -2,6 +2,7 @@
 package proxy_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -47,7 +48,7 @@ func TestProvidersHandlerReturnsCorrectFormat(t *testing.T) {
 // serveProviders creates a GET /v1/providers request and records the response.
 func serveProviders(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest("GET", "/v1/providers", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/v1/providers", http.NoBody)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec

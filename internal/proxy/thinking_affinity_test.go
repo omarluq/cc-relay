@@ -14,7 +14,7 @@ import (
 func TestHasThinkingSignatureNoMessages(t *testing.T) {
 	t.Parallel()
 	body := `{"model": "claude-3-5-sonnet-20241022", "messages": []}`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
 	got := proxy.HasThinkingSignature(r)
 	if got {
@@ -31,7 +31,7 @@ func TestHasThinkingSignatureNoThinkingBlocks(t *testing.T) {
 			{"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}
 		]
 	}`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
 	got := proxy.HasThinkingSignature(r)
 	if got {
@@ -54,7 +54,7 @@ func TestHasThinkingSignatureHasThinkingBlock(t *testing.T) {
 			}
 		]
 	}`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
 	got := proxy.HasThinkingSignature(r)
 	if !got {
@@ -73,7 +73,7 @@ func TestHasThinkingSignatureThinkingWithoutSignature(t *testing.T) {
 			{"role": "assistant", "content": [{"type": "thinking", "thinking": "..."}]}
 		]
 	}`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
 	got := proxy.HasThinkingSignature(r)
 	if got {
@@ -93,7 +93,7 @@ func TestHasThinkingSignatureThinkingInUserMessage(t *testing.T) {
 			{"role": "user", "content": [{"type": "thinking", "thinking": "...", "signature": "abc123"}]}
 		]
 	}`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
 	got := proxy.HasThinkingSignature(r)
 	if got {
@@ -104,7 +104,7 @@ func TestHasThinkingSignatureThinkingInUserMessage(t *testing.T) {
 func TestHasThinkingSignatureMalformedJSON(t *testing.T) {
 	t.Parallel()
 	body := `{invalid json`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
 	got := proxy.HasThinkingSignature(r)
 	if got {
@@ -114,7 +114,7 @@ func TestHasThinkingSignatureMalformedJSON(t *testing.T) {
 
 func TestHasThinkingSignatureNilBody(t *testing.T) {
 	t.Parallel()
-	r := httptest.NewRequest("POST", "/v1/messages", http.NoBody)
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", http.NoBody)
 	r.Body = nil
 
 	got := proxy.HasThinkingSignature(r)
@@ -126,7 +126,8 @@ func TestHasThinkingSignatureNilBody(t *testing.T) {
 func TestHasThinkingSignatureBodyRestored(t *testing.T) {
 	t.Parallel()
 	originalBody := `{"model": "test", "messages": []}`
-	req := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(originalBody)))
+	req := httptest.NewRequestWithContext(
+		context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(originalBody)))
 
 	// Call the function
 	_ = proxy.HasThinkingSignature(req)
@@ -161,7 +162,7 @@ func TestHasThinkingSignatureMultipleAssistantMessages(t *testing.T) {
 			}
 		]
 	}`
-	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader([]byte(body)))
+	r := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", bytes.NewReader([]byte(body)))
 
 	got := proxy.HasThinkingSignature(r)
 	if !got {

@@ -551,6 +551,7 @@ func TestFailoverRouterContextCancellation(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Cancel after a short delay
 	go func() {

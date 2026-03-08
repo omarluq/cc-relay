@@ -20,7 +20,8 @@ func TestLogRequestDetailsDisabledByDefault(t *testing.T) {
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
 
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-3"}`))
+	req := httptest.NewRequestWithContext(
+		context.Background(), "POST", "/v1/messages", strings.NewReader(`{"model":"claude-3"}`))
 	opts := config.DebugOptions{
 		LogRequestBody:     false,
 		LogResponseHeaders: false,
@@ -43,7 +44,7 @@ func TestLogRequestDetailsRedactsSensitiveData(t *testing.T) {
 	ctx := logger.WithContext(context.Background())
 
 	body := `{"api_key":"sk-secret-123","model":"claude-3","password":"hunter2"}`
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader(body))
 	opts := config.DebugOptions{
 		LogRequestBody:     true,
 		LogResponseHeaders: false,
@@ -72,7 +73,7 @@ func TestLogRequestDetailsExtractsModel(t *testing.T) {
 	ctx := logger.WithContext(context.Background())
 
 	body := `{"model":"claude-3-5-sonnet-20241022","max_tokens":100}`
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader(body))
 	opts := config.DebugOptions{
 		LogRequestBody:     true,
 		LogResponseHeaders: false,
@@ -98,7 +99,7 @@ func TestLogRequestDetailsTruncatesLargeBody(t *testing.T) {
 	ctx := logger.WithContext(context.Background())
 
 	largeBody := strings.Repeat("x", 5000)
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(largeBody))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader(largeBody))
 	opts := config.DebugOptions{
 		LogRequestBody:     true,
 		LogResponseHeaders: false,
@@ -301,7 +302,7 @@ func TestTLSVersionString(t *testing.T) {
 func TestAttachTLSTraceReturnsMetricsFunction(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", http.NoBody)
 	ctx := req.Context()
 
 	newCtx, getMetrics := proxy.AttachTLSTrace(ctx, req)
@@ -443,7 +444,7 @@ func TestLogRequestDetailsSkipsAtHigherLogLevel(t *testing.T) {
 	ctx := logger.WithContext(context.Background())
 
 	body := `{"model":"claude-3"}`
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader(body))
 	opts := config.DebugOptions{
 		LogRequestBody:     true,
 		LogResponseHeaders: false,
@@ -465,7 +466,7 @@ func TestLogRequestDetailsHandlesNilBody(t *testing.T) {
 	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
 	ctx := logger.WithContext(context.Background())
 
-	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", http.NoBody)
 	req.Body = http.NoBody // Empty body
 	opts := config.DebugOptions{
 		LogRequestBody:     true,

@@ -2,6 +2,7 @@
 package auth_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -116,7 +117,7 @@ func TestAPIKeyAuthenticatorValidate(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 			if testCase.apiKey != "" {
 				req.Header.Set("x-api-key", testCase.apiKey)
 			}
@@ -194,7 +195,7 @@ func TestBearerAuthenticatorValidate(t *testing.T) {
 
 			authenticator := auth.NewBearerAuthenticator(testCase.secret)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 			if testCase.authHeader != "" {
 				req.Header.Set("Authorization", testCase.authHeader)
 			}
@@ -280,7 +281,7 @@ func TestChainAuthenticatorValidate(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 			if testCase.apiKey != "" {
 				req.Header.Set("x-api-key", testCase.apiKey)
 			}
@@ -318,7 +319,7 @@ func TestChainAuthenticatorEmptyChain(t *testing.T) {
 
 	chainAuth := auth.NewChainAuthenticator() // No authenticators
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 	result := chainAuth.Validate(req)
 
 	if result.Valid {
@@ -345,7 +346,7 @@ func TestAPIKeyAuthenticatorValidateResult(t *testing.T) {
 	t.Run("valid key returns Ok", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "test-api-key-12345")
 
 		assertValidateResultOk(t, authenticator.ValidateResult(req), auth.TypeAPIKey)
@@ -354,7 +355,7 @@ func TestAPIKeyAuthenticatorValidateResult(t *testing.T) {
 	t.Run("invalid key returns Err with ValidationError", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "wrong-key")
 
 		result := authenticator.ValidateResult(req)
@@ -385,7 +386,7 @@ func TestAPIKeyAuthenticatorValidateResult(t *testing.T) {
 	t.Run("missing key returns Err", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 
 		result := authenticator.ValidateResult(req)
 		if result.IsOk() {
@@ -403,7 +404,7 @@ func TestBearerAuthenticatorValidateResult(t *testing.T) {
 	t.Run("valid bearer returns Ok", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer my-secret-token")
 
 		assertValidateResultOk(t, authenticator.ValidateResult(req), auth.TypeBearer)
@@ -412,7 +413,7 @@ func TestBearerAuthenticatorValidateResult(t *testing.T) {
 	t.Run("invalid bearer returns Err with ValidationError", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer wrong-token")
 
 		result := authenticator.ValidateResult(req)
@@ -446,7 +447,7 @@ func TestChainAuthenticatorValidateResult(t *testing.T) {
 	t.Run("valid bearer returns Ok", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("Authorization", "Bearer secret-token")
 
 		assertValidateResultOk(t, chainAuth.ValidateResult(req), auth.TypeBearer)
@@ -455,7 +456,7 @@ func TestChainAuthenticatorValidateResult(t *testing.T) {
 	t.Run("valid api key returns Ok", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "secret-key")
 
 		assertValidateResultOk(t, chainAuth.ValidateResult(req), auth.TypeAPIKey)
@@ -464,7 +465,7 @@ func TestChainAuthenticatorValidateResult(t *testing.T) {
 	t.Run("no credentials returns Err", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 
 		result := chainAuth.ValidateResult(req)
 		if result.IsOk() {
@@ -521,7 +522,7 @@ func TestValidateResultRailwayPattern(t *testing.T) {
 	t.Run("Map transforms successful result", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		req.Header.Set("x-api-key", "valid-key")
 
 		// Use Map to transform the auth result
@@ -547,7 +548,7 @@ func TestValidateResultRailwayPattern(t *testing.T) {
 	t.Run("OrElse provides default on failure", func(t *testing.T) {
 		t.Parallel()
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/messages", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", http.NoBody)
 		// No credentials - will fail
 
 		defaultResult := auth.Result{Valid: false, Type: auth.TypeNone, Error: "default", Token: ""}

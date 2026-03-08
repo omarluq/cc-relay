@@ -359,6 +359,7 @@ func TestConfigWatcherLifecycle(t *testing.T) {
 
 		// Start watcher
 		watchCtx, watchCancel := context.WithCancel(context.Background())
+		defer watchCancel()
 		cfgSvc.StartWatching(watchCtx)
 
 		// Start server in background

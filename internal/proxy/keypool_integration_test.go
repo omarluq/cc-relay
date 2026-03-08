@@ -3,6 +3,7 @@
 package proxy_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -66,7 +67,7 @@ func newHandlerWithPool(t *testing.T, backendURL string, pool *keypool.KeyPool) 
 func sendMessagesRequest(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
 	t.Helper()
 
-	req := httptest.NewRequest("POST", messagesEndpoint, strings.NewReader(messagesPayload))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", messagesEndpoint, strings.NewReader(messagesPayload))
 	req.Header.Set(contentTypeHeader, jsonContentType)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

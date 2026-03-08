@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"context"
 	"bytes"
 	"io"
 	"net/http"
@@ -345,7 +346,7 @@ func TestRequestIDMiddlewareGeneratesID(t *testing.T) {
 	middleware := proxy.RequestIDMiddleware()
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -374,7 +375,7 @@ func TestRequestIDMiddlewareUsesProvidedID(t *testing.T) {
 	middleware := proxy.RequestIDMiddleware()
 	wrappedHandler := middleware(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.Header.Set("X-Request-ID", providedID)
 
 	rec := httptest.NewRecorder()
@@ -408,7 +409,8 @@ func TestLoggingMiddlewareLogsRequest(t *testing.T) {
 	// Wrap with RequestIDMiddleware first (as in production)
 	wrappedHandler := proxy.RequestIDMiddleware()(middleware(handler))
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"test"}`))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"test"}`))
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
 
@@ -1067,11 +1069,11 @@ func TestConcurrencyMiddlewareEnforcesLimit(t *testing.T) {
 	wrappedHandler := proxy.ConcurrencyMiddleware(limiter)(handler)
 
 	// First request should succeed
-	req1 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test", http.NoBody)
 	resp1 := httptest.NewRecorder()
 
 	// Second request should fail with 503
-	req2 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test", http.NoBody)
 	resp2 := httptest.NewRecorder()
 
 	var waitGroup sync.WaitGroup
@@ -1108,7 +1110,7 @@ func TestConcurrencyMiddlewareReleasesOnCompletion(t *testing.T) {
 	wrappedHandler := proxy.ConcurrencyMiddleware(limiter)(handler)
 
 	// First request
-	req1 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test", http.NoBody)
 	resp1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(resp1, req1)
 	require.Equal(t, http.StatusOK, resp1.Code)
@@ -1117,7 +1119,7 @@ func TestConcurrencyMiddlewareReleasesOnCompletion(t *testing.T) {
 	require.Equal(t, int64(0), limiter.CurrentInFlight())
 
 	// Second request should also succeed
-	req2 := httptest.NewRequest(http.MethodPost, "/test", http.NoBody)
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test", http.NoBody)
 	resp2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(resp2, req2)
 	require.Equal(t, http.StatusOK, resp2.Code)
@@ -1140,7 +1142,7 @@ func TestMaxBodyBytesMiddlewareAllowsWithinLimit(t *testing.T) {
 	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return 100 })(handler)
 
 	body := bytes.NewReader([]byte(`{"model": "claude-3"}`))
-	req := httptest.NewRequest(http.MethodPost, "/test", body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test", body)
 	resp := httptest.NewRecorder()
 
 	wrappedHandler.ServeHTTP(resp, req)
@@ -1164,7 +1166,7 @@ func TestMaxBodyBytesMiddlewareErrorOnOversized(t *testing.T) {
 	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
 
 	body := bytes.NewReader([]byte(`{"model": "claude-3-opus-20240229", "messages": []}`))
-	req := httptest.NewRequest(http.MethodPost, "/test", body)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test", body)
 	resp := httptest.NewRecorder()
 
 	wrappedHandler.ServeHTTP(resp, req)
@@ -1191,7 +1193,7 @@ func TestMaxBodyBytesMiddlewareUnlimitedWhenZero(t *testing.T) {
 
 	// Large body should work when limit is 0
 	largeBody := bytes.Repeat([]byte("x"), 1000)
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader(largeBody))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test", bytes.NewReader(largeBody))
 	resp := httptest.NewRecorder()
 
 	wrappedHandler.ServeHTTP(resp, req)
@@ -1215,7 +1217,8 @@ func TestMaxBodyBytesMiddlewareHotReload(t *testing.T) {
 	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return limit })(handler)
 
 	// First request with small body should succeed
-	req1 := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte("small")))
+	req1 := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/test", bytes.NewReader([]byte("small")))
 	resp1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(resp1, req1)
 	require.Equal(t, http.StatusOK, resp1.Code)
@@ -1224,7 +1227,8 @@ func TestMaxBodyBytesMiddlewareHotReload(t *testing.T) {
 	limit = 5
 
 	// Now larger body should fail
-	req2 := httptest.NewRequest(http.MethodPost, "/test", bytes.NewReader([]byte("this is too long")))
+	req2 := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/test", bytes.NewReader([]byte("this is too long")))
 	resp2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(resp2, req2)
 	require.Equal(t, http.StatusRequestEntityTooLarge, resp2.Code)
@@ -1239,7 +1243,7 @@ func TestMaxBodyBytesMiddlewareNilBody(t *testing.T) {
 
 	wrappedHandler := proxy.MaxBodyBytesMiddleware(func() int64 { return 10 })(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	resp := httptest.NewRecorder()
 
 	wrappedHandler.ServeHTTP(resp, req)

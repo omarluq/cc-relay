@@ -41,7 +41,7 @@ func BenchmarkKeyPoolGetKey(b *testing.B) {
 		pool := createBenchPool(b, size)
 		ctx := context.Background()
 
-		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
+		b.Run("size="+fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.ResetTimer()
 			for iteration := 0; iteration < b.N; iteration++ {
 				if _, _, getKeyErr := pool.GetKey(ctx); getKeyErr != nil {
@@ -102,7 +102,7 @@ func BenchmarkKeyPoolGetStats(b *testing.B) {
 	for _, size := range sizes {
 		pool := createBenchPool(b, size)
 
-		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
+		b.Run("size="+fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.ResetTimer()
 			for iteration := 0; iteration < b.N; iteration++ {
 				_ = pool.GetStats()
@@ -118,7 +118,7 @@ func BenchmarkKeyPoolGetEarliestResetTime(b *testing.B) {
 	for _, size := range sizes {
 		pool := createBenchPool(b, size)
 
-		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
+		b.Run("size="+fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.ResetTimer()
 			for iteration := 0; iteration < b.N; iteration++ {
 				_ = pool.GetEarliestResetTime()
@@ -138,7 +138,7 @@ func benchmarkSelector(b *testing.B, selector keypool.KeySelector) {
 			keys[idx] = keypool.NewKeyMetadata("sk-test-"+string(rune('A'+idx%26)), 50, 30000, 30000)
 		}
 
-		b.Run("size="+string(rune('0'+size/10))+string(rune('0'+size%10)), func(b *testing.B) {
+		b.Run("size="+fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.ResetTimer()
 			for iteration := 0; iteration < b.N; iteration++ {
 				if _, selectErr := selector.Select(keys); selectErr != nil {

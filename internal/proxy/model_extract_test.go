@@ -71,7 +71,8 @@ func TestExtractModelFromRequest(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest("POST", "/v1/messages", bytes.NewBufferString(testCase.body))
+			req := httptest.NewRequestWithContext(
+				context.Background(), "POST", "/v1/messages", bytes.NewBufferString(testCase.body))
 			result := proxy.ExtractModelFromRequest(req)
 
 			assert.Equal(t, testCase.isPresent, result.IsPresent())
@@ -88,7 +89,7 @@ func TestExtractModelFromRequest(t *testing.T) {
 func TestExtractModelFromRequestNilBody(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest("GET", "/v1/messages", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/v1/messages", http.NoBody)
 	req.Body = nil
 
 	result := proxy.ExtractModelFromRequest(req)

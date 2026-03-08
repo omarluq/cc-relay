@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -83,7 +84,8 @@ func RunModelRewriteCase(t *testing.T, testCase rewriteTestCase) {
 	t.Helper()
 	rewriter := proxy.NewModelRewriter(testCase.mapping)
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(testCase.requestBody)))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewReader([]byte(testCase.requestBody)))
 	req.Header.Set("Content-Type", "application/json")
 
 	logger := zerolog.Nop()
@@ -193,7 +195,7 @@ func TestModelRewriterNilBody(t *testing.T) {
 	rewriter := proxy.NewModelRewriter(map[string]string{"a": "b"})
 
 	// Create request with nil body
-	req := httptest.NewRequest(http.MethodGet, "/v1/messages", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/v1/messages", http.NoBody)
 
 	logger := zerolog.Nop()
 	err := rewriter.RewriteRequest(req, &logger)
@@ -212,7 +214,8 @@ func TestModelRewriterPreservesOtherFields(t *testing.T) {
 
 	originalBody := `{"model":"claude-opus-4-5-20251101","messages":[{"role":"user",` +
 		`"content":"hello"}],"max_tokens":1000,"stream":true}`
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(originalBody)))
+	req := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, "/v1/messages", bytes.NewReader([]byte(originalBody)))
 
 	logger := zerolog.Nop()
 	err := rewriter.RewriteRequest(req, &logger)

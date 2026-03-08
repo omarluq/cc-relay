@@ -2,6 +2,7 @@
 package proxy_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -122,7 +123,7 @@ func TestSetupRoutesHealthEndpoint(t *testing.T) {
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Health endpoint should work without auth
-	req := httptest.NewRequest("GET", "/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusOK {
@@ -145,7 +146,7 @@ func TestSetupRoutesHealthEndpointWithAuth(t *testing.T) {
 
 	// Health endpoint should work even when server has auth enabled
 	// (health check should never require auth)
-	req := httptest.NewRequest("GET", "/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", http.NoBody)
 	// Intentionally NOT setting x-api-key header
 	rec := proxy.ServeRequest(t, handler, req)
 
@@ -163,7 +164,7 @@ func TestSetupRoutesOnlyPOSTToMessages(t *testing.T) {
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// GET to /v1/messages should not be handled
-	req := httptest.NewRequest("GET", "/v1/messages", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/v1/messages", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	// Should return 405 Method Not Allowed (Go 1.22+ router behavior)
@@ -274,7 +275,7 @@ func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// POST to /health should not be handled
-	req := httptest.NewRequest("POST", "/health", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/health", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	// Should return 405 Method Not Allowed
@@ -352,7 +353,7 @@ func TestSetupRoutes404ForUnknownPath(t *testing.T) {
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// Unknown path should return 404
-	req := httptest.NewRequest("GET", "/unknown", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/unknown", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusNotFound {
@@ -369,7 +370,7 @@ func TestSetupRoutesMessagesPathMustBeExact(t *testing.T) {
 	handler := setupRoutesHandler(t, cfg, provider)
 
 	// /v1/messages/extra should not match the route
-	req := httptest.NewRequest("POST", "/v1/messages/extra", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages/extra", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusNotFound {
@@ -545,7 +546,7 @@ func TestSetupRoutesModelsEndpoint(t *testing.T) {
 	}
 
 	// Models endpoint should work without auth (no auth required for discovery)
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/v1/models", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusOK {
@@ -580,7 +581,7 @@ func TestSetupRoutesModelsEndpointOnlyGET(t *testing.T) {
 	}
 
 	// POST to /v1/models should not be handled
-	req := httptest.NewRequest("POST", "/v1/models", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/models", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	// Should return 405 Method Not Allowed
@@ -601,7 +602,7 @@ func TestSetupRoutesModelsEndpointEmptyProviders(t *testing.T) {
 		t.Fatalf("proxy.SetupRoutesWithProviders failed: %v", err)
 	}
 
-	req := httptest.NewRequest("GET", "/v1/models", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/v1/models", http.NoBody)
 	rec := proxy.ServeRequest(t, handler, req)
 
 	if rec.Code != http.StatusOK {

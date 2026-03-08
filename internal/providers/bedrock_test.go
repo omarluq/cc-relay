@@ -182,7 +182,8 @@ func TestBedrockProviderAuthenticateSigV4(t *testing.T) {
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
 		body := []byte(`{"messages":[{"role":"user","content":"Hello"}],"max_tokens":100}`)
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader(body))
+		req := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 
 		err := provider.Authenticate(req, "") // key param ignored
@@ -202,7 +203,8 @@ func TestBedrockProviderAuthenticateSigV4(t *testing.T) {
 		creds := newMockCredentialsProvider("AKID", "SECRET")
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
+		req := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
 
 		err := provider.Authenticate(req, "")
 
@@ -217,7 +219,8 @@ func TestBedrockProviderAuthenticateSigV4(t *testing.T) {
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
 		originalBody := []byte(`{"messages":[{"role":"user","content":"Test"}],"max_tokens":100}`)
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader(originalBody))
+		req := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader(originalBody))
 
 		err := provider.Authenticate(req, "")
 
@@ -236,7 +239,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 		t.Parallel()
 		provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/model/test/invoke", http.NoBody)
 
 		err := provider.Authenticate(req, "")
 
@@ -253,7 +256,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 		}
 		provider := providers.NewBedrockProviderWithCredentials(cfg, creds)
 
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/model/test/invoke", http.NoBody)
 		err := provider.Authenticate(req, "")
 
 		assert.Error(t, err)
@@ -265,7 +268,7 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 		cfg := testBedrockConfig(nil)
 		provider := providers.NewBedrockProviderWithCredentials(cfg, nil)
 
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/model/test/invoke", http.NoBody)
 		err := provider.Authenticate(req, "")
 
 		assert.Error(t, err)
@@ -276,7 +279,8 @@ func TestBedrockProviderAuthenticateErrors(t *testing.T) {
 		t.Parallel()
 		provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
+		req := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
 		err := provider.Authenticate(req, "ignored-api-key")
 
 		require.NoError(t, err)
@@ -551,8 +555,10 @@ func TestBedrockProviderSigningDetails(t *testing.T) {
 		body1 := []byte(`{"messages":[{"role":"user","content":"Body 1"}]}`)
 		body2 := []byte(`{"messages":[{"role":"user","content":"Body 2"}]}`)
 
-		req1 := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader(body1))
-		req2 := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader(body2))
+		req1 := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader(body1))
+		req2 := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader(body2))
 
 		err1 := provider.Authenticate(req1, "")
 		err2 := provider.Authenticate(req2, "")
@@ -570,7 +576,8 @@ func TestBedrockProviderSigningDetails(t *testing.T) {
 		t.Parallel()
 		provider := testBedrockProviderWithDefaultCreds(t, testBedrockConfig(nil))
 
-		req := httptest.NewRequest(http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
+		req := httptest.NewRequestWithContext(
+			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
 		req.Header.Set("Content-Type", "application/json")
 
 		err := provider.Authenticate(req, "")

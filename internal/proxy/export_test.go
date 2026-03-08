@@ -293,7 +293,7 @@ func newEchoBackend(t *testing.T) *httptest.Server {
 }
 
 func newMessagesRequest(body io.Reader) *http.Request {
-	req := httptest.NewRequest("POST", messagesPath, body)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", messagesPath, body)
 	req.Header.Set("anthropic-version", anthropicVersion)
 	return req
 }

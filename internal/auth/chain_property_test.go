@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -178,7 +179,7 @@ func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 			}
 
 			authenticator := auth.NewAPIKeyAuthenticator(key)
-			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 
 			result := authenticator.Validate(req)
 			return !result.Valid && result.Error == "missing x-api-key header"
@@ -267,7 +268,7 @@ func TestBearerAuthenticatorValidationProperties(t *testing.T) {
 	properties.Property("missing Authorization fails", prop.ForAll(
 		func(secret string) bool {
 			authenticator := auth.NewBearerAuthenticator(secret)
-			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 
 			result := authenticator.Validate(req)
 			return !result.Valid && result.Error == "missing authorization header"
@@ -279,7 +280,7 @@ func TestBearerAuthenticatorValidationProperties(t *testing.T) {
 	properties.Property("invalid scheme fails", prop.ForAll(
 		func(secret string) bool {
 			authenticator := auth.NewBearerAuthenticator(secret)
-			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 			req.Header.Set("Authorization", "Basic dXNlcjpwYXNz") // Basic auth instead of Bearer
 
 			result := authenticator.Validate(req)
@@ -301,7 +302,7 @@ func TestBearerAuthenticatorResultProperties(t *testing.T) {
 	properties.Property("empty token fails", prop.ForAll(
 		func(secret string) bool {
 			authenticator := auth.NewBearerAuthenticator(secret)
-			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 			req.Header.Set("Authorization", "Bearer ")
 
 			result := authenticator.Validate(req)
@@ -377,13 +378,13 @@ func TestValidationErrorProperties(t *testing.T) {
 // Helper functions for creating test requests
 
 func createRequestWithAPIKey(key string) *http.Request {
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.Header.Set("x-api-key", key)
 	return req
 }
 
 func createRequestWithBearerToken(token string) *http.Request {
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	return req
 }
