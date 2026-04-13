@@ -144,44 +144,8 @@ func SetupRoutesWithProviders(
 	return mux, nil
 }
 
-// SetupRoutesWithRouter creates the HTTP handler with all routes configured and router support.
-// This is the DI-friendly version that accepts a ProviderRouter for multi-provider routing.
-// Routes:
-//   - POST /v1/messages - Proxy to backend provider with router-based selection
-//   - GET /v1/models - List available models from all providers (no auth required)
-//   - GET /v1/providers - List active providers with metadata (no auth required)
-//   - GET /health - Health check endpoint (no auth required)
-func SetupRoutesWithRouter(cfg *config.Config, opts *RoutesOptions) (http.Handler, error) {
-	if opts == nil {
-		return nil, errors.New(routesOptionsRequiredMsg)
-	}
-	opts.ConfigProvider = config.NewRuntime(cfg)
-	opts.ProviderInfosFunc = func() []router.ProviderInfo { return opts.ProviderInfos }
-	opts.GetProviderPools = func() map[string]*keypool.KeyPool { return opts.ProviderPools }
-	opts.GetProviderKeys = func() map[string]string { return opts.ProviderKeys }
-	opts.GetAllProviders = func() []providers.Provider { return opts.AllProviders }
-
-	return SetupRoutesWithRouterLive(opts)
-}
-
-// SetupRoutesWithRouterLive creates the HTTP handler with hot-reloadable provider info and router.
-// This is the DI-friendly version that accepts functions for dynamic provider/router access.
-// ProviderInfosFunc is called per-request to get current provider routing information,
-// allowing changes to enabled/disabled, weights, and priorities to take effect without restart.
-// Routes:
-//   - POST /v1/messages - Proxy to backend provider with router-based selection
-//   - GET /v1/models - List available models from all providers (no auth required)
-//   - GET /v1/providers - List active providers with metadata (no auth required)
-//   - GET /health - Health check endpoint (no auth required)
-func SetupRoutesWithRouterLive(opts *RoutesOptions) (http.Handler, error) {
-	if opts == nil {
-		return nil, errors.New(routesOptionsRequiredMsg)
-	}
-	return SetupRoutesWithLiveKeyPools(opts)
-}
-
 // SetupRoutesWithLiveKeyPools creates the HTTP handler with full hot-reload support.
-// Extends SetupRoutesWithRouterLive with live key pool accessors, enabling:
+// Provides live key pool accessors, enabling:
 // - Hot-reloadable provider info (enabled/disabled, weights, priorities)
 // - Hot-reloadable routing strategy and timeout
 // - Hot-reloadable key pools (newly enabled providers get keys immediately)

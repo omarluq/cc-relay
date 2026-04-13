@@ -1,13 +1,5 @@
 package ratelimit
 
-import "time"
-
-// NormalizeInterval exports normalizeInterval for testing.
-var NormalizeInterval = normalizeInterval
-
-// Verify NormalizeInterval has the expected type at compile time.
-var _ func(time.Duration) time.Duration = NormalizeInterval
-
 // GetRPMLimit returns the RPM limit (for testing).
 func (l *TokenBucketLimiter) GetRPMLimit() int {
 	l.mu.RLock()

@@ -942,18 +942,3 @@ func (h *Handler) processThinkingSignatures(request *http.Request, model string)
 	return request
 }
 
-// GetModelNameFromContext retrieves the model name from context.
-func GetModelNameFromContext(ctx context.Context) string {
-	if model, ok := ctx.Value(modelNameContextKey).(string); ok {
-		return model
-	}
-	return ""
-}
-
-// GetThinkingContextFromContext retrieves the thinking context from context.
-func GetThinkingContextFromContext(ctx context.Context) *ThinkingContext {
-	if thinkingCtx, ok := ctx.Value(thinkingContextContextKey).(*ThinkingContext); ok {
-		return thinkingCtx
-	}
-	return nil
-}

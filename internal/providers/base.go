@@ -22,11 +22,6 @@ type BaseProvider struct {
 	models       []string
 }
 
-// NewBaseProvider creates a new base provider with the given parameters.
-func NewBaseProvider(name, baseURL, owner string, models []string) BaseProvider {
-	return NewBaseProviderWithMapping(name, baseURL, owner, models, nil)
-}
-
 // NewBaseProviderWithMapping creates a new base provider with model mapping.
 func NewBaseProviderWithMapping(
 	name, baseURL, owner string,

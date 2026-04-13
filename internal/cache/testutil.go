@@ -108,13 +108,6 @@ func (cl *testCacheCluster) shutdown() {
 	cl.members = nil
 }
 
-// memberCount returns the number of nodes in the cluster.
-func (cl *testCacheCluster) memberCount() int {
-	cl.mtx.Lock()
-	defer cl.mtx.Unlock()
-	return len(cl.members)
-}
-
 // member returns the node at the given index.
 func (cl *testCacheCluster) member(i int) *olricCache {
 	cl.mtx.Lock()

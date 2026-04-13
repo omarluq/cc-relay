@@ -21,3 +21,11 @@ var (
 	// This typically occurs when encoding or decoding cached values.
 	ErrSerializationFailed = errors.New("cache: serialization failed")
 )
+
+// ignoreCacheErr is a no-op error sink used in stress/benchmark tests
+// where cache errors are expected and intentionally discarded.
+func ignoreCacheErr(err error) {
+	if err != nil {
+		_ = err
+	}
+}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -50,11 +49,6 @@ func containsStr(s, sub string) bool {
 
 // IgnoreCacheErr exports ignoreCacheErr for testing.
 var IgnoreCacheErr = ignoreCacheErr
-
-// NewOlricCacheCtx is a wrapper that creates an olric cache for testing.
-func NewOlricCacheCtx(ctx context.Context, cfg *OlricConfig) (Cache, error) {
-	return newOlricCache(ctx, cfg)
-}
 
 // RistrettoWait calls Wait() on the underlying ristretto cache for test synchronization.
 func RistrettoWait(cache *ristrettoCache) {
@@ -198,31 +192,3 @@ func ZeroRistrettoConfig() RistrettoConfig {
 	}
 }
 
-// NewTestRistrettoCacheWithCleanup creates a ristretto cache with the default
-// test config and registers cleanup with t.Cleanup.
-func NewTestRistrettoCacheWithCleanup(t *testing.T, testLogger *zerolog.Logger) *ristrettoCache {
-	t.Helper()
-	cache, err := newRistrettoCacheWithLog(DefaultTestRistrettoConfig(), testLogger)
-	if err != nil {
-		t.Fatalf("NewRistrettoCacheWithLogger failed: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := cache.Close(); closeErr != nil {
-			t.Errorf("Close() error = %v", closeErr)
-		}
-	})
-	return cache
-}
-
-// NewTestNoopCacheWithCleanup creates a noop cache with the given logger
-// and registers cleanup with t.Cleanup.
-func NewTestNoopCacheWithCleanup(t *testing.T, testLogger *zerolog.Logger) *noopCache {
-	t.Helper()
-	cache := newNoopCacheWithLog(testLogger)
-	t.Cleanup(func() {
-		if closeErr := cache.Close(); closeErr != nil {
-			t.Errorf("Close() error = %v", closeErr)
-		}
-	})
-	return cache
-}
