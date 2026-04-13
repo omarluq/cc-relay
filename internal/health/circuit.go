@@ -69,7 +69,7 @@ func NewCircuitBreaker(name string, cfg CircuitBreakerConfig, logger *zerolog.Lo
 func (c *CircuitBreaker) Allow() (done func(err error), err error) {
 	d, err := c.cb.Allow()
 	if err != nil {
-		return nil, ErrCircuitOpen
+		return nil, errCircuitOpen
 	}
 	return d, nil
 }
@@ -77,11 +77,6 @@ func (c *CircuitBreaker) Allow() (done func(err error), err error) {
 // State returns the current circuit breaker state.
 func (c *CircuitBreaker) State() State {
 	return c.cb.State()
-}
-
-// Name returns the circuit breaker's name.
-func (c *CircuitBreaker) Name() string {
-	return c.name
 }
 
 // ReportSuccess reports a successful operation to the circuit breaker.
