@@ -11,15 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Format represents supported configuration file formats.
-type Format string
-
-// Supported configuration file formats.
-const (
-	FormatYAML Format = "yaml"
-	FormatTOML Format = "toml"
-)
-
 // UnsupportedFormatError is returned when the config file has an unsupported extension.
 type UnsupportedFormatError struct {
 	Extension string
@@ -31,13 +22,13 @@ func (e *UnsupportedFormatError) Error() string {
 }
 
 // detectFormat determines the config format from the file extension.
-func detectFormat(path string) (Format, error) {
+func detectFormat(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ".yaml", ".yml":
-		return FormatYAML, nil
+		return "yaml", nil
 	case ".toml":
-		return FormatTOML, nil
+		return "toml", nil
 	default:
 		return "", &UnsupportedFormatError{Extension: ext, Path: path}
 	}
@@ -68,22 +59,8 @@ func Load(path string) (*Config, error) {
 	return loadFromReaderWithFormat(file, format)
 }
 
-// LoadFromReader reads and parses YAML configuration from an io.Reader.
-// Environment variables in the format ${VAR_NAME} are expanded before parsing.
-//
-// Deprecated: Use Load with a file path for format detection, or LoadFromReaderWithFormat.
-func LoadFromReader(r io.Reader) (*Config, error) {
-	return loadFromReaderWithFormat(r, FormatYAML)
-}
-
-// LoadFromReaderWithFormat reads and parses configuration from an io.Reader with explicit format.
-// Environment variables in the format ${VAR_NAME} are expanded before parsing.
-func LoadFromReaderWithFormat(r io.Reader, format Format) (*Config, error) {
-	return loadFromReaderWithFormat(r, format)
-}
-
 // loadFromReaderWithFormat is the internal implementation for reading config with explicit format.
-func loadFromReaderWithFormat(r io.Reader, format Format) (*Config, error) {
+func loadFromReaderWithFormat(r io.Reader, format string) (*Config, error) {
 	// Read entire content
 	content, err := io.ReadAll(r)
 	if err != nil {
@@ -96,11 +73,11 @@ func loadFromReaderWithFormat(r io.Reader, format Format) (*Config, error) {
 	// Parse based on format
 	var cfg Config
 	switch format {
-	case FormatYAML:
+	case "yaml":
 		if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config YAML: %w", err)
 		}
-	case FormatTOML:
+	case "toml":
 		if err := toml.Unmarshal([]byte(expanded), &cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config TOML: %w", err)
 		}

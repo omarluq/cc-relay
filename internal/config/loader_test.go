@@ -101,7 +101,7 @@ logging:
   format: "json"
 `
 
-	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReaderForTest(strings.NewReader(yamlContent))
 	if err != nil {
 		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
@@ -144,7 +144,7 @@ logging:
   format: "text"
 `
 
-	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReaderForTest(strings.NewReader(yamlContent))
 	if err != nil {
 		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
@@ -178,7 +178,7 @@ server:
   timeout_ms: not_a_number
 `
 
-	_, err := config.LoadFromReader(strings.NewReader(yamlContent))
+	_, err := config.LoadFromReaderForTest(strings.NewReader(yamlContent))
 	if err == nil {
 		t.Fatal("Expected error for invalid YAML, got nil")
 	}
@@ -215,7 +215,7 @@ logging:
   format: "text"
 `
 
-	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReaderForTest(strings.NewReader(yamlContent))
 	if err != nil {
 		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
@@ -246,7 +246,7 @@ logging:
   level: "info"
 `
 
-	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReaderForTest(strings.NewReader(yamlContent))
 	if err != nil {
 		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
@@ -290,7 +290,7 @@ logging:
   level: "info"
 `
 
-	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReaderForTest(strings.NewReader(yamlContent))
 	if err != nil {
 		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
@@ -332,7 +332,7 @@ logging:
   level: "info"
 `
 
-	cfg, err := config.LoadFromReader(strings.NewReader(yamlContent))
+	cfg, err := config.LoadFromReaderForTest(strings.NewReader(yamlContent))
 	if err != nil {
 		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
@@ -385,7 +385,7 @@ level = "info"
 format = "json"
 `
 
-	cfg, err := config.LoadFromReaderWithFormat(strings.NewReader(tomlContent), config.FormatTOML)
+	cfg, err := config.LoadFromReaderWithFormatForTest(strings.NewReader(tomlContent), config.TestFormatTOML)
 	if err != nil {
 		t.Fatalf("config.LoadFromReaderWithFormat failed: %v", err)
 	}
@@ -429,7 +429,7 @@ level = "info"
 format = "text"
 `
 
-	cfg, err := config.LoadFromReaderWithFormat(strings.NewReader(tomlContent), config.FormatTOML)
+	cfg, err := config.LoadFromReaderWithFormatForTest(strings.NewReader(tomlContent), config.TestFormatTOML)
 	if err != nil {
 		t.Fatalf("config.LoadFromReaderWithFormat failed: %v", err)
 	}
@@ -547,17 +547,17 @@ func TestDetectFormat(t *testing.T) {
 
 	tests := []struct {
 		path     string
-		expected config.Format
+		expected string
 		wantErr  bool
 	}{
-		{"config.yaml", config.FormatYAML, false},
-		{"config.yml", config.FormatYAML, false},
-		{"config.YAML", config.FormatYAML, false},
-		{"config.YML", config.FormatYAML, false},
-		{"config.toml", config.FormatTOML, false},
-		{"config.TOML", config.FormatTOML, false},
-		{"/path/to/config.yaml", config.FormatYAML, false},
-		{"/path/to/config.toml", config.FormatTOML, false},
+		{"config.yaml", "yaml", false},
+		{"config.yml", "yaml", false},
+		{"config.YAML", "yaml", false},
+		{"config.YML", "yaml", false},
+		{"config.toml", "toml", false},
+		{"config.TOML", "toml", false},
+		{"/path/to/config.yaml", "yaml", false},
+		{"/path/to/config.toml", "toml", false},
 		{"config.json", "", true},
 		{"config.xml", "", true},
 		{"config", "", true},
@@ -593,7 +593,7 @@ listen = "127.0.0.1:8787
 # Missing closing quote above
 `
 
-	_, err := config.LoadFromReaderWithFormat(strings.NewReader(tomlContent), config.FormatTOML)
+	_, err := config.LoadFromReaderWithFormatForTest(strings.NewReader(tomlContent), config.TestFormatTOML)
 	if err == nil {
 		t.Fatal("Expected error for invalid TOML, got nil")
 	}

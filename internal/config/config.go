@@ -3,7 +3,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -11,11 +10,6 @@ import (
 	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/rs/zerolog"
 	"github.com/samber/mo"
-)
-
-// Configuration errors.
-var (
-	ErrKeyRequired = errors.New("config: key is required")
 )
 
 // RuntimeConfigGetter defines the interface for accessing runtime configuration that supports hot-reload.
@@ -31,24 +25,6 @@ var (
 //	}
 type RuntimeConfigGetter interface {
 	Get() *Config
-}
-
-// InvalidPriorityError is returned when priority is outside valid range.
-type InvalidPriorityError struct {
-	Priority int
-}
-
-func (e InvalidPriorityError) Error() string {
-	return fmt.Sprintf("config: priority must be 0-2, got %d", e.Priority)
-}
-
-// InvalidWeightError is returned when weight is negative.
-type InvalidWeightError struct {
-	Weight int
-}
-
-func (e InvalidWeightError) Error() string {
-	return fmt.Sprintf("config: weight must be >= 0, got %d", e.Weight)
 }
 
 // Log level constants.
@@ -269,20 +245,6 @@ func (k *KeyConfig) GetEffectiveTPM() (itpm, otpm int) {
 	return 0, 0
 }
 
-// Validate checks KeyConfig for errors.
-func (k *KeyConfig) Validate() error {
-	if k.Key == "" {
-		return ErrKeyRequired
-	}
-	if k.Priority < 0 || k.Priority > 2 {
-		return InvalidPriorityError{Priority: k.Priority}
-	}
-	if k.Weight < 0 {
-		return InvalidWeightError{Weight: k.Weight}
-	}
-	return nil
-}
-
 // LoggingConfig defines logging behavior.
 type LoggingConfig struct {
 	Level        string       `yaml:"level" toml:"level"`                 // debug, info, warn, error
@@ -351,70 +313,3 @@ func (d *DebugOptions) IsEnabled() bool {
 	return d.LogRequestBody || d.LogResponseHeaders || d.LogTLSMetrics
 }
 
-// GetMaxBodyLogSizeOption returns the max body log size as an Option.
-// Returns None if the value is not explicitly set (zero or negative).
-func (d *DebugOptions) GetMaxBodyLogSizeOption() mo.Option[int] {
-	if d.MaxBodyLogSize <= 0 {
-		return mo.None[int]()
-	}
-	return mo.Some(d.MaxBodyLogSize)
-}
-
-// ServerConfig Option helpers for type-safe access to optional configuration values.
-// These methods expose configuration fields as mo.Option[T] for composable handling.
-
-// GetTimeoutOption returns the timeout as an Option.
-// Returns None if TimeoutMS is zero (use default).
-func (s *ServerConfig) GetTimeoutOption() mo.Option[time.Duration] {
-	if s.TimeoutMS <= 0 {
-		return mo.None[time.Duration]()
-	}
-	return mo.Some(time.Duration(s.TimeoutMS) * time.Millisecond)
-}
-
-// GetMaxConcurrentOption returns the max concurrent setting as an Option.
-// Returns None if MaxConcurrent is zero (unlimited).
-func (s *ServerConfig) GetMaxConcurrentOption() mo.Option[int] {
-	if s.MaxConcurrent <= 0 {
-		return mo.None[int]()
-	}
-	return mo.Some(s.MaxConcurrent)
-}
-
-// GetMaxBodyBytesOption returns the max body bytes setting as an Option.
-// Returns None if MaxBodyBytes is zero (unlimited).
-func (s *ServerConfig) GetMaxBodyBytesOption() mo.Option[int64] {
-	if s.MaxBodyBytes <= 0 {
-		return mo.None[int64]()
-	}
-	return mo.Some(s.MaxBodyBytes)
-}
-
-// KeyConfig Option helpers for type-safe access to optional rate limit values.
-
-// GetRPMLimitOption returns the RPM limit as an Option.
-// Returns None if RPMLimit is zero (unlimited/learn from headers).
-func (k *KeyConfig) GetRPMLimitOption() mo.Option[int] {
-	if k.RPMLimit <= 0 {
-		return mo.None[int]()
-	}
-	return mo.Some(k.RPMLimit)
-}
-
-// GetITPMLimitOption returns the ITPM limit as an Option.
-// Returns None if ITPMLimit is zero (unlimited/learn from headers).
-func (k *KeyConfig) GetITPMLimitOption() mo.Option[int] {
-	if k.ITPMLimit <= 0 {
-		return mo.None[int]()
-	}
-	return mo.Some(k.ITPMLimit)
-}
-
-// GetOTPMLimitOption returns the OTPM limit as an Option.
-// Returns None if OTPMLimit is zero (unlimited/learn from headers).
-func (k *KeyConfig) GetOTPMLimitOption() mo.Option[int] {
-	if k.OTPMLimit <= 0 {
-		return mo.None[int]()
-	}
-	return mo.Some(k.OTPMLimit)
-}
