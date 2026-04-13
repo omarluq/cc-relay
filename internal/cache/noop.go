@@ -111,13 +111,7 @@ func (c *noopCache) Close() error {
 // Stats returns zeroed cache statistics.
 // The noopCache never stores anything, so all stats are zero.
 func (c *noopCache) Stats() Stats {
-	return Stats{
-		Hits:      0,
-		Misses:    0,
-		KeyCount:  0,
-		BytesUsed: 0,
-		Evictions: 0,
-	}
+	return zeroStats()
 }
 
 // Compile-time interface checks ensure noopCache implements required interfaces.

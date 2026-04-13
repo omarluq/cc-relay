@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,7 +148,7 @@ func TestNewInvalidModeReturnsError(t *testing.T) {
 		t.Fatal("New() error = nil, want error for invalid mode")
 	}
 
-	if !cache.ContainsString(err.Error(), "invalid-mode") {
+	if !strings.Contains(err.Error(), "invalid-mode") {
 		t.Errorf("error message %q should mention 'invalid-mode'", err.Error())
 	}
 }
@@ -210,7 +211,7 @@ func TestNewInvalidConfigReturnsError(t *testing.T) {
 			if err == nil {
 				t.Fatal("New() error = nil, want error")
 			}
-			if !cache.ContainsString(err.Error(), testCase.wantErr) {
+			if !strings.Contains(err.Error(), testCase.wantErr) {
 				t.Errorf("error message %q should contain %q", err.Error(), testCase.wantErr)
 			}
 		})

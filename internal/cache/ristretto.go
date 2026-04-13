@@ -260,26 +260,14 @@ func (r *ristrettoCache) Close() error {
 // Stats returns current cache statistics.
 func (r *ristrettoCache) Stats() Stats {
 	if r.closed.Load() {
-		return Stats{
-			Hits:      0,
-			Misses:    0,
-			KeyCount:  0,
-			BytesUsed: 0,
-			Evictions: 0,
-		}
+		return zeroStats()
 	}
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if r.closed.Load() {
-		return Stats{
-			Hits:      0,
-			Misses:    0,
-			KeyCount:  0,
-			BytesUsed: 0,
-			Evictions: 0,
-		}
+		return zeroStats()
 	}
 
 	metrics := r.cache.Metrics

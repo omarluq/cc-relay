@@ -16,10 +16,6 @@ var (
 
 	// ErrClosed is returned when operations are attempted on a closed cache.
 	ErrClosed = errors.New("cache: cache is closed")
-
-	// ErrSerializationFailed is returned when value serialization fails.
-	// This typically occurs when encoding or decoding cached values.
-	ErrSerializationFailed = errors.New("cache: serialization failed")
 )
 
 // ignoreCacheErr is a no-op error sink used in stress/benchmark tests

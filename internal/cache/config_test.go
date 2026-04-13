@@ -1,6 +1,7 @@
 package cache_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -142,7 +143,7 @@ func TestConfigValidateInvalidMode(t *testing.T) {
 			if err == nil {
 				t.Fatal("Validate() error = nil, want error")
 			}
-			if !cache.ContainsString(err.Error(), testCase.wantErr) {
+			if !strings.Contains(err.Error(), testCase.wantErr) {
 				t.Errorf("error %q should contain %q", err.Error(), testCase.wantErr)
 			}
 		})
@@ -177,7 +178,7 @@ func TestConfigValidateSingleModeZeroMaxCost(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "max_cost must be positive") {
+	if !strings.Contains(err.Error(), "max_cost must be positive") {
 		t.Errorf("error %q should contain 'max_cost must be positive'", err.Error())
 	}
 }
@@ -210,7 +211,7 @@ func TestConfigValidateSingleModeZeroNumCounters(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "num_counters must be positive") {
+	if !strings.Contains(err.Error(), "num_counters must be positive") {
 		t.Errorf("error %q should contain 'num_counters must be positive'", err.Error())
 	}
 }
@@ -235,7 +236,7 @@ func TestOlricConfigValidateEmbeddedNoBindAddr(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "bind_addr required") {
+	if !strings.Contains(err.Error(), "bind_addr required") {
 		t.Errorf("error %q should contain 'bind_addr required'", err.Error())
 	}
 }
@@ -260,7 +261,7 @@ func TestOlricConfigValidateClientModeNoAddresses(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "addresses required") {
+	if !strings.Contains(err.Error(), "addresses required") {
 		t.Errorf("error %q should contain 'addresses required'", err.Error())
 	}
 }
@@ -285,7 +286,7 @@ func TestOlricConfigValidateInvalidEnvironment(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), `"local", "lan", or "wan"`) {
+	if !strings.Contains(err.Error(), `"local", "lan", or "wan"`) {
 		t.Errorf("error %q should list valid environments", err.Error())
 	}
 }
@@ -346,7 +347,7 @@ func TestOlricConfigValidateWriteQuorumExceedsReplicaCount(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "write_quorum cannot exceed replica_count") {
+	if !strings.Contains(err.Error(), "write_quorum cannot exceed replica_count") {
 		t.Errorf("error %q should mention write_quorum exceeding replica_count", err.Error())
 	}
 }
@@ -371,7 +372,7 @@ func TestOlricConfigValidateReadQuorumExceedsReplicaCount(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "read_quorum cannot exceed replica_count") {
+	if !strings.Contains(err.Error(), "read_quorum cannot exceed replica_count") {
 		t.Errorf("error %q should mention read_quorum exceeding replica_count", err.Error())
 	}
 }
@@ -396,7 +397,7 @@ func TestOlricConfigValidateNegativeMemberCountQuorum(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "member_count_quorum cannot be negative") {
+	if !strings.Contains(err.Error(), "member_count_quorum cannot be negative") {
 		t.Errorf("error %q should mention negative member_count_quorum", err.Error())
 	}
 }
@@ -421,7 +422,7 @@ func TestOlricConfigValidateNegativeLeaveTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want error")
 	}
-	if !cache.ContainsString(err.Error(), "leave_timeout cannot be negative") {
+	if !strings.Contains(err.Error(), "leave_timeout cannot be negative") {
 		t.Errorf("error %q should mention negative leave_timeout", err.Error())
 	}
 }

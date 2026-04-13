@@ -89,6 +89,18 @@ type Stats struct {
 	Evictions uint64 `json:"evictions"`
 }
 
+// zeroStats returns a Stats struct with all zero values.
+// Used by cache implementations when returning stats for closed or uninitialized caches.
+func zeroStats() Stats {
+	return Stats{
+		Hits:      0,
+		Misses:    0,
+		KeyCount:  0,
+		BytesUsed: 0,
+		Evictions: 0,
+	}
+}
+
 // StatsProvider is an optional interface for caches that support statistics.
 // Use type assertion to check if a cache implements this interface:
 //
@@ -117,40 +129,6 @@ type Pinger interface {
 	// For local caches, this always returns nil.
 	// For distributed caches, this validates cluster connectivity.
 	Ping(ctx context.Context) error
-}
-
-// MultiGetter is an optional interface for batch get operations.
-// Implementations that support efficient batch retrieval should implement this.
-//
-// Use type assertion to check if a cache implements this interface:
-//
-//	if mg, ok := c.(cache.MultiGetter); ok {
-//		results, err := mg.GetMulti(ctx, keys)
-//		// use batch results
-//	}
-type MultiGetter interface {
-	// GetMulti retrieves multiple values from the cache.
-	// Missing keys are not included in the result map (no error).
-	// Returns a map of key -> value for found keys.
-	GetMulti(ctx context.Context, keys []string) (map[string][]byte, error)
-}
-
-// MultiSetter is an optional interface for batch set operations.
-// Implementations that support efficient batch writes should implement this.
-//
-// Use type assertion to check if a cache implements this interface:
-//
-//	if ms, ok := c.(cache.MultiSetter); ok {
-//		err := ms.SetMulti(ctx, items)
-//		// handle batch write
-//	}
-type MultiSetter interface {
-	// SetMulti stores multiple values in the cache.
-	// If any key fails, returns error but may have set some keys.
-	SetMulti(ctx context.Context, items map[string][]byte) error
-
-	// SetMultiWithTTL stores multiple values with a common TTL.
-	SetMultiWithTTL(ctx context.Context, items map[string][]byte, ttl time.Duration) error
 }
 
 // ClusterInfo is an optional interface for distributed caches that support clustering.

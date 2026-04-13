@@ -552,26 +552,14 @@ func (o *olricCache) Close() error {
 // for detailed cluster statistics.
 func (o *olricCache) Stats() Stats {
 	if o.closed.Load() {
-		return Stats{
-			Hits:      0,
-			Misses:    0,
-			KeyCount:  0,
-			BytesUsed: 0,
-			Evictions: 0,
-		}
+		return zeroStats()
 	}
 
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
 	if o.closed.Load() {
-		return Stats{
-			Hits:      0,
-			Misses:    0,
-			KeyCount:  0,
-			BytesUsed: 0,
-			Evictions: 0,
-		}
+		return zeroStats()
 	}
 
 	// Olric's Stats() requires a member address and returns different
@@ -582,13 +570,7 @@ func (o *olricCache) Stats() Stats {
 	// For now, return empty stats. The cache is still fully functional;
 	// this just means stats won't be available through this interface.
 	// Use client.Stats(ctx, addr) directly for detailed Olric stats.
-	return Stats{
-		Hits:      0,
-		Misses:    0,
-		KeyCount:  0,
-		BytesUsed: 0,
-		Evictions: 0,
-	}
+	return zeroStats()
 }
 
 // Ping verifies the cache connection is alive.
