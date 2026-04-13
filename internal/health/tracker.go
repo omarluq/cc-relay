@@ -145,15 +145,3 @@ func (t *Tracker) RecordFailure(providerName string, err error) {
 	}
 }
 
-// AllStates returns a snapshot of all provider circuit states.
-// Useful for debugging and monitoring.
-func (t *Tracker) AllStates() map[string]State {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	states := make(map[string]State, len(t.circuits))
-	for name, cb := range t.circuits {
-		states[name] = cb.State()
-	}
-	return states
-}

@@ -44,8 +44,8 @@ func TestTrackerGetOrCreateCircuitCreatesOnDemand(t *testing.T) {
 	if breaker == nil {
 		t.Fatal("expected non-nil health.CircuitBreaker")
 	}
-	if breaker.Name() != "provider-a" {
-		t.Errorf("expected name 'provider-a', got %q", breaker.Name())
+	if breaker.GetBreakerName() != "provider-a" {
+		t.Errorf("expected name 'provider-a', got %q", breaker.GetBreakerName())
 	}
 }
 

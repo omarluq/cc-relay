@@ -19,8 +19,8 @@ func TestNewCircuitBreakerDefaultSettings(t *testing.T) {
 	if breaker == nil {
 		t.Fatal("expected non-nil health.CircuitBreaker")
 	}
-	if breaker.Name() != "test-provider" {
-		t.Errorf("expected name 'test-provider', got %q", breaker.Name())
+	if breaker.GetBreakerName() != "test-provider" {
+		t.Errorf("expected name 'test-provider', got %q", breaker.GetBreakerName())
 	}
 	if breaker.State() != health.StateClosed {
 		t.Errorf("expected initial state CLOSED, got %s", breaker.State().String())
@@ -69,8 +69,8 @@ func TestCircuitBreakerOpensAfterThresholdFailures(t *testing.T) {
 	if err == nil {
 		t.Error("expected Allow to fail when circuit is open")
 	}
-	if !errors.Is(err, health.ErrCircuitOpen) {
-		t.Errorf("expected health.ErrCircuitOpen, got %v", err)
+	if !errors.Is(err, health.GetErrCircuitOpen()) {
+		t.Errorf("expected errCircuitOpen, got %v", err)
 	}
 }
 
