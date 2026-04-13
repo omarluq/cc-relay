@@ -1,8 +1,8 @@
 package proxy_test
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
