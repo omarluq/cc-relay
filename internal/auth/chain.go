@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/samber/lo"
-	"github.com/samber/mo"
 )
 
 // ChainAuthenticator tries multiple authenticators in order.
@@ -31,7 +30,6 @@ func (c *ChainAuthenticator) Validate(request *http.Request) Result {
 			Valid: false,
 			Type:  TypeNone,
 			Error: "no authentication configured",
-			Token: "",
 		}
 	}
 
@@ -44,7 +42,7 @@ func (c *ChainAuthenticator) Validate(request *http.Request) Result {
 			return acc
 		}
 		return auth.Validate(request)
-	}, Result{Valid: false, Type: TypeNone, Token: "", Error: ""})
+	}, Result{Valid: false, Type: TypeNone, Error: ""})
 
 	// If still not valid, normalize the error response
 	if !result.Valid {
@@ -52,7 +50,6 @@ func (c *ChainAuthenticator) Validate(request *http.Request) Result {
 			Valid: false,
 			Type:  TypeNone,
 			Error: result.Error,
-			Token: "",
 		}
 	}
 
@@ -64,33 +61,3 @@ func (c *ChainAuthenticator) Type() Type {
 	return TypeNone
 }
 
-// ValidateResult tries each authenticator and returns the result as mo.Result[Result].
-// This is an alternative API that supports Railway-Oriented Programming patterns.
-// Returns mo.Ok(Result) if any authenticator succeeds.
-// Returns mo.Err with the last error if all fail.
-func (c *ChainAuthenticator) ValidateResult(request *http.Request) mo.Result[Result] {
-	result := c.Validate(request)
-	if result.Valid {
-		return mo.Ok(result)
-	}
-	return mo.Err[Result](NewValidationError(result.Type, result.Error))
-}
-
-// ValidationError wraps authentication failure details.
-type ValidationError struct {
-	Type    Type
-	Message string
-}
-
-// Error implements the error interface.
-func (e *ValidationError) Error() string {
-	return e.Message
-}
-
-// NewValidationError creates a new ValidationError with the given type and message.
-func NewValidationError(authType Type, message string) *ValidationError {
-	return &ValidationError{
-		Type:    authType,
-		Message: message,
-	}
-}

@@ -16,9 +16,8 @@ import (
 var (
 	genNonEmptyAlpha = gen.AlphaString().SuchThat(func(s string) bool { return s != "" })
 	genMinLen5Alpha  = gen.AlphaString().SuchThat(func(s string) bool { return len(s) >= 5 })
-	genMinLen6Alpha  = gen.AlphaString().SuchThat(func(s string) bool { return len(s) >= 6 }) // Different from 5
-	genMinLen4Alpha  = gen.AlphaString().SuchThat(func(s string) bool { return len(s) >= 4 }) // Different from 5
-	genAnyAlpha      = gen.AlphaString()
+	genMinLen6Alpha = gen.AlphaString().SuchThat(func(s string) bool { return len(s) >= 6 }) // Different from 5
+	genAnyAlpha     = gen.AlphaString()
 )
 
 // Property-based tests for ChainAuthenticator
@@ -104,40 +103,7 @@ func TestChainAuthenticatorResultProperties(t *testing.T) {
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
 
-	// Property 5: ValidateResult returns Ok for valid authentication
-	properties.Property("ValidateResult returns Ok for valid auth", prop.ForAll(
-		func(key string) bool {
-			if key == "" {
-				return true
-			}
-
-			chain := auth.NewChainAuthenticator(auth.NewAPIKeyAuthenticator(key))
-			req := createRequestWithAPIKey(key)
-
-			result := chain.ValidateResult(req)
-			return result.IsOk()
-		},
-		genNonEmptyAlpha,
-	))
-
-	// Property 6: ValidateResult returns Err for invalid authentication
-	properties.Property("ValidateResult returns Err for invalid auth", prop.ForAll(
-		func(validKey, providedKey string) bool {
-			if validKey == providedKey || validKey == "" || providedKey == "" {
-				return true
-			}
-
-			chain := auth.NewChainAuthenticator(auth.NewAPIKeyAuthenticator(validKey))
-			req := createRequestWithAPIKey(providedKey)
-
-			result := chain.ValidateResult(req)
-			return result.IsError()
-		},
-		genMinLen5Alpha,
-		genMinLen4Alpha, // Use different length to avoid dupOption
-	))
-
-	// Property 7: Type is always auth.TypeNone for chain
+	// Property 5: Type is always auth.TypeNone for chain
 	properties.Property("Type returns auth.TypeNone", prop.ForAll(
 		func(_ bool) bool {
 			chain := auth.NewChainAuthenticator()
@@ -187,30 +153,7 @@ func TestAPIKeyAuthenticatorProperties(t *testing.T) {
 		genNonEmptyAlpha,
 	))
 
-	// Property 3: ValidateResult is consistent with Validate
-	properties.Property("ValidateResult consistent with Validate", prop.ForAll(
-		func(key, provided string) bool {
-			if key == "" {
-				return true
-			}
-
-			authenticator := auth.NewAPIKeyAuthenticator(key)
-			req := createRequestWithAPIKey(provided)
-
-			validateResult := authenticator.Validate(req)
-			resultMonad := authenticator.ValidateResult(req)
-
-			// Results should be consistent
-			if validateResult.Valid {
-				return resultMonad.IsOk()
-			}
-			return resultMonad.IsError()
-		},
-		genMinLen5Alpha,
-		genMinLen6Alpha, // Different to avoid dupOption
-	))
-
-	// Property 4: Type returns auth.TypeAPIKey
+	// Property 3: Type returns auth.TypeAPIKey
 	properties.Property("Type returns auth.TypeAPIKey", prop.ForAll(
 		func(key string) bool {
 			if key == "" {
@@ -318,58 +261,6 @@ func TestBearerAuthenticatorResultProperties(t *testing.T) {
 			return bearer.Type() == auth.TypeBearer
 		},
 		genAnyAlpha,
-	))
-
-	// Property 7: ValidateResult is consistent with Validate
-	properties.Property("ValidateResult consistent with Validate", prop.ForAll(
-		func(secret, token string) bool {
-			if token == "" {
-				return true
-			}
-
-			bearer := auth.NewBearerAuthenticator(secret)
-			req := createRequestWithBearerToken(token)
-
-			validateResult := bearer.Validate(req)
-			resultMonad := bearer.ValidateResult(req)
-
-			if validateResult.Valid {
-				return resultMonad.IsOk()
-			}
-			return resultMonad.IsError()
-		},
-		genAnyAlpha,
-		genNonEmptyAlpha,
-	))
-
-	properties.TestingRun(t)
-}
-
-func TestValidationErrorProperties(t *testing.T) {
-	t.Parallel()
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 50
-	properties := gopter.NewProperties(parameters)
-
-	// Property: Error() returns the message
-	properties.Property("Error returns message", prop.ForAll(
-		func(message string) bool {
-			err := auth.NewValidationError(auth.TypeAPIKey, message)
-			return err.Error() == message
-		},
-		genAnyAlpha,
-	))
-
-	// Property: Type is preserved
-	properties.Property("Type is preserved", prop.ForAll(
-		func(typeIdx int) bool {
-			types := []auth.Type{auth.TypeAPIKey, auth.TypeBearer, auth.TypeNone}
-			authType := types[typeIdx%len(types)]
-
-			err := auth.NewValidationError(authType, "test message")
-			return err.Type == authType
-		},
-		gen.IntRange(0, 2),
 	))
 
 	properties.TestingRun(t)
