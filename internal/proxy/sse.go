@@ -5,12 +5,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/tidwall/gjson"
 )
+
+// ErrStreamClosed is returned when attempting to read from a closed stream.
+var ErrStreamClosed = errors.New("sse: stream is closed")
 
 // IsStreamingRequest checks if request body contains "stream": true.
 // Returns false if the body is invalid JSON or stream field is missing/false.

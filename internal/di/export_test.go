@@ -177,47 +177,6 @@ func MustTestServerConfig(listen string) config.ServerConfig {
 	}
 }
 
-// mustTestLoggingConfig creates a minimal LoggingConfig for testing.
-func MustTestLoggingConfig(level string) config.LoggingConfig {
-	return config.LoggingConfig{
-		Level:  level,
-		Format: "json",
-		Output: "stdout",
-		Pretty: false,
-		DebugOptions: config.DebugOptions{
-			LogRequestBody:     false,
-			LogResponseHeaders: false,
-			LogTLSMetrics:      false,
-			MaxBodyLogSize:     0,
-		},
-	}
-}
-
-// MustTestCacheConfig creates a minimal cache.Config for testing.
-func MustTestCacheConfig(mode cache.Mode) cache.Config {
-	return cache.Config{
-		Mode: mode,
-		Olric: cache.OlricConfig{
-			DMapName:          "",
-			BindAddr:          "",
-			Environment:       "",
-			Addresses:         nil,
-			Peers:             nil,
-			ReplicaCount:      0,
-			ReadQuorum:        0,
-			WriteQuorum:       0,
-			LeaveTimeout:      0,
-			MemberCountQuorum: 0,
-			Embedded:          false,
-		},
-		Ristretto: cache.RistrettoConfig{
-			NumCounters: 0,
-			MaxCost:     0,
-			BufferItems: 0,
-		},
-	}
-}
-
 // MustTestProviderInfo creates a minimal router.ProviderInfo for testing.
 func MustTestProviderInfo(provider providers.Provider, weight, priority int) router.ProviderInfo {
 	return router.ProviderInfo{

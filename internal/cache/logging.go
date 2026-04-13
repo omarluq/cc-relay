@@ -16,20 +16,6 @@ var (
 	Logger = zerolog.Nop()
 )
 
-// SetLogger sets the package-level logger for cache operations.
-// Call this during application initialization to enable cache logging.
-// The logger is automatically tagged with component: cache.
-//
-// Example:
-//
-//	logger := zerolog.New(os.Stdout).Level(zerolog.DebugLevel)
-//	cache.SetLogger(&logger)
-func SetLogger(l *zerolog.Logger) {
-	loggerMu.Lock()
-	defer loggerMu.Unlock()
-	Logger = l.With().Str("component", "cache").Logger()
-}
-
 // logger returns the current package logger.
 // This is used internally by cache implementations.
 func logger() zerolog.Logger {
