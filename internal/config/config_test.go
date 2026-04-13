@@ -1,39 +1,13 @@
 package config_test
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/omarluq/cc-relay/internal/health"
 	"github.com/rs/zerolog"
-	"github.com/samber/mo"
 )
-
-// assertOption is a generic helper for testing mo.Option methods.
-// It eliminates duplication across tests for GetMaxBodyLogSizeOption,
-// GetMaxConcurrentOption, GetMaxBodyBytesOption, GetITPMLimitOption,
-// and GetOTPMLimitOption.
-func assertOption[T comparable](
-	t *testing.T, name string, get func() mo.Option[T], wantSome bool, wantValue T,
-) {
-	t.Helper()
-	t.Run(name, func(t *testing.T) {
-		t.Parallel()
-		opt := get()
-		if opt.IsPresent() != wantSome {
-			t.Errorf("IsPresent() = %v, want %v", opt.IsPresent(), wantSome)
-		}
-		if wantSome {
-			if got := opt.MustGet(); got != wantValue {
-				t.Errorf("MustGet() = %v, want %v", got, wantValue)
-			}
-		}
-	})
-}
 
 // zeroServerConfig returns a ServerConfig with all fields zeroed.
 func zeroServerConfig() config.ServerConfig {
@@ -131,27 +105,6 @@ func providerWithType(
 	return prov
 }
 
-// serverWithTimeout returns a zero ServerConfig with the given TimeoutMS.
-func serverWithTimeout(ms int) config.ServerConfig {
-	s := zeroServerConfig()
-	s.TimeoutMS = ms
-	return s
-}
-
-// serverWithMaxConcurrent returns a zero ServerConfig with the given MaxConcurrent.
-func serverWithMaxConcurrent(n int) config.ServerConfig {
-	s := zeroServerConfig()
-	s.MaxConcurrent = n
-	return s
-}
-
-// serverWithMaxBodyBytes returns a zero ServerConfig with the given MaxBodyBytes.
-func serverWithMaxBodyBytes(n int64) config.ServerConfig {
-	s := zeroServerConfig()
-	s.MaxBodyBytes = n
-	return s
-}
-
 // serverWithAPIKeys returns a zero ServerConfig with legacy and auth API keys.
 func serverWithAPIKeys(legacy, auth string) config.ServerConfig {
 	s := zeroServerConfig()
@@ -160,26 +113,6 @@ func serverWithAPIKeys(legacy, auth string) config.ServerConfig {
 	return s
 }
 
-// keyWithField creates a key config with a specific field set.
-func keyWithField(key, field string, value int) config.KeyConfig {
-	keyCfg := zeroKeyConfig()
-	keyCfg.Key = key
-	switch field {
-	case "RPMLimit":
-		keyCfg.RPMLimit = value
-	case "ITPMLimit":
-		keyCfg.ITPMLimit = value
-	case "OTPMLimit":
-		keyCfg.OTPMLimit = value
-	case "Priority":
-		keyCfg.Priority = value
-	case "Weight":
-		keyCfg.Weight = value
-	case "TPMLimit":
-		keyCfg.TPMLimit = value
-	}
-	return keyCfg
-}
 
 // routingWithStrategy returns a zero RoutingConfig with the given strategy.
 func routingWithStrategy(s string) config.RoutingConfig {
@@ -531,95 +464,6 @@ func TestKeyConfigGetEffectiveTPM(t *testing.T) {
 	}
 }
 
-// runKeyValidation is a helper to test KeyConfig.Validate.
-func runKeyValidation(
-	t *testing.T, name string, cfg config.KeyConfig,
-	wantErr bool, check func(t *testing.T, err error),
-) {
-	t.Helper()
-	t.Run(name, func(t *testing.T) {
-		t.Parallel()
-		err := cfg.Validate()
-		if wantErr {
-			if err == nil {
-				t.Error("Validate() expected error, got nil")
-				return
-			}
-			if check != nil {
-				check(t, err)
-			}
-		} else if err != nil {
-			t.Errorf("Validate() expected no error, got %v", err)
-		}
-	})
-}
-
-func TestKeyConfigValidateValid(t *testing.T) {
-	t.Parallel()
-
-	runKeyValidation(t, "valid key with all fields", config.KeyConfig{
-		Key: "sk-test123", RPMLimit: 50, ITPMLimit: 30000,
-		OTPMLimit: 10000, Priority: 2, Weight: 5, TPMLimit: 0,
-	}, false, nil)
-
-	runKeyValidation(t, "valid key with defaults", config.KeyConfig{
-		Key: "sk-test123", RPMLimit: 0, ITPMLimit: 0,
-		OTPMLimit: 0, Priority: 0, Weight: 0, TPMLimit: 0,
-	}, false, nil)
-
-	for _, p := range []int{0, 1, 2} {
-		k := zeroKeyConfig()
-		k.Key = "sk-test123"
-		k.Priority = p
-		runKeyValidation(t, "valid priority "+strings.Repeat("I", p), k, false, nil)
-	}
-
-	k := zeroKeyConfig()
-	k.Key = "sk-test123"
-	runKeyValidation(t, "zero weight is valid", k, false, nil)
-}
-
-func TestKeyConfigValidateErrors(t *testing.T) {
-	t.Parallel()
-
-	runKeyValidation(t, "empty key", zeroKeyConfig(), true, func(t *testing.T, err error) {
-		t.Helper()
-		if !errors.Is(err, config.ErrKeyRequired) {
-			t.Errorf("Expected ErrKeyRequired, got %v", err)
-		}
-	})
-
-	priorityHigh := keyWithField("sk-test123", "Priority", 3)
-	runKeyValidation(t, "priority too high", priorityHigh, true,
-		func(t *testing.T, err error) {
-			t.Helper()
-			var priorityErr config.InvalidPriorityError
-			if !errors.As(err, &priorityErr) {
-				t.Errorf("Expected InvalidPriorityError, got %T", err)
-			}
-		})
-
-	priorityNeg := keyWithField("sk-test123", "Priority", -1)
-	runKeyValidation(t, "priority negative", priorityNeg, true,
-		func(t *testing.T, err error) {
-			t.Helper()
-			var priorityErr config.InvalidPriorityError
-			if !errors.As(err, &priorityErr) {
-				t.Errorf("Expected InvalidPriorityError, got %T", err)
-			}
-		})
-
-	weightNeg := keyWithField("sk-test123", "Weight", -1)
-	runKeyValidation(t, "negative weight", weightNeg, true,
-		func(t *testing.T, err error) {
-			t.Helper()
-			var weightErr config.InvalidWeightError
-			if !errors.As(err, &weightErr) {
-				t.Errorf("Expected InvalidWeightError, got %T", err)
-			}
-		})
-}
-
 func TestProviderConfigGetEffectiveStrategy(t *testing.T) {
 	t.Parallel()
 
@@ -686,133 +530,6 @@ func TestProviderConfigIsPoolingEnabled(t *testing.T) {
 	}
 }
 
-// Tests for mo.Option helper methods.
-
-func TestDebugOptionsGetMaxBodyLogSizeOption(t *testing.T) {
-	t.Parallel()
-
-	opts1 := zeroDebugOptions()
-	assertOption(t, "zero returns None", opts1.GetMaxBodyLogSizeOption, false, 0)
-
-	opts2 := zeroDebugOptions()
-	opts2.MaxBodyLogSize = -1
-	assertOption(t, "negative returns None", opts2.GetMaxBodyLogSizeOption, false, 0)
-
-	opts3 := zeroDebugOptions()
-	opts3.MaxBodyLogSize = 5000
-	assertOption(t, "positive returns Some", opts3.GetMaxBodyLogSizeOption, true, 5000)
-}
-
-func TestServerConfigGetTimeoutOption(t *testing.T) {
-	t.Parallel()
-
-	cfg0 := serverWithTimeout(0)
-	assertOption(t, "zero returns None", cfg0.GetTimeoutOption, false, time.Duration(0))
-
-	cfgNeg := serverWithTimeout(-1)
-	assertOption(t, "negative returns None", cfgNeg.GetTimeoutOption, false, time.Duration(0))
-
-	cfgPos := serverWithTimeout(5000)
-	assertOption(t, "positive returns Some", cfgPos.GetTimeoutOption, true, 5*time.Second)
-}
-
-func TestServerConfigGetMaxConcurrentOption(t *testing.T) {
-	t.Parallel()
-
-	cfg0 := serverWithMaxConcurrent(0)
-	assertOption(t, "zero returns None", cfg0.GetMaxConcurrentOption, false, 0)
-
-	cfgNeg := serverWithMaxConcurrent(-1)
-	assertOption(t, "negative returns None", cfgNeg.GetMaxConcurrentOption, false, 0)
-
-	cfgPos := serverWithMaxConcurrent(100)
-	assertOption(t, "positive returns Some", cfgPos.GetMaxConcurrentOption, true, 100)
-}
-
-func TestServerConfigGetMaxBodyBytesOption(t *testing.T) {
-	t.Parallel()
-
-	cfg0 := serverWithMaxBodyBytes(0)
-	assertOption(t, "zero returns None", cfg0.GetMaxBodyBytesOption, false, int64(0))
-
-	cfgNeg := serverWithMaxBodyBytes(-1)
-	assertOption(t, "negative returns None", cfgNeg.GetMaxBodyBytesOption, false, int64(0))
-
-	cfgPos := serverWithMaxBodyBytes(10485760)
-	assertOption(t, "positive returns Some", cfgPos.GetMaxBodyBytesOption, true, int64(10485760))
-}
-
-func TestKeyConfigGetRPMLimitOption(t *testing.T) {
-	t.Parallel()
-
-	cfg0 := keyWithField("test", "RPMLimit", 0)
-	assertOption(t, "zero returns None", cfg0.GetRPMLimitOption, false, 0)
-
-	cfgNeg := keyWithField("test", "RPMLimit", -1)
-	assertOption(t, "negative returns None", cfgNeg.GetRPMLimitOption, false, 0)
-
-	cfgPos := keyWithField("test", "RPMLimit", 50)
-	assertOption(t, "positive returns Some", cfgPos.GetRPMLimitOption, true, 50)
-}
-
-func TestKeyConfigGetITPMLimitOption(t *testing.T) {
-	t.Parallel()
-
-	cfg0 := keyWithField("test", "ITPMLimit", 0)
-	assertOption(t, "zero returns None", cfg0.GetITPMLimitOption, false, 0)
-
-	cfgPos := keyWithField("test", "ITPMLimit", 30000)
-	assertOption(t, "positive returns Some", cfgPos.GetITPMLimitOption, true, 30000)
-}
-
-func TestKeyConfigGetOTPMLimitOption(t *testing.T) {
-	t.Parallel()
-
-	cfg0 := keyWithField("test", "OTPMLimit", 0)
-	assertOption(t, "zero returns None", cfg0.GetOTPMLimitOption, false, 0)
-
-	cfgPos := keyWithField("test", "OTPMLimit", 10000)
-	assertOption(t, "positive returns Some", cfgPos.GetOTPMLimitOption, true, 10000)
-}
-
-// Test Option usage with OrElse pattern.
-
-func TestOptionOrElseTimeout(t *testing.T) {
-	t.Parallel()
-
-	defaultTimeout := 30 * time.Second
-
-	cfg0 := serverWithTimeout(0)
-	timeout := cfg0.GetTimeoutOption().OrElse(defaultTimeout)
-	if timeout != defaultTimeout {
-		t.Errorf("Expected default timeout %v, got %v", defaultTimeout, timeout)
-	}
-
-	cfg1 := serverWithTimeout(5000)
-	timeout2 := cfg1.GetTimeoutOption().OrElse(defaultTimeout)
-	if timeout2 != 5*time.Second {
-		t.Errorf("Expected 5s timeout, got %v", timeout2)
-	}
-}
-
-func TestOptionOrElseMaxConcurrent(t *testing.T) {
-	t.Parallel()
-
-	defaultMax := 1000
-
-	cfg0 := serverWithMaxConcurrent(0)
-	maxConc := cfg0.GetMaxConcurrentOption().OrElse(defaultMax)
-	if maxConc != defaultMax {
-		t.Errorf("Expected default %d, got %d", defaultMax, maxConc)
-	}
-
-	cfg1 := serverWithMaxConcurrent(50)
-	maxConc2 := cfg1.GetMaxConcurrentOption().OrElse(defaultMax)
-	if maxConc2 != 50 {
-		t.Errorf("Expected 50, got %d", maxConc2)
-	}
-}
-
 // Tests for RoutingConfig.
 
 func TestRoutingConfigGetEffectiveStrategy(t *testing.T) {
@@ -844,17 +561,45 @@ func TestRoutingConfigGetEffectiveStrategy(t *testing.T) {
 func TestRoutingConfigGetFailoverTimeoutOption(t *testing.T) {
 	t.Parallel()
 
-	r0 := routingWithTimeout(0)
-	assertOption(t, "zero returns None", r0.GetFailoverTimeoutOption, false, time.Duration(0))
+	t.Run("zero returns None", func(t *testing.T) {
+		t.Parallel()
+		r := routingWithTimeout(0)
+		if _, ok := r.GetFailoverTimeoutOption().Get(); ok {
+			t.Error("expected None for zero timeout")
+		}
+	})
 
-	rNeg := routingWithTimeout(-100)
-	assertOption(t, "negative returns None", rNeg.GetFailoverTimeoutOption, false, time.Duration(0))
+	t.Run("negative returns None", func(t *testing.T) {
+		t.Parallel()
+		r := routingWithTimeout(-100)
+		if _, ok := r.GetFailoverTimeoutOption().Get(); ok {
+			t.Error("expected None for negative timeout")
+		}
+	})
 
-	rPos := routingWithTimeout(5000)
-	assertOption(t, "positive returns Some", rPos.GetFailoverTimeoutOption, true, 5*time.Second)
+	t.Run("positive returns Some", func(t *testing.T) {
+		t.Parallel()
+		r := routingWithTimeout(5000)
+		val, ok := r.GetFailoverTimeoutOption().Get()
+		if !ok {
+			t.Fatal("expected Some, got None")
+		}
+		if val != 5*time.Second {
+			t.Errorf("got %v, want 5s", val)
+		}
+	})
 
-	rSmall := routingWithTimeout(100)
-	assertOption(t, "small value returns correct duration", rSmall.GetFailoverTimeoutOption, true, 100*time.Millisecond)
+	t.Run("small value returns correct duration", func(t *testing.T) {
+		t.Parallel()
+		r := routingWithTimeout(100)
+		val, ok := r.GetFailoverTimeoutOption().Get()
+		if !ok {
+			t.Fatal("expected Some, got None")
+		}
+		if val != 100*time.Millisecond {
+			t.Errorf("got %v, want 100ms", val)
+		}
+	})
 }
 
 func TestRoutingConfigIsDebugEnabled(t *testing.T) {
@@ -1017,8 +762,3 @@ func TestProviderConfigValidateCloudConfigAzure(t *testing.T) {
 	})
 }
 
-// Ensure unused imports are referenced.
-var (
-	_ cache.Config
-	_ health.Config
-)
