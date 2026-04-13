@@ -818,8 +818,8 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	pool, err := keypool.NewKeyPool("test-zai", keypool.PoolConfig{
 		Strategy: "least_loaded",
 		Keys: []keypool.KeyConfig{
-			{ //nolint:gosec // G101: test-only credential
-				APIKey:    "zai-test-pool-key-one",
+			{
+				APIKey:    "test-key-pool-1",
 				RPMLimit:  50,
 				ITPMLimit: 10000,
 				OTPMLimit: 5000,
@@ -849,7 +849,7 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	)
 
 	// Configured pool key should be sent, not client auth
-	assert.Equal(t, "zai-test-pool-key-one", headerCapture.Get("x-api-key"))
+	assert.Equal(t, "test-key-pool-1", headerCapture.Get("x-api-key"))
 }
 
 // TestParseRetryAfter tests the parseRetryAfter helper function.

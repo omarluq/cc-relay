@@ -241,34 +241,29 @@ func TestNoopCacheStatsReturnsZero(t *testing.T) {
 	verifyNoopStatsZero(t, noopCache.Stats(), "after operations")
 }
 
-//nolint:gocyclo,cyclop // test helper dispatches cache operations by index
-func runNoopCacheOp(ctx context.Context, t *testing.T, noopCache *cache.NoopCacheT, opIdx int) {
+func runNoopCacheReadOp(ctx context.Context, t *testing.T, noopCache *cache.NoopCacheT) {
 	t.Helper()
 	key := "key"
+	if _, err := noopCache.Get(ctx, key); err != nil && !errors.Is(err, cache.ErrNotFound) {
+		t.Errorf("Get() unexpected error = %v", err)
+	}
+	if _, err := noopCache.Exists(ctx, key); err != nil {
+		t.Errorf("Exists() error = %v", err)
+	}
+	_ = noopCache.Stats()
+}
 
-	switch opIdx % 6 {
-	case 0:
-		if _, err := noopCache.Get(ctx, key); err != nil && !errors.Is(err, cache.ErrNotFound) {
-			t.Errorf("Get() unexpected error = %v", err)
-		}
-	case 1:
-		if err := noopCache.Set(ctx, key, []byte("value")); err != nil {
-			t.Errorf("Set() error = %v", err)
-		}
-	case 2:
-		if err := noopCache.SetWithTTL(ctx, key, []byte("value"), time.Minute); err != nil {
-			t.Errorf("SetWithTTL() error = %v", err)
-		}
-	case 3:
-		if err := noopCache.Delete(ctx, key); err != nil {
-			t.Errorf("Delete() error = %v", err)
-		}
-	case 4:
-		if _, err := noopCache.Exists(ctx, key); err != nil {
-			t.Errorf("Exists() error = %v", err)
-		}
-	case 5:
-		_ = noopCache.Stats()
+func runNoopCacheWriteOp(ctx context.Context, t *testing.T, noopCache *cache.NoopCacheT) {
+	t.Helper()
+	key := "key"
+	if err := noopCache.Set(ctx, key, []byte("value")); err != nil {
+		t.Errorf("Set() error = %v", err)
+	}
+	if err := noopCache.SetWithTTL(ctx, key, []byte("value"), time.Minute); err != nil {
+		t.Errorf("SetWithTTL() error = %v", err)
+	}
+	if err := noopCache.Delete(ctx, key); err != nil {
+		t.Errorf("Delete() error = %v", err)
 	}
 }
 
@@ -291,8 +286,9 @@ func TestNoopCacheConcurrentAccess(t *testing.T) {
 	for range goroutines {
 		go func() {
 			defer waitGroup.Done()
-			for operationIdx := range operations {
-				runNoopCacheOp(ctx, t, noopCache, operationIdx)
+			for range operations {
+				runNoopCacheReadOp(ctx, t, noopCache)
+				runNoopCacheWriteOp(ctx, t, noopCache)
 			}
 		}()
 	}
