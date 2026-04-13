@@ -84,30 +84,11 @@ func TestHotReloadLiveRouter(t *testing.T) {
 		"LiveRouter should use round_robin after reload")
 }
 
-// TestHotReload_ConcurrentAccess verifies that concurrent config reads
-// during hot-reload don't cause races or panics.
-//
-//nolint:cyclop // test requires multiple concurrent paths
-func TestHotReloadConcurrentAccess(t *testing.T) {
-	t.Parallel()
-
-	if testing.Short() {
-		t.Skip("Skipping concurrent test in short mode")
-	}
-
-	initialCfg := mustTestConfigWithStrategy(router.StrategyRoundRobin, 0)
-	cfgSvc := di.NewConfigServiceUninitialized()
-	cfgSvc.GetConfigAtomic().Store(initialCfg)
-
-	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	// Goroutine 1: continuously read router
-	readDone := make(chan struct{})
+// readRouterUntilDone continuously reads the router until ctx is canceled.
+func readRouterUntilDone(ctx context.Context, routerSvc *di.RouterService) <-chan struct{} {
+	done := make(chan struct{})
 	go func() {
-		defer close(readDone)
+		defer close(done)
 		for {
 			select {
 			case <-ctx.Done():
@@ -117,11 +98,14 @@ func TestHotReloadConcurrentAccess(t *testing.T) {
 			}
 		}
 	}()
+	return done
+}
 
-	// Goroutine 2: continuously update config
-	updateDone := make(chan struct{})
+// updateConfigUntilDone continuously swaps config strategies until ctx is canceled.
+func updateConfigUntilDone(ctx context.Context, cfgSvc *di.ConfigService) <-chan struct{} {
+	done := make(chan struct{})
 	go func() {
-		defer close(updateDone)
+		defer close(done)
 		strategies := []string{
 			router.StrategyRoundRobin,
 			router.StrategyShuffle,
@@ -140,21 +124,41 @@ func TestHotReloadConcurrentAccess(t *testing.T) {
 			}
 		}
 	}()
+	return done
+}
 
-	// Wait for timeout
+// TestHotReload_ConcurrentAccess verifies that concurrent config reads
+// during hot-reload don't cause races or panics.
+func TestHotReloadConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("Skipping concurrent test in short mode")
+	}
+
+	initialCfg := mustTestConfigWithStrategy(router.StrategyRoundRobin, 0)
+	cfgSvc := di.NewConfigServiceUninitialized()
+	cfgSvc.GetConfigAtomic().Store(initialCfg)
+
+	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	readDone := readRouterUntilDone(ctx, routerSvc)
+	updateDone := updateConfigUntilDone(ctx, cfgSvc)
+
 	<-ctx.Done()
 
 	// Verify both goroutines completed without panic
 	select {
 	case <-readDone:
-		// Reader completed
 	case <-time.After(time.Second):
 		t.Fatal("Reader goroutine did not complete")
 	}
 
 	select {
 	case <-updateDone:
-		// Updater completed
 	case <-time.After(time.Second):
 		t.Fatal("Updater goroutine did not complete")
 	}

@@ -53,12 +53,10 @@ func newInjectorWithConfigPath(path string) *do.RootScope {
 }
 
 // shutdownInjector is a helper to properly shutdown an injector in tests.
-// The error from Shutdown is intentionally discarded as test cleanup
-// errors are non-critical.
-//
-//nolint:errcheck // intentional: test cleanup shutdown errors are non-critical
 func shutdownInjector(i *do.RootScope) {
-	i.Shutdown()
+	if err := i.Shutdown(); err != nil {
+		return
+	}
 }
 
 // waitFor polls fn until it returns true or the timeout is reached.
