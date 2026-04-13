@@ -32,21 +32,6 @@ type RistrettoCacheT = ristrettoCache
 // NoopCacheT exports the internal noop cache type for testing.
 type NoopCacheT = noopCache
 
-// ContainsString checks if a string contains a substring (for testing).
-func ContainsString(str, substr string) bool {
-	return len(str) >= len(substr) && containsStr(str, substr)
-}
-
-// containsStr searches for substr in str.
-func containsStr(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}
-
 // IgnoreCacheErr exports ignoreCacheErr for testing.
 var IgnoreCacheErr = ignoreCacheErr
 
