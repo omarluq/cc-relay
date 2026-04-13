@@ -23,8 +23,6 @@ type Result struct {
 	Type Type
 	// Error contains the error message if authentication failed.
 	Error string
-	// Token contains the extracted token/key value (for logging, not validation).
-	Token string
 	// Valid indicates whether authentication succeeded.
 	Valid bool
 }
