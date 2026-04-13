@@ -15,7 +15,7 @@ import (
 // TestNewKeyMetadata verifies key metadata initialization.
 func TestNewKeyMetadata(t *testing.T) {
 	t.Parallel()
-	sampleKeyInput := "sk-ant-test-key-12345" // #nosec G101 -- test data
+	sampleKeyInput := "sk-ant-sample-key-12345"
 	rpm := 50
 	itpm := 30000
 	otpm := 30000
