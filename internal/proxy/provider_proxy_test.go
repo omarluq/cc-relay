@@ -62,9 +62,6 @@ func TestProviderProxySetsCorrectTargetURL(t *testing.T) {
 	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
-	// Verify target URL is set correctly
-	assert.Equal(t, backendURL, providerProxy.GetTargetURL().String())
-
 	// Make a request through the proxy
 	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
 	recorder := httptest.NewRecorder()

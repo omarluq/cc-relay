@@ -18,33 +18,20 @@ type ModelsResponse struct {
 // ModelsHandler handles requests to /v1/models endpoint.
 type ModelsHandler struct {
 	getProviders ProvidersGetter
-	providers    []providers.Provider
 }
 
 // ProvidersGetter returns the current provider list for live updates.
 type ProvidersGetter func() []providers.Provider
 
 // NewModelsHandler creates a new models handler with the given providers.
-func NewModelsHandler(providerList []providers.Provider) *ModelsHandler {
-	return &ModelsHandler{
-		getProviders: nil,
-		providers:    providerList,
-	}
-}
-
-// NewModelsHandlerWithProviderFunc creates a models handler with a live provider accessor.
-func NewModelsHandlerWithProviderFunc(getProviders ProvidersGetter) *ModelsHandler {
+func NewModelsHandler(getProviders ProvidersGetter) *ModelsHandler {
 	return &ModelsHandler{
 		getProviders: getProviders,
-		providers:    nil,
 	}
 }
 
 func (h *ModelsHandler) providerList() []providers.Provider {
-	if h.getProviders != nil {
-		return h.getProviders()
-	}
-	return h.providers
+	return h.getProviders()
 }
 
 // ServeHTTP handles GET /v1/models requests.

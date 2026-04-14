@@ -93,19 +93,8 @@ type Handler struct {
 // If SignatureCache is provided, thinking signatures are cached for cross-provider reuse.
 //
 // For hot-reloadable provider inputs, set ProviderInfosFunc. Otherwise, ProviderInfos is used.
+// For hot-reloadable key pools, set GetProviderPools and GetProviderKeys.
 func NewHandler(opts *HandlerOptions) (*Handler, error) {
-	return NewHandlerWithLiveProviders(opts)
-}
-
-// NewHandlerWithLiveProviders creates a new proxy handler with hot-reloadable provider info.
-// ProviderInfosFunc is called per-request to get current provider routing information.
-func NewHandlerWithLiveProviders(opts *HandlerOptions) (*Handler, error) {
-	return NewHandlerWithLiveKeyPools(opts)
-}
-
-// NewHandlerWithLiveKeyPools creates a new proxy handler with hot-reloadable key pools.
-// When providers are enabled via config reload, their keys and pools are available immediately.
-func NewHandlerWithLiveKeyPools(opts *HandlerOptions) (*Handler, error) {
 	if opts == nil {
 		return nil, errors.New(handlerOptionsRequiredMsg)
 	}

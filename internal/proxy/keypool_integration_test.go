@@ -57,7 +57,7 @@ func newHandlerWithPool(t *testing.T, backendURL string, pool *keypool.KeyPool) 
 		},
 	}
 
-	handler, err := proxy.SetupRoutes(cfg, provider, "", pool)
+	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, "", pool, nil)
 	if err != nil {
 		t.Fatalf("Failed to setup routes: %v", err)
 	}

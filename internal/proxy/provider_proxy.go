@@ -238,11 +238,6 @@ func (pp *ProviderProxy) setAuth(proxyReq *httputil.ProxyRequest) {
 	}
 }
 
-// GetTargetURL returns the target URL for this provider's proxy.
-// Useful for testing and debugging.
-func (pp *ProviderProxy) GetTargetURL() *url.URL {
-	return pp.targetURL
-}
 
 // eventStreamToSSEBody wraps an Event Stream body and converts it to SSE on read.
 // This allows the ReverseProxy to transparently convert Bedrock Event Stream

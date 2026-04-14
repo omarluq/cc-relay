@@ -287,7 +287,7 @@ func TestSetupRoutesOnlyGETToHealth(t *testing.T) {
 func setupRoutesHandler(t *testing.T, cfg *config.Config, provider providers.Provider) http.Handler {
 	t.Helper()
 
-	handler, err := proxy.SetupRoutes(cfg, provider, "backend-key", nil)
+	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, "backend-key", nil, nil)
 	require.NoError(t, err)
 	return handler
 }
@@ -334,7 +334,7 @@ func TestSetupRoutesInvalidProviderBaseURL(t *testing.T) {
 	// Create provider with invalid base URL
 	provider := proxy.NewTestProvider("://invalid-url")
 
-	handler, err := proxy.SetupRoutes(cfg, provider, "backend-key", nil)
+	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, "backend-key", nil, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid provider base URL, got nil")
 	}
