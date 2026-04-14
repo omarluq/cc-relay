@@ -244,13 +244,13 @@ func TestNewHandlerInvalidURL(t *testing.T) {
 	}
 }
 
-func TestNewHandlerWithLiveProvidersNilProviderInfosFunc(t *testing.T) {
+func TestNewHandlerNilProviderInfosFunc(t *testing.T) {
 	t.Parallel()
 
 	provider := proxy.NewTestProvider(proxy.AnthropicBaseURL)
 
 	// Should not panic with nil providerInfosFunc
-	handler, err := proxy.NewHandlerWithLiveProviders(&proxy.HandlerOptions{
+	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
 		Provider:          provider,
 		ProviderRouter:    nil,
 		ProviderPools:     nil,
@@ -1038,7 +1038,7 @@ func setupModelBasedHandler(
 	runtimeCfg config.RuntimeConfigGetter,
 ) *proxy.Handler {
 	t.Helper()
-	handler, err := proxy.NewHandlerWithLiveProviders(proxy.TestHandlerOptions(&proxy.HandlerOptions{
+	handler, err := proxy.NewHandler(proxy.TestHandlerOptions(&proxy.HandlerOptions{
 		Provider:          provider,
 		ProviderInfosFunc: func() []router.ProviderInfo { return providerInfos },
 		ProviderRouter:    providerRouter,
@@ -1085,7 +1085,7 @@ func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 		},
 	}
 
-	handler, err := proxy.NewHandlerWithLiveProviders(&proxy.HandlerOptions{
+	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
 		Provider:          providerA,
 		ProviderInfosFunc: providerInfosFunc,
 		ProviderRouter:    mockR,
@@ -1829,7 +1829,7 @@ func TestHandlerGetOrCreateProxyLiveKeysFuncUsedOverStaticMap(t *testing.T) {
 		}
 	}
 
-	handler, err := proxy.NewHandlerWithLiveProviders(&proxy.HandlerOptions{
+	handler, err := proxy.NewHandler(&proxy.HandlerOptions{
 		Provider:          prov,
 		ProviderKeys:      staticKeys,
 		DebugOptions:      proxy.TestDebugOptions(),

@@ -136,19 +136,3 @@ func (r *ModelRewriter) tryRewrite(bodyBytes []byte) mo.Result[rewriteResult] {
 	})
 }
 
-// RewriteModel maps a model name using the configured mapping.
-// Returns the mapped name if found, otherwise returns the original unchanged.
-func (r *ModelRewriter) RewriteModel(model string) string {
-	if r.mapping == nil {
-		return model
-	}
-	if mapped, ok := r.mapping[model]; ok {
-		return mapped
-	}
-	return model
-}
-
-// HasMapping returns true if the rewriter has any mappings configured.
-func (r *ModelRewriter) HasMapping() bool {
-	return len(r.mapping) > 0
-}

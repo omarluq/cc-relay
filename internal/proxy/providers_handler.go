@@ -26,30 +26,17 @@ type ProvidersResponse struct {
 // ProvidersHandler handles requests to /v1/providers endpoint.
 type ProvidersHandler struct {
 	getProviders ProvidersGetter
-	providers    []providers.Provider
 }
 
 // NewProvidersHandler creates a new providers handler with the given providers.
-func NewProvidersHandler(providerList []providers.Provider) *ProvidersHandler {
-	return &ProvidersHandler{
-		getProviders: nil,
-		providers:    providerList,
-	}
-}
-
-// NewProvidersHandlerWithProviderFunc creates a providers handler with a live provider accessor.
-func NewProvidersHandlerWithProviderFunc(getProviders ProvidersGetter) *ProvidersHandler {
+func NewProvidersHandler(getProviders ProvidersGetter) *ProvidersHandler {
 	return &ProvidersHandler{
 		getProviders: getProviders,
-		providers:    nil,
 	}
 }
 
 func (h *ProvidersHandler) providerList() []providers.Provider {
-	if h.getProviders != nil {
-		return h.getProviders()
-	}
-	return h.providers
+	return h.getProviders()
 }
 
 // ServeHTTP handles GET /v1/providers requests.

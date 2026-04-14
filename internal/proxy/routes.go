@@ -36,22 +36,6 @@ type RoutesOptions struct {
 
 const routesOptionsRequiredMsg = "routes options are required"
 
-// SetupRoutes creates the HTTP handler with all routes configured.
-// Routes:
-//   - POST /v1/messages - Proxy to backend provider (with auth if configured)
-//   - GET /v1/models - List available models (no auth required)
-//   - GET /health - Health check endpoint (no auth required)
-//
-// This is a convenience wrapper that calls SetupRoutesWithProviders with nil for pool and allProviders.
-func SetupRoutes(
-	cfg *config.Config,
-	provider providers.Provider,
-	providerKey string,
-	pool *keypool.KeyPool,
-) (http.Handler, error) {
-	return SetupRoutesWithProviders(cfg, provider, providerKey, pool, nil)
-}
-
 // SetupRoutesWithProviders creates the HTTP handler with all routes configured.
 // Routes:
 //   - POST /v1/messages - Proxy to backend provider (with auth if configured)
@@ -125,11 +109,11 @@ func SetupRoutesWithProviders(
 	if modelsProviders == nil {
 		modelsProviders = []providers.Provider{provider}
 	}
-	modelsHandler := NewModelsHandler(modelsProviders)
+	modelsHandler := NewModelsHandler(func() []providers.Provider { return modelsProviders })
 	mux.Handle("GET /v1/models", modelsHandler)
 
 	// Providers endpoint (no auth required for discovery)
-	providersHandler := NewProvidersHandler(modelsProviders)
+	providersHandler := NewProvidersHandler(func() []providers.Provider { return modelsProviders })
 	mux.Handle("GET /v1/providers", providersHandler)
 
 	// Health check endpoint (no auth required)
@@ -167,8 +151,8 @@ func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
 	mux.Handle("POST /v1/messages", messagesHandler)
 
 	providersGetter := liveProvidersGetter(opts)
-	mux.Handle("GET /v1/models", NewModelsHandlerWithProviderFunc(providersGetter))
-	mux.Handle("GET /v1/providers", NewProvidersHandlerWithProviderFunc(providersGetter))
+	mux.Handle("GET /v1/models", NewModelsHandler(providersGetter))
+	mux.Handle("GET /v1/providers", NewProvidersHandler(providersGetter))
 
 	registerHealthRoute(mux)
 
@@ -228,7 +212,7 @@ func buildProxyHandler(opts *RoutesOptions) (*Handler, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config provider returned nil config")
 	}
-	handler, err := NewHandlerWithLiveKeyPools(&HandlerOptions{
+	handler, err := NewHandler(&HandlerOptions{
 		Provider:          opts.Provider,
 		ProviderInfosFunc: opts.ProviderInfosFunc,
 		ProviderRouter:    opts.ProviderRouter,

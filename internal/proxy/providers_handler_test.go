@@ -25,7 +25,8 @@ func TestProvidersHandlerReturnsCorrectFormat(t *testing.T) {
 		nil,
 	)
 
-	handler := proxy.NewProvidersHandler([]providers.Provider{anthropicProvider})
+	ps := []providers.Provider{anthropicProvider}
+	handler := proxy.NewProvidersHandler(func() []providers.Provider { return ps })
 	rec := serveProviders(t, handler)
 
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -72,7 +73,8 @@ func TestProvidersHandlerMultipleProviders(t *testing.T) {
 		nil,
 	)
 
-	handler := proxy.NewProvidersHandler([]providers.Provider{anthropicProvider, zaiProvider})
+	ps := []providers.Provider{anthropicProvider, zaiProvider}
+	handler := proxy.NewProvidersHandler(func() []providers.Provider { return ps })
 	rec := serveProviders(t, handler)
 
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -100,7 +102,7 @@ func TestProvidersHandlerMultipleProviders(t *testing.T) {
 func TestProvidersHandlerEmptyProviders(t *testing.T) {
 	t.Parallel()
 
-	handler := proxy.NewProvidersHandler([]providers.Provider{})
+	handler := proxy.NewProvidersHandler(func() []providers.Provider { return nil })
 	rec := serveProviders(t, handler)
 
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -115,7 +117,8 @@ func TestProvidersHandlerProviderWithDefaultModels(t *testing.T) {
 	t.Parallel()
 
 	provider := providers.NewAnthropicProvider("anthropic", "https://api.anthropic.com", nil, nil)
-	handler := proxy.NewProvidersHandler([]providers.Provider{provider})
+	ps := []providers.Provider{provider}
+	handler := proxy.NewProvidersHandler(func() []providers.Provider { return ps })
 	rec := serveProviders(t, handler)
 
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -131,7 +134,7 @@ func TestProvidersHandlerProviderWithDefaultModels(t *testing.T) {
 func TestProvidersHandlerNilProviders(t *testing.T) {
 	t.Parallel()
 
-	handler := proxy.NewProvidersHandler(nil)
+	handler := proxy.NewProvidersHandler(func() []providers.Provider { return nil })
 	rec := serveProviders(t, handler)
 
 	require.Equal(t, http.StatusOK, rec.Code)

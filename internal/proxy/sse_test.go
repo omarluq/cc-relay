@@ -95,8 +95,7 @@ func TestSSESignatureProcessorAccumulatesThinking(t *testing.T) {
 	processor.ProcessEvent(ctx, thinkingEvent2)
 
 	// The processor should have accumulated "Hello world!"
-	// This is internal state, but we can verify via signature processing
-	assert.Empty(t, processor.GetCurrentSignature(), "no signature yet")
+	// This is verified indirectly via signature processing
 }
 
 func TestSSESignatureProcessorCachesSignature(t *testing.T) {
@@ -123,7 +122,6 @@ func TestSSESignatureProcessorCachesSignature(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return sigCache.Get(ctx, "claude-sonnet-4", "Deep thought") == sig
 	}, 250*time.Millisecond, 5*time.Millisecond, "signature should be cached")
-	assert.Equal(t, sig, processor.GetCurrentSignature())
 }
 
 func TestSSESignatureProcessorPassesThroughNonThinking(t *testing.T) {

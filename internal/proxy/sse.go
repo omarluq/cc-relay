@@ -126,11 +126,6 @@ func (p *SSESignatureProcessor) processSignatureDelta(
 	return append(result, []byte("\n\n")...)
 }
 
-// GetCurrentSignature returns the last processed signature.
-func (p *SSESignatureProcessor) GetCurrentSignature() string {
-	return p.currentSignature
-}
-
 // extractSSEData extracts the data field from an SSE event line.
 // Returns nil if no data field is found or if data is empty.
 func extractSSEData(eventLine []byte) []byte {
