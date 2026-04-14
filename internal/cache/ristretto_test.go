@@ -486,7 +486,7 @@ func BenchmarkRistrettoCacheSet(b *testing.B) {
 		for pb.Next() {
 			key := fmt.Sprintf("key-%d", idx%26)
 			if err := ristrettoCache.Set(ctx, key, value); err != nil {
-				continue
+				b.Fatalf("Set(%q) failed: %v", key, err)
 			}
 			idx++
 		}
