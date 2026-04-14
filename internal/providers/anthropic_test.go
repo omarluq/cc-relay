@@ -13,7 +13,7 @@ func TestNewAnthropicProvider(t *testing.T) {
 
 	assertNewProvider(t,
 		func(name, baseURL string) providers.Provider {
-			return providers.NewAnthropicProvider(name, baseURL)
+			return providers.NewAnthropicProvider(name, baseURL, nil, nil)
 		},
 		[]providerTestCase{
 			{
@@ -35,7 +35,7 @@ func TestNewAnthropicProvider(t *testing.T) {
 func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "")
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
 
 	testURL := "https://api.example.com/v1/messages"
 	req, err := http.NewRequestWithContext(
@@ -51,7 +51,7 @@ func TestAuthenticate(t *testing.T) {
 func TestForwardHeaders(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "")
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
 
 	assertForwardHeaders(t, provider)
 }
@@ -59,7 +59,7 @@ func TestForwardHeaders(t *testing.T) {
 func TestSupportsStreaming(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "")
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
 
 	if !provider.SupportsStreaming() {
 		t.Error("Expected AnthropicProvider to support streaming")
@@ -69,7 +69,7 @@ func TestSupportsStreaming(t *testing.T) {
 func TestForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "")
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
 
 	assertForwardHeadersEdgeCases(t, provider)
 }
@@ -81,8 +81,8 @@ func TestListModelsWithConfiguredModels(t *testing.T) {
 		"claude-sonnet-4-5-20250514",
 		"claude-opus-4-5-20250514",
 	}
-	provider := providers.NewAnthropicProviderWithModels(
-		"anthropic-primary", "", models,
+	provider := providers.NewAnthropicProvider(
+		"anthropic-primary", "", models, nil,
 	)
 
 	result := provider.ListModels()
@@ -110,7 +110,7 @@ func TestListModelsWithConfiguredModels(t *testing.T) {
 func TestListModelsDefaults(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "")
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
 
 	result := provider.ListModels()
 
@@ -126,7 +126,7 @@ func TestListModelsDefaults(t *testing.T) {
 func TestListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProviderWithModels("test", "", nil)
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
 
 	result := provider.ListModels()
 
@@ -142,7 +142,7 @@ func TestListModelsNilModels(t *testing.T) {
 func TestProviderOwner(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "")
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
 
 	if provider.Owner() != "anthropic" {
 		t.Errorf("Expected owner=anthropic, got %s", provider.Owner())

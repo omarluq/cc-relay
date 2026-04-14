@@ -669,7 +669,7 @@ func TestProviderInfoServiceGetReturnsCopy(t *testing.T) {
 	trackerCfg := di.MustTestHealthConfig()
 	tracker := health.NewTracker(trackerCfg.CircuitBreaker, nil)
 	svc := di.NewProviderInfoService(cfgSvc, providerSvc, di.NewHealthTrackerServiceWithTracker(tracker))
-	prov := providers.NewAnthropicProvider("test", anthropicBaseURL)
+	prov := providers.NewAnthropicProvider("test", anthropicBaseURL, nil, nil)
 	infos := []router.ProviderInfo{
 		di.MustTestProviderInfo(prov, 1, 0),
 	}

@@ -24,25 +24,8 @@ type AnthropicProvider struct {
 
 // NewAnthropicProvider creates a new Anthropic provider instance.
 // If baseURL is empty, DefaultAnthropicBaseURL is used.
-func NewAnthropicProvider(name, baseURL string) *AnthropicProvider {
-	return NewAnthropicProviderWithModels(name, baseURL, nil)
-}
-
-// NewAnthropicProviderWithModels creates a new Anthropic provider with configured models.
-// If baseURL is empty, DefaultAnthropicBaseURL is used.
 // If models is empty, DefaultAnthropicModels are used.
-func NewAnthropicProviderWithModels(name, baseURL string, models []string) *AnthropicProvider {
-	return NewAnthropicProviderWithMapping(name, baseURL, models, nil)
-}
-
-// NewAnthropicProviderWithMapping creates a new Anthropic provider with model mapping.
-// If baseURL is empty, DefaultAnthropicBaseURL is used.
-// If models is empty, DefaultAnthropicModels are used.
-func NewAnthropicProviderWithMapping(
-	name, baseURL string,
-	models []string,
-	modelMapping map[string]string,
-) *AnthropicProvider {
+func NewAnthropicProvider(name, baseURL string, models []string, modelMapping map[string]string) *AnthropicProvider {
 	if baseURL == "" {
 		baseURL = DefaultAnthropicBaseURL
 	}

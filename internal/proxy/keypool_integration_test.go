@@ -50,7 +50,7 @@ func newMessagesBackend(t *testing.T, handler func(http.ResponseWriter, *http.Re
 func newHandlerWithPool(t *testing.T, backendURL string, pool *keypool.KeyPool) http.Handler {
 	t.Helper()
 
-	provider := providers.NewAnthropicProvider("test", backendURL)
+	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			APIKey: "",

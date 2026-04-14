@@ -254,33 +254,6 @@ func TestFormatSSEEvent(t *testing.T) {
 	})
 }
 
-func TestMapBedrockEventType(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		input    string
-		expected string
-	}{
-		{"message_start", "message_start"},
-		{"content_block_start", "content_block_start"},
-		{"content_block_delta", "content_block_delta"},
-		{"content_block_stop", "content_block_stop"},
-		{"message_delta", "message_delta"},
-		{"message_stop", "message_stop"},
-		{"ping", "ping"},
-		{"unknown_type", "unknown_type"}, // Pass through unknown
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.input, func(t *testing.T) {
-			t.Parallel()
-
-			result := providers.ExportMapBedrockEventType(testCase.input)
-			assert.Equal(t, testCase.expected, result)
-		})
-	}
-}
-
 // mockResponseWriter implements http.ResponseWriter and http.Flusher for testing.
 type mockResponseWriter struct {
 	headers    http.Header

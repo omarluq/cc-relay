@@ -134,7 +134,7 @@ func TestZAIProviderEndToEnd(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create Z.AI provider pointing to mock server
-	provider := providers.NewZAIProviderWithModels("test-zai", mockServer.URL, []string{"GLM-4.7"})
+	provider := providers.NewZAIProvider("test-zai", mockServer.URL, []string{"GLM-4.7"}, nil)
 
 	// Build request with Anthropic Messages API format
 	reqBody := map[string]interface{}{
@@ -252,7 +252,7 @@ func TestOllamaProviderEndToEnd(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create Ollama provider pointing to mock server
-	provider := providers.NewOllamaProviderWithModels("test-ollama", mockServer.URL, []string{"qwen3:32b"})
+	provider := providers.NewOllamaProvider("test-ollama", mockServer.URL, []string{"qwen3:32b"}, nil)
 
 	// Build request with Anthropic Messages API format
 	reqBody := map[string]interface{}{
@@ -352,7 +352,7 @@ func TestOllamaProviderStreamingResponse(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create Ollama provider
-	provider := providers.NewOllamaProviderWithModels("test-ollama", mockServer.URL, []string{"qwen3:32b"})
+	provider := providers.NewOllamaProvider("test-ollama", mockServer.URL, []string{"qwen3:32b"}, nil)
 
 	// Verify provider supports streaming
 	if !provider.SupportsStreaming() {
@@ -426,7 +426,7 @@ func TestProviderModelMapping(t *testing.T) {
 	t.Run("ZAI returns default models when none configured", func(t *testing.T) {
 		t.Parallel()
 
-		provider := providers.NewZAIProvider("test-zai", "")
+		provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 		models := provider.ListModels()
 
 		// Z.AI should have default models
@@ -451,7 +451,7 @@ func TestProviderModelMapping(t *testing.T) {
 		t.Parallel()
 
 		configuredModels := []string{"custom-model-1", "custom-model-2"}
-		provider := providers.NewZAIProviderWithModels("test-zai", "", configuredModels)
+		provider := providers.NewZAIProvider("test-zai", "", configuredModels, nil)
 		models := provider.ListModels()
 
 		if len(models) != 2 {
@@ -476,7 +476,7 @@ func TestProviderModelMapping(t *testing.T) {
 	t.Run("Ollama returns empty models when none configured", func(t *testing.T) {
 		t.Parallel()
 
-		provider := providers.NewOllamaProvider("test-ollama", "")
+		provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 		models := provider.ListModels()
 
 		// Ollama should have no default models (models are user-installed)
@@ -489,7 +489,7 @@ func TestProviderModelMapping(t *testing.T) {
 		t.Parallel()
 
 		configuredModels := []string{"llama3.2:3b", "qwen3:32b", "codestral:latest"}
-		provider := providers.NewOllamaProviderWithModels("test-ollama", "", configuredModels)
+		provider := providers.NewOllamaProvider("test-ollama", "", configuredModels, nil)
 		models := provider.ListModels()
 
 		if len(models) != 3 {
@@ -520,7 +520,7 @@ func TestProviderHealthCheckIntegration(t *testing.T) {
 		defer mockServer.Close()
 
 		// Create provider pointing to mock server
-		provider := providers.NewOllamaProviderWithModels("test-ollama", mockServer.URL, nil)
+		provider := providers.NewOllamaProvider("test-ollama", mockServer.URL, nil, nil)
 
 		// Verify provider base URL is set correctly
 		if provider.BaseURL() != mockServer.URL {
@@ -550,7 +550,7 @@ func TestProviderHealthCheckIntegration(t *testing.T) {
 		defer mockServer.Close()
 
 		// Create provider pointing to mock server
-		provider := providers.NewZAIProviderWithModels("test-zai", mockServer.URL, nil)
+		provider := providers.NewZAIProvider("test-zai", mockServer.URL, nil, nil)
 
 		// Make health check request manually
 		resp, err := http.Get(provider.BaseURL())
@@ -577,7 +577,7 @@ func TestProviderHealthCheckIntegration(t *testing.T) {
 		defer mockServer.Close()
 
 		// Create provider pointing to mock server
-		provider := providers.NewOllamaProviderWithModels("test-ollama", mockServer.URL, nil)
+		provider := providers.NewOllamaProvider("test-ollama", mockServer.URL, nil, nil)
 
 		// Make request manually
 		resp, err := http.Get(provider.BaseURL())
@@ -605,7 +605,7 @@ func TestProviderSupportsTransparentAuth(t *testing.T) {
 	t.Run("ZAI does not support transparent auth", func(t *testing.T) {
 		t.Parallel()
 
-		provider := providers.NewZAIProvider("test-zai", "")
+		provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 		if provider.SupportsTransparentAuth() {
 			t.Error("Expected Z.AI to not support transparent auth")
 		}
@@ -614,7 +614,7 @@ func TestProviderSupportsTransparentAuth(t *testing.T) {
 	t.Run("Ollama does not support transparent auth", func(t *testing.T) {
 		t.Parallel()
 
-		provider := providers.NewOllamaProvider("test-ollama", "")
+		provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 		if provider.SupportsTransparentAuth() {
 			t.Error("Expected Ollama to not support transparent auth")
 		}
@@ -628,7 +628,7 @@ func TestProviderBaseURL(t *testing.T) {
 	t.Run("ZAI uses default URL when empty", func(t *testing.T) {
 		t.Parallel()
 
-		provider := providers.NewZAIProvider("test", "")
+		provider := providers.NewZAIProvider("test", "", nil, nil)
 		if provider.BaseURL() != providers.DefaultZAIBaseURL {
 			t.Errorf("Expected default URL %s, got %s", providers.DefaultZAIBaseURL, provider.BaseURL())
 		}
@@ -638,7 +638,7 @@ func TestProviderBaseURL(t *testing.T) {
 		t.Parallel()
 
 		customURL := "https://custom.zhipu.com/api"
-		provider := providers.NewZAIProvider("test", customURL)
+		provider := providers.NewZAIProvider("test", customURL, nil, nil)
 		if provider.BaseURL() != customURL {
 			t.Errorf("Expected custom URL %s, got %s", customURL, provider.BaseURL())
 		}
@@ -647,7 +647,7 @@ func TestProviderBaseURL(t *testing.T) {
 	t.Run("Ollama uses default URL when empty", func(t *testing.T) {
 		t.Parallel()
 
-		provider := providers.NewOllamaProvider("test", "")
+		provider := providers.NewOllamaProvider("test", "", nil, nil)
 		if provider.BaseURL() != providers.DefaultOllamaBaseURL {
 			t.Errorf("Expected default URL %s, got %s", providers.DefaultOllamaBaseURL, provider.BaseURL())
 		}
@@ -657,7 +657,7 @@ func TestProviderBaseURL(t *testing.T) {
 		t.Parallel()
 
 		customURL := "http://192.168.1.100:11434"
-		provider := providers.NewOllamaProvider("test", customURL)
+		provider := providers.NewOllamaProvider("test", customURL, nil, nil)
 		if provider.BaseURL() != customURL {
 			t.Errorf("Expected custom URL %s, got %s", customURL, provider.BaseURL())
 		}

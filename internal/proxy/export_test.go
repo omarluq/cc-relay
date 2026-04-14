@@ -318,11 +318,11 @@ func serveRequest(
 }
 
 func newTestProvider(providerURL string) providers.Provider {
-	return providers.NewAnthropicProvider("test", providerURL)
+	return providers.NewAnthropicProvider("test", providerURL, nil, nil)
 }
 
 func newNamedProvider(name, providerURL string) providers.Provider {
-	return providers.NewAnthropicProvider(name, providerURL)
+	return providers.NewAnthropicProvider(name, providerURL, nil, nil)
 }
 
 // newMockProvider creates a minimal mock provider with a given name and base URL.

@@ -67,19 +67,19 @@ func createCloudProvider(ctx context.Context, providerConfig *config.ProviderCon
 func createProvider(ctx context.Context, providerConfig *config.ProviderConfig) (providers.Provider, error) {
 	switch providerConfig.Type {
 	case ProviderTypeAnthropic:
-		return providers.NewAnthropicProviderWithMapping(
+		return providers.NewAnthropicProvider(
 			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
 	case ProviderTypeZAI:
-		return providers.NewZAIProviderWithMapping(
+		return providers.NewZAIProvider(
 			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
 	case ProviderTypeMiniMax:
-		return providers.NewMiniMaxProviderWithMapping(
+		return providers.NewMiniMaxProvider(
 			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
 	case ProviderTypeOllama:
-		return providers.NewOllamaProviderWithMapping(
+		return providers.NewOllamaProvider(
 			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
 	case ProviderTypeBedrock, ProviderTypeVertex, ProviderTypeAzure:

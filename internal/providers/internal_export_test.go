@@ -23,5 +23,3 @@ func (p *AzureProvider) AzureDeploymentID() string {
 	return p.deploymentID
 }
 
-// BuildEventStreamMessage re-exports ExportBuildEventStreamMessage for backward compatibility.
-var BuildEventStreamMessage = ExportBuildEventStreamMessage

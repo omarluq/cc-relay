@@ -13,7 +13,7 @@ func TestNewZAIProvider(t *testing.T) {
 
 	assertNewProvider(t,
 		func(name, baseURL string) providers.Provider {
-			return providers.NewZAIProvider(name, baseURL)
+			return providers.NewZAIProvider(name, baseURL, nil, nil)
 		},
 		[]providerTestCase{
 			{
@@ -35,7 +35,7 @@ func TestNewZAIProvider(t *testing.T) {
 func TestZAIAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewZAIProvider("test-zai", "")
+	provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 
 	testURL := "https://api.z.ai/api/anthropic/v1/messages"
 	req, err := http.NewRequestWithContext(
@@ -51,7 +51,7 @@ func TestZAIAuthenticate(t *testing.T) {
 func TestZAIForwardHeaders(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewZAIProvider("test-zai", "")
+	provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 
 	assertForwardHeaders(t, provider)
 }
@@ -59,7 +59,7 @@ func TestZAIForwardHeaders(t *testing.T) {
 func TestZAISupportsStreaming(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewZAIProvider("test-zai", "")
+	provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 
 	if !provider.SupportsStreaming() {
 		t.Error("Expected ZAIProvider to support streaming")
@@ -69,7 +69,7 @@ func TestZAISupportsStreaming(t *testing.T) {
 func TestZAIForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewZAIProvider("test-zai", "")
+	provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 
 	assertForwardHeadersEdgeCases(t, provider)
 }
@@ -84,7 +84,7 @@ func TestZAIProviderInterface(t *testing.T) {
 func TestZAIOwner(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewZAIProvider("test-zai", "")
+	provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 
 	if provider.Owner() != "zhipu" {
 		t.Errorf("Expected owner=zhipu, got %s", provider.Owner())
@@ -95,8 +95,8 @@ func TestZAIListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
 	models := []string{"GLM-4.7", "GLM-4.5-Air"}
-	provider := providers.NewZAIProviderWithModels(
-		"zai-primary", "", models,
+	provider := providers.NewZAIProvider(
+		"zai-primary", "", models, nil,
 	)
 
 	result := provider.ListModels()
@@ -121,7 +121,7 @@ func TestZAIListModelsWithConfiguredModels(t *testing.T) {
 func TestZAIListModelsDefaults(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewZAIProvider("test-zai", "")
+	provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 
 	result := provider.ListModels()
 
@@ -137,7 +137,7 @@ func TestZAIListModelsDefaults(t *testing.T) {
 func TestZAIListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewZAIProviderWithModels("test-zai", "", nil)
+	provider := providers.NewZAIProvider("test-zai", "", nil, nil)
 
 	result := provider.ListModels()
 

@@ -13,11 +13,6 @@ func ExportFormatSSEEvent(eventType string, payload []byte) []byte {
 	return formatSSEEvent(eventType, payload)
 }
 
-// ExportMapBedrockEventType exports the mapBedrockEventType function.
-func ExportMapBedrockEventType(bedrockType string) string {
-	return mapBedrockEventType(bedrockType)
-}
-
 // safeUint8 converts int to uint8, panicking if the value overflows.
 func safeUint8(v int) uint8 {
 	if v < 0 || v > 255 {

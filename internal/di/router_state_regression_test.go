@@ -31,9 +31,9 @@ func TestRouterServiceCachesRoundRobinState(t *testing.T) {
 	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
 	// Create test providers with unique weights for identification
-	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
-	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
-	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com")
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com", nil, nil)
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com", nil, nil)
+	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com", nil, nil)
 
 	providerInfos := []router.ProviderInfo{
 		di.MustTestProviderInfo(p1, 1, 0),
@@ -138,9 +138,9 @@ func TestLiveRouterDoesNotResetRoundRobinState(t *testing.T) {
 	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouter)
 
-	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
-	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
-	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com")
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com", nil, nil)
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com", nil, nil)
+	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com", nil, nil)
 
 	providerInfos := []router.ProviderInfo{
 		di.MustTestProviderInfo(p1, 1, 0),
@@ -191,8 +191,8 @@ func TestRouterServiceConcurrentAccess(t *testing.T) {
 
 	// Router should still work correctly
 	roundRobin := routerSvc.GetRouter()
-	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
-	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com", nil, nil)
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com", nil, nil)
 
 	providerInfos := []router.ProviderInfo{
 		di.MustTestProviderInfo(p1, 1, 0),

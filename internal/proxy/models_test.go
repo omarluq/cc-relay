@@ -27,10 +27,11 @@ func serveModels(t *testing.T, handler http.Handler) *httptest.ResponseRecorder 
 func TestModelsHandlerReturnsCorrectFormat(t *testing.T) {
 	t.Parallel()
 
-	anthropicProvider := providers.NewAnthropicProviderWithModels(
+	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		"https://api.anthropic.com",
 		[]string{"claude-sonnet-4-5-20250514", "claude-opus-4-5-20250514"},
+		nil,
 	)
 
 	handler := proxy.NewModelsHandler([]providers.Provider{anthropicProvider})
@@ -53,16 +54,18 @@ func TestModelsHandlerReturnsCorrectFormat(t *testing.T) {
 func TestModelsHandlerMultipleProviders(t *testing.T) {
 	t.Parallel()
 
-	anthropicProvider := providers.NewAnthropicProviderWithModels(
+	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		"https://api.anthropic.com",
 		[]string{"claude-sonnet-4-5-20250514"},
+		nil,
 	)
 
-	zaiProvider := providers.NewZAIProviderWithModels(
+	zaiProvider := providers.NewZAIProvider(
 		"zai-primary",
 		"",
 		[]string{"glm-4", "glm-4-plus"},
+		nil,
 	)
 
 	handler := proxy.NewModelsHandler([]providers.Provider{anthropicProvider, zaiProvider})
@@ -117,7 +120,7 @@ func TestModelsHandlerEmptyProviders(t *testing.T) {
 func TestModelsHandlerProviderWithDefaultModels(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("anthropic", "https://api.anthropic.com")
+	provider := providers.NewAnthropicProvider("anthropic", "https://api.anthropic.com", nil, nil)
 	handler := proxy.NewModelsHandler([]providers.Provider{provider})
 	rec := serveModels(t, handler)
 
