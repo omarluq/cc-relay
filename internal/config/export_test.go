@@ -1,16 +1,13 @@
 package config
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
-	toml "github.com/pelletier/go-toml/v2"
 	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/health"
-	"gopkg.in/yaml.v3"
 )
 
 // DetectFormat exports detectFormat for testing.
@@ -24,49 +21,20 @@ type TestFormat string
 
 // Test configuration file formats.
 const (
-	TestFormatYAML TestFormat = "yaml"
-	TestFormatTOML TestFormat = "toml"
+	TestFormatYAML TestFormat = TestFormat(formatYAML)
+	TestFormatTOML TestFormat = TestFormat(formatTOML)
 )
 
 // LoadFromReaderForTest reads and parses YAML configuration from an io.Reader for testing.
 // Environment variables in the format ${VAR_NAME} are expanded before parsing.
 func LoadFromReaderForTest(r io.Reader) (*Config, error) {
-	return testLoadFromReaderWithFormat(r, TestFormatYAML)
+	return loadFromReaderWithFormat(r, string(TestFormatYAML))
 }
 
 // LoadFromReaderWithFormatForTest reads and parses configuration from an io.Reader with explicit format for testing.
 // Environment variables in the format ${VAR_NAME} are expanded before parsing.
 func LoadFromReaderWithFormatForTest(r io.Reader, format TestFormat) (*Config, error) {
-	return testLoadFromReaderWithFormat(r, format)
-}
-
-// testLoadFromReaderWithFormat is the internal implementation for reading config with explicit format.
-func testLoadFromReaderWithFormat(r io.Reader, format TestFormat) (*Config, error) {
-	// Read entire content
-	content, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Expand environment variables
-	expanded := os.ExpandEnv(string(content))
-
-	// Parse based on format
-	var cfg Config
-	switch format {
-	case TestFormatYAML:
-		if parseErr := yaml.Unmarshal([]byte(expanded), &cfg); parseErr != nil {
-			return nil, fmt.Errorf("failed to parse config YAML: %w", parseErr)
-		}
-	case TestFormatTOML:
-		if parseErr := toml.Unmarshal([]byte(expanded), &cfg); parseErr != nil {
-			return nil, fmt.Errorf("failed to parse config TOML: %w", parseErr)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported test format: %s", format)
-	}
-
-	return &cfg, nil
+	return loadFromReaderWithFormat(r, string(format))
 }
 
 // Test helpers with all fields initialized for exhaustruct compliance.

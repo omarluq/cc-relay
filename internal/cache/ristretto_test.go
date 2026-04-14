@@ -254,13 +254,13 @@ func TestRistrettoCacheStats(t *testing.T) {
 	for i := range 5 {
 		key := fmt.Sprintf("key-%d", i)
 		if _, err := ristrettoCache.Get(ctx, key); err != nil && !errors.Is(err, cache.ErrNotFound) {
-			t.Logf("Get(%q) error = %v", key, err)
+			t.Errorf("Get(%q) unexpected error = %v", key, err)
 		}
 	}
 	for i := range 3 {
 		key := fmt.Sprintf("key-%d", 25-i)
 		if _, err := ristrettoCache.Get(ctx, key); err != nil && !errors.Is(err, cache.ErrNotFound) {
-			t.Logf("Get(%q) error = %v", key, err)
+			t.Errorf("Get(%q) unexpected error = %v", key, err)
 		}
 	}
 
