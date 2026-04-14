@@ -67,3 +67,18 @@ func GetEffectiveWeight(p ProviderInfo) int {
 	return getEffectiveWeight(p)
 }
 
+// GetLeastLoadedCount returns the in-flight count for a provider (for testing).
+func GetLeastLoadedCount(r *LeastLoadedRouter, p providers.Provider) int64 {
+	return r.getCounter(p.Name()).Load()
+}
+
+// LiveRouterAcquire calls Acquire on a LiveRouter (for testing).
+func LiveRouterAcquire(r *LiveRouter, p providers.Provider) {
+	r.Acquire(p)
+}
+
+// LiveRouterRelease calls Release on a LiveRouter (for testing).
+func LiveRouterRelease(r *LiveRouter, p providers.Provider) {
+	r.Release(p)
+}
+
