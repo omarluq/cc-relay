@@ -29,7 +29,11 @@ type ProvidersHandler struct {
 }
 
 // NewProvidersHandler creates a new providers handler with the given providers.
+// If getProviders is nil, a safe default returning an empty slice is used.
 func NewProvidersHandler(getProviders ProvidersGetter) *ProvidersHandler {
+	if getProviders == nil {
+		getProviders = func() []providers.Provider { return nil }
+	}
 	return &ProvidersHandler{
 		getProviders: getProviders,
 	}

@@ -2,7 +2,6 @@ package di_test
 
 import (
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -90,13 +89,14 @@ func readRouterUntilDone(ctx context.Context, routerSvc *di.RouterService) <-cha
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		ticker := time.NewTicker(5 * time.Millisecond)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
+			case <-ticker.C:
 				_ = routerSvc.GetRouter()
-				runtime.Gosched()
 			}
 		}
 	}()
@@ -114,16 +114,17 @@ func updateConfigUntilDone(ctx context.Context, cfgSvc *di.ConfigService) <-chan
 			router.StrategyFailover,
 		}
 		idx := 0
+		ticker := time.NewTicker(5 * time.Millisecond)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
+			case <-ticker.C:
 				newCfg := mustTestConfigWithStrategy(strategies[idx%len(strategies)], 0)
 				cfgSvc.GetConfigAtomic().Store(newCfg)
 				cfgSvc.Config = newCfg
 				idx++
-				runtime.Gosched()
 			}
 		}
 	}()

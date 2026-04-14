@@ -24,7 +24,11 @@ type ModelsHandler struct {
 type ProvidersGetter func() []providers.Provider
 
 // NewModelsHandler creates a new models handler with the given providers.
+// If getProviders is nil, a safe default returning an empty slice is used.
 func NewModelsHandler(getProviders ProvidersGetter) *ModelsHandler {
+	if getProviders == nil {
+		getProviders = func() []providers.Provider { return nil }
+	}
 	return &ModelsHandler{
 		getProviders: getProviders,
 	}
