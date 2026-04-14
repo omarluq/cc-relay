@@ -319,25 +319,27 @@ func TestRistrettoCacheContextCancellation(t *testing.T) {
 	}
 }
 
-func runRistrettoReadOp(ctx context.Context, ristrettoCache *cache.RistrettoCacheT, key string) {
-	if _, err := ristrettoCache.Get(ctx, key); err != nil {
-		return
+func runRistrettoReadOp(ctx context.Context, ristrettoCache *cache.RistrettoCacheT, key string) error {
+	if _, err := ristrettoCache.Get(ctx, key); err != nil && !errors.Is(err, cache.ErrNotFound) {
+		return fmt.Errorf("Get(%q): %w", key, err)
 	}
 	if _, err := ristrettoCache.Exists(ctx, key); err != nil {
-		return
+		return fmt.Errorf("Exists(%q): %w", key, err)
 	}
+	return nil
 }
 
-func runRistrettoWriteOp(ctx context.Context, ristrettoCache *cache.RistrettoCacheT, key string, value []byte) {
+func runRistrettoWriteOp(ctx context.Context, ristrettoCache *cache.RistrettoCacheT, key string, value []byte) error {
 	if err := ristrettoCache.Set(ctx, key, value); err != nil {
-		return
+		return fmt.Errorf("Set(%q): %w", key, err)
 	}
 	if err := ristrettoCache.SetWithTTL(ctx, key, value, time.Minute); err != nil {
-		return
+		return fmt.Errorf("SetWithTTL(%q): %w", key, err)
 	}
 	if err := ristrettoCache.Delete(ctx, key); err != nil {
-		return
+		return fmt.Errorf("Delete(%q): %w", key, err)
 	}
+	return nil
 }
 
 func TestRistrettoCacheConcurrentAccess(t *testing.T) {
@@ -355,16 +357,20 @@ func TestRistrettoCacheConcurrentAccess(t *testing.T) {
 	waitGroup.Add(numGoroutines)
 
 	for goroutineIdx := range numGoroutines {
-		go func(id int) {
+		go func(goroutine int) {
 			defer waitGroup.Done()
 			for opIdx := range numOperations {
-				key := fmt.Sprintf("key-%d", (id+opIdx)%26)
+				key := fmt.Sprintf("key-%d", (goroutine+opIdx)%26)
 				value := []byte("value")
 
+				var err error
 				if opIdx%2 == 0 {
-					runRistrettoReadOp(ctx, ristrettoCache, key)
+					err = runRistrettoReadOp(ctx, ristrettoCache, key)
 				} else {
-					runRistrettoWriteOp(ctx, ristrettoCache, key, value)
+					err = runRistrettoWriteOp(ctx, ristrettoCache, key, value)
+				}
+				if err != nil {
+					t.Errorf("goroutine %d operation %d: %v", goroutine, opIdx, err)
 				}
 			}
 		}(goroutineIdx)
@@ -449,7 +455,7 @@ func BenchmarkRistrettoCacheGet(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			if _, err := ristrettoCache.Get(ctx, key); err != nil {
-				continue
+				b.Fatalf("Get failed: %v", err)
 			}
 		}
 	})
@@ -505,7 +511,7 @@ func TestRistrettoCacheStatsAfterClose(t *testing.T) {
 	for i := range 5 {
 		key := fmt.Sprintf("key-%d", i)
 		if setErr := ristrettoCache.Set(ctx, key, []byte("value")); setErr != nil {
-			t.Logf("Set(%q) error = %v", key, setErr)
+			t.Fatalf("Set(%q) error = %v", key, setErr)
 		}
 	}
 	cache.RistrettoWait(ristrettoCache)
@@ -603,7 +609,7 @@ func BenchmarkRistrettoCacheMixed(b *testing.B) {
 	for i := range 1000 {
 		key := fmt.Sprintf("key-%d-%d", i%26, i%10)
 		if setErr := ristrettoCache.Set(ctx, key, value); setErr != nil {
-			b.Logf("Set(%q) error = %v", key, setErr)
+			b.Fatalf("Set(%q) error = %v", key, setErr)
 		}
 	}
 	cache.RistrettoWait(ristrettoCache)
@@ -613,20 +619,28 @@ func BenchmarkRistrettoCacheMixed(b *testing.B) {
 		idx := 0
 		for pb.Next() {
 			key := fmt.Sprintf("key-%d-%d", idx%26, idx%10)
-			benchmarkMixedOp(ctx, ristrettoCache, key, value, idx)
+			benchmarkMixedOp(ctx, b, ristrettoCache, key, value, idx)
 			idx++
 		}
 	})
 }
 
-func benchmarkMixedOp(ctx context.Context, ristrettoCache *cache.RistrettoCacheT, key string, value []byte, idx int) {
+func benchmarkMixedOp(
+	ctx context.Context,
+	b *testing.B,
+	ristrettoCache *cache.RistrettoCacheT,
+	key string,
+	value []byte,
+	idx int,
+) {
+	b.Helper()
 	if idx%3 == 0 {
 		if err := ristrettoCache.Set(ctx, key, value); err != nil {
-			return
+			b.Fatalf("Set(%q) failed: %v", key, err)
 		}
 	} else {
 		if _, err := ristrettoCache.Get(ctx, key); err != nil {
-			return
+			b.Fatalf("Get(%q) failed: %v", key, err)
 		}
 	}
 }

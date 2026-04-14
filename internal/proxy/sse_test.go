@@ -80,7 +80,9 @@ func TestProxy_SetSSEHeaders(t *testing.T) {
 func TestSSESignatureProcessorAccumulatesThinking(t *testing.T) {
 	t.Parallel()
 
-	processor := proxy.NewSSESignatureProcessor(nil, "claude-sonnet-4")
+	sigCache, cleanup := proxy.NewTestSignatureCache(t)
+	defer cleanup()
+	processor := proxy.NewSSESignatureProcessor(sigCache, "claude-sonnet-4")
 
 	// Simulate thinking_delta events
 	thinkingEvent1 := []byte(
@@ -94,8 +96,19 @@ func TestSSESignatureProcessorAccumulatesThinking(t *testing.T) {
 	processor.ProcessEvent(ctx, thinkingEvent1)
 	processor.ProcessEvent(ctx, thinkingEvent2)
 
-	// The processor should have accumulated "Hello world!"
-	// This is verified indirectly via signature processing
+	// Now send a signature event to verify the accumulated thinking was cached
+	// Signature must be at least 50 characters to be valid
+	sig := "test-signature-for-hello-world-accumulated-thinking-verification-long-enough"
+	sigEvent := []byte(
+		`data: {"type":"content_block_delta","delta":{"type":"signature_delta","signature":"` + sig + `"}}`,
+	)
+	processor.ProcessEvent(ctx, sigEvent)
+
+	// Wait for async cache set and verify the signature was cached with "Hello world!"
+	require.Eventually(t, func() bool {
+		got := sigCache.Get(ctx, "claude-sonnet-4", "Hello world!")
+		return got == sig
+	}, 250*time.Millisecond, 5*time.Millisecond, "Expected signature to be cached with accumulated thinking")
 }
 
 func TestSSESignatureProcessorCachesSignature(t *testing.T) {
