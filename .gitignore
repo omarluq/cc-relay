@@ -39,3 +39,7 @@ tmp/
 
 .claude
 .planning
+
+memory
+
+.env
