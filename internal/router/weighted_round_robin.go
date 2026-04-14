@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/samber/lo"
@@ -51,7 +52,7 @@ func (r *WeightedRoundRobinRouter) Select(_ context.Context, providers []Provide
 
 	// Check if provider list changed
 	currentIDs := getProviderIDs(healthy)
-	if !stringSliceEqual(r.lastProviderIDs, currentIDs) {
+	if !slices.Equal(r.lastProviderIDs, currentIDs) {
 		// Reinitialize state for new provider list
 		r.currentWeights = make([]int, len(healthy))
 		r.lastProviderIDs = currentIDs
@@ -109,17 +110,4 @@ func getProviderIDs(providers []ProviderInfo) []string {
 		}
 	}
 	return ids
-}
-
-// stringSliceEqual checks if two string slices are equal.
-func stringSliceEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

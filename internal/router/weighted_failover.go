@@ -108,7 +108,7 @@ func (r *WeightedFailoverRouter) weightedOrder(providers []ProviderInfo) []Provi
 func weightedIndex(providers []ProviderInfo) int {
 	total := 0
 	for _, p := range providers {
-		total += effectiveWeight(p.Weight)
+		total += getEffectiveWeight(p)
 	}
 	if total <= 0 {
 		return 0
@@ -116,18 +116,11 @@ func weightedIndex(providers []ProviderInfo) int {
 
 	roll := randIntn(total)
 	for i, p := range providers {
-		w := effectiveWeight(p.Weight)
+		w := getEffectiveWeight(p)
 		if roll < w {
 			return i
 		}
 		roll -= w
 	}
 	return len(providers) - 1
-}
-
-func effectiveWeight(weight int) int {
-	if weight <= 0 {
-		return 1
-	}
-	return weight
 }

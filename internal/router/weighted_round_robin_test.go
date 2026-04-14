@@ -439,35 +439,5 @@ func TestGetEffectiveWeight(t *testing.T) {
 	}
 }
 
-func TestStringSliceEqual(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		sliceA   []string
-		sliceB   []string
-		expected bool
-	}{
-		{"both empty", []string{}, []string{}, true},
-		{"both nil", nil, nil, true},
-		{"equal single", []string{"a"}, []string{"a"}, true},
-		{"equal multiple", []string{"a", "b", "c"}, []string{"a", "b", "c"}, true},
-		{"different length", []string{"a"}, []string{"a", "b"}, false},
-		{"different content", []string{"a", "b"}, []string{"a", "c"}, false},
-		{"different order", []string{"a", "b"}, []string{"b", "a"}, false},
-		{"one empty one not", []string{}, []string{"a"}, false},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			if got := router.StringSliceEqual(testCase.sliceA, testCase.sliceB); got != testCase.expected {
-				t.Errorf("router.StringSliceEqual(%v, %v) = %v, want %v",
-					testCase.sliceA, testCase.sliceB, got, testCase.expected)
-			}
-		})
-	}
-}
-
 // Verify interface compliance at compile time.
 var _ router.ProviderRouter = (*router.WeightedRoundRobinRouter)(nil)

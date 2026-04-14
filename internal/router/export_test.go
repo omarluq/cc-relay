@@ -67,7 +67,3 @@ func GetEffectiveWeight(p ProviderInfo) int {
 	return getEffectiveWeight(p)
 }
 
-// StringSliceEqual is the exported version of stringSliceEqual for testing.
-func StringSliceEqual(a, b []string) bool {
-	return stringSliceEqual(a, b)
-}
