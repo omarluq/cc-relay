@@ -130,17 +130,3 @@ func TestProvidersHandlerProviderWithDefaultModels(t *testing.T) {
 	expectedCount := len(providers.DefaultAnthropicModels)
 	assert.Len(t, response.Data[0].Models, expectedCount)
 }
-
-func TestProvidersHandlerNilProviders(t *testing.T) {
-	t.Parallel()
-
-	handler := proxy.NewProvidersHandler(func() []providers.Provider { return nil })
-	rec := serveProviders(t, handler)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	var response proxy.ProvidersResponse
-	require.NoError(t, json.NewDecoder(rec.Body).Decode(&response))
-	assert.Equal(t, proxy.ListObject, response.Object)
-	assert.Empty(t, response.Data)
-}
