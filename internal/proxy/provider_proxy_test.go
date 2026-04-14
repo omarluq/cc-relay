@@ -20,7 +20,7 @@ import (
 func TestNewProviderProxyValidProvider(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com", nil, nil)
 
 	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestProviderProxySetsCorrectTargetURL(t *testing.T) {
 	defer backend.Close()
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL)
+	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -98,7 +98,7 @@ func testProviderProxyAuthBehaviorTestCases() []testProviderProxyAuthBehaviorTes
 			name:         "configured_key_used_when_set",
 			providerName: "test",
 			providerFactory: func(backendURL string) providers.Provider {
-				return providers.NewAnthropicProvider("test", backendURL)
+				return providers.NewAnthropicProvider("test", backendURL, nil, nil)
 			},
 			configuredKey: testConfiguredKey,
 			requestHeaders: map[string]string{
@@ -112,7 +112,7 @@ func testProviderProxyAuthBehaviorTestCases() []testProviderProxyAuthBehaviorTes
 			name:         "transparent_auth_forwards_client_auth",
 			providerName: "test",
 			providerFactory: func(backendURL string) providers.Provider {
-				return providers.NewAnthropicProvider("test", backendURL)
+				return providers.NewAnthropicProvider("test", backendURL, nil, nil)
 			},
 			configuredKey: testFallbackKey,
 			requestHeaders: map[string]string{
@@ -168,7 +168,7 @@ func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 	backend, capture := proxy.NewHeaderCaptureBackend(t)
 	backendURL := proxy.ParseTestURL(t, backend.URL)
 	// Z.AI provider does NOT support transparent auth
-	provider := providers.NewZAIProvider("test-zai", backendURL)
+	provider := providers.NewZAIProvider("test-zai", backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "zai-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -192,7 +192,7 @@ func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 
 	backend, capture := proxy.NewHeaderCaptureBackend(t)
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL)
+	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -221,7 +221,7 @@ func TestProviderProxySSEHeadersSet(t *testing.T) {
 	defer backend.Close()
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL)
+	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -254,7 +254,7 @@ func TestProviderProxyModifyResponseHookCalled(t *testing.T) {
 	defer backend.Close()
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL)
+	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), hook)
 	require.NoError(t, err)
 
@@ -271,7 +271,7 @@ func TestProviderProxyErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 	t.Parallel()
 
 	// Create a provider with unreachable backend
-	provider := providers.NewAnthropicProvider("test", "http://localhost:1")
+	provider := providers.NewAnthropicProvider("test", "http://localhost:1", nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -292,7 +292,7 @@ func TestProviderProxyErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 func TestProviderProxyFlushIntervalSetForSSE(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com", nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -396,7 +396,7 @@ func TestProviderProxyTransformRequestNotCalledForStandardProviders(t *testing.T
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
 	// Anthropic provider does NOT require body transform
-	provider := providers.NewAnthropicProvider("test", backendURL)
+	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
 	assert.False(t, provider.RequiresBodyTransform())
 
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)

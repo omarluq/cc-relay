@@ -19,25 +19,8 @@ type OllamaProvider struct {
 
 // NewOllamaProvider creates a new Ollama provider instance.
 // If baseURL is empty, DefaultOllamaBaseURL is used.
-func NewOllamaProvider(name, baseURL string) *OllamaProvider {
-	return NewOllamaProviderWithModels(name, baseURL, nil)
-}
-
-// NewOllamaProviderWithModels creates a new Ollama provider with configured models.
-// If baseURL is empty, DefaultOllamaBaseURL is used.
-// If models is empty/nil, an empty slice is used (Ollama models are user-installed).
-func NewOllamaProviderWithModels(name, baseURL string, models []string) *OllamaProvider {
-	return NewOllamaProviderWithMapping(name, baseURL, models, nil)
-}
-
-// NewOllamaProviderWithMapping creates a new Ollama provider with model mapping.
-// If baseURL is empty, DefaultOllamaBaseURL is used.
-// If models is empty/nil, an empty slice is used (Ollama models are user-installed).
-func NewOllamaProviderWithMapping(
-	name, baseURL string,
-	models []string,
-	modelMapping map[string]string,
-) *OllamaProvider {
+// If models is nil, an empty slice is used (Ollama models are user-installed).
+func NewOllamaProvider(name, baseURL string, models []string, modelMapping map[string]string) *OllamaProvider {
 	if baseURL == "" {
 		baseURL = DefaultOllamaBaseURL
 	}

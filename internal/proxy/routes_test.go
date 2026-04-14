@@ -527,15 +527,17 @@ func TestSetupRoutesModelsEndpoint(t *testing.T) {
 	cfg := proxy.TestConfig(testAPIKey) // Auth enabled
 
 	// Create providers with models
-	anthropicProvider := providers.NewAnthropicProviderWithModels(
+	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		proxy.AnthropicBaseURL,
 		[]string{"claude-sonnet-4-5-20250514"},
+		nil,
 	)
-	zaiProvider := providers.NewZAIProviderWithModels(
+	zaiProvider := providers.NewZAIProvider(
 		"zai-primary",
 		"",
 		[]string{"glm-4"},
+		nil,
 	)
 
 	allProviders := []providers.Provider{anthropicProvider, zaiProvider}
@@ -569,10 +571,11 @@ func TestSetupRoutesModelsEndpointOnlyGET(t *testing.T) {
 	t.Parallel()
 
 	cfg := proxy.TestConfig("")
-	provider := providers.NewAnthropicProviderWithModels(
+	provider := providers.NewAnthropicProvider(
 		"test",
 		proxy.AnthropicBaseURL,
 		[]string{"claude-sonnet-4-5-20250514"},
+		nil,
 	)
 
 	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, "backend-key", nil, []providers.Provider{provider})

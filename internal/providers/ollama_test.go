@@ -13,7 +13,7 @@ func TestNewOllamaProvider(t *testing.T) {
 
 	assertNewProvider(t,
 		func(name, baseURL string) providers.Provider {
-			return providers.NewOllamaProvider(name, baseURL)
+			return providers.NewOllamaProvider(name, baseURL, nil, nil)
 		},
 		[]providerTestCase{
 			{
@@ -35,7 +35,7 @@ func TestNewOllamaProvider(t *testing.T) {
 func TestOllamaAuthenticate(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	testURL := "http://localhost:11434/v1/messages"
 	req, err := http.NewRequestWithContext(
@@ -51,7 +51,7 @@ func TestOllamaAuthenticate(t *testing.T) {
 func TestOllamaForwardHeaders(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	assertForwardHeaders(t, provider)
 }
@@ -59,7 +59,7 @@ func TestOllamaForwardHeaders(t *testing.T) {
 func TestOllamaSupportsStreaming(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	if !provider.SupportsStreaming() {
 		t.Error("Expected OllamaProvider to support streaming")
@@ -69,7 +69,7 @@ func TestOllamaSupportsStreaming(t *testing.T) {
 func TestOllamaForwardHeadersEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	assertForwardHeadersEdgeCases(t, provider)
 }
@@ -84,7 +84,7 @@ func TestOllamaProviderInterface(t *testing.T) {
 func TestOllamaOwner(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	if provider.Owner() != "ollama" {
 		t.Errorf("Expected owner=ollama, got %s", provider.Owner())
@@ -95,8 +95,8 @@ func TestOllamaListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
 	models := []string{"llama3.2:3b", "qwen2.5:7b"}
-	provider := providers.NewOllamaProviderWithModels(
-		"ollama-primary", "", models,
+	provider := providers.NewOllamaProvider(
+		"ollama-primary", "", models, nil,
 	)
 
 	result := provider.ListModels()
@@ -119,7 +119,7 @@ func TestOllamaListModelsEmpty(t *testing.T) {
 	t.Parallel()
 
 	// Unlike Z.AI, Ollama has no default models (models are user-installed)
-	provider := providers.NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	result := provider.ListModels()
 
@@ -132,7 +132,7 @@ func TestOllamaListModelsEmpty(t *testing.T) {
 func TestOllamaListModelsNilModels(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewOllamaProviderWithModels("test-ollama", "", nil)
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	result := provider.ListModels()
 
@@ -145,7 +145,7 @@ func TestOllamaListModelsNilModels(t *testing.T) {
 func TestOllamaSupportsTransparentAuth(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewOllamaProvider("test-ollama", "")
+	provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 
 	// Ollama cannot validate Anthropic tokens
 	if provider.SupportsTransparentAuth() {
@@ -160,7 +160,7 @@ func TestOllamaGetModelMapping(t *testing.T) {
 
 	t.Run("returns nil when no mapping configured", func(t *testing.T) {
 		t.Parallel()
-		provider := providers.NewOllamaProvider("test-ollama", "")
+		provider := providers.NewOllamaProvider("test-ollama", "", nil, nil)
 		if provider.GetModelMapping() != nil {
 			t.Error("Expected nil model mapping when not configured")
 		}
@@ -171,7 +171,7 @@ func TestOllamaGetModelMapping(t *testing.T) {
 		mapping := map[string]string{
 			"claude-opus-4-5-20251101": "qwen3:8b",
 		}
-		provider := providers.NewOllamaProviderWithMapping(
+		provider := providers.NewOllamaProvider(
 			"test-ollama", "", nil, mapping,
 		)
 		result := provider.GetModelMapping()
@@ -223,7 +223,7 @@ func TestOllamaMapModel(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			provider := providers.NewOllamaProviderWithMapping(
+			provider := providers.NewOllamaProvider(
 				"test-ollama", "", nil, testCase.mapping,
 			)
 			result := provider.MapModel(testCase.input)
@@ -234,7 +234,7 @@ func TestOllamaMapModel(t *testing.T) {
 	}
 }
 
-func TestNewOllamaProviderWithMapping(t *testing.T) {
+func TestNewOllamaProviderWithModelMapping(t *testing.T) {
 	t.Parallel()
 
 	mapping := map[string]string{
@@ -244,7 +244,7 @@ func TestNewOllamaProviderWithMapping(t *testing.T) {
 	}
 	models := []string{"qwen3:8b", "qwen3:4b", "qwen3:1b"}
 
-	provider := providers.NewOllamaProviderWithMapping(
+	provider := providers.NewOllamaProvider(
 		"ollama-primary",
 		"http://10.0.0.50:11434",
 		models,

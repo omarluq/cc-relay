@@ -35,25 +35,8 @@ type MiniMaxProvider struct {
 
 // NewMiniMaxProvider creates a new MiniMax provider instance.
 // If baseURL is empty, DefaultMiniMaxBaseURL is used.
-func NewMiniMaxProvider(name, baseURL string) *MiniMaxProvider {
-	return NewMiniMaxProviderWithModels(name, baseURL, nil)
-}
-
-// NewMiniMaxProviderWithModels creates a new MiniMax provider with configured models.
-// If baseURL is empty, DefaultMiniMaxBaseURL is used.
 // If models is empty, DefaultMiniMaxModels are used.
-func NewMiniMaxProviderWithModels(name, baseURL string, models []string) *MiniMaxProvider {
-	return NewMiniMaxProviderWithMapping(name, baseURL, models, nil)
-}
-
-// NewMiniMaxProviderWithMapping creates a new MiniMax provider with model mapping.
-// If baseURL is empty, DefaultMiniMaxBaseURL is used.
-// If models is empty, DefaultMiniMaxModels are used.
-func NewMiniMaxProviderWithMapping(
-	name, baseURL string,
-	models []string,
-	modelMapping map[string]string,
-) *MiniMaxProvider {
+func NewMiniMaxProvider(name, baseURL string, models []string, modelMapping map[string]string) *MiniMaxProvider {
 	if baseURL == "" {
 		baseURL = DefaultMiniMaxBaseURL
 	}

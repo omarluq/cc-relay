@@ -26,25 +26,8 @@ type ZAIProvider struct {
 
 // NewZAIProvider creates a new Z.AI provider instance.
 // If baseURL is empty, DefaultZAIBaseURL is used.
-func NewZAIProvider(name, baseURL string) *ZAIProvider {
-	return NewZAIProviderWithModels(name, baseURL, nil)
-}
-
-// NewZAIProviderWithModels creates a new Z.AI provider with configured models.
-// If baseURL is empty, DefaultZAIBaseURL is used.
 // If models is empty, DefaultZAIModels are used.
-func NewZAIProviderWithModels(name, baseURL string, models []string) *ZAIProvider {
-	return NewZAIProviderWithMapping(name, baseURL, models, nil)
-}
-
-// NewZAIProviderWithMapping creates a new Z.AI provider with model mapping.
-// If baseURL is empty, DefaultZAIBaseURL is used.
-// If models is empty, DefaultZAIModels are used.
-func NewZAIProviderWithMapping(
-	name, baseURL string,
-	models []string,
-	modelMapping map[string]string,
-) *ZAIProvider {
+func NewZAIProvider(name, baseURL string, models []string, modelMapping map[string]string) *ZAIProvider {
 	if baseURL == "" {
 		baseURL = DefaultZAIBaseURL
 	}

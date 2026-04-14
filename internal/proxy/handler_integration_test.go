@@ -53,7 +53,7 @@ func setupTestProxy(t *testing.T) *httptest.Server {
 	}
 
 	// Create provider
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com")
+	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com", nil, nil)
 
 	// Setup routes
 	handler, err := proxy.SetupRoutes(cfg, provider, providerKey, nil)
@@ -590,7 +590,7 @@ func errorFormatCases() []errorFormatCase {
 					},
 				}
 
-				provider := providers.NewAnthropicProvider("test", "http://localhost:1")
+				provider := providers.NewAnthropicProvider("test", "http://localhost:1", nil, nil)
 
 				handler, err := proxy.SetupRoutes(cfg, provider, providerKey, nil)
 				if err != nil {

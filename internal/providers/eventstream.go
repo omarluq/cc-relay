@@ -426,11 +426,7 @@ func writeExceptionEvent(
 	exceptionType string,
 	payload []byte,
 ) (bool, error) {
-	errEvent := fmt.Sprintf(
-		"event: error\ndata: {\"error\":{\"type\":%q,\"message\":%q}}\n\n",
-		exceptionType, string(payload),
-	)
-	if err := writeSSEBytes(writer, flusher, []byte(errEvent)); err != nil {
+	if err := writeSSEBytes(writer, flusher, formatExceptionAsSSE(exceptionType, payload)); err != nil {
 		return false, fmt.Errorf("eventstream: failed to write error event: %w", err)
 	}
 	return true, nil
@@ -448,14 +444,12 @@ func writeSSEBytes(writer http.ResponseWriter, flusher http.Flusher, data []byte
 }
 
 // formatSSEEvent formats an Event Stream event as an SSE event.
-// Maps Bedrock event types to Anthropic SSE event types.
+// Bedrock event types are already compatible with Anthropic SSE event types.
 func formatSSEEvent(eventType string, payload []byte) []byte {
 	var buf bytes.Buffer
 
-	sseEventType := mapBedrockEventType(eventType)
-
 	buf.WriteString("event: ")
-	buf.WriteString(sseEventType)
+	buf.WriteString(eventType)
 	buf.WriteByte('\n')
 
 	lines := bytes.Split(payload, []byte("\n"))
@@ -471,21 +465,6 @@ func formatSSEEvent(eventType string, payload []byte) []byte {
 	return buf.Bytes()
 }
 
-// mapBedrockEventType maps Bedrock event types to Anthropic SSE event types.
-func mapBedrockEventType(bedrockType string) string {
-	switch bedrockType {
-	case "message_start",
-		"content_block_start",
-		"content_block_delta",
-		"content_block_stop",
-		"message_delta",
-		"message_stop",
-		"ping":
-		return bedrockType
-	default:
-		return bedrockType
-	}
-}
 
 // FormatMessageAsSSE converts an EventStreamMessage to SSE format bytes.
 // This is used by the proxy to convert Bedrock Event Stream responses

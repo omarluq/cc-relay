@@ -27,9 +27,9 @@ func TestLiveRouterHotReloadStrategyChange(t *testing.T) {
 	liveRouter := router.NewLiveRouter(routerSvc.GetRouterAsFunc())
 
 	// Create test providers with full ProviderInfo
-	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com")
-	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com")
-	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com")
+	p1 := providers.NewAnthropicProvider("p1", "https://api.p1.example.com", nil, nil)
+	p2 := providers.NewAnthropicProvider("p2", "https://api.p2.example.com", nil, nil)
+	p3 := providers.NewAnthropicProvider("p3", "https://api.p3.example.com", nil, nil)
 
 	providerInfos := []router.ProviderInfo{
 		di.MustTestProviderInfo(p1, 1, 1),

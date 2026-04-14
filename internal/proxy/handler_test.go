@@ -788,7 +788,7 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 	backend, headerCapture := proxy.NewHeaderCaptureBackend(t)
 
 	// Z.AI provider does NOT support transparent auth
-	provider := providers.NewZAIProvider("test-zai", backend.URL)
+	provider := providers.NewZAIProvider("test-zai", backend.URL, nil, nil)
 	handler := newTestHandler(t, provider, nil, nil, "zai-configured-key", false)
 
 	// Client sends Authorization header (like Claude Code does)
@@ -831,7 +831,7 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Z.AI provider does NOT support transparent auth
-	provider := providers.NewZAIProvider("test-zai", backend.URL)
+	provider := providers.NewZAIProvider("test-zai", backend.URL, nil, nil)
 	handler := newHandlerWithPool(t, provider, pool)
 
 	// Client sends Authorization header
