@@ -11,6 +11,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	formatYAML = "yaml"
+	formatTOML = "toml"
+)
+
 // UnsupportedFormatError is returned when the config file has an unsupported extension.
 type UnsupportedFormatError struct {
 	Extension string
@@ -26,9 +31,9 @@ func detectFormat(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
 	case ".yaml", ".yml":
-		return "yaml", nil
+		return formatYAML, nil
 	case ".toml":
-		return "toml", nil
+		return formatTOML, nil
 	default:
 		return "", &UnsupportedFormatError{Extension: ext, Path: path}
 	}
@@ -73,11 +78,11 @@ func loadFromReaderWithFormat(r io.Reader, format string) (*Config, error) {
 	// Parse based on format
 	var cfg Config
 	switch format {
-	case "yaml":
+	case formatYAML:
 		if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config YAML: %w", err)
 		}
-	case "toml":
+	case formatTOML:
 		if err := toml.Unmarshal([]byte(expanded), &cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config TOML: %w", err)
 		}

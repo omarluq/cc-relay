@@ -53,9 +53,13 @@ func newInjectorWithConfigPath(path string) *do.RootScope {
 }
 
 // shutdownInjector is a helper to properly shutdown an injector in tests.
-func shutdownInjector(i *do.RootScope) {
+func shutdownInjector(t *testing.T, i *do.RootScope) {
+	t.Helper()
 	if err := i.Shutdown(); err != nil {
-		return
+		// Only log if there's a real error message (empty errors are spurious from do)
+		if err.Error() != "" {
+			t.Errorf("injector shutdown failed: %v", err)
+		}
 	}
 }
 
@@ -150,7 +154,7 @@ func TestNewConfig(t *testing.T) {
 	t.Run("loads valid config", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
@@ -163,7 +167,7 @@ func TestNewConfig(t *testing.T) {
 	t.Run("returns error for non-existent config", func(t *testing.T) {
 		t.Parallel()
 		nonExistentInjector := newInjectorWithConfigPath("/nonexistent/" + configFileName)
-		defer shutdownInjector(nonExistentInjector)
+			defer shutdownInjector(t, nonExistentInjector)
 
 		_, err := do.Invoke[*di.ConfigService](nonExistentInjector)
 		require.Error(t, err)
@@ -173,7 +177,7 @@ func TestNewConfig(t *testing.T) {
 	t.Run("singleton returns same instance", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		cfg1, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
@@ -188,7 +192,7 @@ func TestNewConfig(t *testing.T) {
 	t.Run("creates watcher for valid config", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
@@ -198,7 +202,7 @@ func TestNewConfig(t *testing.T) {
 	t.Run("Get returns config via atomic pointer", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 		require.NoError(t, err)
@@ -254,7 +258,7 @@ func testHotReloadUpdatesAtomically(t *testing.T) {
 	require.NoError(t, err)
 
 	injector := newInjectorWithConfigPath(path)
-	defer shutdownInjector(injector)
+	defer shutdownInjector(t, injector)
 
 	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 	require.NoError(t, err)
@@ -305,7 +309,7 @@ func testLiveReadersObserveRoutingChanges(t *testing.T) {
 	require.NoError(t, err)
 
 	injector := newInjectorWithConfigPath(path)
-	defer shutdownInjector(injector)
+	defer shutdownInjector(t, injector)
 
 	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 	require.NoError(t, err)
@@ -343,7 +347,7 @@ func testLiveReaderUpdatesSnapshotStale(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
 	injector := newInjectorWithConfigPath(path)
-	defer shutdownInjector(injector)
+	defer shutdownInjector(t, injector)
 
 	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 	require.NoError(t, err)
@@ -386,7 +390,7 @@ func testInvalidReloadKeepsLastGood(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(initialConfig), 0o600))
 
 	injector := newInjectorWithConfigPath(path)
-	defer shutdownInjector(injector)
+	defer shutdownInjector(t, injector)
 
 	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 	require.NoError(t, err)
@@ -415,7 +419,7 @@ func testConcurrentReadsDuringReload(t *testing.T) {
 	require.NoError(t, err)
 
 	injector := newInjectorWithConfigPath(path)
-	defer shutdownInjector(injector)
+	defer shutdownInjector(t, injector)
 
 	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
 	require.NoError(t, err)
@@ -529,7 +533,7 @@ func runShutdownerTest(t *testing.T, test shutdownerTest) {
 	t.Run("creates service from config", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		svc, err := test.invokeAndGet(t, injector)
 		require.NoError(t, err)
@@ -539,7 +543,7 @@ func runShutdownerTest(t *testing.T, test shutdownerTest) {
 	t.Run("service implements Shutdown", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		svc, err := test.invokeAndGet(t, injector)
 		require.NoError(t, err)
@@ -580,7 +584,7 @@ func TestNewProviderMap(t *testing.T) {
 	t.Run("creates provider map with single provider", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		provSvc, err := do.Invoke[*di.ProviderMapService](injector)
 		require.NoError(t, err)
@@ -595,7 +599,7 @@ func TestNewProviderMap(t *testing.T) {
 	t.Run("creates provider map with multiple providers", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, multiProviderConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		provSvc, err := do.Invoke[*di.ProviderMapService](injector)
 		require.NoError(t, err)
@@ -608,7 +612,7 @@ func TestNewProviderMap(t *testing.T) {
 	t.Run("returns error when no providers configured", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, noProviderConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		_, err := do.Invoke[*di.ProviderMapService](injector)
 		require.Error(t, err)
@@ -687,7 +691,7 @@ func TestNewKeyPool(t *testing.T) {
 	t.Run("returns nil pool when pooling disabled", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		poolSvc, err := do.Invoke[*di.KeyPoolService](injector)
 		require.NoError(t, err)
@@ -699,7 +703,7 @@ func TestNewKeyPool(t *testing.T) {
 	t.Run("creates pool when pooling enabled", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, multiKeyPoolingConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		poolSvc, err := do.Invoke[*di.KeyPoolService](injector)
 		require.NoError(t, err)
@@ -713,7 +717,7 @@ func TestNewProxyHandler(t *testing.T) {
 	t.Run("creates handler with dependencies", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		handlerSvc, err := do.Invoke[*di.HandlerService](injector)
 		require.NoError(t, err)
@@ -727,7 +731,7 @@ func TestNewHTTPServer(t *testing.T) {
 	t.Run("creates server with dependencies", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		serverSvc, err := do.Invoke[*di.ServerService](injector)
 		require.NoError(t, err)
@@ -738,7 +742,7 @@ func TestNewHTTPServer(t *testing.T) {
 	t.Run(shutdownerTestLabel, func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		serverSvc, err := do.Invoke[*di.ServerService](injector)
 		require.NoError(t, err)
@@ -761,7 +765,7 @@ func TestDependencyOrder(t *testing.T) {
 	t.Run("services resolve in correct dependency order", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		// Resolve server (which should trigger all dependencies)
 		serverSvc, err := do.Invoke[*di.ServerService](injector)
@@ -801,7 +805,7 @@ func TestRegisterSingletons(t *testing.T) {
 		require.NoError(t, err)
 
 		registerInjector := newInjectorWithConfigPath(path)
-		defer shutdownInjector(registerInjector)
+		defer shutdownInjector(t, registerInjector)
 
 		// Verify each service type is registered
 		_, err = do.Invoke[*di.ConfigService](registerInjector)
@@ -856,7 +860,7 @@ func TestLoggerService(t *testing.T) {
 	t.Run("creates logger from config", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		loggerSvc, err := do.Invoke[*di.LoggerService](injector)
 		require.NoError(t, err)
@@ -867,7 +871,7 @@ func TestLoggerService(t *testing.T) {
 	t.Run("singleton returns same instance", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		logger1, err := do.Invoke[*di.LoggerService](injector)
 		require.NoError(t, err)
@@ -884,7 +888,7 @@ func TestHealthTrackerService(t *testing.T) {
 	t.Run("creates tracker from config", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
 		require.NoError(t, err)
@@ -895,7 +899,7 @@ func TestHealthTrackerService(t *testing.T) {
 	t.Run("tracker IsHealthyFunc returns true for new provider", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
 		require.NoError(t, err)
@@ -907,7 +911,7 @@ func TestHealthTrackerService(t *testing.T) {
 	t.Run("tracker records success and failure", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
 		require.NoError(t, err)
@@ -942,7 +946,7 @@ func TestCheckerService(t *testing.T) {
 			t.Helper()
 			// Use injector to get a checker service, then verify shutdown is safe
 			injector := createTestInjector(t, singleKeyConfig)
-			defer shutdownInjector(injector)
+			defer shutdownInjector(t, injector)
 			checkerSvc, err := do.Invoke[*di.CheckerService](injector)
 			require.NoError(t, err)
 			// Shutdown should be safe to call
@@ -957,7 +961,7 @@ func TestNewProxyHandlerWithHealthTracker(t *testing.T) {
 	t.Run("handler wired with tracker", func(t *testing.T) {
 		t.Parallel()
 		injector := createTestInjector(t, singleKeyConfig)
-		defer shutdownInjector(injector)
+		defer shutdownInjector(t, injector)
 
 		// This verifies the full dependency chain works
 		handlerSvc, err := do.Invoke[*di.HandlerService](injector)

@@ -2,6 +2,7 @@ package di_test
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -95,6 +96,7 @@ func readRouterUntilDone(ctx context.Context, routerSvc *di.RouterService) <-cha
 				return
 			default:
 				_ = routerSvc.GetRouter()
+				runtime.Gosched()
 			}
 		}
 	}()
@@ -121,6 +123,7 @@ func updateConfigUntilDone(ctx context.Context, cfgSvc *di.ConfigService) <-chan
 				cfgSvc.GetConfigAtomic().Store(newCfg)
 				cfgSvc.Config = newCfg
 				idx++
+				runtime.Gosched()
 			}
 		}
 	}()
