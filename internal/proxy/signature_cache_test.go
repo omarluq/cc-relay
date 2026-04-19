@@ -47,7 +47,6 @@ func TestSignatureCacheCacheKey(t *testing.T) {
 	t.Parallel()
 	sigCache, cleanup := proxy.NewTestSignatureCache(t)
 	defer cleanup()
-	require.NotNil(t, sigCache)
 
 	// Test deterministic key generation
 	key1 := proxy.CacheKey(sigCache, "claude", "thinking text")
@@ -89,8 +88,6 @@ func TestSignatureCacheGetSet(t *testing.T) {
 		return actual == validSig
 	}, 250*time.Millisecond, 5*time.Millisecond, "cached signature should be available")
 
-	assert.Equal(t, validSig, actual, "should return cached signature")
-
 	// Test same model group retrieval (different model, same group)
 	got = sigCache.Get(ctx, "claude-3-opus", "thinking text")
 	assert.Equal(t, validSig, got, "should return signature for same model group")
@@ -111,12 +108,9 @@ func TestSignatureCacheSkipsShortSignatures(t *testing.T) {
 	sigCache.Set(ctx, "claude-sonnet-4", "thinking text", shortSig)
 
 	// Ristretto writes are async - verify it was NOT cached
-	var actual string
 	require.Never(t, func() bool {
-		actual = sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
-		return actual != ""
+		return sigCache.Get(ctx, "claude-sonnet-4", "thinking text") != ""
 	}, 100*time.Millisecond, 5*time.Millisecond, "short signature should not be cached")
-	assert.Empty(t, actual, "short signature should not be cached")
 }
 
 func TestSignatureCacheNilCache(t *testing.T) {
@@ -181,6 +175,4 @@ func TestSignatureCacheGeminiSentinel(t *testing.T) {
 		actual = sigCache.Get(ctx, "gemini-pro", "thinking text")
 		return actual == proxy.GeminiSignatureSentinel
 	}, 250*time.Millisecond, 5*time.Millisecond, "sentinel should be cached")
-
-	assert.Equal(t, proxy.GeminiSignatureSentinel, actual)
 }
