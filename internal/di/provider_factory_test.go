@@ -82,6 +82,51 @@ func newMockProvider() *di.MockProvider {
 	}
 }
 
+// runCloudProviderValidation runs a table of cloud-provider validation cases
+// against di.CreateCloudProvider. For an expected error, it asserts the exact
+// error message. For a valid config (wantErr == ""), it tolerates credential
+// failures but asserts the error is NOT a validation error by checking that
+// none of forbiddenSubstrings appear in the error message.
+func runCloudProviderValidation[T any](
+	t *testing.T,
+	tests []T,
+	getName func(T) string,
+	getCfg func(T) config.ProviderConfig,
+	getWantErr func(T) string,
+	forbiddenSubstrings []string,
+) {
+	t.Helper()
+	for _, testCase := range tests {
+		t.Run(getName(testCase), func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+
+			cfg := getCfg(testCase)
+			wantErr := getWantErr(testCase)
+
+			prov, err := di.CreateCloudProvider(ctx, &cfg)
+
+			if wantErr != "" {
+				assert.Error(t, err)
+				assert.Equal(t, wantErr, err.Error())
+				assert.Nil(t, prov)
+				return
+			}
+			// Valid config may still fail without cloud credentials but shouldn't fail
+			// validation. Either the provider is returned, or the error is NOT a
+			// validation error (ErrUnknownProviderType / required-field error).
+			if err == nil {
+				assert.NotNil(t, prov, "expected provider when no error returned")
+				return
+			}
+			assert.NotErrorIs(t, err, di.ErrUnknownProviderType)
+			for _, forbidden := range forbiddenSubstrings {
+				assert.NotContains(t, err.Error(), forbidden)
+			}
+		})
+	}
+}
+
 func TestCreateCloudProviderBedrockValidation(t *testing.T) {
 	t.Parallel()
 
@@ -106,31 +151,32 @@ func TestCreateCloudProviderBedrockValidation(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
-
-			prov, err := di.CreateCloudProvider(ctx, &testCase.cfg)
-
-			if testCase.wantErr != "" {
-				assert.Error(t, err)
-				assert.Equal(t, testCase.wantErr, err.Error())
-				assert.Nil(t, prov)
-				return
-			}
-			// Valid config may still fail without AWS credentials but shouldn't fail
-			// validation. Either the provider is returned, or the error is NOT a
-			// validation error (ErrUnknownProviderType / required-field error).
-			if err == nil {
-				assert.NotNil(t, prov, "expected provider when no error returned")
-			} else {
-				assert.NotErrorIs(t, err, di.ErrUnknownProviderType)
-				assert.NotContains(t, err.Error(), "region is required")
-				assert.NotContains(t, err.Error(), "required for bedrock provider")
-			}
-		})
-	}
+	runCloudProviderValidation(
+		t,
+		tests,
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) string {
+			return tc.name
+		},
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) config.ProviderConfig {
+			return tc.cfg
+		},
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) string {
+			return tc.wantErr
+		},
+		[]string{"region is required", "required for bedrock provider"},
+	)
 }
 
 func TestCreateCloudProviderVertexValidation(t *testing.T) {
@@ -167,32 +213,32 @@ func TestCreateCloudProviderVertexValidation(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
-
-			prov, err := di.CreateCloudProvider(ctx, &testCase.cfg)
-
-			if testCase.wantErr != "" {
-				assert.Error(t, err)
-				assert.Equal(t, testCase.wantErr, err.Error())
-				assert.Nil(t, prov)
-				return
-			}
-			// Valid config may still fail without GCP credentials but shouldn't fail
-			// validation. Either the provider is returned, or the error is NOT a
-			// validation error (ErrUnknownProviderType / required-field error).
-			if err == nil {
-				assert.NotNil(t, prov, "expected provider when no error returned")
-			} else {
-				assert.NotErrorIs(t, err, di.ErrUnknownProviderType)
-				assert.NotContains(t, err.Error(), "project ID is required")
-				assert.NotContains(t, err.Error(), "region is required")
-				assert.NotContains(t, err.Error(), "required for vertex provider")
-			}
-		})
-	}
+	runCloudProviderValidation(
+		t,
+		tests,
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) string {
+			return tc.name
+		},
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) config.ProviderConfig {
+			return tc.cfg
+		},
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) string {
+			return tc.wantErr
+		},
+		[]string{"project ID is required", "region is required", "required for vertex provider"},
+	)
 }
 
 func TestCreateCloudProviderAzureValidation(t *testing.T) {
@@ -219,31 +265,32 @@ func TestCreateCloudProviderAzureValidation(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
-
-			prov, err := di.CreateCloudProvider(ctx, &testCase.cfg)
-
-			if testCase.wantErr != "" {
-				assert.Error(t, err)
-				assert.Equal(t, testCase.wantErr, err.Error())
-				assert.Nil(t, prov)
-				return
-			}
-			// Valid config may still fail without Azure credentials but shouldn't fail
-			// validation. Either the provider is returned, or the error is NOT a
-			// validation error (ErrUnknownProviderType / required-field error).
-			if err == nil {
-				assert.NotNil(t, prov, "expected provider when no error returned")
-			} else {
-				assert.NotErrorIs(t, err, di.ErrUnknownProviderType)
-				assert.NotContains(t, err.Error(), "resource name is required")
-				assert.NotContains(t, err.Error(), "required for azure provider")
-			}
-		})
-	}
+	runCloudProviderValidation(
+		t,
+		tests,
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) string {
+			return tc.name
+		},
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) config.ProviderConfig {
+			return tc.cfg
+		},
+		func(tc struct {
+			name    string
+			wantErr string
+			cfg     config.ProviderConfig
+		}) string {
+			return tc.wantErr
+		},
+		[]string{"resource name is required", "required for azure provider"},
+	)
 }
 
 func TestCreateCloudProviderUnknownType(t *testing.T) {
