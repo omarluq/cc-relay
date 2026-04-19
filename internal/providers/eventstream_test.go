@@ -909,9 +909,8 @@ func TestNewBedrockProvider_MissingRegion(t *testing.T) {
 		Region:       "",
 		Models:       nil,
 	})
-	if err == nil {
-		t.Error("NewBedrockProvider(empty region) should return error")
-	}
+	require.Error(t, err, "NewBedrockProvider(empty region) should return error")
+	assert.ErrorContains(t, err, "region", "error should identify missing region as the cause")
 }
 
 // Test NewVertexProvider validation
@@ -926,9 +925,8 @@ func TestNewVertexProvider_MissingProjectID(t *testing.T) {
 		Region:       "us-central1",
 		Models:       nil,
 	})
-	if err == nil {
-		t.Error("NewVertexProvider(empty project_id) should return error")
-	}
+	require.Error(t, err, "NewVertexProvider(empty project_id) should return error")
+	assert.ErrorContains(t, err, "project", "error should identify missing project as the cause")
 }
 
 func TestNewVertexProvider_MissingRegion(t *testing.T) {
@@ -941,9 +939,8 @@ func TestNewVertexProvider_MissingRegion(t *testing.T) {
 		Region:       "",
 		Models:       nil,
 	})
-	if err == nil {
-		t.Error("NewVertexProvider(empty region) should return error")
-	}
+	require.Error(t, err, "NewVertexProvider(empty region) should return error")
+	assert.ErrorContains(t, err, "region", "error should identify missing region as the cause")
 }
 
 // Test TransformBodyForCloudProvider edge case
