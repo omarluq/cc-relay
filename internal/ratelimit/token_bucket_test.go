@@ -148,8 +148,8 @@ func TestWait(t *testing.T) {
 		}
 		elapsed := time.Since(start)
 
-		// Should have waited at least 500ms (conservative check)
-		if elapsed < 500*time.Millisecond {
+		// Should have waited at least 900ms (close to 1s for 60 RPM)
+		if elapsed < 900*time.Millisecond {
 			t.Errorf("Wait() did not block long enough: %v", elapsed)
 		}
 	})
@@ -343,8 +343,8 @@ func TestConsumeTokens(t *testing.T) {
 		}
 		elapsed := time.Since(start)
 
-		// Should have waited at least 500ms
-		if elapsed < 500*time.Millisecond {
+		// Should have waited at least 900ms (close to 1s for 60 TPM)
+		if elapsed < 900*time.Millisecond {
 			t.Errorf("ConsumeTokens() did not block long enough: %v", elapsed)
 		}
 	})

@@ -53,7 +53,6 @@ func TestDropMessagesByIndex(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Helper()
 			t.Parallel()
 
 			result, err := dropMessagesByIndex([]byte(testCase.body), testCase.indexes)
@@ -83,7 +82,6 @@ func TestNextMessageHasToolResult(t *testing.T) {
 		body    string
 		nextIdx int64
 		want    bool
-		wantErr bool
 	}{
 		{
 			name: "user message with tool_result",
@@ -92,7 +90,6 @@ func TestNextMessageHasToolResult(t *testing.T) {
 				`{"type":"tool_result","tool_use_id":"t1"}]}]}`,
 			nextIdx: 1,
 			want:    true,
-			wantErr: false,
 		},
 		{
 			name: "user message without tool_result",
@@ -100,7 +97,6 @@ func TestNextMessageHasToolResult(t *testing.T) {
 				`{"role":"user","content":[{"type":"text","text":"hi"}]}]}`,
 			nextIdx: 1,
 			want:    false,
-			wantErr: false,
 		},
 		{
 			name: "assistant message is not a tool result source",
@@ -108,7 +104,6 @@ func TestNextMessageHasToolResult(t *testing.T) {
 				`"content":[{"type":"tool_result","tool_use_id":"t1"}]}]}`,
 			nextIdx: 1,
 			want:    false,
-			wantErr: false,
 		},
 		{
 			name: "user message with mixed content including tool_result",
@@ -116,13 +111,11 @@ func TestNextMessageHasToolResult(t *testing.T) {
 				`{"type":"text","text":"intro"},{"type":"tool_result","tool_use_id":"t1"}]}]}`,
 			nextIdx: 1,
 			want:    true,
-			wantErr: false,
 		},
 	}
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Helper()
 			t.Parallel()
 
 			got := nextMessageHasToolResult([]byte(testCase.body), testCase.nextIdx)
@@ -159,7 +152,6 @@ func TestProcessToolUseBlock(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Helper()
 			t.Parallel()
 
 			block := parseJSON(testCase.blockJSON)

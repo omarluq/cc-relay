@@ -12,6 +12,7 @@ func TestGetBodyPreview_NilBody(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequestWithContext(context.Background(), "POST", "/test", http.NoBody)
+	req.Body = nil
 	preview := getBodyPreview(req)
 
 	if preview != "" {

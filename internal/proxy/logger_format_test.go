@@ -59,7 +59,7 @@ func TestFormatMessage(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			result := proxy.FormatMessageForTest(testCase.input)
-			if testCase.want != "" && result != testCase.want {
+			if result != testCase.want {
 				t.Errorf("formatMessage(%v) = %q, want %q", testCase.input, result, testCase.want)
 			}
 		})

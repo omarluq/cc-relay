@@ -698,8 +698,8 @@ func TestRistrettoCacheConcurrentClose(t *testing.T) {
 	waitGroup.Add(numGoroutines + 1)
 
 	// Some goroutines doing reads
-	for idx := 0; idx < numGoroutines/2; idx++ {
-		go func(_ int) {
+	for range numGoroutines / 2 {
+		go func() {
 			defer waitGroup.Done()
 			for j := 0; j < 100; j++ {
 				key := fmt.Sprintf("key-%d", j%10)
@@ -707,12 +707,12 @@ func TestRistrettoCacheConcurrentClose(t *testing.T) {
 				_, getErr := ristrettoCache.Get(ctx, key)
 				_ = getErr
 			}
-		}(idx)
+		}()
 	}
 
 	// Some goroutines doing writes
-	for idx := 0; idx < numGoroutines/2; idx++ {
-		go func(_ int) {
+	for range numGoroutines / 2 {
+		go func() {
 			defer waitGroup.Done()
 			for j := 0; j < 100; j++ {
 				key := fmt.Sprintf("key-%d", j%10)
@@ -720,7 +720,7 @@ func TestRistrettoCacheConcurrentClose(t *testing.T) {
 				setErr := ristrettoCache.Set(ctx, key, []byte("value"))
 				_ = setErr
 			}
-		}(idx)
+		}()
 	}
 
 	// Close the cache while operations are in flight

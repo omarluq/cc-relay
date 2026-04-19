@@ -113,7 +113,6 @@ func TestApplyClusterSettings(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Helper()
 			t.Parallel()
 			cfg := &cache.OlricConfig{
 				DMapName:          "",
@@ -225,7 +224,6 @@ func TestConfigureMemberlist(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Helper()
 			t.Parallel()
 			olricCfg := olricconfig.New("local")
 
@@ -362,7 +360,6 @@ func TestParseBindAddr(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Helper()
 			t.Parallel()
 			host, port := cache.ParseBindAddrForTest(testCase.addr)
 			if host != testCase.wantHost {

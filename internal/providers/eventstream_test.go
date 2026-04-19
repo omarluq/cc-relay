@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/omarluq/cc-relay/internal/providers"
@@ -637,11 +638,12 @@ func TestFormatMessageAsSSE_Nil(t *testing.T) {
 func TestFormatMessageAsSSE_NormalEvent(t *testing.T) {
 	t.Parallel()
 
+	payload := []byte(`{"type":"content_block_delta","index":0}`)
 	msg := &providers.EventStreamMessage{
 		Headers: map[string]string{
 			":event-type": "content_block_delta",
 		},
-		Payload: []byte(`{"type":"content_block_delta","index":0}`),
+		Payload: payload,
 	}
 
 	result := providers.FormatMessageAsSSE(msg)
@@ -650,9 +652,9 @@ func TestFormatMessageAsSSE_NormalEvent(t *testing.T) {
 	}
 
 	s := string(result)
-	if s == "" {
-		t.Error("FormatMessageAsSSE() returned empty bytes")
-	}
+	assert.Contains(t, s, "event: content_block_delta\n", "should contain SSE event line with event type")
+	assert.Contains(t, s, "data: "+string(payload)+"\n", "should contain SSE data line with payload")
+	assert.True(t, strings.HasSuffix(s, "\n\n"), "should terminate with SSE event separator, got %q", s)
 }
 
 func TestFormatMessageAsSSE_Exception(t *testing.T) {
@@ -669,6 +671,12 @@ func TestFormatMessageAsSSE_Exception(t *testing.T) {
 	if result == nil {
 		t.Fatal("FormatMessageAsSSE() returned nil for exception event")
 	}
+
+	s := string(result)
+	assert.Contains(t, s, "event: error\n", "exception should be formatted as SSE error event")
+	assert.Contains(t, s, `"type":"throttlingException"`, "error data should include exception type")
+	assert.Contains(t, s, "Too many requests", "error data should include exception payload message")
+	assert.True(t, strings.HasSuffix(s, "\n\n"), "should terminate with SSE event separator, got %q", s)
 }
 
 func TestFormatMessageAsSSE_NoEventType(t *testing.T) {

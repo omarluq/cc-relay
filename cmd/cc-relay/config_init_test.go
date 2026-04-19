@@ -32,22 +32,13 @@ func newMockInitCmd() *cobra.Command {
 }
 
 func TestRunConfigInitDefaultPath(t *testing.T) {
-	t.Parallel()
+	// Note: Cannot use t.Parallel() (modifies HOME env var)
 
 	// Create a temp directory to use as HOME
 	tmpDir := t.TempDir()
 
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	defer func() {
-		if err := os.Setenv("HOME", origHome); err != nil {
-			t.Logf("failed to restore HOME: %v", err)
-		}
-	}()
-
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatal(err)
-	}
+	// t.Setenv automatically restores on test cleanup
+	t.Setenv("HOME", tmpDir)
 
 	// Create a mock command with the output and force flags
 	cmd := newMockInitCmd()
@@ -79,8 +70,8 @@ func TestRunConfigInitDefaultPath(t *testing.T) {
 	}
 }
 
-func TestRunConfigInitCustomPath(t *testing.T) { //nolint:paralleltest // modifies HOME env var
-	// Note: Cannot use t.Parallel() (modifies HOME env var)
+func TestRunConfigInitCustomPath(t *testing.T) {
+	t.Parallel()
 
 	// Create a temp directory
 	tmpDir := t.TempDir()
@@ -104,8 +95,8 @@ func TestRunConfigInitCustomPath(t *testing.T) { //nolint:paralleltest // modifi
 	}
 }
 
-func TestRunConfigInitExistingFileWithoutForce(t *testing.T) { //nolint:paralleltest // modifies HOME env var
-	// Note: Cannot use t.Parallel() (modifies HOME env var)
+func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
+	t.Parallel()
 
 	// Create a temp directory with an existing config file
 	tmpDir := t.TempDir()
@@ -130,8 +121,8 @@ func TestRunConfigInitExistingFileWithoutForce(t *testing.T) { //nolint:parallel
 	}
 }
 
-func TestRunConfigInitExistingFileWithForce(t *testing.T) { //nolint:paralleltest // modifies HOME env var
-	// Note: Cannot use t.Parallel() (modifies HOME env var)
+func TestRunConfigInitExistingFileWithForce(t *testing.T) {
+	t.Parallel()
 
 	// Create a temp directory with an existing config file
 	tmpDir := t.TempDir()
@@ -170,8 +161,8 @@ func TestRunConfigInitExistingFileWithForce(t *testing.T) { //nolint:paralleltes
 	}
 }
 
-func TestRunConfigInitCreatesDirectory(t *testing.T) { //nolint:paralleltest // modifies HOME env var
-	// Note: Cannot use t.Parallel() (modifies HOME env var)
+func TestRunConfigInitCreatesDirectory(t *testing.T) {
+	t.Parallel()
 
 	// Create a temp directory
 	tmpDir := t.TempDir()
