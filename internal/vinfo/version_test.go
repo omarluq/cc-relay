@@ -222,6 +222,9 @@ func TestApplySettingsFallback(t *testing.T) { //nolint:paralleltest // mutates 
 			if vinfo.BuildDate != testCase.wantBuildDate {
 				t.Errorf("ApplySettingsFallback() BuildDate = %q, want %q", vinfo.BuildDate, testCase.wantBuildDate)
 			}
+			if vinfo.Version != testCase.wantVersion {
+				t.Errorf("ApplySettingsFallback() Version = %q, want %q", vinfo.Version, testCase.wantVersion)
+			}
 		})
 	}
 }
