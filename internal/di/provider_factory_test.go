@@ -9,15 +9,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// baseBedrockConfig returns a fully initialized ProviderConfig with bedrock type.
-func baseBedrockConfig(name, region string) config.ProviderConfig {
+// baseProviderConfig returns a fully zero-initialized ProviderConfig for the
+// given name and type. Specialized helpers layer provider-specific fields on
+// top of this base to avoid repeating the full struct literal.
+func baseProviderConfig(name, pType string) config.ProviderConfig {
 	return config.ProviderConfig{
 		ModelMapping:       map[string]string{},
-		AWSRegion:          region,
+		AWSRegion:          "",
 		GCPProjectID:       "",
 		AzureAPIVersion:    "",
 		Name:               name,
-		Type:               di.ProviderTypeBedrock,
+		Type:               pType,
 		BaseURL:            "",
 		AzureDeploymentID:  "",
 		AWSAccessKeyID:     "",
@@ -29,51 +31,31 @@ func baseBedrockConfig(name, region string) config.ProviderConfig {
 		Keys:               nil,
 		Enabled:            true,
 	}
+}
+
+// baseBedrockConfig returns a fully initialized ProviderConfig with bedrock type.
+func baseBedrockConfig(name, region string) config.ProviderConfig {
+	cfg := baseProviderConfig(name, di.ProviderTypeBedrock)
+	cfg.AWSRegion = region
+	return cfg
 }
 
 // baseVertexConfig returns a fully initialized ProviderConfig with vertex type.
 //nolint:unparam // name receives "test-vertex" in tests but parameter kept for API consistency
 func baseVertexConfig(name, project, region string) config.ProviderConfig {
-	return config.ProviderConfig{
-		ModelMapping:       map[string]string{},
-		AWSRegion:          "",
-		GCPProjectID:       project,
-		AzureAPIVersion:    "",
-		Name:               name,
-		Type:               di.ProviderTypeVertex,
-		BaseURL:            "",
-		AzureDeploymentID:  "",
-		AWSAccessKeyID:     "",
-		AzureResourceName:  "",
-		AWSSecretAccessKey: "",
-		GCPRegion:          region,
-		Models:             nil,
-		Pooling:            config.PoolingConfig{Enabled: false, Strategy: ""},
-		Keys:               nil,
-		Enabled:            true,
-	}
+	cfg := baseProviderConfig(name, di.ProviderTypeVertex)
+	cfg.GCPProjectID = project
+	cfg.GCPRegion = region
+	return cfg
 }
 
 // baseAzureConfig returns a fully initialized ProviderConfig with azure type.
 func baseAzureConfig(name, resource, deployment, apiVersion string) config.ProviderConfig {
-	return config.ProviderConfig{
-		ModelMapping:       map[string]string{},
-		AWSRegion:          "",
-		GCPProjectID:       "",
-		AzureAPIVersion:    apiVersion,
-		Name:               name,
-		Type:               di.ProviderTypeAzure,
-		BaseURL:            "",
-		AzureDeploymentID:  deployment,
-		AWSAccessKeyID:     "",
-		AzureResourceName:  resource,
-		AWSSecretAccessKey: "",
-		GCPRegion:          "",
-		Models:             nil,
-		Pooling:            config.PoolingConfig{Enabled: false, Strategy: ""},
-		Keys:               nil,
-		Enabled:            true,
-	}
+	cfg := baseProviderConfig(name, di.ProviderTypeAzure)
+	cfg.AzureResourceName = resource
+	cfg.AzureDeploymentID = deployment
+	cfg.AzureAPIVersion = apiVersion
+	return cfg
 }
 
 // newEmptyProviderMapData returns a fully initialized empty providerMapData.
@@ -137,9 +119,15 @@ func TestCreateCloudProviderBedrockValidation(t *testing.T) {
 				assert.Nil(t, prov)
 				return
 			}
-			// Valid config may still fail without AWS credentials but shouldn't fail validation.
-			if err != nil {
+			// Valid config may still fail without AWS credentials but shouldn't fail
+			// validation. Either the provider is returned, or the error is NOT a
+			// validation error (ErrUnknownProviderType / required-field error).
+			if err == nil {
+				assert.NotNil(t, prov, "expected provider when no error returned")
+			} else {
+				assert.NotErrorIs(t, err, di.ErrUnknownProviderType)
 				assert.NotContains(t, err.Error(), "region is required")
+				assert.NotContains(t, err.Error(), "required for bedrock provider")
 			}
 		})
 	}
@@ -192,9 +180,16 @@ func TestCreateCloudProviderVertexValidation(t *testing.T) {
 				assert.Nil(t, prov)
 				return
 			}
-			if err != nil {
+			// Valid config may still fail without GCP credentials but shouldn't fail
+			// validation. Either the provider is returned, or the error is NOT a
+			// validation error (ErrUnknownProviderType / required-field error).
+			if err == nil {
+				assert.NotNil(t, prov, "expected provider when no error returned")
+			} else {
+				assert.NotErrorIs(t, err, di.ErrUnknownProviderType)
 				assert.NotContains(t, err.Error(), "project ID is required")
 				assert.NotContains(t, err.Error(), "region is required")
+				assert.NotContains(t, err.Error(), "required for vertex provider")
 			}
 		})
 	}
@@ -237,8 +232,15 @@ func TestCreateCloudProviderAzureValidation(t *testing.T) {
 				assert.Nil(t, prov)
 				return
 			}
-			if err != nil {
+			// Valid config may still fail without Azure credentials but shouldn't fail
+			// validation. Either the provider is returned, or the error is NOT a
+			// validation error (ErrUnknownProviderType / required-field error).
+			if err == nil {
+				assert.NotNil(t, prov, "expected provider when no error returned")
+			} else {
+				assert.NotErrorIs(t, err, di.ErrUnknownProviderType)
 				assert.NotContains(t, err.Error(), "resource name is required")
+				assert.NotContains(t, err.Error(), "required for azure provider")
 			}
 		})
 	}
