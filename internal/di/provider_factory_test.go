@@ -41,9 +41,8 @@ func baseBedrockConfig(name, region string) config.ProviderConfig {
 }
 
 // baseVertexConfig returns a fully initialized ProviderConfig with vertex type.
-//nolint:unparam // name receives "test-vertex" in tests but parameter kept for API consistency
-func baseVertexConfig(name, project, region string) config.ProviderConfig {
-	cfg := baseProviderConfig(name, di.ProviderTypeVertex)
+func baseVertexConfig(project, region string) config.ProviderConfig {
+	cfg := baseProviderConfig("test-vertex", di.ProviderTypeVertex)
 	cfg.GCPProjectID = project
 	cfg.GCPRegion = region
 	return cfg
@@ -82,33 +81,39 @@ func newMockProvider() *di.MockProvider {
 	}
 }
 
+// cloudProviderValidationCase is the common table-row type shared across all
+// cloud-provider validation tests. Using a named struct (rather than an
+// anonymous one per test) lets the runner accept the slice directly without
+// per-test getter callbacks.
+type cloudProviderValidationCase struct {
+	name    string
+	wantErr string
+	cfg     config.ProviderConfig
+}
+
 // runCloudProviderValidation runs a table of cloud-provider validation cases
 // against di.CreateCloudProvider. For an expected error, it asserts the exact
 // error message. For a valid config (wantErr == ""), it tolerates credential
 // failures but asserts the error is NOT a validation error by checking that
 // none of forbiddenSubstrings appear in the error message.
-func runCloudProviderValidation[T any](
+func runCloudProviderValidation(
 	t *testing.T,
-	tests []T,
-	getName func(T) string,
-	getCfg func(T) config.ProviderConfig,
-	getWantErr func(T) string,
+	tests []cloudProviderValidationCase,
 	forbiddenSubstrings []string,
 ) {
 	t.Helper()
-	for _, testCase := range tests {
-		t.Run(getName(testCase), func(t *testing.T) {
+	for i := range tests {
+		testCase := &tests[i]
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
 
-			cfg := getCfg(testCase)
-			wantErr := getWantErr(testCase)
-
+			cfg := testCase.cfg
 			prov, err := di.CreateCloudProvider(ctx, &cfg)
 
-			if wantErr != "" {
+			if testCase.wantErr != "" {
 				assert.Error(t, err)
-				assert.Equal(t, wantErr, err.Error())
+				assert.Equal(t, testCase.wantErr, err.Error())
 				assert.Nil(t, prov)
 				return
 			}
@@ -127,204 +132,112 @@ func runCloudProviderValidation[T any](
 	}
 }
 
+// withValidModels attaches a sample model and mapping to cfg in place.
+// Used to promote a base provider config into a "valid" one for validation tests.
+func withValidModels(cfg *config.ProviderConfig) {
+	cfg.Models = []string{"claude-3-5-sonnet"}
+	cfg.ModelMapping = map[string]string{"anthropic": "claude-3-5-sonnet"}
+}
+
 func TestCreateCloudProviderBedrockValidation(t *testing.T) {
 	t.Parallel()
 
-	validCfg := baseBedrockConfig("test-bedrock", "us-east-1")
-	validCfg.Models = []string{"claude-3-5-sonnet"}
-	validCfg.ModelMapping = map[string]string{"anthropic": "claude-3-5-sonnet"}
-
-	tests := []struct {
-		name    string
-		wantErr string
-		cfg     config.ProviderConfig
-	}{
+	tests := []cloudProviderValidationCase{
 		{
 			name:    "missing AWS region",
 			cfg:     baseBedrockConfig("test-bedrock", ""),
 			wantErr: "bedrock provider test-bedrock: config: aws_region required for bedrock provider",
 		},
 		{
-			name:    "valid bedrock config",
-			cfg:     validCfg,
+			name: "valid bedrock config",
+			cfg: func() config.ProviderConfig {
+				c := baseBedrockConfig("test-bedrock", "us-east-1")
+				withValidModels(&c)
+				return c
+			}(),
 			wantErr: "",
 		},
 	}
 
-	runCloudProviderValidation(
-		t,
-		tests,
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) string {
-			return tc.name
-		},
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) config.ProviderConfig {
-			return tc.cfg
-		},
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) string {
-			return tc.wantErr
-		},
-		[]string{"region is required", "required for bedrock provider"},
-	)
+	runCloudProviderValidation(t, tests, []string{"region is required", "required for bedrock provider"})
 }
 
 func TestCreateCloudProviderVertexValidation(t *testing.T) {
 	t.Parallel()
 
-	validCfg := baseVertexConfig("test-vertex", "test-project", "us-central1")
-	validCfg.Models = []string{"claude-3-5-sonnet"}
-	validCfg.ModelMapping = map[string]string{"anthropic": "claude-3-5-sonnet"}
-
-	tests := []struct {
-		name    string
-		wantErr string
-		cfg     config.ProviderConfig
-	}{
+	tests := []cloudProviderValidationCase{
 		{
 			name:    "missing GCP project ID",
-			cfg:     baseVertexConfig("test-vertex", "", "us-central1"),
+			cfg:     baseVertexConfig("", "us-central1"),
 			wantErr: "vertex provider test-vertex: config: gcp_project_id required for vertex provider",
 		},
 		{
 			name:    "missing GCP region",
-			cfg:     baseVertexConfig("test-vertex", "test-project", ""),
+			cfg:     baseVertexConfig("test-project", ""),
 			wantErr: "vertex provider test-vertex: config: gcp_region required for vertex provider",
 		},
 		{
 			name:    "missing both GCP project ID and region",
-			cfg:     baseVertexConfig("test-vertex", "", ""),
+			cfg:     baseVertexConfig("", ""),
 			wantErr: "vertex provider test-vertex: config: gcp_project_id required for vertex provider",
 		},
 		{
-			name:    "valid vertex config",
-			cfg:     validCfg,
+			name: "valid vertex config",
+			cfg: func() config.ProviderConfig {
+				c := baseVertexConfig("test-project", "us-central1")
+				withValidModels(&c)
+				return c
+			}(),
 			wantErr: "",
 		},
 	}
 
-	runCloudProviderValidation(
-		t,
-		tests,
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) string {
-			return tc.name
-		},
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) config.ProviderConfig {
-			return tc.cfg
-		},
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) string {
-			return tc.wantErr
-		},
-		[]string{"project ID is required", "region is required", "required for vertex provider"},
-	)
+	runCloudProviderValidation(t, tests, []string{
+		"project ID is required", "region is required", "required for vertex provider",
+	})
 }
 
 func TestCreateCloudProviderAzureValidation(t *testing.T) {
 	t.Parallel()
 
-	validCfg := baseAzureConfig("test-azure", "test-resource", "test-deployment", "2024-02-01")
-	validCfg.Models = []string{"claude-3-5-sonnet"}
-	validCfg.ModelMapping = map[string]string{"anthropic": "claude-3-5-sonnet"}
-
-	tests := []struct {
-		name    string
-		wantErr string
-		cfg     config.ProviderConfig
-	}{
+	tests := []cloudProviderValidationCase{
 		{
 			name:    "missing Azure resource name",
 			cfg:     baseAzureConfig("test-azure", "", "test-deployment", "2024-02-01"),
 			wantErr: "azure provider test-azure: config: azure_resource_name required for azure provider",
 		},
 		{
-			name:    "valid azure config",
-			cfg:     validCfg,
+			name: "valid azure config",
+			cfg: func() config.ProviderConfig {
+				c := baseAzureConfig("test-azure", "test-resource", "test-deployment", "2024-02-01")
+				withValidModels(&c)
+				return c
+			}(),
 			wantErr: "",
 		},
 	}
 
-	runCloudProviderValidation(
-		t,
-		tests,
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) string {
-			return tc.name
-		},
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) config.ProviderConfig {
-			return tc.cfg
-		},
-		func(tc struct {
-			name    string
-			wantErr string
-			cfg     config.ProviderConfig
-		}) string {
-			return tc.wantErr
-		},
-		[]string{"resource name is required", "required for azure provider"},
-	)
+	runCloudProviderValidation(t, tests, []string{"resource name is required", "required for azure provider"})
 }
 
-func TestCreateCloudProviderUnknownType(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	cfg := config.ProviderConfig{
-		ModelMapping:       map[string]string{},
-		AWSRegion:          "",
-		GCPProjectID:       "",
-		AzureAPIVersion:    "",
-		Name:               "test-unknown",
-		Type:               "unknown-type",
-		BaseURL:            "",
-		AzureDeploymentID:  "",
-		AWSAccessKeyID:     "",
-		AzureResourceName:  "",
-		AWSSecretAccessKey: "",
-		GCPRegion:          "",
-		Models:             nil,
-		Pooling:            config.PoolingConfig{Enabled: false, Strategy: ""},
-		Keys:               nil,
-		Enabled:            true,
-	}
-
-	prov, err := di.CreateCloudProvider(ctx, &cfg)
-
+// assertUnknownProviderType asserts that CreateCloudProvider returns
+// ErrUnknownProviderType for the given config. Shared between the
+// Unknown/NonCloud tests to keep assertion shape identical.
+func assertUnknownProviderType(t *testing.T, cfg *config.ProviderConfig) {
+	t.Helper()
+	prov, err := di.CreateCloudProvider(context.Background(), cfg)
 	assert.ErrorIs(t, err, di.ErrUnknownProviderType)
 	assert.Nil(t, prov)
 }
 
+func TestCreateCloudProviderUnknownType(t *testing.T) {
+	t.Parallel()
+	cfg := baseProviderConfig("test-unknown", "unknown-type")
+	assertUnknownProviderType(t, &cfg)
+}
+
 func TestCreateCloudProviderNonCloudType(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	// createCloudProvider should return ErrUnknownProviderType for non-cloud types
 	nonCloudTypes := []string{
@@ -337,29 +250,9 @@ func TestCreateCloudProviderNonCloudType(t *testing.T) {
 	for _, pType := range nonCloudTypes {
 		t.Run(pType, func(t *testing.T) {
 			t.Parallel()
-			cfg := config.ProviderConfig{
-				ModelMapping:       map[string]string{},
-				AWSRegion:          "",
-				GCPProjectID:       "",
-				AzureAPIVersion:    "",
-				Name:               "test-" + pType,
-				Type:               pType,
-				BaseURL:            "https://api.example.com",
-				AzureDeploymentID:  "",
-				AWSAccessKeyID:     "",
-				AzureResourceName:  "",
-				AWSSecretAccessKey: "",
-				GCPRegion:          "",
-				Models:             nil,
-				Pooling:            config.PoolingConfig{Enabled: false, Strategy: ""},
-				Keys:               nil,
-				Enabled:            true,
-			}
-
-			prov, err := di.CreateCloudProvider(ctx, &cfg)
-
-			assert.ErrorIs(t, err, di.ErrUnknownProviderType)
-			assert.Nil(t, prov)
+			cfg := baseProviderConfig("test-"+pType, pType)
+			cfg.BaseURL = "https://api.example.com"
+			assertUnknownProviderType(t, &cfg)
 		})
 	}
 }
