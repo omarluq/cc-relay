@@ -2,6 +2,7 @@ package keypool_test
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"testing"
@@ -289,6 +290,34 @@ func TestMarkHealthy(t *testing.T) {
 	assert.True(t, key.Healthy, "Should be healthy after MarkHealthy")
 	assert.Nil(t, key.LastError, "LastError should be nil after MarkHealthy")
 	assert.True(t, key.IsAvailable(), "Should be available after MarkHealthy")
+}
+
+// TestKeyMetadataString verifies the human-readable String() representation.
+func TestKeyMetadataString(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fresh key reports full capacity and healthy", func(t *testing.T) {
+		t.Parallel()
+		key := keypool.NewKeyMetadata("sk-test-string-key", 50, 30000, 30000)
+		got := key.String()
+
+		// Must include the 8-char ID, all counters in remaining/limit form, and healthy state.
+		assert.Contains(t, got, fmt.Sprintf("Key[%s]", key.ID),
+			"String() should include the hashed key ID prefix")
+		assert.Contains(t, got, "rpm=50/50", "expected full rpm counter")
+		assert.Contains(t, got, "itpm=30000/30000", "expected full itpm counter")
+		assert.Contains(t, got, "otpm=30000/30000", "expected full otpm counter")
+		assert.Contains(t, got, "healthy=true", "fresh key should be healthy")
+	})
+
+	t.Run("unhealthy key reports healthy=false", func(t *testing.T) {
+		t.Parallel()
+		key := keypool.NewKeyMetadata("sk-unhealthy-key", 50, 30000, 30000)
+		key.MarkUnhealthy(http.ErrServerClosed)
+
+		assert.Contains(t, key.String(), "healthy=false",
+			"MarkUnhealthy should be reflected in String() output")
+	})
 }
 
 // TestLeastLoadedSelector verifies least-loaded selection strategy.

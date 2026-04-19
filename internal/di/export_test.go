@@ -1,6 +1,7 @@
 package di
 
 import (
+	"net/http"
 	"sync/atomic"
 
 	"github.com/omarluq/cc-relay/internal/cache"
@@ -239,8 +240,10 @@ func NewConfigServiceWithNilWatcher(cfg *config.Config) *ConfigService {
 }
 
 // NewProviderMapServiceWithConfigService creates a ProviderMapService with a specific ConfigService.
+// Does not initialize the atomic data pointer - callers must call StoreProviderMapData to set data,
+// or rely on the legacy Providers field fallback.
 func NewProviderMapServiceWithConfigService(cfgSvc *ConfigService) *ProviderMapService {
-	svc := &ProviderMapService{
+	return &ProviderMapService{
 		data:            atomic.Pointer[providerMapData]{},
 		cfgSvc:          cfgSvc,
 		PrimaryProvider: nil,
@@ -248,13 +251,6 @@ func NewProviderMapServiceWithConfigService(cfgSvc *ConfigService) *ProviderMapS
 		PrimaryKey:      "",
 		AllProviders:    nil,
 	}
-	svc.data.Store(&providerMapData{
-		PrimaryProvider: nil,
-		Providers:       nil,
-		PrimaryKey:      "",
-		AllProviders:    nil,
-	})
-	return svc
 }
 
 // NewProviderInfoService creates a ProviderInfoService with all dependencies.
@@ -290,4 +286,63 @@ func NewHealthTrackerServiceWithTracker(tracker *health.Tracker) *HealthTrackerS
 		cfgSvc:  nil,
 		logger:  nil,
 	}
+}
+
+// CreateCloudProvider exports createCloudProvider for testing.
+var CreateCloudProvider = createCloudProvider
+
+// TestProviderMapData is an alias for providerMapData for testing.
+type TestProviderMapData = providerMapData
+
+// SetLegacyProviders sets the legacy Providers field for testing.
+func (s *ProviderMapService) SetLegacyProviders(provs map[string]Provider) {
+	s.Providers = provs
+}
+
+// Provider is a type alias for providers.Provider to allow mock providers in tests.
+type Provider = providers.Provider
+
+// MockProvider is a minimal implementation of providers.Provider for testing.
+type MockProvider struct {
+	ModelMappingVal    map[string]string
+	NameVal            string
+	BaseURLVal         string
+	OwnerVal           string
+	StreamingTypeVal   string
+	StreamingVal       bool
+	TransparentAuthVal bool
+	BodyTransformVal   bool
+}
+
+func (m *MockProvider) Name() string    { return m.NameVal }
+func (m *MockProvider) BaseURL() string { return m.BaseURLVal }
+func (m *MockProvider) Owner() string   { return m.OwnerVal }
+func (m *MockProvider) Authenticate(_ *http.Request, _ string) error {
+	return nil
+}
+func (m *MockProvider) ForwardHeaders(h http.Header) http.Header { return h }
+func (m *MockProvider) SupportsStreaming() bool                  { return m.StreamingVal }
+func (m *MockProvider) SupportsTransparentAuth() bool            { return m.TransparentAuthVal }
+func (m *MockProvider) ListModels() []providers.Model            { return nil }
+func (m *MockProvider) GetModelMapping() map[string]string       { return m.ModelMappingVal }
+func (m *MockProvider) MapModel(model string) string {
+	if m, ok := m.ModelMappingVal[model]; ok {
+		return m
+	}
+	return model
+}
+func (m *MockProvider) TransformRequest(
+	body []byte, endpoint string,
+) (transformedBody []byte, transformedEndpoint string, err error) {
+	return body, endpoint, nil
+}
+func (m *MockProvider) TransformResponse(_ *http.Response, _ http.ResponseWriter) error {
+	return nil
+}
+func (m *MockProvider) RequiresBodyTransform() bool { return m.BodyTransformVal }
+func (m *MockProvider) StreamingContentType() string {
+	if m.StreamingTypeVal != "" {
+		return m.StreamingTypeVal
+	}
+	return "text/event-stream"
 }
