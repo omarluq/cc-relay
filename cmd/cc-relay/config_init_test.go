@@ -32,9 +32,7 @@ func newMockInitCmd() *cobra.Command {
 }
 
 func TestRunConfigInitDefaultPath(t *testing.T) {
-	t.Parallel(
-	// Note: Cannot use t.Parallel() (modifies HOME env var)
-	)
+	t.Parallel()
 
 	// Create a temp directory to use as HOME
 	tmpDir := t.TempDir()
@@ -81,10 +79,8 @@ func TestRunConfigInitDefaultPath(t *testing.T) {
 	}
 }
 
-func TestRunConfigInitCustomPath(t *testing.T) {
-	t.Parallel(
+func TestRunConfigInitCustomPath(t *testing.T) { //nolint:paralleltest // modifies HOME env var
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
-	)
 
 	// Create a temp directory
 	tmpDir := t.TempDir()
@@ -108,10 +104,8 @@ func TestRunConfigInitCustomPath(t *testing.T) {
 	}
 }
 
-func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
-	t.Parallel(
+func TestRunConfigInitExistingFileWithoutForce(t *testing.T) { //nolint:paralleltest // modifies HOME env var
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
-	)
 
 	// Create a temp directory with an existing config file
 	tmpDir := t.TempDir()
@@ -136,10 +130,8 @@ func TestRunConfigInitExistingFileWithoutForce(t *testing.T) {
 	}
 }
 
-func TestRunConfigInitExistingFileWithForce(t *testing.T) {
-	t.Parallel(
+func TestRunConfigInitExistingFileWithForce(t *testing.T) { //nolint:paralleltest // modifies HOME env var
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
-	)
 
 	// Create a temp directory with an existing config file
 	tmpDir := t.TempDir()
@@ -178,10 +170,8 @@ func TestRunConfigInitExistingFileWithForce(t *testing.T) {
 	}
 }
 
-func TestRunConfigInitCreatesDirectory(t *testing.T) {
-	t.Parallel(
+func TestRunConfigInitCreatesDirectory(t *testing.T) { //nolint:paralleltest // modifies HOME env var
 	// Note: Cannot use t.Parallel() (modifies HOME env var)
-	)
 
 	// Create a temp directory
 	tmpDir := t.TempDir()

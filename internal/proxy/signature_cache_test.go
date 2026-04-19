@@ -73,12 +73,7 @@ func TestSignatureCacheGetSet(t *testing.T) {
 	defer cleanup()
 	ctx := context.Background()
 
-	// Generate a valid signature (>= MinSignatureLen)
-	validSig := "sig_" + string(make([]byte, proxy.MinSignatureLen))
-	for i := 4; i < len(validSig); i++ {
-		validSig = validSig[:i] + "a" + validSig[i+1:]
-	}
-	validSig = testValidSignature
+	validSig := testValidSignature
 
 	// Test cache miss
 	got := sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
@@ -87,11 +82,14 @@ func TestSignatureCacheGetSet(t *testing.T) {
 	// Test cache set and get
 	sigCache.Set(ctx, "claude-sonnet-4", "thinking text", validSig)
 
-	// Ristretto needs a small delay for async set
-	time.Sleep(10 * time.Millisecond)
+	// Ristretto writes are async - poll until visible instead of fixed sleep
+	var actual string
+	require.Eventually(t, func() bool {
+		actual = sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
+		return actual == validSig
+	}, 250*time.Millisecond, 5*time.Millisecond, "cached signature should be available")
 
-	got = sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
-	assert.Equal(t, validSig, got, "should return cached signature")
+	assert.Equal(t, validSig, actual, "should return cached signature")
 
 	// Test same model group retrieval (different model, same group)
 	got = sigCache.Get(ctx, "claude-3-opus", "thinking text")
@@ -112,17 +110,18 @@ func TestSignatureCacheSkipsShortSignatures(t *testing.T) {
 	shortSig := "short"
 	sigCache.Set(ctx, "claude-sonnet-4", "thinking text", shortSig)
 
-	time.Sleep(10 * time.Millisecond)
-
-	// Should not be cached
-	got := sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
-	assert.Empty(t, got, "short signature should not be cached")
+	// Ristretto writes are async - verify it was NOT cached
+	var actual string
+	require.Never(t, func() bool {
+		actual = sigCache.Get(ctx, "claude-sonnet-4", "thinking text")
+		return actual != ""
+	}, 100*time.Millisecond, 5*time.Millisecond, "short signature should not be cached")
+	assert.Empty(t, actual, "short signature should not be cached")
 }
 
 func TestSignatureCacheNilCache(t *testing.T) {
-	t.Parallel(
 	// NewSignatureCache with nil should return nil
-	)
+	t.Parallel()
 
 	sigCache := proxy.NewSignatureCache(nil)
 	assert.Nil(t, sigCache)
@@ -176,8 +175,12 @@ func TestSignatureCacheGeminiSentinel(t *testing.T) {
 	// Gemini sentinel should be cached even though it's short
 	sigCache.Set(ctx, "gemini-pro", "thinking text", proxy.GeminiSignatureSentinel)
 
-	time.Sleep(10 * time.Millisecond)
+	// Ristretto writes are async - poll until visible instead of fixed sleep
+	var actual string
+	require.Eventually(t, func() bool {
+		actual = sigCache.Get(ctx, "gemini-pro", "thinking text")
+		return actual == proxy.GeminiSignatureSentinel
+	}, 250*time.Millisecond, 5*time.Millisecond, "sentinel should be cached")
 
-	got := sigCache.Get(ctx, "gemini-pro", "thinking text")
-	assert.Equal(t, proxy.GeminiSignatureSentinel, got)
+	assert.Equal(t, proxy.GeminiSignatureSentinel, actual)
 }

@@ -112,7 +112,7 @@ func TestAllow(t *testing.T) {
 			ctx := context.Background()
 
 			allowed := 0
-			for reqIdx := 0; reqIdx < testCase.numRequests; reqIdx++ {
+			for requestIdx := 0; requestIdx < testCase.numRequests; requestIdx++ {
 				if limiter.Allow(ctx) {
 					allowed++
 				}
@@ -128,9 +128,8 @@ func TestAllow(t *testing.T) {
 func TestWait(t *testing.T) {
 	t.Parallel()
 	t.Run("blocks until capacity available", func(t *testing.T) {
-		t.Parallel(
-		// Use very low limit for fast test
-		)
+		// Note: Test takes ~1 second minimum due to 60 RPM rate limit
+		t.Parallel()
 
 		limiter := ratelimit.NewTokenBucketLimiter(60, 10000) // 1 per second
 		ctx := context.Background()

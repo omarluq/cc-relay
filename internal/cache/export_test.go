@@ -20,9 +20,6 @@ var NewRistrettoCacheForTest = newRistrettoCache
 // NewNoopCacheForTest exports the noop cache constructor for testing.
 var NewNoopCacheForTest = newNoopCache
 
-// ParseBindAddrForTest exports parseBindAddr for testing.
-var ParseBindAddrForTest = parseBindAddr
-
 // OlricCacheT exports the internal cache type for testing.
 type OlricCacheT = olricCache
 
@@ -51,6 +48,26 @@ func NewRistrettoCacheWithLogger(cfg RistrettoConfig, l *zerolog.Logger) (*ristr
 func NewNoopCacheWithLogger(l *zerolog.Logger) *noopCache {
 	return newNoopCacheWithLog(l)
 }
+
+// Exported helper functions for testing in cache_test package.
+
+// GetEnvironmentForTest exports getEnvironment for testing.
+var GetEnvironmentForTest = getEnvironment
+
+// ApplyBindPortForTest exports applyBindPort for testing.
+var ApplyBindPortForTest = applyBindPort
+
+// ApplyClusterSettingsForTest exports applyClusterSettings for testing.
+var ApplyClusterSettingsForTest = applyClusterSettings
+
+// ConfigureMemberlistForTest exports configureMemberlist for testing.
+var ConfigureMemberlistForTest = configureMemberlist
+
+// BuildOlricConfigForTest exports buildOlricConfig for testing.
+var BuildOlricConfigForTest = buildOlricConfig
+
+// ParseBindAddrForTest exports parseBindAddr for testing.
+var ParseBindAddrForTest = parseBindAddr
 
 // NewForTest creates a cache via the factory using a specific logger,
 // avoiding the global cache.Logger for test isolation.
@@ -175,5 +192,11 @@ func ZeroRistrettoConfig() RistrettoConfig {
 		MaxCost:     0,
 		BufferItems: 0,
 	}
+}
+
+// NewRistrettoCacheInternalForTest exports newRistrettoCacheInternal for testing
+// error paths (e.g., invalid ristretto config causing NewCache to fail).
+func NewRistrettoCacheInternalForTest(cfg RistrettoConfig, l *zerolog.Logger) (*ristrettoCache, error) {
+	return newRistrettoCacheInternal(cfg, l)
 }
 

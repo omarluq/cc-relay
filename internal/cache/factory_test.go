@@ -11,7 +11,27 @@ import (
 	"github.com/omarluq/cc-relay/internal/cache"
 )
 
-const factoryTestKey = "test-key"
+const (
+	factoryTestKey            = "test-key"
+	waitForRistrettoTimeout   = 500 * time.Millisecond
+	waitForRistrettoPollDelay = 5 * time.Millisecond
+)
+
+// waitForRistrettoGet polls until Get returns the expected value.
+// Ristretto writes are async, so we poll instead of sleeping.
+func waitForRistrettoGet(ctx context.Context, t *testing.T, cacheInst cache.Cache, key string, wantValue []byte) {
+	t.Helper()
+	deadline := time.Now().Add(waitForRistrettoTimeout)
+	for time.Now().Before(deadline) {
+		got, err := cacheInst.Get(ctx, key)
+		if err == nil && bytes.Equal(got, wantValue) {
+			return
+		}
+		time.Sleep(waitForRistrettoPollDelay)
+	}
+	got, err := cacheInst.Get(ctx, key)
+	t.Fatalf("after polling, Get() error=%v value=%q, want value %q", err, got, wantValue)
+}
 
 func TestNewModeSingleCreatesRistretto(t *testing.T) {
 	t.Parallel()
@@ -39,16 +59,8 @@ func TestNewModeSingleCreatesRistretto(t *testing.T) {
 		t.Fatalf("Set() error = %v, want nil", setErr)
 	}
 
-	// Ristretto is async, wait for write to complete
-	time.Sleep(10 * time.Millisecond)
-
-	got, err := cacheInst.Get(ctx, key)
-	if err != nil {
-		t.Fatalf("Get() error = %v, want nil", err)
-	}
-	if !bytes.Equal(got, value) {
-		t.Errorf("Get() = %q, want %q", got, value)
-	}
+	// Ristretto writes are async - poll until visible instead of fixed sleep
+	waitForRistrettoGet(ctx, t, cacheInst, key, value)
 
 	if _, ok := cacheInst.(cache.StatsProvider); !ok {
 		t.Error("expected cache to implement StatsProvider")
@@ -245,14 +257,6 @@ func TestNewDefaultConfigWorks(t *testing.T) {
 		t.Fatalf("Set() error = %v, want nil", setErr)
 	}
 
-	// Wait for async write
-	time.Sleep(10 * time.Millisecond)
-
-	got, err := cacheInst.Get(ctx, key)
-	if err != nil {
-		t.Fatalf("Get() error = %v, want nil", err)
-	}
-	if !bytes.Equal(got, value) {
-		t.Errorf("Get() = %q, want %q", got, value)
-	}
+	// Ristretto writes are async - poll until visible instead of fixed sleep
+	waitForRistrettoGet(ctx, t, cacheInst, key, value)
 }
