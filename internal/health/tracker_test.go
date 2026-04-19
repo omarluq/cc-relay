@@ -274,3 +274,45 @@ func TestTrackerConcurrentAccess(t *testing.T) {
 		t.Errorf("expected 1 provider in states, got %d", len(states))
 	}
 }
+
+func TestTrackerResetClearsCircuitsAndAppliesNewConfig(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.Nop()
+	initialCfg := health.CircuitBreakerConfig{
+		FailureThreshold: 5,
+		OpenDurationMS:   1000,
+		HalfOpenProbes:   2,
+	}
+
+	tracker := health.NewTracker(initialCfg, &logger)
+
+	// Create two circuits and put them into a non-default state.
+	tracker.RecordFailure("provider-a", errors.New("boom"))
+	tracker.RecordFailure("provider-b", errors.New("boom"))
+
+	before := tracker.AllStates()
+	if len(before) != 2 {
+		t.Fatalf("expected 2 circuits before reset, got %d", len(before))
+	}
+
+	// Reset with a new configuration and a fresh logger.
+	newLogger := zerolog.Nop()
+	newCfg := health.CircuitBreakerConfig{
+		FailureThreshold: 1, // Lower threshold to prove the new config took effect.
+		OpenDurationMS:   30000,
+		HalfOpenProbes:   1,
+	}
+	tracker.Reset(newCfg, &newLogger)
+
+	// Existing circuits should be gone after reset.
+	if states := tracker.AllStates(); len(states) != 0 {
+		t.Errorf("expected 0 circuits after Reset, got %d (%v)", len(states), states)
+	}
+
+	// A newly-created circuit should honor the new threshold (opens after 1 failure).
+	tracker.RecordFailure("provider-c", errors.New("first and only failure"))
+
+	if got := tracker.GetState("provider-c"); got != health.StateOpen {
+		t.Errorf("expected StateOpen after 1 failure with new threshold=1, got %s", got.String())
+	}
+}
