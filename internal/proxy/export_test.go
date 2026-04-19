@@ -875,3 +875,15 @@ func GetResponseWriterIsStreaming(rw *ResponseWriter) bool {
 func GetResponseWriterSSEEvents(rw *ResponseWriter) int {
 	return rw.sseEvents
 }
+
+// FormatLevelForTest exports formatLevel for proxy_test package.
+var FormatLevelForTest = formatLevel
+
+// FormatMessageForTest exports formatMessage for proxy_test package.
+var FormatMessageForTest = formatMessage
+
+// FormatFieldNameForTest exports formatFieldName for proxy_test package.
+var FormatFieldNameForTest = formatFieldName
+
+// BuildConsoleWriterForTest exports buildConsoleWriter for proxy_test package.
+var BuildConsoleWriterForTest = buildConsoleWriter

@@ -622,3 +622,335 @@ func TestEventStreamToSSEIntegration(t *testing.T) {
 		assert.Contains(t, body, "\n\n") // Event separators
 	})
 }
+
+// Test FormatMessageAsSSE
+
+func TestFormatMessageAsSSE_Nil(t *testing.T) {
+	t.Parallel()
+
+	result := providers.FormatMessageAsSSE(nil)
+	if result != nil {
+		t.Errorf("FormatMessageAsSSE(nil) = %v, want nil", result)
+	}
+}
+
+func TestFormatMessageAsSSE_NormalEvent(t *testing.T) {
+	t.Parallel()
+
+	msg := &providers.EventStreamMessage{
+		Headers: map[string]string{
+			":event-type": "content_block_delta",
+		},
+		Payload: []byte(`{"type":"content_block_delta","index":0}`),
+	}
+
+	result := providers.FormatMessageAsSSE(msg)
+	if result == nil {
+		t.Fatal("FormatMessageAsSSE() returned nil for valid event")
+	}
+
+	s := string(result)
+	if s == "" {
+		t.Error("FormatMessageAsSSE() returned empty bytes")
+	}
+}
+
+func TestFormatMessageAsSSE_Exception(t *testing.T) {
+	t.Parallel()
+
+	msg := &providers.EventStreamMessage{
+		Headers: map[string]string{
+			":exception-type": "throttlingException",
+		},
+		Payload: []byte(`{"message":"Too many requests"}`),
+	}
+
+	result := providers.FormatMessageAsSSE(msg)
+	if result == nil {
+		t.Fatal("FormatMessageAsSSE() returned nil for exception event")
+	}
+}
+
+func TestFormatMessageAsSSE_NoEventType(t *testing.T) {
+	t.Parallel()
+
+	msg := &providers.EventStreamMessage{
+		Headers: map[string]string{},
+		Payload: []byte(`{"type":"unknown"}`),
+	}
+
+	result := providers.FormatMessageAsSSE(msg)
+	if result != nil {
+		t.Errorf("FormatMessageAsSSE(no event type) = %v, want nil", result)
+	}
+}
+
+// Test skipNonStringHeader
+
+func TestSkipNonStringHeader_BoolType(t *testing.T) {
+	t.Parallel()
+
+	data := []byte{0x00, 0x01, 0x02}
+	val, offset, err := providers.ExportSkipNonStringHeader(data, 0, 0, "bool_header")
+	if err != nil {
+		t.Fatalf("skipNonStringHeader(bool) error: %v", err)
+	}
+	if val != nil {
+		t.Error("skipNonStringHeader(bool) should return nil value")
+	}
+	if offset != 0 {
+		t.Errorf("skipNonStringHeader(bool) offset = %d, want 0", offset)
+	}
+}
+
+func TestSkipNonStringHeader_TrueBoolType(t *testing.T) {
+	t.Parallel()
+
+	data := []byte{0x00, 0x01, 0x02}
+	val, offset, err := providers.ExportSkipNonStringHeader(data, 0, 1, "true_header")
+	if err != nil {
+		t.Fatalf("skipNonStringHeader(true bool) error: %v", err)
+	}
+	if val != nil {
+		t.Error("skipNonStringHeader(true bool) should return nil value")
+	}
+	if offset != 0 {
+		t.Errorf("skipNonStringHeader(true bool) offset = %d, want 0", offset)
+	}
+}
+
+func TestSkipNonStringHeader_UnknownType(t *testing.T) {
+	t.Parallel()
+
+	data := []byte{0x00}
+	_, _, err := providers.ExportSkipNonStringHeader(data, 0, 99, "unknown")
+	if err == nil {
+		t.Error("skipNonStringHeader(unknown type) should return error")
+	}
+}
+
+func TestSkipNonStringHeader_BytesType(t *testing.T) {
+	t.Parallel()
+
+	// Type 6 = variable-length bytes: 2-byte length prefix + data
+	data := []byte{0x00, 0x03, 'a', 'b', 'c'} // length=3, data="abc"
+	val, offset, err := providers.ExportSkipNonStringHeader(data, 0, 6, "bytes_header")
+	if err != nil {
+		t.Fatalf("skipNonStringHeader(bytes) error: %v", err)
+	}
+	if val != nil {
+		t.Error("skipNonStringHeader(bytes) should return nil value")
+	}
+	if offset != 5 {
+		t.Errorf("skipNonStringHeader(bytes) offset = %d, want 5", offset)
+	}
+}
+
+func TestSkipNonStringHeader_BytesTruncated(t *testing.T) {
+	t.Parallel()
+
+	// Not enough data for length prefix
+	data := []byte{0x00}
+	_, _, err := providers.ExportSkipNonStringHeader(data, 0, 6, "truncated")
+	if err == nil {
+		t.Error("skipNonStringHeader(truncated bytes) should return error")
+	}
+}
+
+// Test advanceOffset
+
+func TestAdvanceOffset_Valid(t *testing.T) {
+	t.Parallel()
+
+	data := make([]byte, 10)
+	val, next, err := providers.ExportAdvanceOffset(data, 2, 4, "test")
+	if err != nil {
+		t.Fatalf("advanceOffset() error: %v", err)
+	}
+	if val != nil {
+		t.Error("advanceOffset() should return nil value")
+	}
+	if next != 6 {
+		t.Errorf("advanceOffset() next = %d, want 6", next)
+	}
+}
+
+func TestAdvanceOffset_OutOfBounds(t *testing.T) {
+	t.Parallel()
+
+	data := make([]byte, 5)
+	_, _, err := providers.ExportAdvanceOffset(data, 3, 5, "oob")
+	if err == nil {
+		t.Error("advanceOffset(out of bounds) should return error")
+	}
+}
+
+func TestAdvanceOffset_NegativeOffset(t *testing.T) {
+	t.Parallel()
+
+	data := make([]byte, 5)
+	_, _, err := providers.ExportAdvanceOffset(data, -1, 2, "neg")
+	if err == nil {
+		t.Error("advanceOffset(negative offset) should return error")
+	}
+}
+
+// Test writeSSEEvent
+
+func TestWriteSSEEvent_Nil(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	written, err := providers.ExportWriteSSEEvent(rec, rec, nil)
+	if err != nil {
+		t.Fatalf("writeSSEEvent(nil) error: %v", err)
+	}
+	if written {
+		t.Error("writeSSEEvent(nil) should return false")
+	}
+}
+
+func TestWriteSSEEvent_NoEventType(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	msg := &providers.EventStreamMessage{
+		Headers: map[string]string{},
+		Payload: []byte(`{}`),
+	}
+	written, err := providers.ExportWriteSSEEvent(rec, rec, msg)
+	if err != nil {
+		t.Fatalf("writeSSEEvent(no event type) error: %v", err)
+	}
+	if written {
+		t.Error("writeSSEEvent(no event type) should return false")
+	}
+}
+
+func TestWriteSSEEvent_ValidEvent(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	msg := &providers.EventStreamMessage{
+		Headers: map[string]string{
+			":event-type": "message_start",
+		},
+		Payload: []byte(`{"type":"message_start"}`),
+	}
+	written, err := providers.ExportWriteSSEEvent(rec, rec, msg)
+	if err != nil {
+		t.Fatalf("writeSSEEvent() error: %v", err)
+	}
+	if !written {
+		t.Error("writeSSEEvent() should return true for valid event")
+	}
+
+	body := rec.Body.String()
+	if body == "" {
+		t.Error("writeSSEEvent() should write SSE data to writer")
+	}
+}
+
+func TestWriteSSEEvent_Exception(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	msg := &providers.EventStreamMessage{
+		Headers: map[string]string{
+			":exception-type": "throttlingException",
+		},
+		Payload: []byte(`{"message":"rate limited"}`),
+	}
+	written, err := providers.ExportWriteSSEEvent(rec, rec, msg)
+	if err != nil {
+		t.Fatalf("writeSSEEvent(exception) error: %v", err)
+	}
+	if !written {
+		t.Error("writeSSEEvent(exception) should return true")
+	}
+}
+
+// Test writeExceptionEvent
+
+func TestWriteExceptionEvent(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	written, err := providers.ExportWriteExceptionEvent(rec, rec, "throttling", []byte(`{"msg":"too fast"}`))
+	if err != nil {
+		t.Fatalf("writeExceptionEvent() error: %v", err)
+	}
+	if !written {
+		t.Error("writeExceptionEvent() should return true")
+	}
+
+	ct := rec.Header().Get("Content-Type")
+	if ct != "text/event-stream" {
+		t.Errorf("writeExceptionEvent() Content-Type = %q, want text/event-stream", ct)
+	}
+}
+
+// Test NewBedrockProvider validation
+
+func TestNewBedrockProvider_MissingRegion(t *testing.T) {
+	t.Parallel()
+
+	_, err := providers.NewBedrockProvider(t.Context(), &providers.BedrockConfig{
+		ModelMapping: nil,
+		Name:         "test",
+		Region:       "",
+		Models:       nil,
+	})
+	if err == nil {
+		t.Error("NewBedrockProvider(empty region) should return error")
+	}
+}
+
+// Test NewVertexProvider validation
+
+func TestNewVertexProvider_MissingProjectID(t *testing.T) {
+	t.Parallel()
+
+	_, err := providers.NewVertexProvider(t.Context(), &providers.VertexConfig{
+		ModelMapping: nil,
+		Name:         "test",
+		ProjectID:    "",
+		Region:       "us-central1",
+		Models:       nil,
+	})
+	if err == nil {
+		t.Error("NewVertexProvider(empty project_id) should return error")
+	}
+}
+
+func TestNewVertexProvider_MissingRegion(t *testing.T) {
+	t.Parallel()
+
+	_, err := providers.NewVertexProvider(t.Context(), &providers.VertexConfig{
+		ModelMapping: nil,
+		Name:         "test",
+		ProjectID:    "my-project",
+		Region:       "",
+		Models:       nil,
+	})
+	if err == nil {
+		t.Error("NewVertexProvider(empty region) should return error")
+	}
+}
+
+// Test TransformBodyForCloudProvider edge case
+
+func TestTransformBodyForCloudProvider_EmptyBody(t *testing.T) {
+	t.Parallel()
+
+	newBody, model, err := providers.TransformBodyForCloudProvider([]byte("{}"), "test-2024")
+	if err != nil {
+		t.Fatalf("TransformBodyForCloudProvider({}) error: %v", err)
+	}
+	if model != "" {
+		t.Errorf("TransformBodyForCloudProvider({}) model = %q, want empty", model)
+	}
+	if newBody == nil {
+		t.Fatal("TransformBodyForCloudProvider({}) returned nil body")
+	}
+}

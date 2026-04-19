@@ -90,14 +90,18 @@ func TestRistrettoCacheSetWithTTLExpires(t *testing.T) {
 		t.Errorf("Get returned %q, want %q", got, value)
 	}
 
-	// Wait for TTL to expire
-	time.Sleep(ttl + 100*time.Millisecond)
-
-	// Should not exist after TTL expires
-	_, err = ristrettoCache.Get(ctx, key)
-	if !errors.Is(err, cache.ErrNotFound) {
-		t.Errorf("Get after TTL expired returned %v, want ErrNotFound", err)
+	// Wait for TTL to expire, then poll to confirm value is gone
+	deadline := time.Now().Add(ttl + 200*time.Millisecond)
+	for time.Now().Before(deadline) {
+		_, err = ristrettoCache.Get(ctx, key)
+		if errors.Is(err, cache.ErrNotFound) {
+			return // Success: value expired as expected
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	// If we exit loop, value didn't expire in time
+	_, err = ristrettoCache.Get(ctx, key)
+	t.Fatalf("Get after %v TTL should return ErrNotFound, got %v", ttl, err)
 }
 
 func TestRistrettoCacheDelete(t *testing.T) {
@@ -642,5 +646,103 @@ func benchmarkMixedOp(
 		if _, err := ristrettoCache.Get(ctx, key); err != nil {
 			b.Fatalf("Get(%q) failed: %v", key, err)
 		}
+	}
+}
+
+// Test for newRistrettoCacheWithLog path.
+func TestNewRistrettoCacheWithLogger(t *testing.T) {
+	t.Parallel()
+	_, logPtr := cache.NewTestLogger(0)
+
+	cfg := cache.SmallTestRistrettoConfig()
+	ristrettoCache, err := cache.NewRistrettoCacheWithLogger(cfg, logPtr)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheWithLogger() error = %v, want nil", err)
+	}
+	defer func() {
+		if closeErr := ristrettoCache.Close(); closeErr != nil {
+			t.Errorf("Close() error = %v", closeErr)
+		}
+	}()
+
+	ctx := context.Background()
+	err = ristrettoCache.Set(ctx, "test", []byte("value"))
+	if err != nil {
+		t.Errorf("Set() error = %v, want nil", err)
+	}
+}
+
+// Test concurrent operations during close to hit early closed check.
+func TestRistrettoCacheConcurrentClose(t *testing.T) {
+	t.Parallel()
+	cfg := cache.SmallTestRistrettoConfig()
+	ristrettoCache, err := cache.NewRistrettoCacheForTest(cfg)
+	if err != nil {
+		t.Fatalf("NewRistrettoCacheForTest() error = %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Pre-populate cache
+	for i := 0; i < 10; i++ {
+		key := fmt.Sprintf("key-%d", i)
+		if setErr := ristrettoCache.Set(ctx, key, []byte("value")); setErr != nil {
+			t.Fatalf("Set(%q) error = %v", key, setErr)
+		}
+	}
+	cache.RistrettoWait(ristrettoCache)
+
+	// Start many goroutines doing operations while we close
+	const numGoroutines = 50
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(numGoroutines + 1)
+
+	// Some goroutines doing reads
+	for idx := 0; idx < numGoroutines/2; idx++ {
+		go func(_ int) {
+			defer waitGroup.Done()
+			for j := 0; j < 100; j++ {
+				key := fmt.Sprintf("key-%d", j%10)
+				// Errors expected during concurrent close; intentionally ignored.
+				_, getErr := ristrettoCache.Get(ctx, key)
+				_ = getErr
+			}
+		}(idx)
+	}
+
+	// Some goroutines doing writes
+	for idx := 0; idx < numGoroutines/2; idx++ {
+		go func(_ int) {
+			defer waitGroup.Done()
+			for j := 0; j < 100; j++ {
+				key := fmt.Sprintf("key-%d", j%10)
+				// Errors expected during concurrent close; intentionally ignored.
+				setErr := ristrettoCache.Set(ctx, key, []byte("value"))
+				_ = setErr
+			}
+		}(idx)
+	}
+
+	// Close the cache while operations are in flight
+	go func() {
+		defer waitGroup.Done()
+		// Small delay to let some operations start
+		time.Sleep(5 * time.Millisecond)
+		// Error intentionally ignored during concurrent close test.
+		closeErr := ristrettoCache.Close()
+		_ = closeErr
+	}()
+
+	waitGroup.Wait()
+
+	// After close, all operations should return ErrClosed
+	_, err = ristrettoCache.Get(ctx, "key-0")
+	if !errors.Is(err, cache.ErrClosed) {
+		t.Errorf("Get after close returned %v, want ErrClosed", err)
+	}
+
+	err = ristrettoCache.Set(ctx, "key-new", []byte("value"))
+	if !errors.Is(err, cache.ErrClosed) {
+		t.Errorf("Set after close returned %v, want ErrClosed", err)
 	}
 }

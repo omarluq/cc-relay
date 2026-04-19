@@ -148,3 +148,13 @@ func TestProviderOwner(t *testing.T) {
 		t.Errorf("Expected owner=anthropic, got %s", provider.Owner())
 	}
 }
+
+func TestSupportsTransparentAuth(t *testing.T) {
+	t.Parallel()
+
+	provider := providers.NewAnthropicProvider("test", "", nil, nil)
+
+	if !provider.SupportsTransparentAuth() {
+		t.Error("Expected AnthropicProvider to support transparent auth")
+	}
+}
