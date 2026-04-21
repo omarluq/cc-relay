@@ -14,7 +14,7 @@ require (
 	github.com/mattn/go-isatty v0.0.21
 	github.com/olric-data/olric v0.7.3
 	github.com/pelletier/go-toml/v2 v2.3.0
-	github.com/rs/zerolog v1.35.0
+	github.com/rs/zerolog v1.35.1
 	github.com/samber/do/v2 v2.0.0
 	github.com/samber/lo v1.53.0
 	github.com/samber/mo v1.16.0
