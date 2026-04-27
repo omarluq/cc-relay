@@ -10,14 +10,30 @@ import (
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
+func newServerTestHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// defaultServerOptions returns a ServerOptions with zero-valued timeouts and
+// HTTP2 disabled. Tests that only care about a subset of fields can use this
+// to satisfy the exhaustruct linter without repeating boilerplate.
+func defaultServerOptions(addr string, handler http.Handler) proxy.ServerOptions {
+	return proxy.ServerOptions{
+		Addr:         addr,
+		Handler:      handler,
+		WriteTimeout: 0,
+		ReadTimeout:  0,
+		IdleTimeout:  0,
+		EnableHTTP2:  false,
+	}
+}
+
 func TestNewServerCreatesValidServer(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	server := proxy.NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer(defaultServerOptions("127.0.0.1:0", newServerTestHandler()))
 
 	if server == nil {
 		t.Fatal("Expected non-nil server")
@@ -32,37 +48,77 @@ func TestNewServerCreatesValidServer(t *testing.T) {
 	}
 }
 
-func TestNewServerHasCorrectTimeouts(t *testing.T) {
+func TestNewServerHasDefaultTimeouts(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	server := proxy.NewServer(defaultServerOptions("127.0.0.1:0", newServerTestHandler()))
 
-	server := proxy.NewServer("127.0.0.1:0", handler, false)
-
-	// Verify timeouts match documented values
 	if proxy.GetHTTPServer(server).ReadTimeout != 10*time.Second {
 		t.Errorf("Expected ReadTimeout 10s, got %v", proxy.GetHTTPServer(server).ReadTimeout)
 	}
-
 	if proxy.GetHTTPServer(server).WriteTimeout != 600*time.Second {
 		t.Errorf("Expected WriteTimeout 600s, got %v", proxy.GetHTTPServer(server).WriteTimeout)
 	}
-
 	if proxy.GetHTTPServer(server).IdleTimeout != 120*time.Second {
 		t.Errorf("Expected IdleTimeout 120s, got %v", proxy.GetHTTPServer(server).IdleTimeout)
+	}
+}
+
+// Regression test: server.timeout_ms must drive WriteTimeout. Previously
+// hardcoded — see memory/known_issues.md (resolved).
+func TestNewServerWriteTimeoutFromOptions(t *testing.T) {
+	t.Parallel()
+
+	custom := 90 * time.Second
+	server := proxy.NewServer(proxy.ServerOptions{
+		Addr:         "127.0.0.1:0",
+		Handler:      newServerTestHandler(),
+		WriteTimeout: custom,
+		ReadTimeout:  0,
+		IdleTimeout:  0,
+		EnableHTTP2:  false,
+	})
+
+	if got := proxy.GetHTTPServer(server).WriteTimeout; got != custom {
+		t.Errorf("WriteTimeout = %v, want %v (server.timeout_ms must wire through)", got, custom)
+	}
+	if got := proxy.GetHTTPServer(server).ReadTimeout; got != 10*time.Second {
+		t.Errorf("ReadTimeout = %v, want 10s default", got)
+	}
+	if got := proxy.GetHTTPServer(server).IdleTimeout; got != 120*time.Second {
+		t.Errorf("IdleTimeout = %v, want 120s default", got)
+	}
+}
+
+// Regression test: explicit overrides for ReadTimeout/IdleTimeout work too.
+func TestNewServerAllTimeoutsConfigurable(t *testing.T) {
+	t.Parallel()
+
+	server := proxy.NewServer(proxy.ServerOptions{
+		Addr:         "127.0.0.1:0",
+		Handler:      newServerTestHandler(),
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  5 * time.Second,
+		IdleTimeout:  60 * time.Second,
+		EnableHTTP2:  false,
+	})
+
+	httpSrv := proxy.GetHTTPServer(server)
+	if httpSrv.ReadTimeout != 5*time.Second {
+		t.Errorf("ReadTimeout = %v, want 5s", httpSrv.ReadTimeout)
+	}
+	if httpSrv.WriteTimeout != 30*time.Second {
+		t.Errorf("WriteTimeout = %v, want 30s", httpSrv.WriteTimeout)
+	}
+	if httpSrv.IdleTimeout != 60*time.Second {
+		t.Errorf("IdleTimeout = %v, want 60s", httpSrv.IdleTimeout)
 	}
 }
 
 func TestNewServerHasCorrectHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	server := proxy.NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer(defaultServerOptions("127.0.0.1:0", newServerTestHandler()))
 
 	if proxy.GetHTTPServer(server).Handler == nil {
 		t.Error("Expected non-nil handler")
@@ -72,12 +128,7 @@ func TestNewServerHasCorrectHandler(t *testing.T) {
 func TestServerListenAndServeInvalidAddress(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Use an invalid address that will fail to bind
-	server := proxy.NewServer("invalid-address:99999", handler, false)
+	server := proxy.NewServer(defaultServerOptions("invalid-address:99999", newServerTestHandler()))
 
 	err := server.ListenAndServe()
 	if err == nil {
@@ -88,11 +139,7 @@ func TestServerListenAndServeInvalidAddress(t *testing.T) {
 func TestServerShutdown(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	server := proxy.NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer(defaultServerOptions("127.0.0.1:0", newServerTestHandler()))
 
 	// Start server in goroutine
 	serverDone := make(chan struct{})
@@ -103,10 +150,8 @@ func TestServerShutdown(t *testing.T) {
 		}
 	}()
 
-	// Give server time to start
 	time.Sleep(10 * time.Millisecond)
 
-	// Shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -115,7 +160,6 @@ func TestServerShutdown(t *testing.T) {
 		t.Errorf("Shutdown failed: %v", err)
 	}
 
-	// Wait for server goroutine to finish
 	select {
 	case <-serverDone:
 		// OK
@@ -127,21 +171,21 @@ func TestServerShutdown(t *testing.T) {
 func TestNewServerHTTP2Enabled(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	server := proxy.NewServer(proxy.ServerOptions{
+		Addr:         "127.0.0.1:0",
+		Handler:      newServerTestHandler(),
+		WriteTimeout: 0,
+		ReadTimeout:  0,
+		IdleTimeout:  0,
+		EnableHTTP2:  true,
 	})
-
-	// Create server with HTTP/2 enabled
-	server := proxy.NewServer("127.0.0.1:0", handler, true)
 
 	if server == nil {
 		t.Fatal("Expected non-nil server")
 	}
-
 	if proxy.GetHTTPServer(server) == nil {
 		t.Fatal("Expected non-nil httpServer")
 	}
-
 	if proxy.GetHTTPServer(server).Handler == nil {
 		t.Error("Expected non-nil handler (should be wrapped with h2c)")
 	}
@@ -150,21 +194,14 @@ func TestNewServerHTTP2Enabled(t *testing.T) {
 func TestNewServerHTTP2Disabled(t *testing.T) {
 	t.Parallel()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Create server with HTTP/2 disabled
-	server := proxy.NewServer("127.0.0.1:0", handler, false)
+	server := proxy.NewServer(defaultServerOptions("127.0.0.1:0", newServerTestHandler()))
 
 	if server == nil {
 		t.Fatal("Expected non-nil server")
 	}
-
 	if proxy.GetHTTPServer(server) == nil {
 		t.Fatal("Expected non-nil httpServer")
 	}
-
 	if proxy.GetHTTPServer(server).Handler == nil {
 		t.Error("Expected non-nil handler")
 	}

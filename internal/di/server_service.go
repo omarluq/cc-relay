@@ -15,15 +15,27 @@ type ServerService struct {
 }
 
 // NewHTTPServer creates the HTTP server.
+//
+// Wires cfg.Server.TimeoutMS into proxy.ServerOptions.WriteTimeout. ReadTimeout
+// and IdleTimeout are intentionally not exposed in config — they protect against
+// slowloris and tune keep-alive, and the defaults from proxy.NewServer are sane.
 func NewHTTPServer(i do.Injector) (*ServerService, error) {
 	cfgSvc := do.MustInvoke[*ConfigService](i)
 	handlerSvc := do.MustInvoke[*HandlerService](i)
 
-	server := proxy.NewServer(
-		cfgSvc.Config.Server.Listen,
-		handlerSvc.Handler,
-		cfgSvc.Config.Server.EnableHTTP2,
-	)
+	srvCfg := cfgSvc.Config.Server
+
+	// ReadTimeout / IdleTimeout intentionally left zero so proxy.NewServer
+	// applies its defaults (slowloris guard / keep-alive). They are not
+	// user-configurable. WriteTimeout is the public `server.timeout_ms` knob.
+	server := proxy.NewServer(proxy.ServerOptions{
+		Addr:         srvCfg.Listen,
+		Handler:      handlerSvc.Handler,
+		WriteTimeout: time.Duration(srvCfg.TimeoutMS) * time.Millisecond,
+		ReadTimeout:  0,
+		IdleTimeout:  0,
+		EnableHTTP2:  srvCfg.EnableHTTP2,
+	})
 
 	return &ServerService{Server: server}, nil
 }
