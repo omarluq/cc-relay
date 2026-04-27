@@ -122,9 +122,11 @@ func assertServerServiceFails(t *testing.T, configContent, errMsg string) {
 		}
 		return
 	}
-	// Container creation eagerly starts ConfigService's fsnotify watcher.
-	// Even when we expect downstream invocation to fail, schedule shutdown so
-	// the OS watch handles don't leak across tests.
+	// Container creation eagerly creates ConfigService's fsnotify watcher
+	// (NewConfig in internal/di/config_service.go), allocating OS resources;
+	// actual watching begins later via StartWatching(). Even when we expect
+	// downstream invocation to fail, schedule shutdown so the watch handle
+	// doesn't leak across tests.
 	t.Cleanup(func() {
 		if shutdownErr := container.Shutdown(); shutdownErr != nil {
 			t.Logf("container shutdown error: %v", shutdownErr)
