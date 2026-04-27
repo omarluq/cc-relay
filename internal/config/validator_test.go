@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -122,8 +123,9 @@ func TestValidateTimeoutBounds(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error for timeout_ms > MaxTimeoutMS")
 		}
-		if !strings.Contains(err.Error(), "<= 86400000") {
-			t.Errorf("expected upper-bound error, got: %v", err)
+		wantSubstring := fmt.Sprintf("<= %d", config.MaxTimeoutMS)
+		if !strings.Contains(err.Error(), wantSubstring) {
+			t.Errorf("expected upper-bound error containing %q, got: %v", wantSubstring, err)
 		}
 	})
 
