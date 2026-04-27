@@ -10,6 +10,14 @@ import (
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
+// Expected default timeouts. Mirrors the defaults in proxy/server.go so that
+// changes there require updating exactly one place in this test file.
+const (
+	expectedDefaultReadTimeout  = 10 * time.Second
+	expectedDefaultWriteTimeout = 600 * time.Second
+	expectedDefaultIdleTimeout  = 120 * time.Second
+)
+
 func newServerTestHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -53,14 +61,14 @@ func TestNewServerHasDefaultTimeouts(t *testing.T) {
 
 	server := proxy.NewServer(defaultServerOptions("127.0.0.1:0", newServerTestHandler()))
 
-	if proxy.GetHTTPServer(server).ReadTimeout != 10*time.Second {
-		t.Errorf("Expected ReadTimeout 10s, got %v", proxy.GetHTTPServer(server).ReadTimeout)
+	if got := proxy.GetHTTPServer(server).ReadTimeout; got != expectedDefaultReadTimeout {
+		t.Errorf("ReadTimeout = %v, want %v", got, expectedDefaultReadTimeout)
 	}
-	if proxy.GetHTTPServer(server).WriteTimeout != 600*time.Second {
-		t.Errorf("Expected WriteTimeout 600s, got %v", proxy.GetHTTPServer(server).WriteTimeout)
+	if got := proxy.GetHTTPServer(server).WriteTimeout; got != expectedDefaultWriteTimeout {
+		t.Errorf("WriteTimeout = %v, want %v", got, expectedDefaultWriteTimeout)
 	}
-	if proxy.GetHTTPServer(server).IdleTimeout != 120*time.Second {
-		t.Errorf("Expected IdleTimeout 120s, got %v", proxy.GetHTTPServer(server).IdleTimeout)
+	if got := proxy.GetHTTPServer(server).IdleTimeout; got != expectedDefaultIdleTimeout {
+		t.Errorf("IdleTimeout = %v, want %v", got, expectedDefaultIdleTimeout)
 	}
 }
 
@@ -82,11 +90,11 @@ func TestNewServerWriteTimeoutFromOptions(t *testing.T) {
 	if got := proxy.GetHTTPServer(server).WriteTimeout; got != custom {
 		t.Errorf("WriteTimeout = %v, want %v (server.timeout_ms must wire through)", got, custom)
 	}
-	if got := proxy.GetHTTPServer(server).ReadTimeout; got != 10*time.Second {
-		t.Errorf("ReadTimeout = %v, want 10s default", got)
+	if got := proxy.GetHTTPServer(server).ReadTimeout; got != expectedDefaultReadTimeout {
+		t.Errorf("ReadTimeout = %v, want %v default", got, expectedDefaultReadTimeout)
 	}
-	if got := proxy.GetHTTPServer(server).IdleTimeout; got != 120*time.Second {
-		t.Errorf("IdleTimeout = %v, want 120s default", got)
+	if got := proxy.GetHTTPServer(server).IdleTimeout; got != expectedDefaultIdleTimeout {
+		t.Errorf("IdleTimeout = %v, want %v default", got, expectedDefaultIdleTimeout)
 	}
 }
 

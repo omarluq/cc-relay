@@ -14,6 +14,11 @@ const (
 	ProviderAzure   = "azure"
 )
 
+// MaxTimeoutMS is the upper bound for server.timeout_ms (24 hours).
+// Above this, time.Duration(ms) * time.Millisecond risks int64 overflow,
+// and no realistic LLM streaming response runs longer than a day.
+const MaxTimeoutMS = 24 * 60 * 60 * 1000 // 24h in ms = 86_400_000
+
 // Valid routing strategies.
 var validRoutingStrategies = map[string]bool{
 	"":                     true, // Empty defaults to failover
@@ -88,9 +93,13 @@ func validateServer(cfg *Config, errs *ValidationError) {
 		validateListenAddress(cfg.Server.Listen, errs)
 	}
 
-	// Validate timeout if set
+	// Validate timeout: reject negatives (silently become defaults otherwise)
+	// and absurdly large values (would overflow time.Duration).
 	if cfg.Server.TimeoutMS < 0 {
 		errs.Add("server.timeout_ms must be >= 0")
+	}
+	if cfg.Server.TimeoutMS > MaxTimeoutMS {
+		errs.Addf("server.timeout_ms must be <= %d (24h), got %d", MaxTimeoutMS, cfg.Server.TimeoutMS)
 	}
 
 	// Validate max_concurrent if set

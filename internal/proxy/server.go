@@ -28,8 +28,10 @@ const (
 
 // ServerOptions configures the HTTP server.
 //
-// Zero values for any timeout fall back to safe defaults (see defaultReadTimeout
-// etc.), so callers only need to populate what they want to override.
+// Non-positive values for any timeout (i.e. <= 0) fall back to safe defaults
+// (see defaultReadTimeout etc.), so callers only need to populate what they
+// want to override. Negative values are rejected upstream by config.Validate;
+// the <= 0 fallback here is defense-in-depth, not the user contract.
 //
 // Field order: pointer-bearing fields first (Handler, then Addr), then int64
 // timeouts, then bool. This satisfies govet fieldalignment by keeping the GC
@@ -43,14 +45,14 @@ type ServerOptions struct {
 
 	// WriteTimeout caps how long a single response may take. This is the public
 	// `server.timeout_ms` knob: it must be long enough for the slowest streaming
-	// LLM response. Zero falls back to defaultWriteTimeout (600s).
+	// LLM response. Non-positive (<=0) falls back to defaultWriteTimeout (600s).
 	WriteTimeout time.Duration
 
 	// ReadTimeout caps how long a request body+headers may take to read.
-	// Kept small for slowloris defense. Zero falls back to defaultReadTimeout (10s).
+	// Kept small for slowloris defense. Non-positive (<=0) falls back to defaultReadTimeout (10s).
 	ReadTimeout time.Duration
 
-	// IdleTimeout caps the keep-alive idle window. Zero falls back to
+	// IdleTimeout caps the keep-alive idle window. Non-positive (<=0) falls back to
 	// defaultIdleTimeout (120s).
 	IdleTimeout time.Duration
 

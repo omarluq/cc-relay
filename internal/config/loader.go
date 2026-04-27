@@ -90,5 +90,13 @@ func loadFromReaderWithFormat(r io.Reader, format string) (*Config, error) {
 		return nil, fmt.Errorf("internal error: unknown format %s", format)
 	}
 
+	// Validate the parsed config so misconfiguration fails fast at load time
+	// rather than producing silent fallbacks downstream (e.g., a negative
+	// timeout_ms otherwise becomes a negative time.Duration that gets replaced
+	// by the default in proxy.NewServer).
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	return &cfg, nil
 }

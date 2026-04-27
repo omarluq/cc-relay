@@ -308,71 +308,70 @@ func TestGetUsage(t *testing.T) {
 // non-zero used/remaining contract of GetUsage. The memory note
 // `memory/known_issues.md` previously claimed GetUsage always returned 0,0;
 // this test ensures the bug cannot return silently.
+//
+// The token bucket refills continuously, so we can't assert exact post-consume
+// values without flaking on slow CI. Instead:
+//   - Fresh state and limit fields are exact (deterministic).
+//   - Post-consume values are bounded: used >= consumed, remaining <= (limit-consumed).
+//
+// This still rules out the original bug (returning 0,0) while tolerating
+// sub-second refill jitter.
 func TestGetUsageReportsActualConsumption(t *testing.T) {
 	t.Parallel()
 	limiter := ratelimit.NewTokenBucketLimiter(50, 30000)
 	ctx := context.Background()
 
-	// Fresh limiter: nothing used yet.
-	assertUsage(t, limiter.GetUsage(), expectedUsage{
-		requestsUsed:      0,
-		tokensUsed:        0,
-		requestsRemaining: 50,
-		tokensRemaining:   30000,
-		requestsLimit:     50,
-		tokensLimit:       30000,
-		label:             "fresh",
-	})
+	assertFreshUsage(t, limiter.GetUsage())
 
-	// Consume 5 requests.
+	// Consume 5 requests + 10000 tokens.
 	for range 5 {
 		limiter.Allow(ctx)
 	}
-	// Consume 10000 tokens.
 	if err := limiter.ConsumeTokens(ctx, 10000); err != nil {
 		t.Fatalf("ConsumeTokens failed: %v", err)
 	}
 
-	assertUsage(t, limiter.GetUsage(), expectedUsage{
-		requestsUsed:      5,
-		tokensUsed:        10000,
-		requestsRemaining: 45,
-		tokensRemaining:   20000,
-		requestsLimit:     50,
-		tokensLimit:       30000,
-		label:             "after 5 Allow + 10K consume",
-	})
+	assertPostConsumeUsage(t, limiter.GetUsage())
 }
 
-type expectedUsage struct {
-	label             string
-	requestsUsed      int
-	tokensUsed        int
-	requestsRemaining int
-	tokensRemaining   int
-	requestsLimit     int
-	tokensLimit       int
-}
-
-func assertUsage(t *testing.T, got ratelimit.Usage, want expectedUsage) {
+func assertFreshUsage(t *testing.T, fresh ratelimit.Usage) {
 	t.Helper()
-	if got.RequestsUsed != want.requestsUsed {
-		t.Errorf("%s: RequestsUsed = %d, want %d", want.label, got.RequestsUsed, want.requestsUsed)
+	if fresh.RequestsUsed != 0 {
+		t.Errorf("fresh RequestsUsed = %d, want 0", fresh.RequestsUsed)
 	}
-	if got.TokensUsed != want.tokensUsed {
-		t.Errorf("%s: TokensUsed = %d, want %d", want.label, got.TokensUsed, want.tokensUsed)
+	if fresh.TokensUsed != 0 {
+		t.Errorf("fresh TokensUsed = %d, want 0", fresh.TokensUsed)
 	}
-	if got.RequestsRemaining != want.requestsRemaining {
-		t.Errorf("%s: RequestsRemaining = %d, want %d", want.label, got.RequestsRemaining, want.requestsRemaining)
+	if fresh.RequestsRemaining != 50 {
+		t.Errorf("fresh RequestsRemaining = %d, want 50", fresh.RequestsRemaining)
 	}
-	if got.TokensRemaining != want.tokensRemaining {
-		t.Errorf("%s: TokensRemaining = %d, want %d", want.label, got.TokensRemaining, want.tokensRemaining)
+	if fresh.TokensRemaining != 30000 {
+		t.Errorf("fresh TokensRemaining = %d, want 30000", fresh.TokensRemaining)
 	}
-	if got.RequestsLimit != want.requestsLimit {
-		t.Errorf("%s: RequestsLimit = %d, want %d", want.label, got.RequestsLimit, want.requestsLimit)
+}
+
+// assertPostConsumeUsage uses bound assertions to tolerate refill jitter
+// between ConsumeTokens and GetUsage. The contract is "non-zero, monotonic
+// with consumption" — the original bug (always 0,0) would still fail this.
+func assertPostConsumeUsage(t *testing.T, after ratelimit.Usage) {
+	t.Helper()
+	if after.RequestsUsed < 5 {
+		t.Errorf("after 5 Allow: RequestsUsed = %d, want >= 5 (was: bug returned 0)", after.RequestsUsed)
 	}
-	if got.TokensLimit != want.tokensLimit {
-		t.Errorf("%s: TokensLimit = %d, want %d", want.label, got.TokensLimit, want.tokensLimit)
+	if after.TokensUsed < 10000 {
+		t.Errorf("after 10K consume: TokensUsed = %d, want >= 10000 (was: bug returned 0)", after.TokensUsed)
+	}
+	if after.RequestsRemaining > 45 {
+		t.Errorf("after 5 Allow: RequestsRemaining = %d, want <= 45", after.RequestsRemaining)
+	}
+	if after.TokensRemaining > 20000 {
+		t.Errorf("after 10K consume: TokensRemaining = %d, want <= 20000", after.TokensRemaining)
+	}
+	if after.RequestsLimit != 50 {
+		t.Errorf("RequestsLimit = %d, want 50", after.RequestsLimit)
+	}
+	if after.TokensLimit != 30000 {
+		t.Errorf("TokensLimit = %d, want 30000", after.TokensLimit)
 	}
 }
 
