@@ -9,10 +9,18 @@ import (
 
 // Provider type constants.
 const (
-	ProviderBedrock = "bedrock"
-	ProviderVertex  = "vertex"
-	ProviderAzure   = "azure"
+	ProviderAnthropic = "anthropic"
+	ProviderBedrock   = "bedrock"
+	ProviderVertex    = "vertex"
+	ProviderAzure     = "azure"
 )
+
+// providerSupportsTransparentAuth returns true if the provider type accepts
+// forwarded client credentials (e.g., Claude Code subscription bearer tokens)
+// in lieu of a configured key. Only Anthropic's API accepts pass-through auth.
+func providerSupportsTransparentAuth(providerType string) bool {
+	return providerType == ProviderAnthropic
+}
 
 // MaxTimeoutMS is an operational/policy upper bound on server.timeout_ms (24h).
 //
@@ -189,7 +197,7 @@ func validateProvider(provider *ProviderConfig, index int, seenNames map[string]
 
 	// Validate keys
 	for keyIdx, key := range provider.Keys {
-		validateProviderKey(&key, provider.Name, keyIdx, errs)
+		validateProviderKey(&key, provider.Name, provider.Type, keyIdx, errs)
 	}
 
 	// Validate pooling strategy if set
@@ -220,7 +228,7 @@ func validateCloudProviderConfig(provider *ProviderConfig, prefix func(string) s
 }
 
 // validateProviderKey validates a single API key configuration.
-func validateProviderKey(keyCfg *KeyConfig, providerName string, index int, errs *ValidationError) {
+func validateProviderKey(keyCfg *KeyConfig, providerName, providerType string, index int, errs *ValidationError) {
 	prefix := func(field string) string {
 		if providerName != "" {
 			return fmt.Sprintf("provider[%s].keys[%d].%s", providerName, index, field)
@@ -228,8 +236,10 @@ func validateProviderKey(keyCfg *KeyConfig, providerName string, index int, errs
 		return fmt.Sprintf("keys[%d].%s", index, field)
 	}
 
-	// Key is required (will be expanded from env var later)
-	if keyCfg.Key == "" {
+	// Key is required, except for providers that support transparent auth
+	// (anthropic): an empty key there means "pass through the client's
+	// subscription bearer token unchanged", which is a valid setup.
+	if keyCfg.Key == "" && !providerSupportsTransparentAuth(providerType) {
 		errs.Addf("%s is required", prefix("key"))
 	}
 
@@ -243,18 +253,26 @@ func validateProviderKey(keyCfg *KeyConfig, providerName string, index int, errs
 		errs.Addf("%s must be >= 0 (got %d)", prefix("weight"), keyCfg.Weight)
 	}
 
-	// Rate limits must be non-negative
-	if keyCfg.RPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("rpm_limit"), keyCfg.RPMLimit)
+	validateKeyRateLimits(keyCfg, prefix, errs)
+}
+
+// validateKeyRateLimits checks that all per-key rate-limit fields are
+// non-negative. Extracted from validateProviderKey to keep cyclomatic
+// complexity manageable.
+func validateKeyRateLimits(keyCfg *KeyConfig, prefix func(string) string, errs *ValidationError) {
+	limits := []struct {
+		name  string
+		value int
+	}{
+		{"rpm_limit", keyCfg.RPMLimit},
+		{"tpm_limit", keyCfg.TPMLimit},
+		{"itpm_limit", keyCfg.ITPMLimit},
+		{"otpm_limit", keyCfg.OTPMLimit},
 	}
-	if keyCfg.TPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("tpm_limit"), keyCfg.TPMLimit)
-	}
-	if keyCfg.ITPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("itpm_limit"), keyCfg.ITPMLimit)
-	}
-	if keyCfg.OTPMLimit < 0 {
-		errs.Addf("%s must be >= 0 (got %d)", prefix("otpm_limit"), keyCfg.OTPMLimit)
+	for _, l := range limits {
+		if l.value < 0 {
+			errs.Addf("%s must be >= 0 (got %d)", prefix(l.name), l.value)
+		}
 	}
 }
 
