@@ -581,6 +581,8 @@ func TestValidateMissingKeyValue(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithSingleProvider(defaultListenAddr)
+	// Use a non-transparent-auth provider so empty keys must be rejected.
+	cfg.Providers[0].Type = "zai"
 
 	key := config.MakeTestKeyConfig("")
 	key.RPMLimit = 60
@@ -593,6 +595,23 @@ func TestValidateMissingKeyValue(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "key") && !strings.Contains(err.Error(), "required") {
 		t.Errorf("Expected key required error, got: %v", err)
+	}
+}
+
+// TestValidateAnthropicAllowsEmptyKey pins the transparent-auth carve-out:
+// for provider type "anthropic", an empty key is legitimate (it means
+// "pass the client's subscription bearer token through unchanged").
+// Regression: validator briefly required keys universally, breaking
+// transparent-auth users with `${ANTHROPIC_API_KEY}` unset.
+func TestValidateAnthropicAllowsEmptyKey(t *testing.T) {
+	t.Parallel()
+
+	cfg := configWithSingleProvider(defaultListenAddr)
+	cfg.Providers[0].Type = "anthropic"
+	cfg.Providers[0].Keys = []config.KeyConfig{config.MakeTestKeyConfig("")}
+
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("anthropic with empty key should validate (transparent auth), got: %v", err)
 	}
 }
 
