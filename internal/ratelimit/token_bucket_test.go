@@ -304,6 +304,78 @@ func TestGetUsage(t *testing.T) {
 	})
 }
 
+// TestGetUsageReportsActualConsumption is a regression test pinning the
+// non-zero used/remaining contract of GetUsage. The memory note
+// `memory/known_issues.md` previously claimed GetUsage always returned 0,0;
+// this test ensures the bug cannot return silently.
+func TestGetUsageReportsActualConsumption(t *testing.T) {
+	t.Parallel()
+	limiter := ratelimit.NewTokenBucketLimiter(50, 30000)
+	ctx := context.Background()
+
+	// Fresh limiter: nothing used yet.
+	assertUsage(t, limiter.GetUsage(), expectedUsage{
+		requestsUsed:      0,
+		tokensUsed:        0,
+		requestsRemaining: 50,
+		tokensRemaining:   30000,
+		requestsLimit:     50,
+		tokensLimit:       30000,
+		label:             "fresh",
+	})
+
+	// Consume 5 requests.
+	for range 5 {
+		limiter.Allow(ctx)
+	}
+	// Consume 10000 tokens.
+	if err := limiter.ConsumeTokens(ctx, 10000); err != nil {
+		t.Fatalf("ConsumeTokens failed: %v", err)
+	}
+
+	assertUsage(t, limiter.GetUsage(), expectedUsage{
+		requestsUsed:      5,
+		tokensUsed:        10000,
+		requestsRemaining: 45,
+		tokensRemaining:   20000,
+		requestsLimit:     50,
+		tokensLimit:       30000,
+		label:             "after 5 Allow + 10K consume",
+	})
+}
+
+type expectedUsage struct {
+	label             string
+	requestsUsed      int
+	tokensUsed        int
+	requestsRemaining int
+	tokensRemaining   int
+	requestsLimit     int
+	tokensLimit       int
+}
+
+func assertUsage(t *testing.T, got ratelimit.Usage, want expectedUsage) {
+	t.Helper()
+	if got.RequestsUsed != want.requestsUsed {
+		t.Errorf("%s: RequestsUsed = %d, want %d", want.label, got.RequestsUsed, want.requestsUsed)
+	}
+	if got.TokensUsed != want.tokensUsed {
+		t.Errorf("%s: TokensUsed = %d, want %d", want.label, got.TokensUsed, want.tokensUsed)
+	}
+	if got.RequestsRemaining != want.requestsRemaining {
+		t.Errorf("%s: RequestsRemaining = %d, want %d", want.label, got.RequestsRemaining, want.requestsRemaining)
+	}
+	if got.TokensRemaining != want.tokensRemaining {
+		t.Errorf("%s: TokensRemaining = %d, want %d", want.label, got.TokensRemaining, want.tokensRemaining)
+	}
+	if got.RequestsLimit != want.requestsLimit {
+		t.Errorf("%s: RequestsLimit = %d, want %d", want.label, got.RequestsLimit, want.requestsLimit)
+	}
+	if got.TokensLimit != want.tokensLimit {
+		t.Errorf("%s: TokensLimit = %d, want %d", want.label, got.TokensLimit, want.tokensLimit)
+	}
+}
+
 func TestConsumeTokens(t *testing.T) {
 	t.Parallel()
 	t.Run("records token usage correctly", func(t *testing.T) {
