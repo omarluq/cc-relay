@@ -18,8 +18,8 @@ const (
 //
 // Note: this is NOT a technical limit — Go's time.Duration is an int64 of
 // nanoseconds, supporting values up to ~292 years, so 24h ms is comfortably
-// within range. The cap exists to surface user typos (e.g., "60000000" meaning
-// "60s" but mistakenly typed as "60_000_000_000") and to prevent obviously
+// within range. The cap exists to surface user typos (e.g., intending 60_000
+// for "60s" but accidentally typing 60_000_000) and to prevent obviously
 // nonsensical configs from silently producing year-long write timeouts.
 const MaxTimeoutMS = 24 * 60 * 60 * 1000 // 24h in ms = 86_400_000
 

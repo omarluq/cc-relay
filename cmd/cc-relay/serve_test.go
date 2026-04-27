@@ -124,7 +124,10 @@ func assertServerServiceFails(t *testing.T, configContent, errMsg string) {
 	}
 	_, err = di.Invoke[*di.ServerService](container)
 	if err == nil {
-		t.Errorf("Expected error for %s", errMsg)
+		t.Fatalf("Expected error for %s", errMsg)
+	}
+	if !strings.Contains(err.Error(), errMsg) {
+		t.Fatalf("server-service invocation failed with unexpected error: %v (wanted substring %q)", err, errMsg)
 	}
 }
 
@@ -170,7 +173,7 @@ server:
   listen: "127.0.0.1:18787"
   api_key: "test-key"
 providers: []
-`, "empty providers")
+`, "no enabled provider found")
 }
 
 // validServeConfig is a minimal valid configuration for serve tests.
