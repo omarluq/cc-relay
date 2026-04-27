@@ -93,6 +93,61 @@ func TestValidateValidFullConfig(t *testing.T) {
 	}
 }
 
+// TestValidateTimeoutBounds pins the contract for server.timeout_ms:
+// negatives are rejected (silently became defaults otherwise) and absurdly
+// large values are rejected (would overflow time.Duration downstream).
+func TestValidateTimeoutBounds(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rejects negative", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.MakeTestConfig()
+		cfg.Server.TimeoutMS = -1
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("Expected error for negative timeout_ms")
+		}
+		if !strings.Contains(err.Error(), "server.timeout_ms must be >= 0") {
+			t.Errorf("expected '>= 0' error, got: %v", err)
+		}
+	})
+
+	t.Run("rejects above MaxTimeoutMS", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.MakeTestConfig()
+		cfg.Server.TimeoutMS = config.MaxTimeoutMS + 1
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("Expected error for timeout_ms > MaxTimeoutMS")
+		}
+		if !strings.Contains(err.Error(), "<= 86400000") {
+			t.Errorf("expected upper-bound error, got: %v", err)
+		}
+	})
+
+	t.Run("accepts boundary value MaxTimeoutMS", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.MakeTestConfig()
+		cfg.Server.TimeoutMS = config.MaxTimeoutMS
+
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("MaxTimeoutMS should be valid, got: %v", err)
+		}
+	})
+
+	t.Run("accepts zero (means default)", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.MakeTestConfig()
+		cfg.Server.TimeoutMS = 0
+
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("timeout_ms=0 should be valid, got: %v", err)
+		}
+	})
+}
+
 func TestValidateMissingServerListen(t *testing.T) {
 	t.Parallel()
 
