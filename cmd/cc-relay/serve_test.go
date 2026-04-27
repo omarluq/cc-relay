@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -114,7 +115,12 @@ func assertServerServiceFails(t *testing.T, configContent, errMsg string) {
 
 	container, err := di.NewContainer(configPath)
 	if err != nil {
-		return // rejected at config-validate / container creation — good
+		// Rejected at config-validate / container creation. Verify it's the
+		// failure we expected (not an unrelated regression) before swallowing.
+		if !strings.Contains(err.Error(), errMsg) {
+			t.Fatalf("container creation failed with unexpected error: %v (wanted substring %q)", err, errMsg)
+		}
+		return
 	}
 	_, err = di.Invoke[*di.ServerService](container)
 	if err == nil {
@@ -153,7 +159,7 @@ providers:
     base_url: "https://api.openai.com"
     keys:
       - key: "test-key"
-`, "unsupported provider type")
+`, "type is invalid")
 }
 
 func TestRunServeEmptyProviders(t *testing.T) {

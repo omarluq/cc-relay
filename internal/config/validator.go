@@ -14,9 +14,13 @@ const (
 	ProviderAzure   = "azure"
 )
 
-// MaxTimeoutMS is the upper bound for server.timeout_ms (24 hours).
-// Above this, time.Duration(ms) * time.Millisecond risks int64 overflow,
-// and no realistic LLM streaming response runs longer than a day.
+// MaxTimeoutMS is an operational/policy upper bound on server.timeout_ms (24h).
+//
+// Note: this is NOT a technical limit — Go's time.Duration is an int64 of
+// nanoseconds, supporting values up to ~292 years, so 24h ms is comfortably
+// within range. The cap exists to surface user typos (e.g., "60000000" meaning
+// "60s" but mistakenly typed as "60_000_000_000") and to prevent obviously
+// nonsensical configs from silently producing year-long write timeouts.
 const MaxTimeoutMS = 24 * 60 * 60 * 1000 // 24h in ms = 86_400_000
 
 // Valid routing strategies.
@@ -94,7 +98,7 @@ func validateServer(cfg *Config, errs *ValidationError) {
 	}
 
 	// Validate timeout: reject negatives (silently become defaults otherwise)
-	// and absurdly large values (would overflow time.Duration).
+	// and absurdly large values (operational bound — see MaxTimeoutMS).
 	if cfg.Server.TimeoutMS < 0 {
 		errs.Add("server.timeout_ms must be >= 0")
 	}

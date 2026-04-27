@@ -78,14 +78,9 @@ func TestNewServerWriteTimeoutFromOptions(t *testing.T) {
 	t.Parallel()
 
 	custom := 90 * time.Second
-	server := proxy.NewServer(proxy.ServerOptions{
-		Addr:         "127.0.0.1:0",
-		Handler:      newServerTestHandler(),
-		WriteTimeout: custom,
-		ReadTimeout:  0,
-		IdleTimeout:  0,
-		EnableHTTP2:  false,
-	})
+	opts := defaultServerOptions("127.0.0.1:0", newServerTestHandler())
+	opts.WriteTimeout = custom
+	server := proxy.NewServer(opts)
 
 	if got := proxy.GetHTTPServer(server).WriteTimeout; got != custom {
 		t.Errorf("WriteTimeout = %v, want %v (server.timeout_ms must wire through)", got, custom)
@@ -102,14 +97,11 @@ func TestNewServerWriteTimeoutFromOptions(t *testing.T) {
 func TestNewServerAllTimeoutsConfigurable(t *testing.T) {
 	t.Parallel()
 
-	server := proxy.NewServer(proxy.ServerOptions{
-		Addr:         "127.0.0.1:0",
-		Handler:      newServerTestHandler(),
-		WriteTimeout: 30 * time.Second,
-		ReadTimeout:  5 * time.Second,
-		IdleTimeout:  60 * time.Second,
-		EnableHTTP2:  false,
-	})
+	opts := defaultServerOptions("127.0.0.1:0", newServerTestHandler())
+	opts.WriteTimeout = 30 * time.Second
+	opts.ReadTimeout = 5 * time.Second
+	opts.IdleTimeout = 60 * time.Second
+	server := proxy.NewServer(opts)
 
 	httpSrv := proxy.GetHTTPServer(server)
 	if httpSrv.ReadTimeout != 5*time.Second {
@@ -179,14 +171,9 @@ func TestServerShutdown(t *testing.T) {
 func TestNewServerHTTP2Enabled(t *testing.T) {
 	t.Parallel()
 
-	server := proxy.NewServer(proxy.ServerOptions{
-		Addr:         "127.0.0.1:0",
-		Handler:      newServerTestHandler(),
-		WriteTimeout: 0,
-		ReadTimeout:  0,
-		IdleTimeout:  0,
-		EnableHTTP2:  true,
-	})
+	opts := defaultServerOptions("127.0.0.1:0", newServerTestHandler())
+	opts.EnableHTTP2 = true
+	server := proxy.NewServer(opts)
 
 	if server == nil {
 		t.Fatal("Expected non-nil server")
