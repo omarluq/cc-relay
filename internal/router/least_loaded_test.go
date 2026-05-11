@@ -176,11 +176,8 @@ func TestLeastLoadedRouterConcurrent(t *testing.T) {
 	var selections atomic.Int32
 
 	// Simulate concurrent selections and releases
-	for i := 0; i < 10; i++ {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
-
+	for range 10 {
+		waitGroup.Go(func() {
 			// Acquire
 			rtr.Acquire(provider)
 
@@ -194,7 +191,7 @@ func TestLeastLoadedRouterConcurrent(t *testing.T) {
 
 			// Release
 			rtr.Release(provider)
-		}()
+		})
 	}
 
 	waitGroup.Wait()

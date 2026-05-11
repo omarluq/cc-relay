@@ -322,13 +322,11 @@ func TestWatcherConcurrentCallbackRegistration(t *testing.T) {
 	// Concurrent registration should be safe
 	var waitGroup sync.WaitGroup
 	for range 10 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			fix.Watcher.OnReload(func(_ *config.Config) error {
 				return nil
 			})
-		}()
+		})
 	}
 	waitGroup.Wait()
 }

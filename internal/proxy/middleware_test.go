@@ -111,9 +111,7 @@ func startConfigSwitcher(
 	cfg1, cfg2 *config.Config,
 	iterations int,
 ) {
-	waitGroup.Add(1)
-	go func() {
-		defer waitGroup.Done()
+	waitGroup.Go(func() {
 		for iterIndex := range iterations {
 			if iterIndex%2 == 0 {
 				runtime.Store(cfg1)
@@ -122,7 +120,7 @@ func startConfigSwitcher(
 			}
 			time.Sleep(time.Microsecond)
 		}
-	}()
+	})
 }
 
 func TestAuthMiddlewareValidKey(t *testing.T) {
@@ -1033,9 +1031,7 @@ func TestConcurrencyLimiterConcurrentAccess(t *testing.T) {
 
 	// Spawn many goroutines trying to acquire
 	for range 50 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			if limiter.TryAcquire() {
 				acquired <- struct{}{}
 				time.Sleep(10 * time.Millisecond)
@@ -1043,7 +1039,7 @@ func TestConcurrencyLimiterConcurrentAccess(t *testing.T) {
 			} else {
 				rejected <- struct{}{}
 			}
-		}()
+		})
 	}
 
 	waitGroup.Wait()

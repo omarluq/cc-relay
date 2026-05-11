@@ -211,8 +211,7 @@ func BenchmarkHotReloadGetRouter(b *testing.B) {
 
 	routerSvc := di.NewRouterServiceWithConfigService(cfgSvc)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = routerSvc.GetRouter()
 	}
 }
@@ -226,8 +225,7 @@ func BenchmarkHotReloadAtomicStore(b *testing.B) {
 
 	newCfg := mustTestConfigWithStrategy(router.StrategyFailover, 0)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		cfgSvc.GetConfigAtomic().Store(newCfg)
 	}
 }
