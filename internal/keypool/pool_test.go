@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const strategyLeastLoaded = "least_loaded"
+const strategyLeastLoaded = keypool.StrategyLeastLoaded
 
 // Test helpers
 

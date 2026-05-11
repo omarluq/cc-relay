@@ -27,7 +27,10 @@ const (
 )
 
 // DefaultVertexModels are the default models available from Vertex AI.
-// Model IDs use Vertex format: model-name@version.
+// Vertex accepts either versioned IDs ("model-name@version", which pin to a
+// specific snapshot) or unversioned IDs ("model-name", which resolve to the
+// current alias). Anthropic publishes "claude-opus-4-6" as an unversioned
+// global alias, so it appears here without an "@version" suffix.
 var DefaultVertexModels = []string{
 	modelClaudeOpus46,
 	"claude-sonnet-4-5@20250514",
