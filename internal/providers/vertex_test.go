@@ -44,9 +44,9 @@ func newMockTokenSource(accessToken string) *mockTokenSource {
 func newTestVertexConfig() *providers.VertexConfig {
 	return &providers.VertexConfig{
 		ModelMapping: nil,
-		Name:         "test-vertex",
-		ProjectID:    "my-project",
-		Region:       "us-central1",
+		Name:         testVertexName,
+		ProjectID:    gcpProjectMyProject,
+		Region:       gcpRegionUSCentral1,
 		Models:       nil,
 	}
 }
@@ -61,11 +61,11 @@ func TestNewVertexProviderWithTokenSource(t *testing.T) {
 		tokenSource := newMockTokenSource("test-token")
 		provider := providers.NewVertexProviderWithTokenSource(cfg, tokenSource)
 
-		assert.Equal(t, "test-vertex", provider.Name())
+		assert.Equal(t, testVertexName, provider.Name())
 		assert.Equal(t, "https://us-central1-aiplatform.googleapis.com", provider.BaseURL())
 		assert.Equal(t, providers.VertexOwner, provider.Owner())
-		assert.Equal(t, "my-project", provider.GetProjectID())
-		assert.Equal(t, "us-central1", provider.GetRegion())
+		assert.Equal(t, gcpProjectMyProject, provider.GetProjectID())
+		assert.Equal(t, gcpRegionUSCentral1, provider.GetRegion())
 	})
 
 	t.Run("uses default models when none specified", func(t *testing.T) {
@@ -100,7 +100,7 @@ func TestNewVertexProviderRegionURLs(t *testing.T) {
 		region      string
 		expectedURL string
 	}{
-		{"us-central1", "https://us-central1-aiplatform.googleapis.com"},
+		{gcpRegionUSCentral1, "https://us-central1-aiplatform.googleapis.com"},
 		{"europe-west4", "https://europe-west4-aiplatform.googleapis.com"},
 		{"asia-northeast1", "https://asia-northeast1-aiplatform.googleapis.com"},
 	}
@@ -319,9 +319,9 @@ func TestVertexTransformRequestURLConstruction(t *testing.T) {
 
 		cfgSpecial := &providers.VertexConfig{
 			ModelMapping: nil,
-			Name:         "test-vertex",
+			Name:         testVertexName,
 			ProjectID:    "my-project-123",
-			Region:       "us-central1",
+			Region:       gcpRegionUSCentral1,
 			Models:       nil,
 		}
 		providerSpecial := providers.NewVertexProviderWithTokenSource(cfgSpecial, tokenSource)
@@ -344,11 +344,11 @@ func TestVertexTransformRequestModelMapping(t *testing.T) {
 
 		cfgWithMapping := &providers.VertexConfig{
 			ModelMapping: map[string]string{
-				"claude-4": "claude-sonnet-4-5@20250514",
+				modelClaude4: "claude-sonnet-4-5@20250514",
 			},
-			Name:      "test-vertex",
-			ProjectID: "my-project",
-			Region:    "us-central1",
+			Name:      testVertexName,
+			ProjectID: gcpProjectMyProject,
+			Region:    gcpRegionUSCentral1,
 			Models:    nil,
 		}
 		providerWithMapping := providers.NewVertexProviderWithTokenSource(cfgWithMapping, tokenSource)
@@ -411,9 +411,9 @@ func TestVertexProviderRefreshToken(t *testing.T) {
 
 		cfg := &providers.VertexConfig{
 			ModelMapping: nil,
-			Name:         "test-vertex",
-			ProjectID:    "my-project",
-			Region:       "us-central1",
+			Name:         testVertexName,
+			ProjectID:    gcpProjectMyProject,
+			Region:       gcpRegionUSCentral1,
 			Models:       nil,
 		}
 		provider := providers.NewVertexProviderWithTokenSource(cfg, nil)
@@ -428,9 +428,9 @@ func TestVertexProviderRefreshToken(t *testing.T) {
 
 		cfg := &providers.VertexConfig{
 			ModelMapping: nil,
-			Name:         "test-vertex",
-			ProjectID:    "my-project",
-			Region:       "us-central1",
+			Name:         testVertexName,
+			ProjectID:    gcpProjectMyProject,
+			Region:       gcpRegionUSCentral1,
 			Models:       nil,
 		}
 		tokenSource := &mockTokenSource{
@@ -450,12 +450,12 @@ func TestVertexProviderModelMapping(t *testing.T) {
 
 	cfg := &providers.VertexConfig{
 		ModelMapping: map[string]string{
-			"claude-4":    "claude-sonnet-4-5@20250514",
+			modelClaude4: "claude-sonnet-4-5@20250514",
 			"claude-opus": "claude-opus-4-5@20250514",
 		},
-		Name:      "test-vertex",
-		ProjectID: "my-project",
-		Region:    "us-central1",
+		Name:      testVertexName,
+		ProjectID: gcpProjectMyProject,
+		Region:    gcpRegionUSCentral1,
 		Models:    nil,
 	}
 	tokenSource := newMockTokenSource("test-token")
@@ -464,7 +464,7 @@ func TestVertexProviderModelMapping(t *testing.T) {
 	t.Run("maps known model", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, "claude-sonnet-4-5@20250514", provider.MapModel("claude-4"))
+		assert.Equal(t, "claude-sonnet-4-5@20250514", provider.MapModel(modelClaude4))
 	})
 
 	t.Run("returns original for unknown model", func(t *testing.T) {

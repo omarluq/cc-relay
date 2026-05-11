@@ -46,7 +46,7 @@ func testBedrockConfig(opts func(*providers.BedrockConfig)) *providers.BedrockCo
 	cfg := &providers.BedrockConfig{
 		ModelMapping: nil,
 		Name:         "test-bedrock",
-		Region:       "us-east-1",
+		Region:       awsRegionUSEast1,
 		Models:       nil,
 	}
 	if opts != nil {
@@ -116,7 +116,7 @@ func TestNewBedrockProviderWithCredentials(t *testing.T) {
 		assert.Equal(t, "test-bedrock", provider.Name())
 		assert.Equal(t, "https://bedrock-runtime.us-east-1.amazonaws.com", provider.BaseURL())
 		assert.Equal(t, providers.BedrockOwner, provider.Owner())
-		assert.Equal(t, "us-east-1", provider.GetRegion())
+		assert.Equal(t, awsRegionUSEast1, provider.GetRegion())
 	})
 
 	t.Run("uses default models when none specified", func(t *testing.T) {
@@ -184,7 +184,7 @@ func TestBedrockProviderAuthenticateSigV4(t *testing.T) {
 		body := []byte(`{"messages":[{"role":"user","content":"Hello"}],"max_tokens":100}`)
 		req := httptest.NewRequestWithContext(
 			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", jsonContentType)
 
 		err := provider.Authenticate(req, "") // key param ignored
 
@@ -318,7 +318,7 @@ func TestBedrockProviderForwardHeaders(t *testing.T) {
 		origHeaders := http.Header{}
 		headers := provider.ForwardHeaders(origHeaders)
 
-		assert.Equal(t, "application/json", headers.Get("Content-Type"))
+		assert.Equal(t, jsonContentType, headers.Get("Content-Type"))
 	})
 }
 
@@ -391,7 +391,7 @@ func TestBedrockProviderTransformRequestURL(t *testing.T) {
 		creds := newMockCredentialsProvider("AKID", "SECRET")
 		cfgWithMapping := testBedrockConfig(func(c *providers.BedrockConfig) {
 			c.ModelMapping = map[string]string{
-				"claude-4": "anthropic.claude-sonnet-4-5-20250514-v1:0",
+				modelClaude4: "anthropic.claude-sonnet-4-5-20250514-v1:0",
 			}
 		})
 		providerWithMapping := providers.NewBedrockProviderWithCredentials(cfgWithMapping, creds)
@@ -426,7 +426,7 @@ func TestBedrockProviderTransformResponse(t *testing.T) {
 			Header:     make(http.Header),
 			Body:       io.NopCloser(bytes.NewReader([]byte(`{"result":"ok"}`))),
 		}
-		resp.Header.Set("Content-Type", "application/json")
+		resp.Header.Set("Content-Type", jsonContentType)
 
 		recorder := httptest.NewRecorder()
 
@@ -442,9 +442,9 @@ func TestBedrockProviderTransformResponse(t *testing.T) {
 
 		msg := providers.ExportBuildEventStreamMessage(
 			map[string]string{
-				":event-type":   "message_start",
-				":content-type": "application/json",
-				":message-type": "event",
+				eventTypeHeader:   eventTypeStart,
+				contentTypeHeader: jsonContentType,
+				messageTypeHeader: eventTypeEvent,
 			},
 			[]byte(`{"type":"message_start","message":{"id":"msg_123"}}`),
 		)
@@ -481,7 +481,7 @@ func TestBedrockProviderSupportsStreaming(t *testing.T) {
 	cfg := &providers.BedrockConfig{
 		ModelMapping: nil,
 		Name:         "test-bedrock",
-		Region:       "us-east-1",
+		Region:       awsRegionUSEast1,
 		Models:       nil,
 	}
 	creds := newMockCredentialsProvider("AKID", "SECRET")
@@ -502,7 +502,7 @@ func TestBedrockProviderModelMapping(t *testing.T) {
 	t.Parallel()
 	cfg := testBedrockConfig(func(c *providers.BedrockConfig) {
 		c.ModelMapping = map[string]string{
-			"claude-4":     "anthropic.claude-sonnet-4-5-20250514-v1:0",
+			modelClaude4:   "anthropic.claude-sonnet-4-5-20250514-v1:0",
 			"claude-opus":  "anthropic.claude-opus-4-5-20250514-v1:0",
 			"claude-haiku": "anthropic.claude-haiku-3-5-20241022-v1:0",
 		}
@@ -512,7 +512,7 @@ func TestBedrockProviderModelMapping(t *testing.T) {
 
 	t.Run("maps known model", func(t *testing.T) {
 		t.Parallel()
-		mapped := provider.MapModel("claude-4")
+		mapped := provider.MapModel(modelClaude4)
 		assert.Equal(t, "anthropic.claude-sonnet-4-5-20250514-v1:0", mapped)
 	})
 
@@ -578,7 +578,7 @@ func TestBedrockProviderSigningDetails(t *testing.T) {
 
 		req := httptest.NewRequestWithContext(
 			context.Background(), http.MethodPost, "/model/test/invoke", bytes.NewReader([]byte(`{}`)))
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", jsonContentType)
 
 		err := provider.Authenticate(req, "")
 

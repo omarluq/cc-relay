@@ -21,13 +21,13 @@ func TestGetModelGroup(t *testing.T) {
 		model    string
 		expected string
 	}{
-		{"claude sonnet 4", "claude-sonnet-4-20250514", "claude"},
-		{"claude 3 opus", "claude-3-opus-20240229", "claude"},
-		{"claude 3.5 sonnet", "claude-3-5-sonnet-20241022", "claude"},
-		{"claude with uppercase", "Claude-3-Opus", "claude"},
-		{"gpt 4", "gpt-4-turbo", "gpt"},
-		{"gpt 4o", "gpt-4o", "gpt"},
-		{"gpt with uppercase", "GPT-4", "gpt"},
+		{"claude sonnet 4", "claude-sonnet-4-20250514", testProviderClaude},
+		{"claude 3 opus", "claude-3-opus-20240229", testProviderClaude},
+		{"claude 3.5 sonnet", "claude-3-5-sonnet-20241022", testProviderClaude},
+		{"claude with uppercase", "Claude-3-Opus", testProviderClaude},
+		{"gpt 4", "gpt-4-turbo", testProviderGPT},
+		{"gpt 4o", "gpt-4o", testProviderGPT},
+		{"gpt with uppercase", "GPT-4", testProviderGPT},
 		{"gemini pro", "gemini-1.5-pro", "gemini"},
 		{"gemini flash", "gemini-2.0-flash", "gemini"},
 		{"unknown model", "llama-3-70b", "llama-3-70b"},
@@ -49,16 +49,16 @@ func TestSignatureCacheCacheKey(t *testing.T) {
 	defer cleanup()
 
 	// Test deterministic key generation
-	key1 := proxy.CacheKey(sigCache, "claude", "thinking text")
-	key2 := proxy.CacheKey(sigCache, "claude", "thinking text")
+	key1 := proxy.CacheKey(sigCache, testProviderClaude, "thinking text")
+	key2 := proxy.CacheKey(sigCache, testProviderClaude, "thinking text")
 	assert.Equal(t, key1, key2, "same input should produce same key")
 
 	// Test different text produces different key
-	key3 := proxy.CacheKey(sigCache, "claude", "different thinking text")
+	key3 := proxy.CacheKey(sigCache, testProviderClaude, "different thinking text")
 	assert.NotEqual(t, key1, key3, "different text should produce different key")
 
 	// Test different model group produces different key
-	key4 := proxy.CacheKey(sigCache, "gpt", "thinking text")
+	key4 := proxy.CacheKey(sigCache, testProviderGPT, "thinking text")
 	assert.NotEqual(t, key1, key4, "different model group should produce different key")
 
 	// Test key format
@@ -125,12 +125,12 @@ func TestSignatureCacheNilCache(t *testing.T) {
 	ctx := context.Background()
 
 	// Get should return empty
-	got := nilSC.Get(ctx, "claude", "text")
+	got := nilSC.Get(ctx, testProviderClaude, "text")
 	assert.Empty(t, got)
 
 	// Set should not panic
 	assert.NotPanics(t, func() {
-		nilSC.Set(ctx, "claude", "text", "signature")
+		nilSC.Set(ctx, testProviderClaude, "text", "signature")
 	})
 }
 
@@ -142,13 +142,13 @@ func TestIsValidSignature(t *testing.T) {
 		signature string
 		expected  bool
 	}{
-		{"empty signature", "claude", "", false},
-		{"short signature", "claude", "abc", false},
-		{"just under minimum", "claude", string(make([]byte, proxy.MinSignatureLen-1)), false},
-		{"exactly minimum", "claude", string(make([]byte, proxy.MinSignatureLen)), true},
-		{"valid long signature", "claude", string(make([]byte, 100)), true},
+		{"empty signature", testProviderClaude, "", false},
+		{"short signature", testProviderClaude, "abc", false},
+		{"just under minimum", testProviderClaude, string(make([]byte, proxy.MinSignatureLen-1)), false},
+		{"exactly minimum", testProviderClaude, string(make([]byte, proxy.MinSignatureLen)), true},
+		{"valid long signature", testProviderClaude, string(make([]byte, 100)), true},
 		{"gemini sentinel", "gemini-pro", proxy.GeminiSignatureSentinel, true},
-		{"gemini sentinel invalid for non-gemini", "claude", proxy.GeminiSignatureSentinel, false},
+		{"gemini sentinel invalid for non-gemini", testProviderClaude, proxy.GeminiSignatureSentinel, false},
 	}
 
 	for _, tt := range tests {

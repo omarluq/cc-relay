@@ -30,7 +30,7 @@ func TestModelsHandlerReturnsCorrectFormat(t *testing.T) {
 	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		"https://api.anthropic.com",
-		[]string{"claude-sonnet-4-5-20250514", "claude-opus-4-5-20250514"},
+		[]string{testModelClaudeSonnet45, testModelClaudeOpus45p},
 		nil,
 	)
 
@@ -46,7 +46,7 @@ func TestModelsHandlerReturnsCorrectFormat(t *testing.T) {
 
 	assert.Equal(t, proxy.ListObject, response.Object)
 	require.Len(t, response.Data, 2)
-	assert.Equal(t, "claude-sonnet-4-5-20250514", response.Data[0].ID)
+	assert.Equal(t, testModelClaudeSonnet45, response.Data[0].ID)
 	assert.Equal(t, "model", response.Data[0].Object)
 	assert.Equal(t, "anthropic", response.Data[0].OwnedBy)
 	assert.Equal(t, "anthropic-primary", response.Data[0].Provider)
@@ -58,14 +58,14 @@ func TestModelsHandlerMultipleProviders(t *testing.T) {
 	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		"https://api.anthropic.com",
-		[]string{"claude-sonnet-4-5-20250514"},
+		[]string{testModelClaudeSonnet45},
 		nil,
 	)
 
 	zaiProvider := providers.NewZAIProvider(
 		"zai-primary",
 		"",
-		[]string{"glm-4", "glm-4-plus"},
+		[]string{testModelGLM4, testModelGLM4Plus},
 		nil,
 	)
 
@@ -97,7 +97,7 @@ func TestModelsHandlerMultipleProviders(t *testing.T) {
 		modelIDs[m.ID] = true
 	}
 
-	expectedModels := []string{"claude-sonnet-4-5-20250514", "glm-4", "glm-4-plus"}
+	expectedModels := []string{testModelClaudeSonnet45, testModelGLM4, testModelGLM4Plus}
 	for _, expected := range expectedModels {
 		if !modelIDs[expected] {
 			t.Errorf("Expected model %s to be present", expected)

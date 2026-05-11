@@ -22,7 +22,7 @@ func init() {
 }
 
 // proxyEnvVars are the environment variables that cc-relay sets in Claude Code settings.
-var proxyEnvVars = []string{"ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"}
+var proxyEnvVars = []string{envAnthropicBaseURL, envAnthropicAuth}
 
 func runConfigCCRemove(cmd *cobra.Command, _ []string) error {
 	home, err := os.UserHomeDir()

@@ -229,7 +229,7 @@ func TestMultiAuthMiddlewareAPIKeyOnly(t *testing.T) {
 
 	handler := okHandler()
 	authConfig := &config.AuthConfig{
-		APIKey:            "test-api-key",
+		APIKey:            testAPIKey,
 		BearerSecret:      "",
 		AllowBearer:       false,
 		AllowSubscription: false,
@@ -239,7 +239,7 @@ func TestMultiAuthMiddlewareAPIKeyOnly(t *testing.T) {
 
 	// Valid API key
 	req := proxy.NewMessagesRequest(http.NoBody)
-	req.Header.Set(proxy.APIKeyHeader, "test-api-key")
+	req.Header.Set(proxy.APIKeyHeader, testAPIKey)
 
 	rec := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rec, req)
@@ -252,7 +252,7 @@ func TestMultiAuthMiddlewareBothMethods(t *testing.T) {
 
 	handler := okHandler()
 	authConfig := &config.AuthConfig{
-		APIKey:            "test-api-key",
+		APIKey:            testAPIKey,
 		BearerSecret:      "test-bearer-secret",
 		AllowBearer:       true,
 		AllowSubscription: false,
@@ -276,7 +276,7 @@ func TestMultiAuthMiddlewareBothMethods(t *testing.T) {
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
 		req := proxy.NewMessagesRequest(http.NoBody)
-		req.Header.Set(proxy.APIKeyHeader, "test-api-key")
+		req.Header.Set(proxy.APIKeyHeader, testAPIKey)
 
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
@@ -490,7 +490,7 @@ func TestRedactSensitiveFields(t *testing.T) {
 		{
 			name:        "preserves non-sensitive fields",
 			input:       `{"model": "claude", "max_tokens": 100}`,
-			contains:    "claude",
+			contains:    testProviderClaude,
 			notContains: "REDACTED",
 		},
 	}
@@ -691,7 +691,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 	newWrappedHandler := func() http.Handler {
 		handler := okHandler()
 		cfg := newMiddlewareTestConfig(config.AuthConfig{
-			APIKey:            "test-api-key",
+			APIKey:            testAPIKey,
 			BearerSecret:      "",
 			AllowBearer:       false,
 			AllowSubscription: false,
@@ -705,7 +705,7 @@ func TestLiveAuthMiddlewareAPIKeyAuth(t *testing.T) {
 		t.Parallel()
 		wrappedHandler := newWrappedHandler()
 		req := proxy.NewMessagesRequest(http.NoBody)
-		req.Header.Set(proxy.APIKeyHeader, "test-api-key")
+		req.Header.Set(proxy.APIKeyHeader, testAPIKey)
 		rec := httptest.NewRecorder()
 		wrappedHandler.ServeHTTP(rec, req)
 

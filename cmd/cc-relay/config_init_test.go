@@ -24,7 +24,7 @@ const (
 // pre-registered, matching the flags used by the init command.
 func newMockInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "init",
+		Use: cmdNameInit,
 	}
 	cmd.Flags().StringP(initConfigOutputFlag, initConfigOutputFlagShorthand, "", initConfigOutputDesc)
 	cmd.Flags().Bool(initConfigForceFlag, false, initConfigForceDesc)

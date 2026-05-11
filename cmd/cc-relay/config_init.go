@@ -9,7 +9,7 @@ import (
 )
 
 var configInitCmd = &cobra.Command{
-	Use:   "init",
+	Use:   cmdNameInit,
 	Short: "Generate a default config file",
 	Long:  `Generate a default cc-relay configuration file at ~/.config/cc-relay/config.yaml`,
 	RunE:  runConfigInit,

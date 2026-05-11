@@ -21,7 +21,7 @@ func TestProvidersHandlerReturnsCorrectFormat(t *testing.T) {
 	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		"https://api.anthropic.com",
-		[]string{"claude-sonnet-4-5-20250514", "claude-opus-4-5-20250514"},
+		[]string{testModelClaudeSonnet45, testModelClaudeOpus45p},
 		nil,
 	)
 
@@ -44,7 +44,7 @@ func TestProvidersHandlerReturnsCorrectFormat(t *testing.T) {
 	assert.Equal(t, "https://api.anthropic.com", provider.BaseURL)
 	assert.True(t, provider.Active)
 	require.Len(t, provider.Models, 2)
-	assert.ElementsMatch(t, []string{"claude-sonnet-4-5-20250514", "claude-opus-4-5-20250514"}, provider.Models)
+	assert.ElementsMatch(t, []string{testModelClaudeSonnet45, testModelClaudeOpus45p}, provider.Models)
 }
 
 // serveProviders creates a GET /v1/providers request and records the response.
@@ -62,14 +62,14 @@ func TestProvidersHandlerMultipleProviders(t *testing.T) {
 	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		"https://api.anthropic.com",
-		[]string{"claude-sonnet-4-5-20250514"},
+		[]string{testModelClaudeSonnet45},
 		nil,
 	)
 
 	zaiProvider := providers.NewZAIProvider(
 		"zai-primary",
 		"https://open.bigmodel.cn/api/paas/v4",
-		[]string{"glm-4", "glm-4-plus"},
+		[]string{testModelGLM4, testModelGLM4Plus},
 		nil,
 	)
 

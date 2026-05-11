@@ -27,23 +27,23 @@ type rewriteTestCase struct {
 }
 
 // singleMapping is the mapping used in most rewrite test cases.
-var singleMapping = map[string]string{"claude-opus-4-5-20251101": "qwen3:8b"}
+var singleMapping = map[string]string{testModelClaudeOpus45: testModelQwen3_8B}
 
 func TestModelRewriterRewriteRequest(t *testing.T) {
 	t.Parallel()
 	tests := []rewriteTestCase{
 		{"rewrites model when mapping exists", singleMapping,
-			`{"model":"claude-opus-4-5-20251101","messages":[{"role":"user","content":"hi"}]}`,
-			"qwen3:8b", true, false},
+			testRequestBodyOpus45,
+			testModelQwen3_8B, true, false},
 		{"passes through when model not in mapping", singleMapping,
 			`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}]}`,
-			"claude-sonnet-4-20250514", false, false},
+			testModelClaudeSonnet4, false, false},
 		{"passes through when no mapping configured", nil,
-			`{"model":"claude-opus-4-5-20251101","messages":[{"role":"user","content":"hi"}]}`,
-			"claude-opus-4-5-20251101", false, false},
+			testRequestBodyOpus45,
+			testModelClaudeOpus45, false, false},
 		{"passes through when mapping is empty", map[string]string{},
-			`{"model":"claude-opus-4-5-20251101","messages":[{"role":"user","content":"hi"}]}`,
-			"claude-opus-4-5-20251101", false, false},
+			testRequestBodyOpus45,
+			testModelClaudeOpus45, false, false},
 		{"handles missing model field gracefully", singleMapping,
 			`{"messages":[{"role":"user","content":"hi"}]}`, "", false, false},
 		{"handles invalid JSON gracefully", singleMapping,
@@ -51,7 +51,7 @@ func TestModelRewriterRewriteRequest(t *testing.T) {
 		{"handles non-string model field gracefully", singleMapping,
 			`{"model":123,"messages":[]}`, "", false, false},
 		{"rewrites with multiple mappings", map[string]string{
-			"claude-opus-4-5-20251101": "qwen3:8b", "claude-sonnet-4-20250514": "qwen3:4b",
+			testModelClaudeOpus45: testModelQwen3_8B, testModelClaudeSonnet4: "qwen3:4b",
 			"claude-haiku-3-5-20241022": "qwen3:1b"},
 			`{"model":"claude-sonnet-4-20250514","messages":[]}`, "qwen3:4b", true, false},
 	}
@@ -129,7 +129,7 @@ func TestModelRewriterNilBody(t *testing.T) {
 func TestModelRewriterPreservesOtherFields(t *testing.T) {
 	t.Parallel()
 	mapping := map[string]string{
-		"claude-opus-4-5-20251101": "qwen3:8b",
+		testModelClaudeOpus45: testModelQwen3_8B,
 	}
 	rewriter := proxy.NewModelRewriter(mapping)
 
@@ -154,7 +154,7 @@ func TestModelRewriterPreservesOtherFields(t *testing.T) {
 	}
 
 	// Check model was rewritten
-	if body["model"] != "qwen3:8b" {
+	if body["model"] != testModelQwen3_8B {
 		t.Errorf("expected model qwen3:8b, got %v", body["model"])
 	}
 

@@ -20,7 +20,7 @@ import (
 func TestNewProviderProxyValidProvider(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com", nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, "https://api.anthropic.com", nil, nil)
 
 	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestProviderProxySetsCorrectTargetURL(t *testing.T) {
 	defer backend.Close()
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "test-key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -93,9 +93,9 @@ func testProviderProxyAuthBehaviorTestCases() []testProviderProxyAuthBehaviorTes
 	return []testProviderProxyAuthBehaviorTestCase{
 		{
 			name:         "configured_key_used_when_set",
-			providerName: "test",
+			providerName: testValueGeneric,
 			providerFactory: func(backendURL string) providers.Provider {
-				return providers.NewAnthropicProvider("test", backendURL, nil, nil)
+				return providers.NewAnthropicProvider(testValueGeneric, backendURL, nil, nil)
 			},
 			configuredKey: testConfiguredKey,
 			requestHeaders: map[string]string{
@@ -107,13 +107,13 @@ func testProviderProxyAuthBehaviorTestCases() []testProviderProxyAuthBehaviorTes
 		},
 		{
 			name:         "transparent_auth_forwards_client_auth",
-			providerName: "test",
+			providerName: testValueGeneric,
 			providerFactory: func(backendURL string) providers.Provider {
-				return providers.NewAnthropicProvider("test", backendURL, nil, nil)
+				return providers.NewAnthropicProvider(testValueGeneric, backendURL, nil, nil)
 			},
 			configuredKey: testFallbackKey,
 			requestHeaders: map[string]string{
-				"Authorization": testClientToken,
+				testHeaderAuth: testClientToken,
 			},
 			expectedAPIKey: "",
 			expectedAuth:   testClientToken,
@@ -151,7 +151,7 @@ func TestProviderProxyAuthBehavior(t *testing.T) {
 				assert.Equal(t, testCase.expectedAPIKey, capture.Get("x-api-key"), testCase.description)
 			}
 			if testCase.expectedAuth != "" {
-				assert.Equal(t, testCase.expectedAuth, capture.Get("Authorization"), testCase.description)
+				assert.Equal(t, testCase.expectedAuth, capture.Get(testHeaderAuth), testCase.description)
 			}
 		})
 	}
@@ -171,14 +171,14 @@ func TestProviderProxyNonTransparentProviderUsesConfiguredKey(t *testing.T) {
 
 	// Make request with client auth (but provider doesn't support transparent)
 	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer client-token")
+	req.Header.Set(testHeaderAuth, "Bearer client-token")
 	// Handler sets X-Selected-Key since provider doesn't support transparent auth
 	req.Header.Set("X-Selected-Key", "zai-key")
 	recorder := httptest.NewRecorder()
 	providerProxy.Proxy.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	// Client auth should NOT be forwarded
-	assert.Empty(t, capture.Get("Authorization"))
+	assert.Empty(t, capture.Get(testHeaderAuth))
 	// Our configured key should be used
 	assert.Equal(t, "zai-key", capture.Get("x-api-key"))
 }
@@ -189,12 +189,12 @@ func TestProviderProxyForwardsAnthropicHeaders(t *testing.T) {
 
 	backend, capture := proxy.NewHeaderCaptureBackend(t)
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
 	req := httptest.NewRequestWithContext(context.Background(), "POST", "/v1/messages", strings.NewReader("{}"))
-	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set(testHeaderAuth, "Bearer token")
 	req.Header.Set("Anthropic-Version", proxy.AnthropicVersion2024)
 	req.Header.Set("Anthropic-Beta", "extended-thinking")
 	recorder := httptest.NewRecorder()
@@ -218,7 +218,7 @@ func TestProviderProxySSEHeadersSet(t *testing.T) {
 	defer backend.Close()
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -251,7 +251,7 @@ func TestProviderProxyModifyResponseHookCalled(t *testing.T) {
 	defer backend.Close()
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
-	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, backendURL, nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), hook)
 	require.NoError(t, err)
 
@@ -268,7 +268,7 @@ func TestProviderProxyErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 	t.Parallel()
 
 	// Create a provider with unreachable backend
-	provider := providers.NewAnthropicProvider("test", "http://localhost:1", nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, "http://localhost:1", nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -289,7 +289,7 @@ func TestProviderProxyErrorHandlerReturnsAnthropicFormat(t *testing.T) {
 func TestProviderProxyFlushIntervalSetForSSE(t *testing.T) {
 	t.Parallel()
 
-	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com", nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, "https://api.anthropic.com", nil, nil)
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)
 	require.NoError(t, err)
 
@@ -393,7 +393,7 @@ func TestProviderProxyTransformRequestNotCalledForStandardProviders(t *testing.T
 
 	backendURL := proxy.ParseTestURL(t, backend.URL)
 	// Anthropic provider does NOT require body transform
-	provider := providers.NewAnthropicProvider("test", backendURL, nil, nil)
+	provider := providers.NewAnthropicProvider(testValueGeneric, backendURL, nil, nil)
 	assert.False(t, provider.RequiresBodyTransform())
 
 	providerProxy, err := proxy.NewProviderProxy(provider, "key", nil, proxy.TestDebugOptions(), nil)

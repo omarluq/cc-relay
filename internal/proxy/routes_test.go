@@ -394,7 +394,7 @@ func TestSetupRoutesMultiAuthWithBearerToken(t *testing.T) {
 
 	// Request with valid Bearer token should pass
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer test-bearer-token"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer test-bearer-token"},
 	)
 	rec := proxy.ServeRequest(t, handler, req)
 
@@ -415,7 +415,7 @@ func TestSetupRoutesMultiAuthWithInvalidBearerToken(t *testing.T) {
 
 	// Request with invalid Bearer token should fail
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer wrong-token"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer wrong-token"},
 	)
 	rec := proxy.ServeRequest(t, handler, req)
 
@@ -430,7 +430,7 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	backend := proxy.NewBackendServer(t, okBackendBody)
 
 	handler := newAuthHandler(t, backend, config.AuthConfig{
-		APIKey:            "test-api-key",
+		APIKey:            testAPIKeyValue,
 		AllowBearer:       true,
 		BearerSecret:      "test-bearer-token",
 		AllowSubscription: false,
@@ -440,7 +440,7 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	t.Run("bearer token works", func(t *testing.T) {
 		t.Parallel()
 		req := proxy.NewMessagesRequestWithHeaders("{}",
-			proxy.HeaderPair{Key: "Authorization", Value: "Bearer test-bearer-token"},
+			proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer test-bearer-token"},
 		)
 		rec := proxy.ServeRequest(t, handler, req)
 
@@ -453,7 +453,7 @@ func TestSetupRoutesMultiAuthBothMethods(t *testing.T) {
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
 		req := proxy.NewMessagesRequestWithHeaders("{}",
-			proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: "test-api-key"},
+			proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: testAPIKeyValue},
 		)
 		rec := proxy.ServeRequest(t, handler, req)
 
@@ -488,7 +488,7 @@ func TestSetupRoutesMultiAuthBearerWithoutSecret(t *testing.T) {
 
 	// Any Bearer token should work when no secret is configured
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer any-random-token"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer any-random-token"},
 	)
 	rec := proxy.ServeRequest(t, handler, req)
 
@@ -530,13 +530,13 @@ func TestSetupRoutesModelsEndpoint(t *testing.T) {
 	anthropicProvider := providers.NewAnthropicProvider(
 		"anthropic-primary",
 		proxy.AnthropicBaseURL,
-		[]string{"claude-sonnet-4-5-20250514"},
+		[]string{testModelClaudeSonnet45},
 		nil,
 	)
 	zaiProvider := providers.NewZAIProvider(
 		"zai-primary",
 		"",
-		[]string{"glm-4"},
+		[]string{testModelGLM4},
 		nil,
 	)
 
@@ -574,7 +574,7 @@ func TestSetupRoutesModelsEndpointOnlyGET(t *testing.T) {
 	provider := providers.NewAnthropicProvider(
 		"test",
 		proxy.AnthropicBaseURL,
-		[]string{"claude-sonnet-4-5-20250514"},
+		[]string{testModelClaudeSonnet45},
 		nil,
 	)
 
@@ -628,7 +628,7 @@ func TestSetupRoutesSubscriptionTokenAuth(t *testing.T) {
 
 	// Subscription token (sent as Bearer) should work
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer claude-subscription-token-abc123"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer claude-subscription-token-abc123"},
 	)
 	rec := proxy.ServeRequest(t, handler, req)
 
@@ -644,7 +644,7 @@ func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 
 	// Test that both subscription and API key auth work together
 	handler := newAuthHandler(t, backend, config.AuthConfig{
-		APIKey:            "test-api-key",
+		APIKey:            testAPIKeyValue,
 		BearerSecret:      "",
 		AllowBearer:       false,
 		AllowSubscription: true,
@@ -654,7 +654,7 @@ func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	t.Run("subscription token works", func(t *testing.T) {
 		t.Parallel()
 		req := proxy.NewMessagesRequestWithHeaders("{}",
-			proxy.HeaderPair{Key: "Authorization", Value: "Bearer subscription-token"},
+			proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer subscription-token"},
 		)
 		rec := proxy.ServeRequest(t, handler, req)
 
@@ -667,7 +667,7 @@ func TestSetupRoutesSubscriptionAndAPIKeyBothWork(t *testing.T) {
 	t.Run("api key works", func(t *testing.T) {
 		t.Parallel()
 		req := proxy.NewMessagesRequestWithHeaders("{}",
-			proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: "test-api-key"},
+			proxy.HeaderPair{Key: proxy.APIKeyHeader, Value: testAPIKeyValue},
 		)
 		rec := proxy.ServeRequest(t, handler, req)
 

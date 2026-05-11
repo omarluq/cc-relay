@@ -106,7 +106,7 @@ logging:
 		t.Fatalf("config.LoadFromReader failed: %v", err)
 	}
 
-	assertServerConfig(t, defaultListenAddr, 60000, 10, "test-key", cfg)
+	assertServerConfig(t, defaultListenAddr, 60000, 10, testKeyDashValue, cfg)
 	key := assertProviderConfig(t, testProviderType, testProviderType, true, cfg, 0)
 	assertKeyConfig(t, "sk-ant-test", 60, 100000, key)
 	assertLoggingConfig(t, cfg)
@@ -390,7 +390,7 @@ format = "json"
 		t.Fatalf("config.LoadFromReaderWithFormat failed: %v", err)
 	}
 
-	assertServerConfig(t, defaultListenAddr, 60000, 10, "test-key", cfg)
+	assertServerConfig(t, defaultListenAddr, 60000, 10, testKeyDashValue, cfg)
 	key := assertProviderConfig(t, testProviderType, testProviderType, true, cfg, 0)
 	assertKeyConfig(t, "sk-ant-test", 60, 100000, key)
 	assertLoggingConfig(t, cfg)
@@ -550,14 +550,14 @@ func TestDetectFormat(t *testing.T) {
 		expected string
 		wantErr  bool
 	}{
-		{"config.yaml", "yaml", false},
-		{"config.yml", "yaml", false},
-		{"config.YAML", "yaml", false},
-		{"config.YML", "yaml", false},
-		{"config.toml", "toml", false},
-		{"config.TOML", "toml", false},
-		{"/path/to/config.yaml", "yaml", false},
-		{"/path/to/config.toml", "toml", false},
+		{"config.yaml", configFormatYAML, false},
+		{"config.yml", configFormatYAML, false},
+		{"config.YAML", configFormatYAML, false},
+		{"config.YML", configFormatYAML, false},
+		{"config.toml", configFormatTOML, false},
+		{"config.TOML", configFormatTOML, false},
+		{"/path/to/config.yaml", configFormatYAML, false},
+		{"/path/to/config.toml", configFormatTOML, false},
 		{"config.json", "", true},
 		{"config.xml", "", true},
 		{"config", "", true},

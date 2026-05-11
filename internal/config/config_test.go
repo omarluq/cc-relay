@@ -143,7 +143,7 @@ func TestLoggingConfigParseLevel(t *testing.T) {
 		expected zerolog.Level
 	}{
 		{"debug level", "debug", zerolog.DebugLevel},
-		{"info level", "info", zerolog.InfoLevel},
+		{"info level", logLevelInfo, zerolog.InfoLevel},
 		{"warn level", "warn", zerolog.WarnLevel},
 		{"error level", "error", zerolog.ErrorLevel},
 		{"uppercase DEBUG", "DEBUG", zerolog.DebugLevel},
@@ -177,7 +177,7 @@ func TestAuthConfigIsEnabled(t *testing.T) {
 		{"no auth configured", zeroAuthConfig(), false},
 		{
 			"api key only",
-			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+			config.AuthConfig{APIKey: testKeyDashValue, BearerSecret: "",
 				AllowBearer: false, AllowSubscription: false},
 			true,
 		},
@@ -189,7 +189,7 @@ func TestAuthConfigIsEnabled(t *testing.T) {
 		},
 		{
 			"both configured",
-			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+			config.AuthConfig{APIKey: testKeyDashValue, BearerSecret: "",
 				AllowBearer: true, AllowSubscription: false},
 			true,
 		},
@@ -207,7 +207,7 @@ func TestAuthConfigIsEnabled(t *testing.T) {
 		},
 		{
 			"subscription and api key",
-			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+			config.AuthConfig{APIKey: testKeyDashValue, BearerSecret: "",
 				AllowBearer: false, AllowSubscription: true},
 			true,
 		},
@@ -252,7 +252,7 @@ func TestAuthConfigIsBearerEnabled(t *testing.T) {
 		},
 		{
 			"api key only does not enable bearer",
-			config.AuthConfig{APIKey: "test-key", BearerSecret: "",
+			config.AuthConfig{APIKey: testKeyDashValue, BearerSecret: "",
 				AllowBearer: false, AllowSubscription: false},
 			false,
 		},
@@ -302,7 +302,7 @@ func TestLoggingConfigEnableAllDebugOptions(t *testing.T) {
 	t.Parallel()
 
 	cfg := zeroLoggingConfig()
-	cfg.Level = "info"
+	cfg.Level = logLevelInfo
 
 	cfg.EnableAllDebugOptions()
 
@@ -472,11 +472,11 @@ func TestProviderConfigGetEffectiveStrategy(t *testing.T) {
 		expected string
 		config   config.ProviderConfig
 	}{
-		{"least_loaded", "least_loaded", providerWithPooling("least_loaded")},
-		{"round_robin", "round_robin", providerWithPooling("round_robin")},
+		{strategyLeastLoaded, strategyLeastLoaded, providerWithPooling(strategyLeastLoaded)},
+		{strategyRoundRobin, strategyRoundRobin, providerWithPooling(strategyRoundRobin)},
 		{"weighted", "weighted", providerWithPooling("weighted")},
-		{"no strategy defaults", "least_loaded", zeroProviderConfig()},
-		{"empty strategy defaults", "least_loaded", providerWithPooling("")},
+		{"no strategy defaults", strategyLeastLoaded, zeroProviderConfig()},
+		{"empty strategy defaults", strategyLeastLoaded, providerWithPooling("")},
 	}
 
 	for _, testCase := range tests {
@@ -540,10 +540,10 @@ func TestRoutingConfigGetEffectiveStrategy(t *testing.T) {
 		expected string
 		config   config.RoutingConfig
 	}{
-		{"empty defaults to failover", "failover", routingWithStrategy("")},
-		{"zero value defaults to failover", "failover", zeroRoutingConfig()},
-		{"configured failover", "failover", routingWithStrategy("failover")},
-		{"configured round_robin", "round_robin", routingWithStrategy("round_robin")},
+		{"empty defaults to failover", strategyFailover, routingWithStrategy("")},
+		{"zero value defaults to failover", strategyFailover, zeroRoutingConfig()},
+		{"configured failover", strategyFailover, routingWithStrategy(strategyFailover)},
+		{"configured round_robin", strategyRoundRobin, routingWithStrategy(strategyRoundRobin)},
 		{"configured weighted_round_robin", "weighted_round_robin", routingWithStrategy("weighted_round_robin")},
 		{"configured shuffle", "shuffle", routingWithStrategy("shuffle")},
 	}
@@ -671,7 +671,7 @@ func TestProviderConfigGetAzureAPIVersion(t *testing.T) {
 func TestProviderConfigValidateCloudConfigNonCloud(t *testing.T) {
 	t.Parallel()
 
-	for _, pType := range []string{"anthropic", "zai", "ollama"} {
+	for _, pType := range []string{"anthropic", providerTypeZAI, "ollama"} {
 		p := providerWithType(pType, "", "", "", "")
 		t.Run(pType+" passes", func(t *testing.T) {
 			t.Parallel()

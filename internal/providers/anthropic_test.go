@@ -17,13 +17,13 @@ func TestNewAnthropicProvider(t *testing.T) {
 		},
 		[]providerTestCase{
 			{
-				name:         "with custom base URL",
+				name:         testNameCustomBaseURL,
 				providerName: "test-provider",
 				baseURL:      "https://custom.api.example.com",
 				wantBaseURL:  "https://custom.api.example.com",
 			},
 			{
-				name:         "with empty base URL uses default",
+				name:         testNameEmptyBaseURL,
 				providerName: "default-provider",
 				baseURL:      "",
 				wantBaseURL:  providers.DefaultAnthropicBaseURL,
@@ -78,7 +78,7 @@ func TestListModelsWithConfiguredModels(t *testing.T) {
 	t.Parallel()
 
 	models := []string{
-		"claude-sonnet-4-5-20250514",
+		modelClaudeSonnet45,
 		"claude-opus-4-5-20250514",
 	}
 	provider := providers.NewAnthropicProvider(
@@ -92,7 +92,7 @@ func TestListModelsWithConfiguredModels(t *testing.T) {
 	)
 
 	// Verify specific model IDs
-	if result[0].ID != "claude-sonnet-4-5-20250514" {
+	if result[0].ID != modelClaudeSonnet45 {
 		t.Errorf(
 			"Expected model ID=claude-sonnet-4-5-20250514, got %s",
 			result[0].ID,

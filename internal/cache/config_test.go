@@ -43,7 +43,7 @@ func TestConfigValidateValidHAMode(t *testing.T) {
 		Mode: cache.ModeHA,
 		Olric: cache.OlricConfig{
 			DMapName:          "",
-			BindAddr:          "127.0.0.1:3320",
+			BindAddr:          testAddrHostPort,
 			Environment:       "",
 			Addresses:         nil,
 			Peers:             nil,
@@ -270,7 +270,7 @@ func TestOlricConfigValidateInvalidEnvironment(t *testing.T) {
 	t.Parallel()
 	cfg := cache.OlricConfig{
 		DMapName:          "",
-		BindAddr:          "127.0.0.1:3320",
+		BindAddr:          testAddrHostPort,
 		Environment:       "invalid-env",
 		Addresses:         nil,
 		Peers:             nil,
@@ -308,7 +308,7 @@ func TestOlricConfigValidateValidEnvironments(t *testing.T) {
 			t.Parallel()
 			cfg := cache.OlricConfig{
 				DMapName:          "",
-				BindAddr:          "127.0.0.1:3320",
+				BindAddr:          testAddrHostPort,
 				Environment:       testCase.env,
 				Addresses:         nil,
 				Peers:             nil,
@@ -331,7 +331,7 @@ func TestOlricConfigValidateWriteQuorumExceedsReplicaCount(t *testing.T) {
 	t.Parallel()
 	cfg := cache.OlricConfig{
 		DMapName:          "",
-		BindAddr:          "127.0.0.1:3320",
+		BindAddr:          testAddrHostPort,
 		Environment:       "",
 		Addresses:         nil,
 		Peers:             nil,
@@ -356,7 +356,7 @@ func TestOlricConfigValidateReadQuorumExceedsReplicaCount(t *testing.T) {
 	t.Parallel()
 	cfg := cache.OlricConfig{
 		DMapName:          "",
-		BindAddr:          "127.0.0.1:3320",
+		BindAddr:          testAddrHostPort,
 		Environment:       "",
 		Addresses:         nil,
 		Peers:             nil,
@@ -381,7 +381,7 @@ func TestOlricConfigValidateNegativeMemberCountQuorum(t *testing.T) {
 	t.Parallel()
 	cfg := cache.OlricConfig{
 		DMapName:          "",
-		BindAddr:          "127.0.0.1:3320",
+		BindAddr:          testAddrHostPort,
 		Environment:       "",
 		Addresses:         nil,
 		Peers:             nil,
@@ -406,7 +406,7 @@ func TestOlricConfigValidateNegativeLeaveTimeout(t *testing.T) {
 	t.Parallel()
 	cfg := cache.OlricConfig{
 		DMapName:          "",
-		BindAddr:          "127.0.0.1:3320",
+		BindAddr:          testAddrHostPort,
 		Environment:       "",
 		Addresses:         nil,
 		Peers:             nil,
@@ -431,7 +431,7 @@ func TestOlricConfigValidateValidQuorum(t *testing.T) {
 	t.Parallel()
 	cfg := cache.OlricConfig{
 		DMapName:          "",
-		BindAddr:          "127.0.0.1:3320",
+		BindAddr:          testAddrHostPort,
 		Environment:       "",
 		Addresses:         nil,
 		Peers:             nil,
@@ -496,7 +496,7 @@ func TestOlricConfigValidateClientModeWithAddresses(t *testing.T) {
 		DMapName:          "",
 		BindAddr:          "",
 		Environment:       "",
-		Addresses:         []string{"127.0.0.1:3320", "127.0.0.1:3321"},
+		Addresses:         []string{testAddrHostPort, "127.0.0.1:3321"},
 		Peers:             nil,
 		ReplicaCount:      0,
 		ReadQuorum:        0,
@@ -516,7 +516,7 @@ func TestOlricConfigValidateZeroQuorumValues(t *testing.T) {
 	// Zero quorum values should be valid (uses Olric defaults)
 	cfg := cache.OlricConfig{
 		DMapName:          "",
-		BindAddr:          "127.0.0.1:3320",
+		BindAddr:          testAddrHostPort,
 		Environment:       "",
 		Addresses:         nil,
 		Peers:             nil,

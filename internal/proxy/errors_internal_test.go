@@ -27,7 +27,7 @@ func TestWriteBodyTooLargeError(t *testing.T) {
 		t.Fatalf("WriteBodyTooLargeError() invalid JSON: %v", err)
 	}
 
-	if resp.Type != "error" {
+	if resp.Type != logLevelError {
 		t.Errorf("WriteBodyTooLargeError() type = %q, want \"error\"", resp.Type)
 	}
 	if resp.Error.Type != "request_too_large" {

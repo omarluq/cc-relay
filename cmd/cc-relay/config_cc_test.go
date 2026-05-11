@@ -20,6 +20,9 @@ const (
 	themePreservedErrFmt     = "Expected theme to be preserved, got %v"
 	otherVarPreservedErrFmt  = "Expected OTHER_VAR to be preserved, got %v"
 	themeDark                = "dark"
+	settingsKeyTheme         = "theme"
+	settingsKeyEnv           = "env"
+	envKeyOtherVar           = "OTHER_VAR"
 )
 
 func settingsPathForHome(home string) string {
@@ -73,17 +76,17 @@ func TestApplyCCRelayConfigNewSettings(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	env, ok := settings["env"].(map[string]any)
+	env, ok := settings[settingsKeyEnv].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
 
-	if env["ANTHROPIC_BASE_URL"] != ccRelayProxyURL {
-		t.Errorf("Expected ANTHROPIC_BASE_URL to be %s, got %v", ccRelayProxyURL, env["ANTHROPIC_BASE_URL"])
+	if env[envAnthropicBaseURL] != ccRelayProxyURL {
+		t.Errorf("Expected ANTHROPIC_BASE_URL to be %s, got %v", ccRelayProxyURL, env[envAnthropicBaseURL])
 	}
 
-	if env["ANTHROPIC_AUTH_TOKEN"] != managedByCCRelayValue {
-		t.Errorf("Expected ANTHROPIC_AUTH_TOKEN to be %s, got %v", managedByCCRelayValue, env["ANTHROPIC_AUTH_TOKEN"])
+	if env[envAnthropicAuth] != managedByCCRelayValue {
+		t.Errorf("Expected ANTHROPIC_AUTH_TOKEN to be %s, got %v", managedByCCRelayValue, env[envAnthropicAuth])
 	}
 }
 
@@ -93,9 +96,9 @@ func TestApplyCCRelayConfigExistingSettings(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	existingSettings := map[string]any{
-		"theme": themeDark,
-		"env": map[string]any{
-			"OTHER_VAR": otherEnvValue,
+		settingsKeyTheme: themeDark,
+		settingsKeyEnv: map[string]any{
+			envKeyOtherVar: otherEnvValue,
 		},
 	}
 	writeSettings(t, tmpDir, existingSettings)
@@ -107,21 +110,21 @@ func TestApplyCCRelayConfigExistingSettings(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	if settings["theme"] != themeDark {
-		t.Errorf(themePreservedErrFmt, settings["theme"])
+	if settings[settingsKeyTheme] != themeDark {
+		t.Errorf(themePreservedErrFmt, settings[settingsKeyTheme])
 	}
 
-	env, ok := settings["env"].(map[string]any)
+	env, ok := settings[settingsKeyEnv].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
 
-	if env["OTHER_VAR"] != otherEnvValue {
-		t.Errorf(otherVarPreservedErrFmt, env["OTHER_VAR"])
+	if env[envKeyOtherVar] != otherEnvValue {
+		t.Errorf(otherVarPreservedErrFmt, env[envKeyOtherVar])
 	}
 
-	if env["ANTHROPIC_BASE_URL"] != ccRelayProxyURL {
-		t.Errorf("Expected ANTHROPIC_BASE_URL to be set, got %v", env["ANTHROPIC_BASE_URL"])
+	if env[envAnthropicBaseURL] != ccRelayProxyURL {
+		t.Errorf("Expected ANTHROPIC_BASE_URL to be set, got %v", env[envAnthropicBaseURL])
 	}
 }
 
@@ -138,12 +141,12 @@ func TestApplyCCRelayConfigCustomProxyURL(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	env, ok := settings["env"].(map[string]any)
+	env, ok := settings[settingsKeyEnv].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
-	if env["ANTHROPIC_BASE_URL"] != customURL {
-		t.Errorf("Expected custom ANTHROPIC_BASE_URL, got %v", env["ANTHROPIC_BASE_URL"])
+	if env[envAnthropicBaseURL] != customURL {
+		t.Errorf("Expected custom ANTHROPIC_BASE_URL, got %v", env[envAnthropicBaseURL])
 	}
 }
 
@@ -153,11 +156,11 @@ func TestRemoveCCRelayConfigExistingSettings(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	existingSettings := map[string]any{
-		"theme": themeDark,
-		"env": map[string]any{
-			"ANTHROPIC_BASE_URL":   ccRelayProxyURL,
-			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayValue,
-			"OTHER_VAR":            otherEnvValue,
+		settingsKeyTheme: themeDark,
+		settingsKeyEnv: map[string]any{
+			envAnthropicBaseURL: ccRelayProxyURL,
+			envAnthropicAuth:    managedByCCRelayValue,
+			envKeyOtherVar:      otherEnvValue,
 		},
 	}
 	writeSettings(t, tmpDir, existingSettings)
@@ -173,24 +176,24 @@ func TestRemoveCCRelayConfigExistingSettings(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	if settings["theme"] != themeDark {
-		t.Errorf(themePreservedErrFmt, settings["theme"])
+	if settings[settingsKeyTheme] != themeDark {
+		t.Errorf(themePreservedErrFmt, settings[settingsKeyTheme])
 	}
 
-	env, ok := settings["env"].(map[string]any)
+	env, ok := settings[settingsKeyEnv].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
 
-	if _, exists := env["ANTHROPIC_BASE_URL"]; exists {
+	if _, exists := env[envAnthropicBaseURL]; exists {
 		t.Error("Expected ANTHROPIC_BASE_URL to be removed")
 	}
-	if _, exists := env["ANTHROPIC_AUTH_TOKEN"]; exists {
+	if _, exists := env[envAnthropicAuth]; exists {
 		t.Error("Expected ANTHROPIC_AUTH_TOKEN to be removed")
 	}
 
-	if env["OTHER_VAR"] != otherEnvValue {
-		t.Errorf(otherVarPreservedErrFmt, env["OTHER_VAR"])
+	if env[envKeyOtherVar] != otherEnvValue {
+		t.Errorf(otherVarPreservedErrFmt, env[envKeyOtherVar])
 	}
 }
 
@@ -215,7 +218,7 @@ func TestRemoveCCRelayConfigNoEnvSection(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	existingSettings := map[string]any{
-		"theme": themeDark,
+		settingsKeyTheme: themeDark,
 	}
 	writeSettings(t, tmpDir, existingSettings)
 
@@ -235,8 +238,8 @@ func TestRemoveCCRelayConfigNoCCRelayConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	existingSettings := map[string]any{
-		"env": map[string]any{
-			"OTHER_VAR": otherEnvValue,
+		settingsKeyEnv: map[string]any{
+			envKeyOtherVar: otherEnvValue,
 		},
 	}
 	writeSettings(t, tmpDir, existingSettings)
@@ -252,12 +255,12 @@ func TestRemoveCCRelayConfigNoCCRelayConfig(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	env, ok := settings["env"].(map[string]any)
+	env, ok := settings[settingsKeyEnv].(map[string]any)
 	if !ok {
 		t.Fatal(expectedEnvKeyMsg)
 	}
-	if env["OTHER_VAR"] != otherEnvValue {
-		t.Errorf(otherVarPreservedErrFmt, env["OTHER_VAR"])
+	if env[envKeyOtherVar] != otherEnvValue {
+		t.Errorf(otherVarPreservedErrFmt, env[envKeyOtherVar])
 	}
 }
 
@@ -267,10 +270,10 @@ func TestRemoveCCRelayConfigRemovesEmptyEnv(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	existingSettings := map[string]any{
-		"theme": themeDark,
-		"env": map[string]any{
-			"ANTHROPIC_BASE_URL":   ccRelayProxyURL,
-			"ANTHROPIC_AUTH_TOKEN": managedByCCRelayValue,
+		settingsKeyTheme: themeDark,
+		settingsKeyEnv: map[string]any{
+			envAnthropicBaseURL: ccRelayProxyURL,
+			envAnthropicAuth:    managedByCCRelayValue,
 		},
 	}
 	writeSettings(t, tmpDir, existingSettings)
@@ -286,13 +289,13 @@ func TestRemoveCCRelayConfigRemovesEmptyEnv(t *testing.T) {
 
 	settings := readSettings(t, tmpDir)
 
-	if env, exists := settings["env"]; exists {
+	if env, exists := settings[settingsKeyEnv]; exists {
 		if envMap, ok := env.(map[string]any); ok && len(envMap) > 0 {
 			t.Errorf("Expected env section to be removed or empty, got %v", envMap)
 		}
 	}
 
-	if settings["theme"] != themeDark {
-		t.Errorf(themePreservedErrFmt, settings["theme"])
+	if settings[settingsKeyTheme] != themeDark {
+		t.Errorf(themePreservedErrFmt, settings[settingsKeyTheme])
 	}
 }

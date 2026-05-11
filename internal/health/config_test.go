@@ -1,9 +1,15 @@
 package health_test
 
 import (
-	"github.com/omarluq/cc-relay/internal/health"
 	"testing"
 	"time"
+
+	"github.com/omarluq/cc-relay/internal/health"
+)
+
+const (
+	getterFailureThreshold = "GetFailureThreshold"
+	getterHalfOpenProbes   = "GetHalfOpenProbes"
 )
 
 func TestCircuitBreakerConfigUint32Getters(t *testing.T) {
@@ -29,21 +35,21 @@ func TestCircuitBreakerConfigUint32Getters(t *testing.T) {
 		{
 			getter:     getFailureThreshold,
 			name:       "FailureThreshold zero value returns default 5",
-			getterName: "GetFailureThreshold",
+			getterName: getterFailureThreshold,
 			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0},
 			expected:   5,
 		},
 		{
 			getter:     getFailureThreshold,
 			name:       "FailureThreshold custom value 10",
-			getterName: "GetFailureThreshold",
+			getterName: getterFailureThreshold,
 			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 10, HalfOpenProbes: 0},
 			expected:   10,
 		},
 		{
 			getter:     getFailureThreshold,
 			name:       "FailureThreshold custom value 1",
-			getterName: "GetFailureThreshold",
+			getterName: getterFailureThreshold,
 			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 1, HalfOpenProbes: 0},
 			expected:   1,
 		},
@@ -51,21 +57,21 @@ func TestCircuitBreakerConfigUint32Getters(t *testing.T) {
 		{
 			getter:     getHalfOpenProbes,
 			name:       "HalfOpenProbes zero value returns default 3",
-			getterName: "GetHalfOpenProbes",
+			getterName: getterHalfOpenProbes,
 			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0},
 			expected:   3,
 		},
 		{
 			getter:     getHalfOpenProbes,
 			name:       "HalfOpenProbes custom value 5",
-			getterName: "GetHalfOpenProbes",
+			getterName: getterHalfOpenProbes,
 			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 5},
 			expected:   5,
 		},
 		{
 			getter:     getHalfOpenProbes,
 			name:       "HalfOpenProbes custom value 1",
-			getterName: "GetHalfOpenProbes",
+			getterName: getterHalfOpenProbes,
 			config:     health.CircuitBreakerConfig{OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 1},
 			expected:   1,
 		},

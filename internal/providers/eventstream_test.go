@@ -21,9 +21,9 @@ func TestParseEventStreamMessageValid(t *testing.T) {
 		t.Parallel()
 
 		headers := map[string]string{
-			":event-type":   "message_start",
-			":content-type": "application/json",
-			":message-type": "event",
+			eventTypeHeader:   eventTypeStart,
+			contentTypeHeader: jsonContentType,
+			messageTypeHeader: eventTypeEvent,
 		}
 		payload := []byte(`{"type":"message_start","message":{"id":"msg_123"}}`)
 
@@ -33,8 +33,8 @@ func TestParseEventStreamMessageValid(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, len(msg), consumed)
-		assert.Equal(t, "message_start", parsed.Headers[":event-type"])
-		assert.Equal(t, "application/json", parsed.Headers[":content-type"])
+		assert.Equal(t, eventTypeStart, parsed.Headers[eventTypeHeader])
+		assert.Equal(t, jsonContentType, parsed.Headers[contentTypeHeader])
 		assert.Equal(t, payload, parsed.Payload)
 	})
 
@@ -42,7 +42,7 @@ func TestParseEventStreamMessageValid(t *testing.T) {
 		t.Parallel()
 
 		headers := map[string]string{
-			":event-type": "ping",
+			eventTypeHeader: "ping",
 		}
 
 		msg := providers.ExportBuildEventStreamMessage(headers, []byte{})
@@ -51,7 +51,7 @@ func TestParseEventStreamMessageValid(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, len(msg), consumed)
-		assert.Equal(t, "ping", parsed.Headers[":event-type"])
+		assert.Equal(t, "ping", parsed.Headers[eventTypeHeader])
 		assert.Empty(t, parsed.Payload)
 	})
 
@@ -103,8 +103,8 @@ func TestParseEventStreamMessageErrors(t *testing.T) {
 	t.Run("returns error for invalid prelude CRC", func(t *testing.T) {
 		t.Parallel()
 
-		headers := map[string]string{":event-type": "test"}
-		msg := providers.ExportBuildEventStreamMessage(headers, []byte("test"))
+		headers := map[string]string{eventTypeHeader: testStringValue}
+		msg := providers.ExportBuildEventStreamMessage(headers, []byte(testStringValue))
 
 		// Corrupt prelude CRC
 		msg[8] = 0xFF
@@ -121,8 +121,8 @@ func TestParseEventStreamMessageErrors(t *testing.T) {
 	t.Run("returns error for invalid message CRC", func(t *testing.T) {
 		t.Parallel()
 
-		headers := map[string]string{":event-type": "test"}
-		msg := providers.ExportBuildEventStreamMessage(headers, []byte("test"))
+		headers := map[string]string{eventTypeHeader: testStringValue}
+		msg := providers.ExportBuildEventStreamMessage(headers, []byte(testStringValue))
 
 		// Corrupt message CRC (last 4 bytes)
 		msgLen := len(msg)
@@ -142,11 +142,11 @@ func TestParseEventStreamMessageConcatenated(t *testing.T) {
 	t.Parallel()
 
 	msg1 := providers.ExportBuildEventStreamMessage(
-		map[string]string{":event-type": "first"},
+		map[string]string{eventTypeHeader: "first"},
 		[]byte(`{"seq":1}`),
 	)
 	msg2 := providers.ExportBuildEventStreamMessage(
-		map[string]string{":event-type": "second"},
+		map[string]string{eventTypeHeader: "second"},
 		[]byte(`{"seq":2}`),
 	)
 
@@ -159,13 +159,13 @@ func TestParseEventStreamMessageConcatenated(t *testing.T) {
 	parsed1, consumed1, err := providers.ParseEventStreamMessage(combined)
 	require.NoError(t, err)
 	assert.Equal(t, len(msg1), consumed1)
-	assert.Equal(t, "first", parsed1.Headers[":event-type"])
+	assert.Equal(t, "first", parsed1.Headers[eventTypeHeader])
 
 	// Parse second message
 	parsed2, consumed2, err := providers.ParseEventStreamMessage(combined[consumed1:])
 	require.NoError(t, err)
 	assert.Equal(t, len(msg2), consumed2)
-	assert.Equal(t, "second", parsed2.Headers[":event-type"])
+	assert.Equal(t, "second", parsed2.Headers[eventTypeHeader])
 }
 
 func TestParseEventStreamHeaders(t *testing.T) {
@@ -229,7 +229,7 @@ func TestFormatSSEEvent(t *testing.T) {
 		t.Parallel()
 
 		payload := []byte(`{"type":"message_start"}`)
-		result := providers.ExportFormatSSEEvent("message_start", payload)
+		result := providers.ExportFormatSSEEvent(eventTypeStart, payload)
 
 		expected := "event: message_start\ndata: {\"type\":\"message_start\"}\n\n"
 		assert.Equal(t, expected, string(result))
@@ -239,7 +239,7 @@ func TestFormatSSEEvent(t *testing.T) {
 		t.Parallel()
 
 		payload := []byte("line1\nline2\nline3")
-		result := providers.ExportFormatSSEEvent("test", payload)
+		result := providers.ExportFormatSSEEvent(testStringValue, payload)
 
 		expected := "event: test\ndata: line1\ndata: line2\ndata: line3\n\n"
 		assert.Equal(t, expected, string(result))
@@ -297,9 +297,9 @@ func TestEventStreamToSSESingleMessage(t *testing.T) {
 
 		msg := providers.ExportBuildEventStreamMessage(
 			map[string]string{
-				":event-type":   "message_start",
-				":content-type": "application/json",
-				":message-type": "event",
+				eventTypeHeader:   eventTypeStart,
+				contentTypeHeader: jsonContentType,
+				messageTypeHeader: eventTypeEvent,
 			},
 			[]byte(`{"type":"message_start","message":{"id":"msg_123"}}`),
 		)
@@ -346,15 +346,15 @@ func TestEventStreamToSSEMultipleMessages(t *testing.T) {
 		// Build multiple Event Stream messages
 
 		msg1 := providers.ExportBuildEventStreamMessage(
-			map[string]string{":event-type": "message_start"},
+			map[string]string{eventTypeHeader: eventTypeStart},
 			[]byte(`{"type":"message_start"}`),
 		)
 		msg2 := providers.ExportBuildEventStreamMessage(
-			map[string]string{":event-type": "content_block_start"},
+			map[string]string{eventTypeHeader: "content_block_start"},
 			[]byte(`{"type":"content_block_start","index":0}`),
 		)
 		msg3 := providers.ExportBuildEventStreamMessage(
-			map[string]string{":event-type": "message_stop"},
+			map[string]string{eventTypeHeader: "message_stop"},
 			[]byte(`{"type":"message_stop"}`),
 		)
 
@@ -392,8 +392,8 @@ func TestEventStreamToSSEExceptionHandling(t *testing.T) {
 
 		msg := providers.ExportBuildEventStreamMessage(
 			map[string]string{
-				":exception-type": "ValidationException",
-				":message-type":   "exception",
+				exceptionTypeHeader: "ValidationException",
+				messageTypeHeader:   "exception",
 			},
 			[]byte(`Invalid request parameters`),
 		)
@@ -425,7 +425,7 @@ func TestEventStreamToSSEEdgeCases(t *testing.T) {
 		// Message without :event-type header
 
 		msg := providers.ExportBuildEventStreamMessage(
-			map[string]string{":content-type": "application/json"},
+			map[string]string{contentTypeHeader: jsonContentType},
 			[]byte(`{"type":"unknown"}`),
 		)
 
@@ -469,7 +469,7 @@ func TestEventStreamToSSEHeaderForwarding(t *testing.T) {
 		t.Parallel()
 
 		msg := providers.ExportBuildEventStreamMessage(
-			map[string]string{":event-type": "ping"},
+			map[string]string{eventTypeHeader: "ping"},
 			[]byte{},
 		)
 
@@ -498,7 +498,7 @@ func TestEventStreamToSSEFlushing(t *testing.T) {
 		t.Parallel()
 
 		msg := providers.ExportBuildEventStreamMessage(
-			map[string]string{":event-type": "message_start"},
+			map[string]string{eventTypeHeader: eventTypeStart},
 			[]byte(`{}`),
 		)
 
@@ -553,7 +553,7 @@ func TestEventStreamToSSEIntegration(t *testing.T) {
 			payload   string
 		}{
 			{
-				"message_start",
+				eventTypeStart,
 				`{"type":"message_start","message":{"id":"msg_01","role":"assistant"}}`,
 			},
 			{
@@ -561,11 +561,11 @@ func TestEventStreamToSSEIntegration(t *testing.T) {
 				`{"type":"content_block_start","index":0,"content_block":{"type":"text"}}`,
 			},
 			{
-				"content_block_delta",
+				contentBlockDelta,
 				`{"type":"content_block_delta","index":0,"delta":{"text":"Hello"}}`,
 			},
 			{
-				"content_block_delta",
+				contentBlockDelta,
 				`{"type":"content_block_delta","index":0,"delta":{"text":" world"}}`,
 			},
 			{
@@ -588,9 +588,9 @@ func TestEventStreamToSSEIntegration(t *testing.T) {
 		for _, message := range messages {
 			msg := providers.ExportBuildEventStreamMessage(
 				map[string]string{
-					":event-type":   message.eventType,
-					":content-type": "application/json",
-					":message-type": "event",
+					eventTypeHeader:   message.eventType,
+					contentTypeHeader: jsonContentType,
+					messageTypeHeader: eventTypeEvent,
 				},
 				[]byte(message.payload),
 			)
@@ -641,7 +641,7 @@ func TestFormatMessageAsSSE_NormalEvent(t *testing.T) {
 	payload := []byte(`{"type":"content_block_delta","index":0}`)
 	msg := &providers.EventStreamMessage{
 		Headers: map[string]string{
-			":event-type": "content_block_delta",
+			eventTypeHeader: contentBlockDelta,
 		},
 		Payload: payload,
 	}
@@ -662,7 +662,7 @@ func TestFormatMessageAsSSE_Exception(t *testing.T) {
 
 	msg := &providers.EventStreamMessage{
 		Headers: map[string]string{
-			":exception-type": "throttlingException",
+			exceptionTypeHeader: "throttlingException",
 		},
 		Payload: []byte(`{"message":"Too many requests"}`),
 	}
@@ -771,7 +771,7 @@ func TestAdvanceOffset_Valid(t *testing.T) {
 	t.Parallel()
 
 	data := make([]byte, 10)
-	val, next, err := providers.ExportAdvanceOffset(data, 2, 4, "test")
+	val, next, err := providers.ExportAdvanceOffset(data, 2, 4, testStringValue)
 	if err != nil {
 		t.Fatalf("advanceOffset() error: %v", err)
 	}
@@ -841,7 +841,7 @@ func TestWriteSSEEvent_ValidEvent(t *testing.T) {
 	rec := httptest.NewRecorder()
 	msg := &providers.EventStreamMessage{
 		Headers: map[string]string{
-			":event-type": "message_start",
+			eventTypeHeader: eventTypeStart,
 		},
 		Payload: []byte(`{"type":"message_start"}`),
 	}
@@ -865,7 +865,7 @@ func TestWriteSSEEvent_Exception(t *testing.T) {
 	rec := httptest.NewRecorder()
 	msg := &providers.EventStreamMessage{
 		Headers: map[string]string{
-			":exception-type": "throttlingException",
+			exceptionTypeHeader: "throttlingException",
 		},
 		Payload: []byte(`{"message":"rate limited"}`),
 	}
@@ -905,7 +905,7 @@ func TestNewBedrockProvider_MissingRegion(t *testing.T) {
 
 	_, err := providers.NewBedrockProvider(t.Context(), &providers.BedrockConfig{
 		ModelMapping: nil,
-		Name:         "test",
+		Name:         testStringValue,
 		Region:       "",
 		Models:       nil,
 	})
@@ -920,9 +920,9 @@ func TestNewVertexProvider_MissingProjectID(t *testing.T) {
 
 	_, err := providers.NewVertexProvider(t.Context(), &providers.VertexConfig{
 		ModelMapping: nil,
-		Name:         "test",
+		Name:         testStringValue,
 		ProjectID:    "",
-		Region:       "us-central1",
+		Region:       gcpRegionUSCentral1,
 		Models:       nil,
 	})
 	require.Error(t, err, "NewVertexProvider(empty project_id) should return error")
@@ -934,8 +934,8 @@ func TestNewVertexProvider_MissingRegion(t *testing.T) {
 
 	_, err := providers.NewVertexProvider(t.Context(), &providers.VertexConfig{
 		ModelMapping: nil,
-		Name:         "test",
-		ProjectID:    "my-project",
+		Name:         testStringValue,
+		ProjectID:    gcpProjectMyProject,
 		Region:       "",
 		Models:       nil,
 	})

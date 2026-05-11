@@ -338,7 +338,7 @@ func TestAzureProviderModelMapping(t *testing.T) {
 	t.Parallel()
 	cfg := testAzureConfig(func(c *providers.AzureConfig) {
 		c.ModelMapping = map[string]string{
-			"claude-4": "claude-sonnet-4-5-20250514",
+			modelClaude4: modelClaudeSonnet45,
 		}
 	})
 	provider, err := providers.NewAzureProvider(cfg)
@@ -346,7 +346,7 @@ func TestAzureProviderModelMapping(t *testing.T) {
 
 	t.Run("maps known model", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, "claude-sonnet-4-5-20250514", provider.MapModel("claude-4"))
+		assert.Equal(t, modelClaudeSonnet45, provider.MapModel(modelClaude4))
 	})
 
 	t.Run("returns original for unknown model", func(t *testing.T) {
@@ -421,7 +421,7 @@ func TestDefaultAzureModels(t *testing.T) {
 	t.Parallel()
 
 	assert.NotEmpty(t, providers.DefaultAzureModels)
-	assert.Contains(t, providers.DefaultAzureModels, "claude-sonnet-4-5-20250514")
+	assert.Contains(t, providers.DefaultAzureModels, modelClaudeSonnet45)
 	assert.Contains(t, providers.DefaultAzureModels, "claude-opus-4-6")
 	assert.Contains(t, providers.DefaultAzureModels, "claude-opus-4-5-20250514")
 	assert.Contains(t, providers.DefaultAzureModels, "claude-haiku-3-5-20241022")

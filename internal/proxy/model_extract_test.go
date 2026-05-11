@@ -26,13 +26,13 @@ func TestExtractModelFromRequest(t *testing.T) {
 		{
 			name:      "valid model",
 			body:      `{"model":"claude-opus-4","messages":[]}`,
-			expected:  "claude-opus-4",
+			expected:  testModelClaudeOpus4,
 			isPresent: true,
 		},
 		{
 			name:      "model with prefix",
 			body:      `{"model":"claude-sonnet-4-20250514","messages":[]}`,
-			expected:  "claude-sonnet-4-20250514",
+			expected:  testModelClaudeSonnet4,
 			isPresent: true,
 		},
 		{
@@ -101,7 +101,7 @@ func TestCacheModelInContext(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	model := "claude-opus-4"
+	model := testModelClaudeOpus4
 
 	newCtx := proxy.CacheModelInContext(ctx, model)
 

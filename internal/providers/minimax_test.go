@@ -23,13 +23,13 @@ func TestNewMiniMaxProvider(t *testing.T) {
 		},
 		[]providerTestCase{
 			{
-				name:         "with custom base URL",
+				name:         testNameCustomBaseURL,
 				providerName: "minimax-custom",
 				baseURL:      "https://custom.minimax.io/anthropic",
 				wantBaseURL:  "https://custom.minimax.io/anthropic",
 			},
 			{
-				name:         "with empty base URL uses default",
+				name:         testNameEmptyBaseURL,
 				providerName: "minimax-default",
 				baseURL:      "",
 				wantBaseURL:  providers.DefaultMiniMaxBaseURL,
@@ -188,14 +188,14 @@ func TestMiniMaxModelMapping(t *testing.T) {
 	t.Parallel()
 
 	mapping := map[string]string{
-		"claude-sonnet-4-5-20250514": "MiniMax-M2.5",
+		modelClaudeSonnet45: modelMiniMaxM25,
 	}
 	provider := providers.NewMiniMaxProvider(
 		testMiniMaxName, "", nil, mapping,
 	)
 
 	// Mapped model should resolve
-	if provider.MapModel("claude-sonnet-4-5-20250514") != modelMiniMaxM25 {
+	if provider.MapModel(modelClaudeSonnet45) != modelMiniMaxM25 {
 		t.Error("Expected model mapping to resolve")
 	}
 

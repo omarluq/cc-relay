@@ -14,9 +14,9 @@ import (
 func TestNewLoggerJSONFormat(t *testing.T) {
 	t.Parallel()
 	cfg := config.LoggingConfig{
-		Level:        "info",
+		Level:        testLogLevelInfo,
 		Format:       "json",
-		Output:       "stdout",
+		Output:       testLogOutputStdout,
 		Pretty:       false,
 		DebugOptions: proxy.TestDebugOptions(),
 	}
@@ -42,7 +42,7 @@ func TestNewLoggerJSONFormat(t *testing.T) {
 		t.Errorf("Expected message 'test message', got %v", logEntry["message"])
 	}
 
-	if logEntry["level"] != "info" {
+	if logEntry["level"] != testLogLevelInfo {
 		t.Errorf("Expected level 'info', got %v", logEntry["level"])
 	}
 }
@@ -52,7 +52,7 @@ func TestNewLoggerConsoleFormat(t *testing.T) {
 	cfg := config.LoggingConfig{
 		Level:        "debug",
 		Format:       "console",
-		Output:       "stdout",
+		Output:       testLogOutputStdout,
 		Pretty:       false,
 		DebugOptions: proxy.TestDebugOptions(),
 	}
@@ -79,7 +79,7 @@ func TestNewLoggerLevelFiltering(t *testing.T) {
 	cfg := config.LoggingConfig{
 		Level:        "warn",
 		Format:       "json",
-		Output:       "stdout",
+		Output:       testLogOutputStdout,
 		Pretty:       false,
 		DebugOptions: proxy.TestDebugOptions(),
 	}

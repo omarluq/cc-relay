@@ -7,6 +7,15 @@ import (
 	"github.com/omarluq/cc-relay/internal/vinfo"
 )
 
+const (
+	testBaseVersion    = "v0.0.11"
+	testShortSHA       = "a961617"
+	testFormattedDev20 = "v0.0.11-a961617-20"
+	testCommitABC123   = "abc123"
+	testKeyVCSRevision = "vcs.revision"
+	testDevVersion     = "dev"
+)
+
 func TestVersion(t *testing.T) {
 	t.Parallel()
 	// Version should always be non-empty.
@@ -38,8 +47,8 @@ func TestBuildDate(t *testing.T) { //nolint:paralleltest // mutates package-leve
 func TestFormatDisplayVersionDescribeWithDirty(t *testing.T) {
 	t.Parallel()
 
-	got := vinfo.FormatDisplayVersion("v0.0.11-20-ga961617-dirty", "a961617")
-	want := "v0.0.11-a961617-20"
+	got := vinfo.FormatDisplayVersion("v0.0.11-20-ga961617-dirty", testShortSHA)
+	want := testFormattedDev20
 	if got != want {
 		t.Errorf("FormatDisplayVersion() = %q, want %q", got, want)
 	}
@@ -53,10 +62,10 @@ func TestShortCommit(t *testing.T) {
 		commit string
 		want   string
 	}{
-		{"long commit", "a961617123456789", "a961617"},
+		{"long commit", "a961617123456789", testShortSHA},
 		{"short commit", "a96161", "a96161"},
 		{"empty commit", "", ""},
-		{"exactly 7 chars", "a961617", "a961617"},
+		{"exactly 7 chars", testShortSHA, testShortSHA},
 		{"3 chars", "abc", "abc"},
 	}
 
@@ -84,15 +93,15 @@ func TestParseDescribe(t *testing.T) {
 	}{
 		{
 			name: "full describe with dirty", version: "v0.0.11-20-ga961617-dirty",
-			wantBase: "v0.0.11", wantCount: "20", wantSHA: "a961617", wantDirty: true,
+			wantBase: testBaseVersion, wantCount: "20", wantSHA: testShortSHA, wantDirty: true,
 		},
 		{
 			name: "full describe without dirty", version: "v0.0.11-20-ga961617",
-			wantBase: "v0.0.11", wantCount: "20", wantSHA: "a961617", wantDirty: false,
+			wantBase: testBaseVersion, wantCount: "20", wantSHA: testShortSHA, wantDirty: false,
 		},
 		{
-			name: "simple tag", version: "v0.0.11",
-			wantBase: "v0.0.11", wantCount: "", wantSHA: "", wantDirty: false,
+			name: "simple tag", version: testBaseVersion,
+			wantBase: testBaseVersion, wantCount: "", wantSHA: "", wantDirty: false,
 		},
 		{
 			name: "empty version", version: "",
@@ -129,11 +138,11 @@ func TestFormatDisplayVersion(t *testing.T) {
 		commit  string
 		want    string
 	}{
-		{"clean tag", "v0.0.11", "a961617", "v0.0.11"},
-		{"describe with commit", "v0.0.11-20-ga961617", "a961617", "v0.0.11-a961617-20"},
-		{"describe with dirty", "v0.0.11-20-ga961617-dirty", "a961617", "v0.0.11-a961617-20"},
-		{"empty version", "", "abc123", "dev"},
-		{"dev with commit", "dev", "a961617123456789", "dev"},
+		{"clean tag", testBaseVersion, testShortSHA, testBaseVersion},
+		{"describe with commit", "v0.0.11-20-ga961617", testShortSHA, testFormattedDev20},
+		{"describe with dirty", "v0.0.11-20-ga961617-dirty", testShortSHA, testFormattedDev20},
+		{"empty version", "", testCommitABC123, testDevVersion},
+		{"dev with commit", testDevVersion, "a961617123456789", testDevVersion},
 		{"commit none returns base", "v1.0.0", "none", "v1.0.0"},
 	}
 
@@ -171,7 +180,7 @@ func TestApplySettingsFallback(t *testing.T) { //nolint:paralleltest // mutates 
 		{
 			name: "vcs.revision and vcs.time from settings",
 			settings: []debug.BuildSetting{
-				{Key: "vcs.revision", Value: "abc123def456"},
+				{Key: testKeyVCSRevision, Value: "abc123def456"},
 				{Key: "vcs.time", Value: "2026-04-18T12:00:00Z"},
 			},
 			wantVersion:   "",
@@ -181,7 +190,7 @@ func TestApplySettingsFallback(t *testing.T) { //nolint:paralleltest // mutates 
 		{
 			name: "only vcs.revision",
 			settings: []debug.BuildSetting{
-				{Key: "vcs.revision", Value: "xyz789"},
+				{Key: testKeyVCSRevision, Value: "xyz789"},
 			},
 			wantVersion:   "",
 			wantCommit:    "xyz789",
@@ -198,10 +207,10 @@ func TestApplySettingsFallback(t *testing.T) { //nolint:paralleltest // mutates 
 			name: "unrelated keys are ignored",
 			settings: []debug.BuildSetting{
 				{Key: "GOOS", Value: "linux"},
-				{Key: "vcs.revision", Value: "abc123"},
+				{Key: testKeyVCSRevision, Value: testCommitABC123},
 			},
 			wantVersion:   "",
-			wantCommit:    "abc123",
+			wantCommit:    testCommitABC123,
 			wantBuildDate: "",
 		},
 	}

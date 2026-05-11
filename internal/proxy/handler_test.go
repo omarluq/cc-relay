@@ -97,7 +97,7 @@ func serveJSONMessagesBody(t *testing.T, handler http.Handler, body string) *htt
 func newKeyPool(t *testing.T, keys []keypool.KeyConfig) *keypool.KeyPool {
 	t.Helper()
 	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: testStrategyLeastLoaded,
 		Keys:     keys,
 	})
 	require.NoError(t, err)
@@ -394,7 +394,7 @@ type mockProvider struct {
 }
 
 func (m *mockProvider) Name() string {
-	return "mock"
+	return testMockProvider
 }
 
 func (m *mockProvider) BaseURL() string {
@@ -429,7 +429,7 @@ func (m *mockProvider) SupportsTransparentAuth() bool {
 }
 
 func (m *mockProvider) Owner() string {
-	return "mock"
+	return testMockProvider
 }
 
 func (m *mockProvider) ListModels() []providers.Model {
@@ -632,7 +632,7 @@ func TestHandlerUsesFallbackKeyWhenNoClientAuth(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
 	// Client Authorization should be empty (none provided)
-	assert.Empty(t, headerCapture.Get("Authorization"))
+	assert.Empty(t, headerCapture.Get(testHeaderAuth))
 
 	// Our fallback key should be used
 	assert.Equal(t, "our-fallback-key", headerCapture.Get("x-api-key"))
@@ -652,7 +652,7 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 
 	// Create request WITH client Authorization header
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer sub_12345"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer sub_12345"},
 		proxy.HeaderPair{Key: anthropicVersionHeader, Value: proxy.AnthropicVersion2024},
 	)
 	responseRecorder := proxy.ServeRequest(t, handler, req)
@@ -661,7 +661,7 @@ func TestHandlerForwardsClientAuthWhenPresent(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
 	// CRITICAL: Client Authorization header should be forwarded UNCHANGED
-	assert.Equal(t, "Bearer sub_12345", headerCapture.Get("Authorization"))
+	assert.Equal(t, "Bearer sub_12345", headerCapture.Get(testHeaderAuth))
 
 	// Our fallback key should NOT be added
 	assert.Empty(t, headerCapture.Get("x-api-key"), "fallback key should not be added when client has auth")
@@ -690,7 +690,7 @@ func TestHandlerForwardsClientAPIKeyWhenPresent(t *testing.T) {
 	assert.Equal(t, "sk-ant-client-key", headerCapture.Get("x-api-key"))
 
 	// No Authorization header should be added
-	assert.Empty(t, headerCapture.Get("Authorization"))
+	assert.Empty(t, headerCapture.Get(testHeaderAuth))
 }
 
 // TestHandler_TransparentModeSkipsKeyPool tests that key pool is skipped
@@ -702,7 +702,7 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 
 	// Create key pool with test keys
 	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: testStrategyLeastLoaded,
 		Keys: []keypool.KeyConfig{
 			{APIKey: poolKey1, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000, Priority: 0, Weight: 0},
 		},
@@ -714,7 +714,7 @@ func TestHandlerTransparentModeSkipsKeyPool(t *testing.T) {
 
 	// Create request WITH client auth
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer client-token"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer client-token"},
 	)
 	responseRecorder := proxy.ServeRequest(t, handler, req)
 
@@ -734,7 +734,7 @@ func TestHandlerFallbackModeUsesKeyPool(t *testing.T) {
 	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
 	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: testStrategyLeastLoaded,
 		Keys: []keypool.KeyConfig{
 			{APIKey: poolKey1, RPMLimit: 50, ITPMLimit: 10000, OTPMLimit: 5000, Priority: 0, Weight: 0},
 		},
@@ -768,7 +768,7 @@ func TestHandlerTransparentModeForwardsAnthropicHeaders(t *testing.T) {
 	handler := newTestHandler(t, provider, nil, nil, fallbackKey, false)
 
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer client-token"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer client-token"},
 		proxy.HeaderPair{Key: anthropicVersionHeader, Value: proxy.AnthropicVersion2024},
 		proxy.HeaderPair{Key: "Anthropic-Beta", Value: proxy.AnthropicBetaExtendedThinking},
 	)
@@ -793,7 +793,7 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 
 	// Client sends Authorization header (like Claude Code does)
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer client-anthropic-token"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer client-anthropic-token"},
 		proxy.HeaderPair{Key: anthropicVersionHeader, Value: proxy.AnthropicVersion2024},
 	)
 	responseRecorder := proxy.ServeRequest(t, handler, req)
@@ -802,7 +802,7 @@ func TestHandlerNonTransparentProviderUsesConfiguredKeys(t *testing.T) {
 
 	// CRITICAL: Client Authorization should NOT be forwarded to Z.AI
 	// Instead, our configured x-api-key should be used
-	assert.Empty(t, headerCapture.Get("Authorization"),
+	assert.Empty(t, headerCapture.Get(testHeaderAuth),
 		"client Authorization should not be forwarded to non-transparent provider")
 	assert.Equal(t, "zai-configured-key", headerCapture.Get("x-api-key"), "configured key should be used for Z.AI")
 }
@@ -816,7 +816,7 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 
 	// Create key pool
 	pool, err := keypool.NewKeyPool("test-zai", keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: testStrategyLeastLoaded,
 		Keys: []keypool.KeyConfig{
 			{
 				APIKey:    "test-key-pool-1",
@@ -836,7 +836,7 @@ func TestHandlerNonTransparentProviderWithKeyPool(t *testing.T) {
 
 	// Client sends Authorization header
 	req := proxy.NewMessagesRequestWithHeaders("{}",
-		proxy.HeaderPair{Key: "Authorization", Value: "Bearer client-anthropic-token"},
+		proxy.HeaderPair{Key: testHeaderAuth, Value: "Bearer client-anthropic-token"},
 	)
 	responseRecorder := proxy.ServeRequest(t, handler, req)
 
@@ -961,8 +961,8 @@ func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 
 	backend := proxy.NewJSONBackend(t, `{"id":"test"}`)
 
-	provider1 := proxy.NewNamedProvider("provider1", backend.URL)
-	provider2 := proxy.NewNamedProvider("provider2", backend.URL)
+	provider1 := proxy.NewNamedProvider(testProvider1, backend.URL)
+	provider2 := proxy.NewNamedProvider(testProvider2, backend.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
@@ -990,7 +990,7 @@ func TestHandlerMultiProviderModeUsesRouter(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 	// Debug headers should be present
 	assert.Equal(t, "test_strategy", responseRecorder.Header().Get("X-CC-Relay-Strategy"))
-	assert.Equal(t, "provider2", responseRecorder.Header().Get("X-CC-Relay-Provider"))
+	assert.Equal(t, testProvider2, responseRecorder.Header().Get("X-CC-Relay-Provider"))
 }
 
 func TestHandlerModelBasedRoutingHotReload(t *testing.T) {
@@ -1075,7 +1075,7 @@ func TestHandlerLazyProxyForNewProvider(t *testing.T) {
 	providerInfosFunc := func() []router.ProviderInfo { return infos }
 
 	mockR := &mockRouter{
-		name: "mock",
+		name: testMockProvider,
 		err:  nil,
 		selected: router.ProviderInfo{
 			Provider:  providerB,
@@ -1231,7 +1231,7 @@ func TestHandlerSelectProviderSingleMode(t *testing.T) {
 
 	info, err := proxy.HandlerSelectProvider(context.Background(), handler, "", false)
 	require.NoError(t, err)
-	assert.Equal(t, "test", info.Provider.Name())
+	assert.Equal(t, testValueGeneric, info.Provider.Name())
 	assert.True(t, info.Healthy()) // Always healthy in single mode
 }
 
@@ -1239,8 +1239,8 @@ func TestHandlerSelectProviderSingleMode(t *testing.T) {
 func TestHandlerSelectProviderMultiMode(t *testing.T) {
 	t.Parallel()
 
-	provider1 := proxy.NewNamedProvider("provider1", proxy.AnthropicBaseURL)
-	provider2 := proxy.NewNamedProvider("provider2", proxy.AnthropicBaseURL)
+	provider1 := proxy.NewNamedProvider(testProvider1, proxy.AnthropicBaseURL)
+	provider2 := proxy.NewNamedProvider(testProvider2, proxy.AnthropicBaseURL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
@@ -1248,7 +1248,7 @@ func TestHandlerSelectProviderMultiMode(t *testing.T) {
 	}
 
 	mockR := &mockRouter{
-		name: "test",
+		name: testValueGeneric,
 		err:  nil,
 		selected: router.ProviderInfo{
 			Provider:  provider2,
@@ -1263,7 +1263,7 @@ func TestHandlerSelectProviderMultiMode(t *testing.T) {
 	info, err := proxy.HandlerSelectProvider(context.Background(), handler, "", false)
 	require.NoError(t, err)
 	// Router should have selected provider2, not provider1
-	assert.Equal(t, "provider2", info.Provider.Name())
+	assert.Equal(t, testProvider2, info.Provider.Name())
 }
 
 // TestHandler_HealthHeaderWhenEnabled tests X-CC-Relay-Health debug header.
@@ -1273,7 +1273,7 @@ func TestHandlerHealthHeaderWhenEnabled(t *testing.T) {
 	// Create mock backend
 	backend := proxy.NewJSONBackend(t, `{"id":"msg_123","type":"message"}`)
 
-	handler, _ := newTrackedHandler(t, "test", backend.URL, "round_robin", 5)
+	handler, _ := newTrackedHandler(t, testValueGeneric, backend.URL, "round_robin", 5)
 	rr := serveJSONMessages(t, handler)
 
 	// Should have health header
@@ -1288,12 +1288,12 @@ func TestHandlerReportOutcomeSuccess(t *testing.T) {
 
 	backend := proxy.NewStatusBackend(t, http.StatusOK, `{"id":"msg_123","type":"message"}`, nil)
 
-	handler, tracker := newTrackedHandler(t, "test", backend.URL, "test", 2)
+	handler, tracker := newTrackedHandler(t, testValueGeneric, backend.URL, testValueGeneric, 2)
 	rr := serveJSONMessages(t, handler)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// Provider should still be healthy after successful request
-	assert.True(t, tracker.IsHealthyFunc("test")())
+	assert.True(t, tracker.IsHealthyFunc(testValueGeneric)())
 }
 
 // TestHandler_ReportOutcome_Failure5xx tests 5xx responses count as failures.
@@ -1303,7 +1303,7 @@ func TestHandlerReportOutcomeFailure5xx(t *testing.T) {
 	backend := proxy.NewStatusBackend(t, http.StatusInternalServerError, `{"error":"internal"}`, nil)
 
 	// Low threshold to trigger circuit opening quickly
-	handler, tracker := newTrackedHandler(t, test500ProviderName, backend.URL, "test", 2)
+	handler, tracker := newTrackedHandler(t, test500ProviderName, backend.URL, testValueGeneric, 2)
 
 	// Make multiple requests to trip the circuit
 	for range 3 {
@@ -1323,7 +1323,7 @@ func TestHandlerReportOutcomeFailure429(t *testing.T) {
 		"Retry-After": "60",
 	})
 
-	handler, tracker := newTrackedHandler(t, test429ProviderName, backend.URL, "test", 2)
+	handler, tracker := newTrackedHandler(t, test429ProviderName, backend.URL, testValueGeneric, 2)
 
 	// Make multiple requests to trip the circuit
 	for range 3 {
@@ -1341,7 +1341,7 @@ func TestHandlerReportOutcome4xxNotFailure(t *testing.T) {
 
 	backend := proxy.NewStatusBackend(t, http.StatusBadRequest, `{"error":"bad_request"}`, nil)
 
-	handler, tracker := newTrackedHandler(t, test400ProviderName, backend.URL, "test", 2)
+	handler, tracker := newTrackedHandler(t, test400ProviderName, backend.URL, testValueGeneric, 2)
 
 	// Make multiple 400 requests
 	for range 5 {
@@ -1384,8 +1384,8 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	backend1 := proxy.NewJSONBackend(t, `{"id":"test1"}`)
 	backend2 := proxy.NewJSONBackend(t, `{"id":"test2"}`)
 
-	provider1 := proxy.NewNamedProvider("provider1", backend1.URL)
-	provider2 := proxy.NewNamedProvider("provider2", backend2.URL)
+	provider1 := proxy.NewNamedProvider(testProvider1, backend1.URL)
+	provider2 := proxy.NewNamedProvider(testProvider2, backend2.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
@@ -1399,8 +1399,8 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 		ProviderInfos:     providerInfos,
 		ProviderRouter:    tracker,
 		APIKey:            testKey,
-		ProviderPools:     map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		ProviderKeys:      map[string]string{"provider1": "key1", "provider2": "key2"},
+		ProviderPools:     map[string]*keypool.KeyPool{testProvider1: nil, testProvider2: nil},
+		ProviderKeys:      map[string]string{testProvider1: testKey1, testProvider2: testKey2},
 		DebugOptions:      proxy.TestDebugOptions(),
 		RoutingDebug:      true,
 		ProviderInfosFunc: nil,
@@ -1437,7 +1437,7 @@ func TestHandlerThinkingAffinityUsesConsistentProvider(t *testing.T) {
 	// All requests should have received only 1 provider (the first healthy one)
 	// since thinking affinity reduces candidates to [:1]
 	for i, provName := range tracker.receivedProviders {
-		assert.Equal(t, "provider1", provName, "request %d should use provider1", i)
+		assert.Equal(t, testProvider1, provName, "request %d should use provider1", i)
 	}
 
 	// Check thinking affinity header is set
@@ -1452,8 +1452,8 @@ func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 	backend1 := proxy.NewJSONBackend(t, `{"id":"test1"}`)
 	backend2 := proxy.NewJSONBackend(t, `{"id":"test2"}`)
 
-	provider1 := proxy.NewNamedProvider("provider1", backend1.URL)
-	provider2 := proxy.NewNamedProvider("provider2", backend2.URL)
+	provider1 := proxy.NewNamedProvider(testProvider1, backend1.URL)
+	provider2 := proxy.NewNamedProvider(testProvider2, backend2.URL)
 
 	// Provider1 is unhealthy, provider2 is healthy
 	providerInfos := []router.ProviderInfo{
@@ -1468,8 +1468,8 @@ func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 		ProviderInfos:     providerInfos,
 		ProviderRouter:    tracker,
 		APIKey:            testKey,
-		ProviderPools:     map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		ProviderKeys:      map[string]string{"provider1": "key1", "provider2": "key2"},
+		ProviderPools:     map[string]*keypool.KeyPool{testProvider1: nil, testProvider2: nil},
+		ProviderKeys:      map[string]string{testProvider1: testKey1, testProvider2: testKey2},
 		DebugOptions:      proxy.TestDebugOptions(),
 		RoutingDebug:      false,
 		ProviderInfosFunc: nil,
@@ -1493,7 +1493,7 @@ func TestHandlerThinkingAffinityFallsBackToSecondProvider(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	// Should use provider2 (first healthy after filtering)
-	assert.Equal(t, "provider2", tracker.receivedProviders[0])
+	assert.Equal(t, testProvider2, tracker.receivedProviders[0])
 }
 
 // TestHandler_NoThinking_UsesNormalRouting tests non-thinking requests use normal routing.
@@ -1503,8 +1503,8 @@ func TestHandlerNoThinkingUsesNormalRouting(t *testing.T) {
 	backend1 := proxy.NewJSONBackend(t, `{"id":"test1"}`)
 	backend2 := proxy.NewJSONBackend(t, `{"id":"test2"}`)
 
-	provider1 := proxy.NewNamedProvider("provider1", backend1.URL)
-	provider2 := proxy.NewNamedProvider("provider2", backend2.URL)
+	provider1 := proxy.NewNamedProvider(testProvider1, backend1.URL)
+	provider2 := proxy.NewNamedProvider(testProvider2, backend2.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
@@ -1526,8 +1526,8 @@ func TestHandlerNoThinkingUsesNormalRouting(t *testing.T) {
 		ProviderInfos:     providerInfos,
 		ProviderRouter:    countingRouter,
 		APIKey:            testKey,
-		ProviderPools:     map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		ProviderKeys:      map[string]string{"provider1": "key1", "provider2": "key2"},
+		ProviderPools:     map[string]*keypool.KeyPool{testProvider1: nil, testProvider2: nil},
+		ProviderKeys:      map[string]string{testProvider1: testKey1, testProvider2: testKey2},
 		DebugOptions:      proxy.TestDebugOptions(),
 		RoutingDebug:      true,
 		ProviderInfosFunc: nil,
@@ -1632,7 +1632,7 @@ func TestHandlerGetOrCreateProxyNilPoolsMapPreservesExistingProxy(t *testing.T) 
 
 	prov := &mockProvider{baseURL: localBaseURL}
 	pool, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: testStrategyLeastLoaded,
 		Keys:     []keypool.KeyConfig{proxy.TestKeyConfig(poolKey1)},
 	})
 	require.NoError(t, err)
@@ -1720,12 +1720,12 @@ func TestHandlerGetOrCreateProxyMultiProviderModeDetectsPoolChange(t *testing.T)
 	provName := prov.Name()
 
 	pool1, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: testStrategyLeastLoaded,
 		Keys:     []keypool.KeyConfig{proxy.TestKeyConfig(poolKey1)},
 	})
 	require.NoError(t, err)
 	pool2, err := keypool.NewKeyPool(testProviderName, keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: testStrategyLeastLoaded,
 		Keys: []keypool.KeyConfig{
 			proxy.TestKeyConfig("pool-key-2"),
 		},

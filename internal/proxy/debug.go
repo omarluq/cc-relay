@@ -18,6 +18,12 @@ import (
 	"github.com/samber/lo"
 )
 
+// TLS version string constants used in TLS metric reporting.
+const (
+	tlsVersion12 = "TLS 1.2"
+	tlsVersion13 = "TLS 1.3"
+)
+
 // Sensitive patterns to redact from request bodies.
 var sensitivePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`"api_key"\s*:\s*"[^"]+"`),
@@ -308,9 +314,9 @@ func tlsVersionString(version uint16) string {
 	case tls.VersionTLS11:
 		return "TLS 1.1"
 	case tls.VersionTLS12:
-		return "TLS 1.2"
+		return tlsVersion12
 	case tls.VersionTLS13:
-		return "TLS 1.3"
+		return tlsVersion13
 	default:
 		return "unknown"
 	}

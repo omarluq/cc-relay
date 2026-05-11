@@ -17,12 +17,12 @@ func TestFormatLevel(t *testing.T) {
 		contains string
 	}{
 		{"debug level", "debug", "DBG"},
-		{"info level", "info", "INF"},
+		{"info level", testLogLevelInfo, "INF"},
 		{"warn level", "warn", "WRN"},
 		{"error level", "error", "ERR"},
 		{"fatal level", "fatal", "FTL"},
 		{"panic level", "panic", "PNC"},
-		{"unknown level", "unknown", "unknown"},
+		{"unknown level", testLogLevelUnknown, testLogLevelUnknown},
 		{"non-string input", 123, ""},
 	}
 
