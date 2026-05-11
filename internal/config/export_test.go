@@ -153,7 +153,7 @@ func MakeTestRoutingConfig() RoutingConfig {
 func MakeTestHealthConfig() health.Config {
 	return health.Config{
 		HealthCheck: health.CheckConfig{
-			Enabled:    boolPtr(true),
+			Enabled:    new(true),
 			IntervalMS: 10000,
 		},
 		CircuitBreaker: health.CircuitBreakerConfig{
@@ -178,11 +178,6 @@ func MakeTestValidationError() *ValidationError {
 	return &ValidationError{
 		Errors: []string{},
 	}
-}
-
-// boolPtr returns a pointer to a bool.
-func boolPtr(b bool) *bool {
-	return &b
 }
 
 // WatcherTestFixture encapsulates a test watcher setup with its config path.

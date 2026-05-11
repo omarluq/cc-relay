@@ -35,8 +35,11 @@ const (
 	LevelError = "error"
 )
 
-// PoolingStrategyLeastLoaded is the default key pool selection strategy.
-const PoolingStrategyLeastLoaded = "least_loaded"
+// StrategyLeastLoaded is the "least_loaded" selection strategy identifier,
+// shared between routing strategies and key-pool selection strategies. Both
+// concepts use the same wire value, so we expose one constant and let callers
+// disambiguate by context (validRoutingStrategies vs validPoolingStrategies).
+const StrategyLeastLoaded = "least_loaded"
 
 // Config represents the complete cc-relay configuration.
 type Config struct {
@@ -179,7 +182,7 @@ func (p *ProviderConfig) GetEffectiveStrategy() string {
 	if p.Pooling.Strategy != "" {
 		return p.Pooling.Strategy
 	}
-	return PoolingStrategyLeastLoaded // Default strategy
+	return StrategyLeastLoaded // Default strategy
 }
 
 // IsPoolingEnabled returns true if key pooling should be used.

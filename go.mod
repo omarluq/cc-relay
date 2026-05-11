@@ -1,6 +1,6 @@
 module github.com/omarluq/cc-relay
 
-go 1.25.0
+go 1.26.3
 
 require (
 	charm.land/fang/v2 v2.0.1

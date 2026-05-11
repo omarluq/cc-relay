@@ -33,23 +33,23 @@ const MaxTimeoutMS = 24 * 60 * 60 * 1000 // 24h in ms = 86_400_000
 
 // Valid routing strategies.
 var validRoutingStrategies = map[string]bool{
-	"":                         true, // Empty defaults to failover
-	"failover":                 true,
-	"round_robin":              true,
-	"weighted_round_robin":     true,
-	"shuffle":                  true,
-	"model_based":              true,
-	PoolingStrategyLeastLoaded: true,
-	"weighted_failover":        true,
+	"":                     true, // Empty defaults to failover
+	"failover":             true,
+	"round_robin":          true,
+	"weighted_round_robin": true,
+	"shuffle":              true,
+	"model_based":          true,
+	StrategyLeastLoaded:    true,
+	"weighted_failover":    true,
 }
 
 // Valid keypool strategies.
 var validPoolingStrategies = map[string]bool{
-	"":                         true, // Empty defaults to least_loaded
-	PoolingStrategyLeastLoaded: true,
-	"round_robin":              true,
-	"random":                   true,
-	"weighted":                 true,
+	"":                  true, // Empty defaults to least_loaded
+	StrategyLeastLoaded: true,
+	"round_robin":       true,
+	"random":            true,
+	"weighted":          true,
 }
 
 // Valid provider types.

@@ -30,8 +30,15 @@ const (
 	HeaderRelayKeysAvail = "X-CC-Relay-Keys-Available" // Available keys
 )
 
-// logLevelError is the string representation of the error log level.
+// logLevelError is the string representation of the "error" log level used
+// by structured logging output (not the API response field).
 const logLevelError = "error"
+
+// errorResponseType is the value of the top-level "type" field in an
+// Anthropic-format error response (e.g. {"type":"error", ...}). This is part
+// of the external API contract and intentionally separate from logLevelError
+// so a change to the logging vocabulary cannot accidentally alter the schema.
+const errorResponseType = "error"
 
 // ErrorResponse matches Anthropic's error response format exactly.
 type ErrorResponse struct {
@@ -48,7 +55,7 @@ type ErrorDetail struct {
 // WriteError writes a JSON error response in Anthropic API format.
 func WriteError(writer http.ResponseWriter, statusCode int, errorType, message string) {
 	response := ErrorResponse{
-		Type: logLevelError,
+		Type: errorResponseType,
 		Error: ErrorDetail{
 			Type:    errorType,
 			Message: message,
