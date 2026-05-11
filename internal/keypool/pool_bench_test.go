@@ -87,8 +87,7 @@ func BenchmarkKeyPoolUpdateFromHeaders(b *testing.B) {
 	headers.Set("anthropic-ratelimit-output-tokens-limit", "30000")
 	headers.Set("anthropic-ratelimit-output-tokens-remaining", "29000")
 
-	b.ResetTimer()
-	for iteration := 0; iteration < b.N; iteration++ {
+	for b.Loop() {
 		if updateErr := pool.UpdateKeyFromHeaders(keyID, headers); updateErr != nil {
 			b.Fatal(updateErr)
 		}

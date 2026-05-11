@@ -20,16 +20,14 @@ func verifyConcurrentSafety(t *testing.T, goroutines int, work func()) bool {
 	panicked := make(chan bool, goroutines)
 
 	for range goroutines {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			defer func() {
 				if recovered := recover(); recovered != nil {
 					panicked <- true
 				}
 			}()
 			work()
-		}()
+		})
 	}
 
 	waitGroup.Wait()

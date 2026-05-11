@@ -104,16 +104,14 @@ func TestRandomSelectorConcurrent(t *testing.T) {
 
 	var waitGroup sync.WaitGroup
 	for range 50 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			for range 10 {
 				_, err := selector.Select(keys)
 				if err != nil {
 					t.Errorf("Select() unexpected error: %v", err)
 				}
 			}
-		}()
+		})
 	}
 	waitGroup.Wait()
 }
@@ -244,16 +242,14 @@ func TestWeightedSelectorConcurrent(t *testing.T) {
 
 	var waitGroup sync.WaitGroup
 	for range 50 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			for range 10 {
 				_, err := selector.Select(keys)
 				if err != nil {
 					t.Errorf("Select() unexpected error: %v", err)
 				}
 			}
-		}()
+		})
 	}
 	waitGroup.Wait()
 }

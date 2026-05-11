@@ -402,16 +402,14 @@ func TestFailoverRouterSelectWithRetryConcurrentSafety(t *testing.T) {
 
 	var waitGroup sync.WaitGroup
 	for range 100 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			_, err := rtr.SelectWithRetry(context.Background(), providers, tryProvider)
 			if err != nil {
 				errorCount.Add(1)
 			} else {
 				successCount.Add(1)
 			}
-		}()
+		})
 	}
 
 	waitGroup.Wait()

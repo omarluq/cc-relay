@@ -522,11 +522,9 @@ func TestConcurrencyAllowAndWait(t *testing.T) {
 
 	// Spawn 50 goroutines trying to use the limiter
 	for range 50 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			successCount.Add(concurrentAllowAndWaitWorker(ctx, limiter))
-		}()
+		})
 	}
 
 	waitGroup.Wait()
@@ -547,14 +545,12 @@ func TestConcurrencyGetUsage(t *testing.T) {
 
 	// Spawn many goroutines reading usage
 	for range 100 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			usage := limiter.GetUsage()
 			if usage.RequestsLimit != 100 {
 				errorsChan <- ratelimit.ErrRateLimitExceeded
 			}
-		}()
+		})
 	}
 
 	waitGroup.Wait()
@@ -579,16 +575,14 @@ func TestConcurrencyConsumeTokens(t *testing.T) {
 
 	// Spawn goroutines consuming tokens
 	for range 50 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			for range 10 {
 				if err := limiter.ConsumeTokens(ctx, 100); err != nil {
 					errorsChan <- err
 					return
 				}
 			}
-		}()
+		})
 	}
 
 	waitGroup.Wait()

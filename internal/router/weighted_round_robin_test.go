@@ -301,9 +301,7 @@ func TestWeightedRoundRobinRouterSelectConcurrentSafety(t *testing.T) {
 	counts := map[string]int{"a": 0, "b": 0}
 
 	for range goroutines {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			for range selectionsPerGoroutine {
 				prov, err := wrr.Select(context.Background(), infos)
 				if err != nil {
@@ -314,7 +312,7 @@ func TestWeightedRoundRobinRouterSelectConcurrentSafety(t *testing.T) {
 				counts[prov.Provider.Name()]++
 				mutex.Unlock()
 			}
-		}()
+		})
 	}
 
 	waitGroup.Wait()

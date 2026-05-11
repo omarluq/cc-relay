@@ -684,7 +684,7 @@ func TestRistrettoCacheConcurrentClose(t *testing.T) {
 	ctx := context.Background()
 
 	// Pre-populate cache
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		key := fmt.Sprintf("key-%d", i)
 		if setErr := ristrettoCache.Set(ctx, key, []byte("value")); setErr != nil {
 			t.Fatalf("Set(%q) error = %v", key, setErr)
@@ -701,7 +701,7 @@ func TestRistrettoCacheConcurrentClose(t *testing.T) {
 	for range numGoroutines / 2 {
 		go func() {
 			defer waitGroup.Done()
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				key := fmt.Sprintf("key-%d", j%10)
 				// Errors expected during concurrent close; intentionally ignored.
 				_, getErr := ristrettoCache.Get(ctx, key)
@@ -714,7 +714,7 @@ func TestRistrettoCacheConcurrentClose(t *testing.T) {
 	for range numGoroutines / 2 {
 		go func() {
 			defer waitGroup.Done()
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				key := fmt.Sprintf("key-%d", j%10)
 				// Errors expected during concurrent close; intentionally ignored.
 				setErr := ristrettoCache.Set(ctx, key, []byte("value"))

@@ -167,7 +167,7 @@ func TestNewConfig(t *testing.T) {
 	t.Run("returns error for non-existent config", func(t *testing.T) {
 		t.Parallel()
 		nonExistentInjector := newInjectorWithConfigPath("/nonexistent/" + configFileName)
-			defer shutdownInjector(t, nonExistentInjector)
+		defer shutdownInjector(t, nonExistentInjector)
 
 		_, err := do.Invoke[*di.ConfigService](nonExistentInjector)
 		require.Error(t, err)
@@ -434,9 +434,7 @@ func testConcurrentReadsDuringReload(t *testing.T) {
 	stopReads := make(chan struct{})
 
 	for range 10 {
-		waitGroup.Add(1)
-		go func() {
-			defer waitGroup.Done()
+		waitGroup.Go(func() {
 			for {
 				select {
 				case <-stopReads:
@@ -448,7 +446,7 @@ func testConcurrentReadsDuringReload(t *testing.T) {
 					time.Sleep(1 * time.Millisecond)
 				}
 			}
-		}()
+		})
 	}
 
 	for i := range 5 {

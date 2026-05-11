@@ -202,9 +202,7 @@ func (h *Checker) Start() {
 	jitter := cryptoRandDuration(2 * time.Second)
 	ticker := time.NewTicker(interval + jitter)
 
-	h.waitGroup.Add(1)
-	go func() {
-		defer h.waitGroup.Done()
+	h.waitGroup.Go(func() {
 		defer ticker.Stop()
 
 		if h.logger != nil {
@@ -225,7 +223,7 @@ func (h *Checker) Start() {
 				h.checkAllProviders()
 			}
 		}
-	}()
+	})
 }
 
 // Stop stops the health checker and waits for the goroutine to finish.
