@@ -5,9 +5,6 @@ import (
 	"context"
 	"net/http"
 	"time"
-
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 // Default timeouts applied when ServerOptions fields are zero.
@@ -75,15 +72,10 @@ type Server struct {
 //     LLM streaming responses can run for many minutes.
 //   - IdleTimeout: 120s default for reasonable keep-alive reuse.
 //
-// When EnableHTTP2 is true, the handler is wrapped with h2c for cleartext
-// HTTP/2 (better multiplexing for Claude Code's parallel tool calls).
+// When EnableHTTP2 is true, the server advertises unencrypted HTTP/2 (h2c) via
+// http.Server.Protocols (Go 1.24+), giving Claude Code's parallel tool calls
+// proper stream multiplexing. HTTP/1.1 stays enabled for legacy clients.
 func NewServer(opts ServerOptions) *Server {
-	finalHandler := opts.Handler
-	if opts.EnableHTTP2 {
-		h2s := &http2.Server{}
-		finalHandler = h2c.NewHandler(opts.Handler, h2s)
-	}
-
 	readTimeout := opts.ReadTimeout
 	if readTimeout <= 0 {
 		readTimeout = defaultReadTimeout
@@ -97,15 +89,23 @@ func NewServer(opts ServerOptions) *Server {
 		idleTimeout = defaultIdleTimeout
 	}
 
+	httpServer := &http.Server{
+		Addr:         opts.Addr,
+		Handler:      opts.Handler,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		IdleTimeout:  idleTimeout,
+	}
+	if opts.EnableHTTP2 {
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetUnencryptedHTTP2(true)
+		httpServer.Protocols = protocols
+	}
+
 	return &Server{
-		addr: opts.Addr,
-		httpServer: &http.Server{
-			Addr:         opts.Addr,
-			Handler:      finalHandler,
-			ReadTimeout:  readTimeout,
-			WriteTimeout: writeTimeout,
-			IdleTimeout:  idleTimeout,
-		},
+		addr:       opts.Addr,
+		httpServer: httpServer,
 	}
 }
 
