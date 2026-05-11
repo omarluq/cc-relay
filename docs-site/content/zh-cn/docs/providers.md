@@ -42,9 +42,9 @@ providers:
         priority: 2          # 更高 = 在故障转移中首先尝试
 
     models:
-      - "claude-sonnet-4-5-20250514"
-      - "claude-opus-4-5-20250514"
-      - "claude-haiku-3-5-20241022"
+      - "claude-sonnet-4-6"
+      - "claude-opus-4-7"
+      - "claude-haiku-4-5-20251001"
 ```
   {{< /tab >}}
   {{< tab >}}
@@ -62,9 +62,9 @@ tpm_limit = 100000    # Tokens per minute
 priority = 2          # Higher = tried first in failover
 
 models = [
-  "claude-sonnet-4-5-20250514",
-  "claude-opus-4-5-20250514",
-  "claude-haiku-3-5-20241022"
+  "claude-sonnet-4-6",
+  "claude-opus-4-7",
+  "claude-haiku-4-5-20251001"
 ]
 ```
   {{< /tab >}}
@@ -126,15 +126,15 @@ providers:
 
     # 将 Claude 模型名称映射到 Z.AI 模型
     model_mapping:
-      "claude-sonnet-4-5-20250514": "GLM-4.7"
+      "claude-sonnet-4-6": "GLM-4.7"
       "claude-sonnet-4-5": "GLM-4.7"
-      "claude-haiku-3-5-20241022": "GLM-4.5-Air"
-      "claude-haiku-3-5": "GLM-4.5-Air"
+      "claude-haiku-4-5-20251001": "GLM-4.5-Air"
+      "claude-haiku-4-5": "GLM-4.5-Air"
 
     models:
       - "GLM-4.7"
       - "GLM-4.5-Air"
-      - "GLM-4-Plus"
+      - "GLM-5.1"
 ```
   {{< /tab >}}
   {{< tab >}}
@@ -151,15 +151,15 @@ priority = 1  # Lower priority than Anthropic for failover
 
 # Map Claude model names to Z.AI models
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-6" = "GLM-4.7"
 "claude-sonnet-4-5" = "GLM-4.7"
-"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
-"claude-haiku-3-5" = "GLM-4.5-Air"
+"claude-haiku-4-5-20251001" = "GLM-4.5-Air"
+"claude-haiku-4-5" = "GLM-4.5-Air"
 
 models = [
   "GLM-4.7",
   "GLM-4.5-Air",
-  "GLM-4-Plus"
+  "GLM-5.1"
 ]
 ```
   {{< /tab >}}
@@ -176,31 +176,31 @@ models = [
 
 ### Model Mapping
 
-Model Mapping 将 Anthropic 模型名称转换为 Z.AI 等效模型。当 Claude Code 请求 `claude-sonnet-4-5-20250514` 时，cc-relay 会自动路由到 `GLM-4.7`:
+Model Mapping 将 Anthropic 模型名称转换为 Z.AI 等效模型。当 Claude Code 请求 `claude-sonnet-4-6` 时，cc-relay 会自动路由到 `GLM-4.7`:
 
 {{< tabs items="YAML,TOML" >}}
   {{< tab >}}
 ```yaml
 model_mapping:
   # Claude Sonnet -> GLM-4.7（旗舰模型）
-  "claude-sonnet-4-5-20250514": "GLM-4.7"
+  "claude-sonnet-4-6": "GLM-4.7"
   "claude-sonnet-4-5": "GLM-4.7"
 
   # Claude Haiku -> GLM-4.5-Air（快速、经济）
-  "claude-haiku-3-5-20241022": "GLM-4.5-Air"
-  "claude-haiku-3-5": "GLM-4.5-Air"
+  "claude-haiku-4-5-20251001": "GLM-4.5-Air"
+  "claude-haiku-4-5": "GLM-4.5-Air"
 ```
   {{< /tab >}}
   {{< tab >}}
 ```toml
 [model_mapping]
 # Claude Sonnet -> GLM-4.7 (flagship model)
-"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-6" = "GLM-4.7"
 "claude-sonnet-4-5" = "GLM-4.7"
 
 # Claude Haiku -> GLM-4.5-Air (fast, economical)
-"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
-"claude-haiku-3-5" = "GLM-4.5-Air"
+"claude-haiku-4-5-20251001" = "GLM-4.5-Air"
+"claude-haiku-4-5" = "GLM-4.5-Air"
 ```
   {{< /tab >}}
 {{< /tabs >}}
@@ -210,7 +210,7 @@ model_mapping:
 | 模型 | Anthropic（每百万令牌） | Z.AI 等效 | Z.AI 成本 |
 |------|------------------------|----------|----------|
 | claude-sonnet-4-5 | $3 输入 / $15 输出 | GLM-4.7 | ~$0.43 / $2.14 |
-| claude-haiku-3-5 | $0.25 输入 / $1.25 输出 | GLM-4.5-Air | ~$0.04 / $0.18 |
+| claude-haiku-4-5 | $0.25 输入 / $1.25 输出 | GLM-4.5-Air | ~$0.04 / $0.18 |
 
 *价格为近似值，可能会有变动。*
 
@@ -235,10 +235,10 @@ providers:
 
     # 将 Claude 模型名称映射到本地 Ollama 模型
     model_mapping:
-      "claude-sonnet-4-5-20250514": "qwen3:32b"
+      "claude-sonnet-4-6": "qwen3:32b"
       "claude-sonnet-4-5": "qwen3:32b"
-      "claude-haiku-3-5-20241022": "qwen3:8b"
-      "claude-haiku-3-5": "qwen3:8b"
+      "claude-haiku-4-5-20251001": "qwen3:8b"
+      "claude-haiku-4-5": "qwen3:8b"
 
     models:
       - "qwen3:32b"
@@ -260,10 +260,10 @@ priority = 0    # Lowest priority for failover
 
 # Map Claude model names to local Ollama models
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "qwen3:32b"
+"claude-sonnet-4-6" = "qwen3:32b"
 "claude-sonnet-4-5" = "qwen3:32b"
-"claude-haiku-3-5-20241022" = "qwen3:8b"
-"claude-haiku-3-5" = "qwen3:8b"
+"claude-haiku-4-5-20251001" = "qwen3:8b"
+"claude-haiku-4-5" = "qwen3:8b"
 
 models = [
   "qwen3:32b",
@@ -369,9 +369,9 @@ providers:
 
     # Map Claude model names to Bedrock model IDs
     model_mapping:
-      "claude-sonnet-4-5-20250514": "anthropic.claude-sonnet-4-5-20250514-v1:0"
-      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-5-20250514-v1:0"
-      "claude-haiku-3-5-20241022": "anthropic.claude-haiku-3-5-20241022-v1:0"
+      "claude-sonnet-4-6": "anthropic.claude-sonnet-4-6-v1:0"
+      "claude-sonnet-4-5": "anthropic.claude-sonnet-4-6-v1:0"
+      "claude-haiku-4-5-20251001": "anthropic.claude-haiku-4-5-20251001-v1:0"
 
     keys:
       - key: "bedrock-internal"  # Internal key for cc-relay auth
@@ -397,9 +397,9 @@ aws_secret_access_key = "${AWS_SECRET_ACCESS_KEY}"
 
 # Map Claude model names to Bedrock model IDs
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
-"claude-sonnet-4-5" = "anthropic.claude-sonnet-4-5-20250514-v1:0"
-"claude-haiku-3-5-20241022" = "anthropic.claude-haiku-3-5-20241022-v1:0"
+"claude-sonnet-4-6" = "anthropic.claude-sonnet-4-6-v1:0"
+"claude-sonnet-4-5" = "anthropic.claude-sonnet-4-6-v1:0"
+"claude-haiku-4-5-20251001" = "anthropic.claude-haiku-4-5-20251001-v1:0"
 
 [[providers.keys]]
 key = "bedrock-internal"  # Internal key for cc-relay auth
@@ -423,9 +423,9 @@ Bedrock uses a specific model ID format: `anthropic.{model}-v{version}:{minor}`
 
 | Claude Model | Bedrock Model ID |
 |--------------|------------------|
-| claude-sonnet-4-5-20250514 | `anthropic.claude-sonnet-4-5-20250514-v1:0` |
-| claude-opus-4-5-20250514 | `anthropic.claude-opus-4-5-20250514-v1:0` |
-| claude-haiku-3-5-20241022 | `anthropic.claude-haiku-3-5-20241022-v1:0` |
+| claude-sonnet-4-6 | `anthropic.claude-sonnet-4-6-v1:0` |
+| claude-opus-4-7 | `anthropic.claude-opus-4-7-v1:0` |
+| claude-haiku-4-5-20251001 | `anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 ### Event Stream Conversion
 
@@ -457,9 +457,9 @@ providers:
 
     # Map Claude model names to Azure deployment names
     model_mapping:
-      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5"
+      "claude-sonnet-4-6": "claude-sonnet-4-5"
       "claude-sonnet-4-5": "claude-sonnet-4-5"
-      "claude-haiku-3-5": "claude-haiku-3-5"
+      "claude-haiku-4-5": "claude-haiku-4-5"
 ```
   {{< /tab >}}
   {{< tab >}}
@@ -481,9 +481,9 @@ key = "${AZURE_API_KEY}"
 
 # Map Claude model names to Azure deployment names
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5"
+"claude-sonnet-4-6" = "claude-sonnet-4-5"
 "claude-sonnet-4-5" = "claude-sonnet-4-5"
-"claude-haiku-3-5" = "claude-haiku-3-5"
+"claude-haiku-4-5" = "claude-haiku-4-5"
 ```
   {{< /tab >}}
 {{< /tabs >}}
@@ -536,9 +536,9 @@ providers:
 
     # Map Claude model names to Vertex AI model IDs
     model_mapping:
-      "claude-sonnet-4-5-20250514": "claude-sonnet-4-5@20250514"
+      "claude-sonnet-4-6": "claude-sonnet-4-5@20250514"
       "claude-sonnet-4-5": "claude-sonnet-4-5@20250514"
-      "claude-haiku-3-5-20241022": "claude-haiku-3-5@20241022"
+      "claude-haiku-4-5-20251001": "claude-haiku-4-5@20251001"
 
     keys:
       - key: "vertex-internal"  # Internal key for cc-relay auth
@@ -559,9 +559,9 @@ gcp_region = "us-east5"
 
 # Map Claude model names to Vertex AI model IDs
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "claude-sonnet-4-5@20250514"
+"claude-sonnet-4-6" = "claude-sonnet-4-5@20250514"
 "claude-sonnet-4-5" = "claude-sonnet-4-5@20250514"
-"claude-haiku-3-5-20241022" = "claude-haiku-3-5@20241022"
+"claude-haiku-4-5-20251001" = "claude-haiku-4-5@20251001"
 
 [[providers.keys]]
 key = "vertex-internal"  # Internal key for cc-relay auth
@@ -584,9 +584,9 @@ Vertex AI uses `{model}@{version}` format:
 
 | Claude Model | Vertex AI Model ID |
 |--------------|-------------------|
-| claude-sonnet-4-5-20250514 | `claude-sonnet-4-5@20250514` |
-| claude-opus-4-5-20250514 | `claude-opus-4-5@20250514` |
-| claude-haiku-3-5-20241022 | `claude-haiku-3-5@20241022` |
+| claude-sonnet-4-6 | `claude-sonnet-4-5@20250514` |
+| claude-opus-4-7 | `claude-opus-4-7` |
+| claude-haiku-4-5-20251001 | `claude-haiku-4-5@20251001` |
 
 ### Regions
 
@@ -616,8 +616,8 @@ providers:
 
     # 将 Claude 模型名称映射到 MiniMax 模型
     model_mapping:
-      "claude-opus-4-6": "MiniMax-M2.5"
-      "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+      "claude-opus-4-7": "MiniMax-M2.5"
+      "claude-sonnet-4-6": "MiniMax-M2.5-highspeed"
       "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
       "claude-haiku-4-5-20251001": "MiniMax-M2.1-highspeed"
       "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
@@ -644,8 +644,8 @@ priority = 1  # 故障转移中优先级低于 Anthropic
 
 # 将 Claude 模型名称映射到 MiniMax 模型
 [providers.model_mapping]
-"claude-opus-4-6" = "MiniMax-M2.5"
-"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-opus-4-7" = "MiniMax-M2.5"
+"claude-sonnet-4-6" = "MiniMax-M2.5-highspeed"
 "claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
 "claude-haiku-4-5-20251001" = "MiniMax-M2.1-highspeed"
 "claude-haiku-4-5" = "MiniMax-M2.1-highspeed"
@@ -691,10 +691,10 @@ MiniMax 使用 Bearer 令牌认证，而不是 Anthropic 使用的 `x-api-key` �
 ```yaml
 model_mapping:
   # Claude Opus -> MiniMax-M2.5（旗舰）
-  "claude-opus-4-6": "MiniMax-M2.5"
+  "claude-opus-4-7": "MiniMax-M2.5"
 
   # Claude Sonnet -> MiniMax-M2.5-highspeed（快速、高质量）
-  "claude-sonnet-4-5-20250514": "MiniMax-M2.5-highspeed"
+  "claude-sonnet-4-6": "MiniMax-M2.5-highspeed"
   "claude-sonnet-4-5": "MiniMax-M2.5-highspeed"
 
   # Claude Haiku -> MiniMax-M2.1-highspeed（快速、经济）
@@ -706,10 +706,10 @@ model_mapping:
 ```toml
 [model_mapping]
 # Claude Opus -> MiniMax-M2.5（旗舰）
-"claude-opus-4-6" = "MiniMax-M2.5"
+"claude-opus-4-7" = "MiniMax-M2.5"
 
 # Claude Sonnet -> MiniMax-M2.5-highspeed（快速、高质量）
-"claude-sonnet-4-5-20250514" = "MiniMax-M2.5-highspeed"
+"claude-sonnet-4-6" = "MiniMax-M2.5-highspeed"
 "claude-sonnet-4-5" = "MiniMax-M2.5-highspeed"
 
 # Claude Haiku -> MiniMax-M2.1-highspeed（快速、经济）
@@ -742,7 +742,7 @@ providers:
     type: "zai"
     model_mapping:
       # 格式: "传入模型": "供应商模型"
-      "claude-sonnet-4-5-20250514": "GLM-4.7"
+      "claude-sonnet-4-6": "GLM-4.7"
       "claude-sonnet-4-5": "GLM-4.7"
 ```
   {{< /tab >}}
@@ -754,7 +754,7 @@ type = "zai"
 
 [providers.model_mapping]
 # Format: "incoming-model" = "provider-model"
-"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-6" = "GLM-4.7"
 "claude-sonnet-4-5" = "GLM-4.7"
 ```
   {{< /tab >}}
@@ -762,7 +762,7 @@ type = "zai"
 
 当 Claude Code 发送:
 ```json
-{"model": "claude-sonnet-4-5-20250514", ...}
+{"model": "claude-sonnet-4-6", ...}
 ```
 
 CC-Relay 路由到 Z.AI:
@@ -772,7 +772,7 @@ CC-Relay 路由到 Z.AI:
 
 ### 映射技巧
 
-1. **包含版本后缀**: 同时映射 `claude-sonnet-4-5` 和 `claude-sonnet-4-5-20250514`
+1. **包含版本后缀**: 同时映射 `claude-sonnet-4-5` 和 `claude-sonnet-4-6`
 2. **考虑上下文长度**: 匹配具有类似能力的模型
 3. **测试质量**: 验证输出质量满足您的需求
 

@@ -23,7 +23,7 @@ anthropic-version: 2023-06-01
 **요청 본문**:
 ```json
 {
-  "model": "claude-sonnet-4-5-20250514",
+  "model": "claude-sonnet-4-6",
   "max_tokens": 1024,
   "messages": [
     {
@@ -48,7 +48,7 @@ anthropic-version: 2023-06-01
       "text": "Hello! How can I help you today?"
     }
   ],
-  "model": "claude-sonnet-4-5-20250514",
+  "model": "claude-sonnet-4-6",
   "stop_reason": "end_turn",
   "usage": {
     "input_tokens": 12,
@@ -89,7 +89,7 @@ sequenceDiagram
 
 ```
 event: message_start
-data: {"type":"message_start","message":{"id":"msg_01ABC","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-5-20250514","usage":{"input_tokens":12,"output_tokens":0}}}
+data: {"type":"message_start","message":{"id":"msg_01ABC","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-6","usage":{"input_tokens":12,"output_tokens":0}}}
 
 event: content_block_start
 data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
@@ -117,7 +117,7 @@ Claude Code는 파일 작업 및 기타 작업에 도구 실행을 사용합니�
 **요청**:
 ```json
 {
-  "model": "claude-sonnet-4-5-20250514",
+  "model": "claude-sonnet-4-6",
   "max_tokens": 1024,
   "tools": [
     {
@@ -206,14 +206,14 @@ Claude Code는 파일 작업 및 기타 작업에 도구 실행을 사용합니�
   "object": "list",
   "data": [
     {
-      "id": "claude-sonnet-4-5-20250514",
+      "id": "claude-sonnet-4-6",
       "object": "model",
       "owned_by": "anthropic",
       "provider": "anthropic",
       "created": 1737446400
     },
     {
-      "id": "claude-opus-4-5-20250514",
+      "id": "claude-opus-4-7",
       "object": "model",
       "owned_by": "anthropic",
       "provider": "anthropic",
@@ -248,9 +248,9 @@ Claude Code는 파일 작업 및 기타 작업에 도구 실행을 사용합니�
       "type": "anthropic",
       "base_url": "https://api.anthropic.com",
       "models": [
-        "claude-sonnet-4-5-20250514",
-        "claude-opus-4-5-20250514",
-        "claude-haiku-3-5-20241022"
+        "claude-sonnet-4-6",
+        "claude-opus-4-7",
+        "claude-haiku-4-5-20251001"
       ],
       "active": true
     },
@@ -261,7 +261,7 @@ Claude Code는 파일 작업 및 기타 작업에 도구 실행을 사용합니�
       "models": [
         "GLM-4.7",
         "GLM-4.5-Air",
-        "GLM-4-Plus"
+        "GLM-5.1"
       ],
       "active": true
     }
@@ -299,7 +299,7 @@ curl -X POST http://localhost:8787/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: your-proxy-key" \
   -H "anthropic-version: 2023-06-01" \
-  -d '{"model": "claude-sonnet-4-5-20250514", ...}'
+  -d '{"model": "claude-sonnet-4-6", ...}'
 ```
 
 ### Bearer 토큰 인증
@@ -311,7 +311,7 @@ curl -X POST http://localhost:8787/v1/messages \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-token" \
   -H "anthropic-version: 2023-06-01" \
-  -d '{"model": "claude-sonnet-4-5-20250514", ...}'
+  -d '{"model": "claude-sonnet-4-6", ...}'
 ```
 
 이것은 Claude Code 구독 사용자가 사용합니다.
@@ -347,7 +347,7 @@ curl -X POST http://localhost:8787/v1/messages \
   -H "x-api-key: test" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
-    "model": "claude-sonnet-4-5-20250514",
+    "model": "claude-sonnet-4-6",
     "max_tokens": 100,
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
@@ -361,7 +361,7 @@ curl -N -X POST http://localhost:8787/v1/messages \
   -H "x-api-key: test" \
   -H "anthropic-version: 2023-06-01" \
   -d '{
-    "model": "claude-sonnet-4-5-20250514",
+    "model": "claude-sonnet-4-6",
     "max_tokens": 100,
     "messages": [{"role": "user", "content": "Hello!"}],
     "stream": true
@@ -399,7 +399,7 @@ response = requests.post(
         "anthropic-version": "2023-06-01",
     },
     json={
-        "model": "claude-sonnet-4-5-20250514",
+        "model": "claude-sonnet-4-6",
         "max_tokens": 1024,
         "messages": [
             {"role": "user", "content": "Hello!"}
@@ -423,7 +423,7 @@ response = requests.post(
         "anthropic-version": "2023-06-01",
     },
     json={
-        "model": "claude-sonnet-4-5-20250514",
+        "model": "claude-sonnet-4-6",
         "max_tokens": 1024,
         "messages": [
             {"role": "user", "content": "Hello!"}
@@ -453,7 +453,7 @@ import (
 
 func main() {
     body := map[string]interface{}{
-        "model":      "claude-sonnet-4-5-20250514",
+        "model":      "claude-sonnet-4-6",
         "max_tokens": 100,
         "messages": []map[string]string{
             {"role": "user", "content": "Hello!"},

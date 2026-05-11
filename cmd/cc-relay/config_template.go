@@ -69,7 +69,7 @@ providers:
   #     - key: "${ZAI_API_KEY}"
   #
   #   model_mapping:
-  #     "claude-sonnet-4-5-20250929": "GLM-4.7"
+  #     "claude-sonnet-4-6": "GLM-4.7"
   #     "claude-haiku-4-5-20251001": "GLM-4.5-Air"
 
   # --------------------------------------------------------------------------
@@ -82,7 +82,7 @@ providers:
   #   base_url: "http://localhost:11434"
   #
   #   model_mapping:
-  #     "claude-sonnet-4-5-20250929": "qwen3:32b"
+  #     "claude-sonnet-4-6": "qwen3:32b"
   #     "claude-haiku-4-5-20251001": "qwen3:8b"
 
 # ============================================================================

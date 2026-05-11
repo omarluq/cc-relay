@@ -96,9 +96,9 @@ providers:
 
     # 선택 사항: 사용 가능한 모델 지정
     models:
-      - "claude-sonnet-4-5-20250514"
-      - "claude-opus-4-5-20250514"
-      - "claude-haiku-3-5-20241022"
+      - "claude-sonnet-4-6"
+      - "claude-opus-4-7"
+      - "claude-haiku-4-5-20251001"
 
   # Z.AI / Zhipu GLM
   - name: "zai"
@@ -111,14 +111,14 @@ providers:
 
     # Claude 모델명을 Z.AI 모델로 매핑
     model_mapping:
-      "claude-sonnet-4-5-20250514": "GLM-4.7"
-      "claude-haiku-3-5-20241022": "GLM-4.5-Air"
+      "claude-sonnet-4-6": "GLM-4.7"
+      "claude-haiku-4-5-20251001": "GLM-4.5-Air"
 
     # 선택 사항: 사용 가능한 모델 지정
     models:
       - "GLM-4.7"
       - "GLM-4.5-Air"
-      - "GLM-4-Plus"
+      - "GLM-5.1"
 
 # ==========================================================================
 # 로깅 설정
@@ -208,9 +208,9 @@ type = "anthropic"
 enabled = true
 base_url = "https://api.anthropic.com"  # 선택 사항, 기본값 사용
 models = [
-  "claude-sonnet-4-5-20250514",
-  "claude-opus-4-5-20250514",
-  "claude-haiku-3-5-20241022",
+  "claude-sonnet-4-6",
+  "claude-opus-4-7",
+  "claude-haiku-4-5-20251001",
 ]
 
 [[providers.keys]]
@@ -227,13 +227,13 @@ base_url = "https://api.z.ai/api/anthropic"
 models = [
   "GLM-4.7",
   "GLM-4.5-Air",
-  "GLM-4-Plus",
+  "GLM-5.1",
 ]
 
 # Claude 모델명을 Z.AI 모델로 매핑
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "GLM-4.7"
-"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-sonnet-4-6" = "GLM-4.7"
+"claude-haiku-4-5-20251001" = "GLM-4.5-Air"
 
 [[providers.keys]]
 key = "${ZAI_API_KEY}"
@@ -447,9 +447,9 @@ providers:
         tpm_limit: 100000
 
     models:
-      - "claude-sonnet-4-5-20250514"
-      - "claude-opus-4-5-20250514"
-      - "claude-haiku-3-5-20241022"
+      - "claude-sonnet-4-6"
+      - "claude-opus-4-7"
+      - "claude-haiku-4-5-20251001"
 ```
   {{< /tab >}}
   {{< tab >}}
@@ -460,9 +460,9 @@ type = "anthropic"
 enabled = true
 base_url = "https://api.anthropic.com"  # 선택 사항
 models = [
-  "claude-sonnet-4-5-20250514",
-  "claude-opus-4-5-20250514",
-  "claude-haiku-3-5-20241022",
+  "claude-sonnet-4-6",
+  "claude-opus-4-7",
+  "claude-haiku-4-5-20251001",
 ]
 
 [[providers.keys]]
@@ -490,13 +490,13 @@ providers:
       - key: "${ZAI_API_KEY}"
 
     model_mapping:
-      "claude-sonnet-4-5-20250514": "GLM-4.7"
-      "claude-haiku-3-5-20241022": "GLM-4.5-Air"
+      "claude-sonnet-4-6": "GLM-4.7"
+      "claude-haiku-4-5-20251001": "GLM-4.5-Air"
 
     models:
       - "GLM-4.7"
       - "GLM-4.5-Air"
-      - "GLM-4-Plus"
+      - "GLM-5.1"
 ```
   {{< /tab >}}
   {{< tab >}}
@@ -509,12 +509,12 @@ base_url = "https://api.z.ai/api/anthropic"
 models = [
   "GLM-4.7",
   "GLM-4.5-Air",
-  "GLM-4-Plus",
+  "GLM-5.1",
 ]
 
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "GLM-4.7"
-"claude-haiku-3-5-20241022" = "GLM-4.5-Air"
+"claude-sonnet-4-6" = "GLM-4.7"
+"claude-haiku-4-5-20251001" = "GLM-4.5-Air"
 
 [[providers.keys]]
 key = "${ZAI_API_KEY}"
@@ -955,7 +955,7 @@ providers:
     keys:
       - key: "${ZAI_API_KEY}"
     model_mapping:
-      "claude-sonnet-4-5-20250514": "GLM-4.7"
+      "claude-sonnet-4-6": "GLM-4.7"
 
 logging:
   level: "info"
@@ -987,7 +987,7 @@ enabled = true
 key = "${ZAI_API_KEY}"
 
 [providers.model_mapping]
-"claude-sonnet-4-5-20250514" = "GLM-4.7"
+"claude-sonnet-4-6" = "GLM-4.7"
 
 [logging]
 level = "info"

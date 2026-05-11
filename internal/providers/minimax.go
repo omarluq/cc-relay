@@ -17,6 +17,8 @@ const (
 
 // DefaultMiniMaxModels are the default models available from MiniMax.
 var DefaultMiniMaxModels = []string{
+	"MiniMax-M2.7",
+	"MiniMax-M2.7-highspeed",
 	"MiniMax-M2.5",
 	"MiniMax-M2.5-highspeed",
 	"MiniMax-M2.1",

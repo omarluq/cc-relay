@@ -11,6 +11,7 @@ const (
 
 // DefaultZAIModels are the default models available from Z.AI.
 var DefaultZAIModels = []string{
+	"GLM-5.1",
 	"GLM-5",
 	"GLM-4.7",
 	"GLM-4.5-Air",

@@ -421,10 +421,9 @@ func TestDefaultAzureModels(t *testing.T) {
 	t.Parallel()
 
 	assert.NotEmpty(t, providers.DefaultAzureModels)
-	assert.Contains(t, providers.DefaultAzureModels, "claude-sonnet-4-5-20250514")
-	assert.Contains(t, providers.DefaultAzureModels, "claude-opus-4-6")
-	assert.Contains(t, providers.DefaultAzureModels, "claude-opus-4-5-20250514")
-	assert.Contains(t, providers.DefaultAzureModels, "claude-haiku-3-5-20241022")
+	assert.Contains(t, providers.DefaultAzureModels, "claude-opus-4-7")
+	assert.Contains(t, providers.DefaultAzureModels, "claude-sonnet-4-6")
+	assert.Contains(t, providers.DefaultAzureModels, "claude-haiku-4-5-20251001")
 }
 
 func TestAzureOwner(t *testing.T) {
