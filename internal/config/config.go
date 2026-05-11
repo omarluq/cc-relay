@@ -35,6 +35,9 @@ const (
 	LevelError = "error"
 )
 
+// PoolingStrategyLeastLoaded is the default key pool selection strategy.
+const PoolingStrategyLeastLoaded = "least_loaded"
+
 // Config represents the complete cc-relay configuration.
 type Config struct {
 	Providers []ProviderConfig `yaml:"providers" toml:"providers"`
@@ -176,7 +179,7 @@ func (p *ProviderConfig) GetEffectiveStrategy() string {
 	if p.Pooling.Strategy != "" {
 		return p.Pooling.Strategy
 	}
-	return "least_loaded" // Default strategy
+	return PoolingStrategyLeastLoaded // Default strategy
 }
 
 // IsPoolingEnabled returns true if key pooling should be used.
@@ -312,4 +315,3 @@ func (d *DebugOptions) GetMaxBodyLogSize() int {
 func (d *DebugOptions) IsEnabled() bool {
 	return d.LogRequestBody || d.LogResponseHeaders || d.LogTLSMetrics
 }
-

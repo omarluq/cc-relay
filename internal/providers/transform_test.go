@@ -29,7 +29,7 @@ func TestExtractModel(t *testing.T) {
 			expected: "",
 		},
 		{
-			name:     "empty body",
+			name:     transformEmptyBody,
 			body:     []byte{},
 			expected: "",
 		},
@@ -135,7 +135,7 @@ func TestAddAnthropicVersion(t *testing.T) {
 		{
 			name:    "adds to body without existing field",
 			body:    []byte(`{"max_tokens":1024}`),
-			version: "bedrock-2023-05-31",
+			version: bedrockAnthropicVer,
 			wantErr: false,
 		},
 		{
@@ -147,7 +147,7 @@ func TestAddAnthropicVersion(t *testing.T) {
 		{
 			name:    "empty object",
 			body:    []byte(`{}`),
-			version: "bedrock-2023-05-31",
+			version: bedrockAnthropicVer,
 			wantErr: false,
 		},
 	}
@@ -191,7 +191,7 @@ func TestTransformBodyForCloudProvider(t *testing.T) {
 				"max_tokens": 1024,
 				"messages": [{"role": "user", "content": "Hello"}]
 			}`),
-			version:         "bedrock-2023-05-31",
+			version:         bedrockAnthropicVer,
 			expectedModel:   "claude-3-opus-20240229",
 			wantErr:         false,
 			wantModelInBody: false,
@@ -205,9 +205,9 @@ func TestTransformBodyForCloudProvider(t *testing.T) {
 			wantModelInBody: false,
 		},
 		{
-			name:            "empty body",
+			name:            transformEmptyBody,
 			body:            []byte(`{}`),
-			version:         "bedrock-2023-05-31",
+			version:         bedrockAnthropicVer,
 			expectedModel:   "",
 			wantErr:         false,
 			wantModelInBody: false,
@@ -255,7 +255,7 @@ func TestTransformBodyForCloudProviderPreservesFields(t *testing.T) {
 		"stream": true
 	}`)
 
-	newBody, model, err := providers.TransformBodyForCloudProvider(body, "bedrock-2023-05-31")
+	newBody, model, err := providers.TransformBodyForCloudProvider(body, bedrockAnthropicVer)
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-3-opus-20240229", model)
@@ -269,7 +269,7 @@ func TestTransformBodyForCloudProviderPreservesFields(t *testing.T) {
 	assert.Equal(t, "You are helpful", parsed["system"])
 	assert.Equal(t, 0.7, parsed["temperature"])
 	assert.Equal(t, true, parsed["stream"])
-	assert.Equal(t, "bedrock-2023-05-31", parsed["anthropic_version"])
+	assert.Equal(t, bedrockAnthropicVer, parsed["anthropic_version"])
 
 	// Model should be removed
 	_, hasModel := parsed["model"]
@@ -320,7 +320,7 @@ func TestIsStreamingRequest(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "empty body",
+			name:     transformEmptyBody,
 			body:     []byte(`{}`),
 			expected: false,
 		},

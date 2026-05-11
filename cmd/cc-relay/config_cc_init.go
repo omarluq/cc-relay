@@ -9,8 +9,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	cmdNameInit         = "init"
+	envAnthropicBaseURL = "ANTHROPIC_BASE_URL"
+	envAnthropicAuth    = "ANTHROPIC_AUTH_TOKEN"
+)
+
 var configCCInitCmd = &cobra.Command{
-	Use:   "init",
+	Use:   cmdNameInit,
 	Short: "Configure Claude Code to use cc-relay",
 	Long:  `Add cc-relay proxy environment variables to ~/.claude/settings.json`,
 	RunE:  runConfigCCInit,
@@ -40,8 +46,8 @@ func runConfigCCInit(cmd *cobra.Command, _ []string) error {
 	cmd.Printf("Claude Code configured to use cc-relay at %s\n", proxyURL)
 	cmd.Printf("Settings file: %s\n", settingsPath)
 	cmd.Println("\nEnvironment variables added:")
-	cmd.Printf("  ANTHROPIC_BASE_URL=%s\n", proxyURL)
-	cmd.Println("  ANTHROPIC_AUTH_TOKEN=managed-by-cc-relay")
+	cmd.Printf("  %s=%s\n", envAnthropicBaseURL, proxyURL)
+	cmd.Printf("  %s=managed-by-cc-relay\n", envAnthropicAuth)
 	cmd.Println("\nRestart Claude Code for changes to take effect.")
 
 	return nil
@@ -71,8 +77,8 @@ func applyCCRelayConfig(home, proxyURL string) (string, error) {
 	}
 
 	// Set proxy env vars
-	env["ANTHROPIC_BASE_URL"] = proxyURL
-	env["ANTHROPIC_AUTH_TOKEN"] = "managed-by-cc-relay"
+	env[envAnthropicBaseURL] = proxyURL
+	env[envAnthropicAuth] = "managed-by-cc-relay"
 
 	settings["env"] = env
 

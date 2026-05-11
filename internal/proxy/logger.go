@@ -109,7 +109,7 @@ func formatLevel(i any) string {
 		"debug": "\033[36mDBG\033[0m", // Cyan
 		"info":  "\033[32mINF\033[0m", // Green
 		"warn":  "\033[33mWRN\033[0m", // Yellow
-		"error": "\033[31mERR\033[0m", // Red
+		logLevelError: "\033[31mERR\033[0m", // Red
 		"fatal": "\033[35mFTL\033[0m", // Magenta
 		"panic": "\033[35mPNC\033[0m", // Magenta
 	}

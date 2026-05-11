@@ -510,8 +510,8 @@ func TestTLSVersionString(t *testing.T) {
 	}{
 		{want: "TLS 1.0", version: 0x0301},
 		{want: "TLS 1.1", version: 0x0302},
-		{want: "TLS 1.2", version: 0x0303},
-		{want: "TLS 1.3", version: 0x0304},
+		{want: tlsVersion12, version: 0x0303},
+		{want: tlsVersion13, version: 0x0304},
 		{want: "unknown", version: 0x1234},
 	}
 
@@ -826,7 +826,7 @@ func TestLogMetricsIfEnabled_WithTLSMetrics(t *testing.T) {
 
 	getMetrics := func() TLSMetrics {
 		return TLSMetrics{
-			Version:     "TLS 1.3",
+			Version:     tlsVersion13,
 			DNSTime:     50 * time.Millisecond,
 			ConnectTime: 100 * time.Millisecond,
 			TLSTime:     75 * time.Millisecond,
@@ -1130,7 +1130,7 @@ func TestLogTLSMetrics_Disabled(t *testing.T) {
 	ctx := logger.WithContext(context.Background())
 
 	metrics := TLSMetrics{
-		Version:     "TLS 1.3",
+		Version:     tlsVersion13,
 		DNSTime:     50 * time.Millisecond,
 		ConnectTime: 100 * time.Millisecond,
 		TLSTime:     75 * time.Millisecond,
@@ -1160,7 +1160,7 @@ func TestLogTLSMetrics_Enabled(t *testing.T) {
 	ctx := logger.WithContext(context.Background())
 
 	metrics := TLSMetrics{
-		Version:     "TLS 1.3",
+		Version:     tlsVersion13,
 		DNSTime:     50 * time.Millisecond,
 		ConnectTime: 100 * time.Millisecond,
 		TLSTime:     75 * time.Millisecond,
@@ -1174,7 +1174,7 @@ func TestLogTLSMetrics_Enabled(t *testing.T) {
 	if !strings.Contains(output, "tls metrics") {
 		t.Error("LogTLSMetrics() should log when enabled")
 	}
-	if !strings.Contains(output, "TLS 1.3") {
+	if !strings.Contains(output, tlsVersion13) {
 		t.Error("LogTLSMetrics() should include TLS version")
 	}
 }
@@ -1242,7 +1242,7 @@ func TestAttachTLSTrace_Callbacks(t *testing.T) {
 	if !tlsMetrics.HasMetrics {
 		t.Error("AttachTLSTrace() HasMetrics should be true after TLS handshake")
 	}
-	if tlsMetrics.Version != "TLS 1.3" {
+	if tlsMetrics.Version != tlsVersion13 {
 		t.Errorf("AttachTLSTrace() Version = %q, want TLS 1.3", tlsMetrics.Version)
 	}
 	if tlsMetrics.DNSTime == 0 {
@@ -1275,7 +1275,7 @@ func TestAttachTLSTrace_ReusedConnection(t *testing.T) {
 	if !m.Reused {
 		t.Error("AttachTLSTrace() Reused should be true when DidResume is true")
 	}
-	if m.Version != "TLS 1.2" {
+	if m.Version != tlsVersion12 {
 		t.Errorf("AttachTLSTrace() Version = %q, want TLS 1.2", m.Version)
 	}
 }

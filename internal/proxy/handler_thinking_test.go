@@ -321,8 +321,8 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 	defer backend2.Close()
 
 	// Create providers
-	provider1 := proxy.NewNamedProvider("provider1", backend1.URL)
-	provider2 := proxy.NewNamedProvider("provider2", backend2.URL)
+	provider1 := proxy.NewNamedProvider(testProvider1, backend1.URL)
+	provider2 := proxy.NewNamedProvider(testProvider2, backend2.URL)
 
 	providerInfos := []router.ProviderInfo{
 		{Provider: provider1, IsHealthy: func() bool { return true }, Weight: 0, Priority: 0},
@@ -337,8 +337,8 @@ func TestHandlerThinkingSignatureCrossProviderRouting(t *testing.T) {
 		ProviderInfos:     providerInfos,
 		ProviderRouter:    mockRouter,
 		APIKey:            "test-key",
-		ProviderPools:     map[string]*keypool.KeyPool{"provider1": nil, "provider2": nil},
-		ProviderKeys:      map[string]string{"provider1": "key1", "provider2": "key2"},
+		ProviderPools:     map[string]*keypool.KeyPool{testProvider1: nil, testProvider2: nil},
+		ProviderKeys:      map[string]string{testProvider1: testKey1, testProvider2: testKey2},
 		DebugOptions:      proxy.TestDebugOptions(),
 		SignatureCache:    sigCache,
 		ProviderInfosFunc: nil,

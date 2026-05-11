@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const strategyLeastLoaded = "least_loaded"
+
 // Test helpers
 
 func newTestPool(numKeys int, strategy string) *keypool.KeyPool {
@@ -55,7 +57,7 @@ func TestNewKeyPool(t *testing.T) {
 	t.Parallel()
 	t.Run("creates pool with valid config", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 
 		assert.NotNil(t, pool)
 		assert.Equal(t, "test-provider", pool.GetProvider())
@@ -68,7 +70,7 @@ func TestNewKeyPool(t *testing.T) {
 	t.Run("returns error with no keys", func(t *testing.T) {
 		t.Parallel()
 		cfg := keypool.PoolConfig{
-			Strategy: "least_loaded",
+			Strategy: strategyLeastLoaded,
 			Keys:     []keypool.KeyConfig{},
 		}
 
@@ -89,7 +91,7 @@ func TestNewKeyPool(t *testing.T) {
 
 	t.Run("initializes all keys with limiters", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 
 		for _, key := range pool.GetKeys() {
 			assert.NotEmpty(t, key.ID)
@@ -106,7 +108,7 @@ func TestGetKeySuccess(t *testing.T) {
 	t.Parallel()
 	t.Run("returns key when capacity available", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 		ctx := context.Background()
 
 		keyID, apiKey, err := pool.GetKey(ctx)
@@ -119,7 +121,7 @@ func TestGetKeySuccess(t *testing.T) {
 
 	t.Run("returns keyID and apiKey", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 		ctx := context.Background()
 
 		keyID, apiKey, err := pool.GetKey(ctx)
@@ -134,7 +136,7 @@ func TestGetKeySuccess(t *testing.T) {
 
 	t.Run("selector strategy is respected", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 		ctx := context.Background()
 
 		// Deplete first key
@@ -154,7 +156,7 @@ func TestGetKeyAllExhausted(t *testing.T) {
 	t.Parallel()
 	t.Run("all keys at capacity returns error", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 		ctx := context.Background()
 
 		// Exhaust rate limiters by consuming all capacity
@@ -172,7 +174,7 @@ func TestGetKeyAllExhausted(t *testing.T) {
 
 	t.Run("all keys unhealthy returns error", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 		ctx := context.Background()
 
 		// Mark all keys unhealthy
@@ -186,7 +188,7 @@ func TestGetKeyAllExhausted(t *testing.T) {
 
 	t.Run("all keys in cooldown returns error", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 		ctx := context.Background()
 
 		// Put all keys in cooldown
@@ -203,7 +205,7 @@ func TestGetKeySkipsUnavailable(t *testing.T) {
 	t.Parallel()
 	t.Run("skips unhealthy keys", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 		ctx := context.Background()
 
 		// Mark first two keys unhealthy
@@ -218,7 +220,7 @@ func TestGetKeySkipsUnavailable(t *testing.T) {
 
 	t.Run("skips cooldown keys", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 		ctx := context.Background()
 
 		// Put first key in cooldown
@@ -232,7 +234,7 @@ func TestGetKeySkipsUnavailable(t *testing.T) {
 
 	t.Run("skips rate-limited keys", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 		ctx := context.Background()
 
 		// Exhaust first key
@@ -290,7 +292,7 @@ func TestUpdateKeyFromHeaders(t *testing.T) {
 	for _, headerTest := range headerUpdateTests {
 		t.Run(headerTest.name, func(t *testing.T) {
 			t.Parallel()
-			pool := newTestPool(1, "least_loaded")
+			pool := newTestPool(1, strategyLeastLoaded)
 			key := pool.GetKeys()[0]
 
 			headers := http.Header{}
@@ -305,7 +307,7 @@ func TestUpdateKeyFromHeaders(t *testing.T) {
 
 	t.Run("updates reset time from headers", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(1, "least_loaded")
+		pool := newTestPool(1, strategyLeastLoaded)
 		key := pool.GetKeys()[0]
 
 		resetTime := time.Now().Add(time.Minute)
@@ -320,7 +322,7 @@ func TestUpdateKeyFromHeaders(t *testing.T) {
 
 	t.Run("returns error for unknown keyID", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(1, "least_loaded")
+		pool := newTestPool(1, strategyLeastLoaded)
 
 		headers := http.Header{}
 		err := pool.UpdateKeyFromHeaders("unknown-key-id", headers)
@@ -333,7 +335,7 @@ func TestMarkKeyExhausted(t *testing.T) {
 	t.Parallel()
 	t.Run("sets cooldown period", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(1, "least_loaded")
+		pool := newTestPool(1, strategyLeastLoaded)
 		key := pool.GetKeys()[0]
 
 		retryAfter := 30 * time.Second
@@ -346,7 +348,7 @@ func TestMarkKeyExhausted(t *testing.T) {
 
 	t.Run("key becomes unavailable during cooldown", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 		ctx := context.Background()
 
 		firstKey := pool.GetKeys()[0]
@@ -360,7 +362,7 @@ func TestMarkKeyExhausted(t *testing.T) {
 
 	t.Run("key becomes available after cooldown expires", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(1, "least_loaded")
+		pool := newTestPool(1, strategyLeastLoaded)
 		ctx := context.Background()
 
 		key := pool.GetKeys()[0]
@@ -386,7 +388,7 @@ func TestGetEarliestResetTime(t *testing.T) {
 	t.Parallel()
 	t.Run("returns time to earliest reset", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 
 		// Set different reset times
 		resetTimes := []time.Time{
@@ -409,7 +411,7 @@ func TestGetEarliestResetTime(t *testing.T) {
 
 	t.Run("returns 60s default when no reset times set", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 
 		duration := pool.GetEarliestResetTime()
 
@@ -421,7 +423,7 @@ func TestGetStats(t *testing.T) {
 	t.Parallel()
 	t.Run("returns correct counts", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 
 		stats := pool.GetStats()
 
@@ -433,7 +435,7 @@ func TestGetStats(t *testing.T) {
 
 	t.Run("updates after key state changes", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(3, "least_loaded")
+		pool := newTestPool(3, strategyLeastLoaded)
 
 		// Mark one key unhealthy
 		pool.GetKeys()[0].MarkUnhealthy(fmt.Errorf("test error"))
@@ -450,7 +452,7 @@ func TestGetStats(t *testing.T) {
 
 	t.Run("tracks remaining capacity", func(t *testing.T) {
 		t.Parallel()
-		pool := newTestPool(2, "least_loaded")
+		pool := newTestPool(2, strategyLeastLoaded)
 
 		// Update one key's remaining capacity
 		headers := newTestHeaders(25, time.Now().Add(time.Minute))
@@ -466,7 +468,7 @@ func TestGetStats(t *testing.T) {
 
 func TestConcurrencyGetKey(t *testing.T) {
 	t.Parallel()
-	pool := newTestPool(5, "least_loaded")
+	pool := newTestPool(5, strategyLeastLoaded)
 	ctx := context.Background()
 
 	const numGoroutines = 50
@@ -492,7 +494,7 @@ func TestConcurrencyGetKey(t *testing.T) {
 
 func TestConcurrencyUpdateHeaders(t *testing.T) {
 	t.Parallel()
-	pool := newTestPool(3, "least_loaded")
+	pool := newTestPool(3, strategyLeastLoaded)
 
 	const numGoroutines = 30
 
@@ -519,7 +521,7 @@ func TestConcurrencyUpdateHeaders(t *testing.T) {
 
 func TestConcurrencyNoRace(t *testing.T) {
 	t.Parallel()
-	pool := newTestPool(5, "least_loaded")
+	pool := newTestPool(5, strategyLeastLoaded)
 	ctx := context.Background()
 
 	const numGoroutines = 20

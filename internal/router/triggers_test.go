@@ -66,8 +66,8 @@ func TestStatusCodeTriggerName(t *testing.T) {
 	t.Parallel()
 
 	trigger := router.NewStatusCodeTrigger(429)
-	if got := trigger.Name(); got != "status_code" {
-		t.Errorf("Name() = %q, want %q", got, "status_code")
+	if got := trigger.Name(); got != triggerStatusCode {
+		t.Errorf("Name() = %q, want %q", got, triggerStatusCode)
 	}
 }
 
@@ -203,7 +203,7 @@ func TestDefaultTriggers(t *testing.T) {
 		names[trigger.Name()] = true
 	}
 
-	expectedNames := []string{"status_code", "timeout", "connection"}
+	expectedNames := []string{triggerStatusCode, "timeout", "connection"}
 	for _, name := range expectedNames {
 		if !names[name] {
 			t.Errorf("router.DefaultTriggers() missing %q trigger", name)
@@ -219,7 +219,7 @@ func TestDefaultTriggersStatusCodes(t *testing.T) {
 	// Find the status code trigger
 	var statusTrigger router.FailoverTrigger
 	for _, trigger := range triggers {
-		if trigger.Name() == "status_code" {
+		if trigger.Name() == triggerStatusCode {
 			statusTrigger = trigger
 			break
 		}

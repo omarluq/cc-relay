@@ -35,6 +35,7 @@ const (
 	jsonContentType               = "application/json"
 	validTestSignature            = "valid_signature_that_is_definitely_long_enough_for_validation"
 	listObject                    = "list"
+	tlsVersionUnknown             = "unknown"
 )
 
 // ---------------------------------------------------------------------------
@@ -63,6 +64,12 @@ const (
 	ListObject = listObject
 	// ValidTestSignature is a valid test signature long enough for validation.
 	ValidTestSignature = validTestSignature
+	// TLSVersion12 is the TLS 1.2 version string for tests.
+	TLSVersion12 = tlsVersion12
+	// TLSVersion13 is the TLS 1.3 version string for tests.
+	TLSVersion13 = tlsVersion13
+	// TLSVersionUnknown is the "unknown" TLS version string for tests.
+	TLSVersionUnknown = tlsVersionUnknown
 )
 
 // ---------------------------------------------------------------------------

@@ -79,12 +79,12 @@ func TestValidateValidFullConfig(t *testing.T) {
 	cfg.Providers = []config.ProviderConfig{prov}
 
 	routing := config.MakeTestRoutingConfig()
-	routing.Strategy = "failover"
+	routing.Strategy = strategyFailover
 	routing.FailoverTimeout = 5000
 	cfg.Routing = routing
 
 	logging := config.MakeTestLoggingConfig()
-	logging.Level = "info"
+	logging.Level = logLevelInfo
 	logging.Format = "json"
 	cfg.Logging = logging
 
@@ -247,7 +247,10 @@ func TestValidateInvalidProviderType(t *testing.T) {
 func TestValidateValidProviderTypes(t *testing.T) {
 	t.Parallel()
 
-	validTypes := []string{testProviderType, "zai", "minimax", "ollama", testTypeBedrock, testTypeVertex, testTypeAzure}
+	validTypes := []string{
+		testProviderType, providerTypeZAI, "minimax", "ollama",
+		testTypeBedrock, testTypeVertex, testTypeAzure,
+	}
 
 	for _, provType := range validTypes {
 		t.Run(provType, func(t *testing.T) {
@@ -256,7 +259,7 @@ func TestValidateValidProviderTypes(t *testing.T) {
 			prov := config.MakeTestProviderConfig()
 			prov.Name = testProviderName
 			prov.Type = provType
-			prov.Keys = []config.KeyConfig{config.MakeTestKeyConfig("test-key")}
+			prov.Keys = []config.KeyConfig{config.MakeTestKeyConfig(testKeyDashValue)}
 
 			cfg := configWithProvider(&prov)
 
@@ -367,8 +370,8 @@ func TestValidateValidRoutingStrategies(t *testing.T) {
 	t.Parallel()
 
 	validStrategies := []string{
-		"", "failover", "round_robin", "weighted_round_robin", "shuffle",
-		"model_based", "least_loaded", "weighted_failover",
+		"", strategyFailover, strategyRoundRobin, "weighted_round_robin", "shuffle",
+		strategyModelBased, strategyLeastLoaded, "weighted_failover",
 	}
 
 	for _, strategy := range validStrategies {
@@ -381,7 +384,7 @@ func TestValidateValidRoutingStrategies(t *testing.T) {
 			cfg.Routing = routing
 
 			// model_based requires model_mapping
-			if strategy == "model_based" {
+			if strategy == strategyModelBased {
 				cfg.Routing.ModelMapping = map[string]string{"claude": testProviderType}
 			}
 
@@ -399,7 +402,7 @@ func TestValidateModelBasedRequiresMapping(t *testing.T) {
 	cfg := configWithListen(defaultListenAddr)
 
 	routing := config.MakeTestRoutingConfig()
-	routing.Strategy = "model_based"
+	routing.Strategy = strategyModelBased
 	routing.ModelMapping = nil
 	cfg.Routing = routing
 
@@ -582,7 +585,7 @@ func TestValidateMissingKeyValue(t *testing.T) {
 
 	cfg := configWithSingleProvider(defaultListenAddr)
 	// Use a non-transparent-auth provider so empty keys must be rejected.
-	cfg.Providers[0].Type = "zai"
+	cfg.Providers[0].Type = providerTypeZAI
 
 	key := config.MakeTestKeyConfig("")
 	key.RPMLimit = 60

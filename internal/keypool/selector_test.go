@@ -507,7 +507,7 @@ func TestNewSelector(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name:     "least_loaded",
+			name:     strategyLeastLoaded,
 			strategy: keypool.StrategyLeastLoaded,
 			wantType: keypool.StrategyLeastLoaded,
 			wantErr:  false,

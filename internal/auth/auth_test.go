@@ -10,6 +10,11 @@ import (
 	"github.com/omarluq/cc-relay/internal/auth"
 )
 
+const (
+	errMsgMissingAuthHeader = "missing authorization header"
+	testSecretKey           = "secret-key"
+)
+
 // assertAuthResult is a test helper that validates an auth.Result.
 func assertAuthResult(t *testing.T, result auth.Result, wantValid bool, wantType auth.Type, wantErrMsg string) {
 	t.Helper()
@@ -142,9 +147,9 @@ func TestBearerAuthenticatorValidate(t *testing.T) {
 			wantValid:  true, wantType: auth.TypeBearer, wantErrMsg: "",
 		},
 		{
-			name: "missing authorization header", secret: "", authHeader: "",
+			name: errMsgMissingAuthHeader, secret: "", authHeader: "",
 			wantValid: false, wantType: auth.TypeBearer,
-			wantErrMsg: "missing authorization header",
+			wantErrMsg: errMsgMissingAuthHeader,
 		},
 		{
 			name: "without bearer prefix", secret: "",
@@ -196,7 +201,7 @@ func TestBearerAuthenticatorType(t *testing.T) {
 func TestChainAuthenticatorValidate(t *testing.T) {
 	t.Parallel()
 
-	apiKeyAuth := auth.NewAPIKeyAuthenticator("secret-key")
+	apiKeyAuth := auth.NewAPIKeyAuthenticator(testSecretKey)
 	bearerAuth := auth.NewBearerAuthenticator("secret-token")
 
 	// Chain: try bearer first, then api key
@@ -220,7 +225,7 @@ func TestChainAuthenticatorValidate(t *testing.T) {
 		},
 		{
 			name:       "valid api key",
-			apiKey:     "secret-key",
+			apiKey:     testSecretKey,
 			authHeader: "",
 			wantValid:  true,
 			wantType:   auth.TypeAPIKey,
@@ -228,7 +233,7 @@ func TestChainAuthenticatorValidate(t *testing.T) {
 		},
 		{
 			name:       "both headers, bearer takes precedence",
-			apiKey:     "secret-key",
+			apiKey:     testSecretKey,
 			authHeader: "Bearer secret-token",
 			wantValid:  true,
 			wantType:   auth.TypeBearer,
@@ -236,7 +241,7 @@ func TestChainAuthenticatorValidate(t *testing.T) {
 		},
 		{
 			name:       "invalid bearer falls through to api key",
-			apiKey:     "secret-key",
+			apiKey:     testSecretKey,
 			authHeader: "Bearer wrong-token",
 			wantValid:  true,
 			wantType:   auth.TypeAPIKey,

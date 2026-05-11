@@ -214,7 +214,7 @@ func TestBearerAuthenticatorValidationProperties(t *testing.T) {
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 
 			result := authenticator.Validate(req)
-			return !result.Valid && result.Error == "missing authorization header"
+			return !result.Valid && result.Error == errMsgMissingAuthHeader
 		},
 		genAnyAlpha,
 	))

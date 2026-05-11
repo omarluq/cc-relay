@@ -17,13 +17,13 @@ func TestNewZAIProvider(t *testing.T) {
 		},
 		[]providerTestCase{
 			{
-				name:         "with custom base URL",
+				name:         testNameCustomBaseURL,
 				providerName: "zai-custom",
 				baseURL:      "https://custom.zhipuai.cn/api/anthropic",
 				wantBaseURL:  "https://custom.zhipuai.cn/api/anthropic",
 			},
 			{
-				name:         "with empty base URL uses default",
+				name:         testNameEmptyBaseURL,
 				providerName: "zai-default",
 				baseURL:      "",
 				wantBaseURL:  providers.DefaultZAIBaseURL,

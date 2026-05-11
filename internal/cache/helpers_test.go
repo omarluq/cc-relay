@@ -9,6 +9,14 @@ import (
 	"github.com/omarluq/cc-relay/internal/cache"
 )
 
+const (
+	testAddrHostPort  = "127.0.0.1:3320"
+	testAddrHost      = "127.0.0.1"
+	testAddrIPv6      = "::1"
+	testAddrLocalhost = "localhost"
+	testPeer1         = "peer1"
+)
+
 func TestGetEnvironment(t *testing.T) {
 	t.Parallel()
 
@@ -84,7 +92,7 @@ func TestApplyClusterSettings(t *testing.T) {
 	}{
 		{
 			name:         "all fields set",
-			peers:        []string{"peer1", "peer2"},
+			peers:        []string{testPeer1, "peer2"},
 			replicaCount: 2,
 			readQuorum:   1,
 			writeQuorum:  1,
@@ -93,7 +101,7 @@ func TestApplyClusterSettings(t *testing.T) {
 		},
 		{
 			name:         "only peers set",
-			peers:        []string{"peer1"},
+			peers:        []string{testPeer1},
 			replicaCount: 0,
 			readQuorum:   0,
 			writeQuorum:  0,
@@ -217,9 +225,9 @@ func TestConfigureMemberlist(t *testing.T) {
 		bindAddr string
 		bindPort int
 	}{
-		{name: "with port", bindAddr: "127.0.0.1", bindPort: 3320},
-		{name: "without port", bindAddr: "127.0.0.1", bindPort: 0},
-		{name: "ipv6 with port", bindAddr: "::1", bindPort: 3320},
+		{name: "with port", bindAddr: testAddrHost, bindPort: 3320},
+		{name: "without port", bindAddr: testAddrHost, bindPort: 0},
+		{name: "ipv6 with port", bindAddr: testAddrIPv6, bindPort: 3320},
 	}
 
 	for _, testCase := range tests {
@@ -289,7 +297,7 @@ func TestBuildOlricConfig(t *testing.T) {
 
 	t.Run("basic config", func(t *testing.T) {
 		t.Parallel()
-		cfg := newOlricConfigWithAddr("127.0.0.1:3320")
+		cfg := newOlricConfigWithAddr(testAddrHostPort)
 		cfg.Environment = cache.EnvLocal
 
 		olricCfg := cache.BuildOlricConfigForTest(&cfg)
@@ -297,7 +305,7 @@ func TestBuildOlricConfig(t *testing.T) {
 			t.Fatal("buildOlricConfig() returned nil")
 		}
 
-		if olricCfg.BindAddr != "127.0.0.1" {
+		if olricCfg.BindAddr != testAddrHost {
 			t.Errorf("BindAddr = %q, want 127.0.0.1", olricCfg.BindAddr)
 		}
 		if olricCfg.BindPort != 3320 {
@@ -307,8 +315,8 @@ func TestBuildOlricConfig(t *testing.T) {
 
 	t.Run("with cluster settings", func(t *testing.T) {
 		t.Parallel()
-		cfg := newOlricConfigWithAddr("127.0.0.1:3320")
-		cfg.Peers = []string{"peer1"}
+		cfg := newOlricConfigWithAddr(testAddrHostPort)
+		cfg.Peers = []string{testPeer1}
 		cfg.ReplicaCount = 2
 		cfg.ReadQuorum = 1
 		cfg.WriteQuorum = 1
@@ -329,7 +337,7 @@ func TestBuildOlricConfig(t *testing.T) {
 
 	t.Run("empty environment defaults to local", func(t *testing.T) {
 		t.Parallel()
-		cfg := newOlricConfigWithAddr("127.0.0.1:3320")
+		cfg := newOlricConfigWithAddr(testAddrHostPort)
 
 		olricCfg := cache.BuildOlricConfigForTest(&cfg)
 		if olricCfg == nil {
@@ -347,14 +355,14 @@ func TestParseBindAddr(t *testing.T) {
 		wantHost string
 		wantPort int
 	}{
-		{name: "host only", addr: "127.0.0.1", wantHost: "127.0.0.1", wantPort: 0},
-		{name: "host and port", addr: "127.0.0.1:3320", wantHost: "127.0.0.1", wantPort: 3320},
-		{name: "ipv6 loopback", addr: "::1", wantHost: "::1", wantPort: 0},
-		{name: "ipv6 with port", addr: "[::1]:3320", wantHost: "::1", wantPort: 3320},
-		{name: "hostname only", addr: "localhost", wantHost: "localhost", wantPort: 0},
-		{name: "hostname and port", addr: "localhost:3320", wantHost: "localhost", wantPort: 3320},
+		{name: "host only", addr: testAddrHost, wantHost: testAddrHost, wantPort: 0},
+		{name: "host and port", addr: testAddrHostPort, wantHost: testAddrHost, wantPort: 3320},
+		{name: "ipv6 loopback", addr: testAddrIPv6, wantHost: testAddrIPv6, wantPort: 0},
+		{name: "ipv6 with port", addr: "[::1]:3320", wantHost: testAddrIPv6, wantPort: 3320},
+		{name: "hostname only", addr: testAddrLocalhost, wantHost: testAddrLocalhost, wantPort: 0},
+		{name: "hostname and port", addr: "localhost:3320", wantHost: testAddrLocalhost, wantPort: 3320},
 		{name: "empty string", addr: "", wantHost: "", wantPort: 0},
-		{name: "invalid port returns host only", addr: "127.0.0.1:abc", wantHost: "127.0.0.1", wantPort: 0},
+		{name: "invalid port returns host only", addr: "127.0.0.1:abc", wantHost: testAddrHost, wantPort: 0},
 		{name: "just colon", addr: ":", wantHost: "", wantPort: 0},
 	}
 

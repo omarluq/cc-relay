@@ -150,7 +150,7 @@ func TestLogTLSMetrics(t *testing.T) {
 	ctx := logger.WithContext(context.Background())
 
 	metrics := proxy.TLSMetrics{
-		Version:     "TLS 1.3",
+		Version:     proxy.TLSVersion13,
 		DNSTime:     5 * time.Millisecond,
 		ConnectTime: 10 * time.Millisecond,
 		TLSTime:     15 * time.Millisecond,
@@ -167,7 +167,7 @@ func TestLogTLSMetrics(t *testing.T) {
 	proxy.LogTLSMetrics(ctx, metrics, opts)
 
 	output := buf.String()
-	if !strings.Contains(output, "TLS 1.3") {
+	if !strings.Contains(output, proxy.TLSVersion13) {
 		t.Error("Expected TLS version in output")
 	}
 	if !strings.Contains(output, `"tls_reused":true`) {
@@ -282,10 +282,10 @@ func TestTLSVersionString(t *testing.T) {
 	}{
 		{"TLS 1.0", "TLS 1.0", 0x0301},
 		{"TLS 1.1", "TLS 1.1", 0x0302},
-		{"TLS 1.2", "TLS 1.2", 0x0303},
-		{"TLS 1.3", "TLS 1.3", 0x0304},
-		{"unknown", "unknown", 0x0000},
-		{"unknown high", "unknown", 0xFFFF},
+		{"TLS 1.2", proxy.TLSVersion12, 0x0303},
+		{"TLS 1.3", proxy.TLSVersion13, 0x0304},
+		{proxy.TLSVersionUnknown, proxy.TLSVersionUnknown, 0x0000},
+		{"unknown high", proxy.TLSVersionUnknown, 0xFFFF},
 	}
 
 	for _, tt := range tests {
@@ -333,7 +333,7 @@ func TestLogTLSMetricsSkipConditions(t *testing.T) {
 		{
 			name: "skips when disabled",
 			metrics: proxy.TLSMetrics{
-				Version:     "TLS 1.3",
+				Version:     proxy.TLSVersion13,
 				DNSTime:     0,
 				ConnectTime: 0,
 				TLSTime:     0,

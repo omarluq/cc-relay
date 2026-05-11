@@ -121,7 +121,7 @@ func TestKeyPoolConfigValidationProperties(t *testing.T) {
 	properties.Property("empty pool config returns error", prop.ForAll(
 		func(_ bool) bool {
 			cfg := keypool.PoolConfig{
-				Strategy: "least_loaded",
+				Strategy: strategyLeastLoaded,
 				Keys:     []keypool.KeyConfig{},
 			}
 
@@ -259,7 +259,7 @@ func createTestPoolWithNKeys(numKeys int) *keypool.KeyPool {
 	}
 
 	cfg := keypool.PoolConfig{
-		Strategy: "least_loaded",
+		Strategy: strategyLeastLoaded,
 		Keys:     keys,
 	}
 

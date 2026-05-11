@@ -8,6 +8,11 @@ import (
 	"github.com/omarluq/cc-relay/internal/router"
 )
 
+const (
+	strategyShuffle    = "shuffle"
+	triggerStatusCode  = "status_code"
+)
+
 func TestStrategyConstants(t *testing.T) {
 	t.Parallel()
 
@@ -27,9 +32,9 @@ func TestStrategyConstants(t *testing.T) {
 			expected: "weighted_round_robin",
 		},
 		{
-			name:     "shuffle",
+			name:     strategyShuffle,
 			constant: router.StrategyShuffle,
-			expected: "shuffle",
+			expected: strategyShuffle,
 		},
 		{
 			name:     "failover",
@@ -181,7 +186,7 @@ func TestNewRouterStrategies(t *testing.T) {
 			wantTypeName: "*router.RoundRobinRouter",
 		},
 		{
-			name:         "shuffle",
+			name:         strategyShuffle,
 			strategy:     router.StrategyShuffle,
 			wantName:     router.StrategyShuffle,
 			wantTypeName: "*router.ShuffleRouter",

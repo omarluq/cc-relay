@@ -291,10 +291,10 @@ func TestFormatSignature(t *testing.T) {
 		signature string
 		expected  string
 	}{
-		{"claude-sonnet-4", "abc123", "claude#abc123"},
+		{"claude-sonnet-4", testCommitSHA, "claude#abc123"},
 		{"gpt-4-turbo", "xyz789", "gpt#xyz789"},
 		{"gemini-pro", "sig", "gemini#sig"},
-		{"unknown-model", "sig", "unknown-model#sig"},
+		{testModelUnknown, "sig", "unknown-model#sig"},
 	}
 
 	for _, tt := range tests {
@@ -315,11 +315,11 @@ func TestParseSignature(t *testing.T) {
 		wantSig   string
 		wantOK    bool
 	}{
-		{"valid claude", "claude#abc123", "claude", "abc123", true},
-		{"valid gpt", "gpt#xyz789", "gpt", "xyz789", true},
-		{"no prefix", "abc123", "", "", false},
+		{"valid claude", "claude#abc123", testProviderClaude, testCommitSHA, true},
+		{"valid gpt", "gpt#xyz789", testProviderGPT, "xyz789", true},
+		{"no prefix", testCommitSHA, "", "", false},
 		{"empty", "", "", "", false},
-		{"multiple hashes", "claude#sig#extra", "claude", "sig#extra", true},
+		{"multiple hashes", "claude#sig#extra", testProviderClaude, "sig#extra", true},
 	}
 
 	for _, testCase := range tests {
