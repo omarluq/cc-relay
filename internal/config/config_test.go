@@ -113,7 +113,6 @@ func serverWithAPIKeys(legacy, auth string) config.ServerConfig {
 	return s
 }
 
-
 // routingWithStrategy returns a zero RoutingConfig with the given strategy.
 func routingWithStrategy(s string) config.RoutingConfig {
 	r := zeroRoutingConfig()
@@ -761,4 +760,3 @@ func TestProviderConfigValidateCloudConfigAzure(t *testing.T) {
 		}
 	})
 }
-

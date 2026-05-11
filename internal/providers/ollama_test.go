@@ -238,7 +238,7 @@ func TestNewOllamaProviderWithModelMapping(t *testing.T) {
 	t.Parallel()
 
 	mapping := map[string]string{
-		modelClaudeOpus45Test:  ollamaModelQwen8b,
+		modelClaudeOpus45Test:       ollamaModelQwen8b,
 		"claude-sonnet-4-20250514":  "qwen3:4b",
 		"claude-haiku-3-5-20241022": "qwen3:1b",
 	}

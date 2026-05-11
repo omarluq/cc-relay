@@ -450,7 +450,7 @@ func TestVertexProviderModelMapping(t *testing.T) {
 
 	cfg := &providers.VertexConfig{
 		ModelMapping: map[string]string{
-			modelClaude4: "claude-sonnet-4-5@20250514",
+			modelClaude4:  "claude-sonnet-4-5@20250514",
 			"claude-opus": "claude-opus-4-5@20250514",
 		},
 		Name:      testVertexName,

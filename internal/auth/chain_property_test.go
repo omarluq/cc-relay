@@ -16,8 +16,8 @@ import (
 var (
 	genNonEmptyAlpha = gen.AlphaString().SuchThat(func(s string) bool { return s != "" })
 	genMinLen5Alpha  = gen.AlphaString().SuchThat(func(s string) bool { return len(s) >= 5 })
-	genMinLen6Alpha = gen.AlphaString().SuchThat(func(s string) bool { return len(s) >= 6 }) // Different from 5
-	genAnyAlpha     = gen.AlphaString()
+	genMinLen6Alpha  = gen.AlphaString().SuchThat(func(s string) bool { return len(s) >= 6 }) // Different from 5
+	genAnyAlpha      = gen.AlphaString()
 )
 
 // Property-based tests for ChainAuthenticator

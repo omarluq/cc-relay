@@ -92,4 +92,3 @@ func (a *BearerAuthenticator) Validate(r *http.Request) Result {
 func (a *BearerAuthenticator) Type() Type {
 	return TypeBearer
 }
-

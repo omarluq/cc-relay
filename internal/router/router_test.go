@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	strategyShuffle    = "shuffle"
-	triggerStatusCode  = "status_code"
+	strategyShuffle   = "shuffle"
+	triggerStatusCode = "status_code"
 )
 
 func TestStrategyConstants(t *testing.T) {

@@ -199,4 +199,3 @@ func ZeroRistrettoConfig() RistrettoConfig {
 func NewRistrettoCacheInternalForTest(cfg RistrettoConfig, l *zerolog.Logger) (*ristrettoCache, error) {
 	return newRistrettoCacheInternal(cfg, l)
 }
-

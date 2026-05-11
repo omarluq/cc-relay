@@ -151,8 +151,8 @@ func TestFilterProvidersByModelLongestPrefixMatch(t *testing.T) {
 
 	// "claude-opus-special" should match "claude-opus-special" (longer) not testModelPrefixClaudeOpus
 	modelMapping := map[string]string{
-		testModelPrefixClaudeOpus:         testProviderAnthropic,
-		"claude-opus-special": "anthropic-special",
+		testModelPrefixClaudeOpus: testProviderAnthropic,
+		"claude-opus-special":     "anthropic-special",
 	}
 
 	result := proxy.FilterProvidersByModel("claude-opus-special-4", providerInfos, modelMapping, "")
@@ -187,9 +187,9 @@ func TestFindProviderForModel(t *testing.T) {
 	t.Parallel()
 
 	modelMapping := map[string]string{
-		testProviderClaude:      testProviderAnthropic,
+		testProviderClaude:        testProviderAnthropic,
 		testModelPrefixClaudeOpus: "anthropic-premium",
-		"glm":         testProviderZAI,
+		"glm":                     testProviderZAI,
 	}
 
 	tests := []struct {

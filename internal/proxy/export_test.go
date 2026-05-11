@@ -782,7 +782,6 @@ func GetHTTPServer(s *Server) *http.Server {
 	return s.httpServer
 }
 
-
 // TLSVersionString converts TLS version constant to string.
 // Exported for testing in proxy_test package.
 var TLSVersionString = tlsVersionString

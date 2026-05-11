@@ -81,4 +81,3 @@ func LiveRouterAcquire(r *LiveRouter, p providers.Provider) {
 func LiveRouterRelease(r *LiveRouter, p providers.Provider) {
 	r.Release(p)
 }
-

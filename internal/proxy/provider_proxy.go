@@ -238,7 +238,6 @@ func (pp *ProviderProxy) setAuth(proxyReq *httputil.ProxyRequest) {
 	}
 }
 
-
 // eventStreamToSSEBody wraps an Event Stream body and converts it to SSE on read.
 // This allows the ReverseProxy to transparently convert Bedrock Event Stream
 // to SSE format without requiring a custom transport.

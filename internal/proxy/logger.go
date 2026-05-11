@@ -106,12 +106,12 @@ func formatLevel(i any) string {
 	}
 
 	levelColors := map[string]string{
-		"debug": "\033[36mDBG\033[0m", // Cyan
-		"info":  "\033[32mINF\033[0m", // Green
-		"warn":  "\033[33mWRN\033[0m", // Yellow
+		"debug":       "\033[36mDBG\033[0m", // Cyan
+		"info":        "\033[32mINF\033[0m", // Green
+		"warn":        "\033[33mWRN\033[0m", // Yellow
 		logLevelError: "\033[31mERR\033[0m", // Red
-		"fatal": "\033[35mFTL\033[0m", // Magenta
-		"panic": "\033[35mPNC\033[0m", // Magenta
+		"fatal":       "\033[35mFTL\033[0m", // Magenta
+		"panic":       "\033[35mPNC\033[0m", // Magenta
 	}
 
 	if colored, exists := levelColors[levelStr]; exists {
