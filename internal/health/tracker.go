@@ -144,4 +144,3 @@ func (t *Tracker) RecordFailure(providerName string, err error) {
 		}
 	}
 }
-

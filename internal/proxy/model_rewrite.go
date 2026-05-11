@@ -135,4 +135,3 @@ func (r *ModelRewriter) tryRewrite(bodyBytes []byte) mo.Result[rewriteResult] {
 		mappedModel:   mappedModel,
 	})
 }
-

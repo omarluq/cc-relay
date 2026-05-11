@@ -61,4 +61,3 @@ func (a *APIKeyAuthenticator) Validate(r *http.Request) Result {
 func (a *APIKeyAuthenticator) Type() Type {
 	return TypeAPIKey
 }
-

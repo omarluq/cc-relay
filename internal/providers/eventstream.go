@@ -465,7 +465,6 @@ func formatSSEEvent(eventType string, payload []byte) []byte {
 	return buf.Bytes()
 }
 
-
 // FormatMessageAsSSE converts an EventStreamMessage to SSE format bytes.
 // This is used by the proxy to convert Bedrock Event Stream responses
 // to SSE format for Claude Code compatibility.

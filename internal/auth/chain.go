@@ -60,4 +60,3 @@ func (c *ChainAuthenticator) Validate(request *http.Request) Result {
 func (c *ChainAuthenticator) Type() Type {
 	return TypeNone
 }
-

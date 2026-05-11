@@ -930,4 +930,3 @@ func (h *Handler) processThinkingSignatures(request *http.Request, model string)
 
 	return request
 }
-
