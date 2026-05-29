@@ -2,33 +2,14 @@
 package proxy
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/omarluq/cc-relay/internal/providers"
-	"github.com/tidwall/gjson"
 )
 
 // ErrStreamClosed is returned when attempting to read from a closed stream.
 var ErrStreamClosed = errors.New("sse: stream is closed")
-
-// IsStreamingRequest checks if request body contains "stream": true.
-// Returns false if the body is invalid JSON or stream field is missing/false.
-func IsStreamingRequest(body []byte) bool {
-	// Parse as map to check stream field
-	var req map[string]any
-	if err := json.Unmarshal(body, &req); err != nil {
-		return false
-	}
-
-	stream, ok := req["stream"].(bool)
-
-	return ok && stream
-}
 
 // SetSSEHeaders sets required headers for SSE streaming.
 // These headers MUST be set for proper streaming through nginx/CDN:
@@ -41,112 +22,4 @@ func SetSSEHeaders(h http.Header) {
 	h.Set("Cache-Control", "no-cache, no-transform")
 	h.Set("X-Accel-Buffering", "no")
 	h.Set("Connection", "keep-alive")
-}
-
-// SSE event type markers for thinking signature processing.
-var (
-	thinkingDeltaMarker  = []byte(`"type":"thinking_delta"`)
-	signatureDeltaMarker = []byte(`"type":"signature_delta"`)
-	eventDataPrefix      = []byte("data:")
-)
-
-// SSESignatureProcessor handles signature processing for SSE events.
-// Accumulates thinking text and caches signatures as they stream.
-type SSESignatureProcessor struct {
-	cache            *SignatureCache
-	modelName        string
-	currentSignature string
-	thinkingText     strings.Builder
-}
-
-// NewSSESignatureProcessor creates a new SSE signature processor.
-func NewSSESignatureProcessor(cache *SignatureCache, modelName string) *SSESignatureProcessor {
-	return &SSESignatureProcessor{
-		cache:            cache,
-		modelName:        modelName,
-		currentSignature: "",
-		thinkingText:     strings.Builder{},
-	}
-}
-
-// ProcessEvent processes a single SSE event line.
-// Accumulates thinking text from thinking_delta events.
-// Caches and transforms signatures from signature_delta events.
-// Returns the potentially modified event data.
-func (p *SSESignatureProcessor) ProcessEvent(ctx context.Context, eventData []byte) []byte {
-	// Fast path: check if this is a content_block_delta event
-	if !bytes.Contains(eventData, eventDataPrefix) {
-		return eventData
-	}
-
-	// Extract data field from SSE event
-	data := extractSSEData(eventData)
-	if data == nil {
-		return eventData
-	}
-
-	// Check for thinking_delta to accumulate text
-	if bytes.Contains(data, thinkingDeltaMarker) {
-		thinking := gjson.GetBytes(data, "delta.thinking").String()
-		p.thinkingText.WriteString(thinking)
-		return eventData
-	}
-
-	// Check for signature_delta to cache and transform
-	if bytes.Contains(data, signatureDeltaMarker) {
-		return p.processSignatureDelta(ctx, eventData, data)
-	}
-
-	return eventData
-}
-
-// processSignatureDelta handles signature_delta events.
-func (p *SSESignatureProcessor) processSignatureDelta(
-	ctx context.Context, eventData, data []byte,
-) []byte {
-	// Extract signature from delta
-	signature := gjson.GetBytes(data, "delta.signature").String()
-	if signature == "" {
-		return eventData
-	}
-
-	// Cache the signature with accumulated thinking text
-	thinkingText := p.thinkingText.String()
-	if p.cache != nil && thinkingText != "" {
-		p.cache.Set(ctx, p.modelName, thinkingText, signature)
-	}
-	p.currentSignature = signature
-	p.thinkingText.Reset()
-
-	// Transform signature to include model group prefix
-	// Re-wrap in SSE format since ProcessResponseSignature returns raw JSON
-	// Preserve SSE framing by appending the required blank line separator
-	modifiedData := ProcessResponseSignature(ctx, data, thinkingText, p.modelName, nil)
-	result := append([]byte("data: "), modifiedData...)
-	return append(result, []byte("\n\n")...)
-}
-
-// extractSSEData extracts the data field from an SSE event line.
-// Returns nil if no data field is found or if data is empty.
-func extractSSEData(eventLine []byte) []byte {
-	// Find "data:" prefix
-	_, after, ok := bytes.Cut(eventLine, eventDataPrefix)
-	if !ok {
-		return nil
-	}
-
-	// Extract data after "data:" prefix, trim spaces
-	data := bytes.TrimSpace(after)
-
-	// Handle multi-line data (lines joined by \n)
-	if before, ok := bytes.CutSuffix(data, []byte("\n")); ok {
-		data = before
-	}
-
-	// Return nil for empty data to match documented contract
-	if len(data) == 0 {
-		return nil
-	}
-
-	return data
 }

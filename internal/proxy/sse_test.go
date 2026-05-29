@@ -1,52 +1,11 @@
 package proxy_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/omarluq/cc-relay/internal/proxy"
 )
-
-func TestIsStreamingRequestTrue(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{"stream": true}`)
-	if !proxy.IsStreamingRequest(body) {
-		t.Error("Expected IsStreamingRequest to return true for stream: true")
-	}
-}
-
-func TestIsStreamingRequestFalse(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{"stream": false}`)
-	if proxy.IsStreamingRequest(body) {
-		t.Error("Expected IsStreamingRequest to return false for stream: false")
-	}
-}
-
-func TestIsStreamingRequestMissing(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{}`)
-	if proxy.IsStreamingRequest(body) {
-		t.Error("Expected IsStreamingRequest to return false when stream field is missing")
-	}
-}
-
-func TestIsStreamingRequestInvalidJSON(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{invalid json}`)
-	if proxy.IsStreamingRequest(body) {
-		t.Error("Expected IsStreamingRequest to return false for invalid JSON")
-	}
-}
 
 func TestProxy_SetSSEHeaders(t *testing.T) {
 	t.Parallel()
@@ -73,116 +32,6 @@ func TestProxy_SetSSEHeaders(t *testing.T) {
 			if got != testCase.expected {
 				t.Errorf("Expected %s header to be %q, got %q", testCase.key, testCase.expected, got)
 			}
-		})
-	}
-}
-
-func TestSSESignatureProcessorAccumulatesThinking(t *testing.T) {
-	t.Parallel()
-
-	sigCache, cleanup := proxy.NewTestSignatureCache(t)
-	defer cleanup()
-	processor := proxy.NewSSESignatureProcessor(sigCache, "claude-sonnet-4")
-
-	// Simulate thinking_delta events
-	thinkingEvent1 := []byte(
-		`data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"Hello "}}`,
-	)
-	thinkingEvent2 := []byte(
-		`data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"world!"}}`,
-	)
-
-	ctx := context.Background()
-	processor.ProcessEvent(ctx, thinkingEvent1)
-	processor.ProcessEvent(ctx, thinkingEvent2)
-
-	// Now send a signature event to verify the accumulated thinking was cached
-	// Signature must be at least 50 characters to be valid
-	sig := "test-signature-for-hello-world-accumulated-thinking-verification-long-enough"
-	sigEvent := []byte(
-		`data: {"type":"content_block_delta","delta":{"type":"signature_delta","signature":"` + sig + `"}}`,
-	)
-	processor.ProcessEvent(ctx, sigEvent)
-
-	// Wait for async cache set and verify the signature was cached with "Hello world!"
-	require.Eventually(t, func() bool {
-		got := sigCache.Get(ctx, "claude-sonnet-4", "Hello world!")
-		return got == sig
-	}, 250*time.Millisecond, 5*time.Millisecond, "Expected signature to be cached with accumulated thinking")
-}
-
-func TestSSESignatureProcessorCachesSignature(t *testing.T) {
-	t.Parallel()
-
-	sigCache, cleanup := proxy.NewTestSignatureCache(t)
-	defer cleanup()
-	processor := proxy.NewSSESignatureProcessor(sigCache, "claude-sonnet-4")
-	ctx := context.Background()
-
-	// Simulate thinking followed by signature
-	thinkingEvent := []byte(
-		`data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"Deep thought"}}`,
-	)
-	processor.ProcessEvent(ctx, thinkingEvent)
-
-	sig := "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
-	sigEvent := []byte(
-		`data: {"type":"content_block_delta","delta":{"type":"signature_delta","signature":"` + sig + `"}}`,
-	)
-	processor.ProcessEvent(ctx, sigEvent)
-
-	// Wait for Ristretto async set using Eventually instead of fixed sleep
-	require.Eventually(t, func() bool {
-		return sigCache.Get(ctx, "claude-sonnet-4", "Deep thought") == sig
-	}, 250*time.Millisecond, 5*time.Millisecond, "signature should be cached")
-}
-
-func TestSSESignatureProcessorPassesThroughNonThinking(t *testing.T) {
-	t.Parallel()
-
-	processor := proxy.NewSSESignatureProcessor(nil, "claude-sonnet-4")
-	ctx := context.Background()
-
-	// Regular text event should pass through unchanged
-	textEvent := []byte(`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}`)
-	result := processor.ProcessEvent(ctx, textEvent)
-	assert.Equal(t, textEvent, result, "non-thinking event should pass through unchanged")
-}
-
-func TestExtractSSEData(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name     string
-		input    []byte
-		expected []byte
-	}{
-		{
-			name:     "simple data line",
-			input:    []byte(`data: {"type":"test"}`),
-			expected: []byte(`{"type":"test"}`),
-		},
-		{
-			name:     "data with trailing newline",
-			input:    []byte("data: {\"type\":\"test\"}\n"),
-			expected: []byte(`{"type":"test"}`),
-		},
-		{
-			name:     "no data prefix",
-			input:    []byte(`event: message`),
-			expected: nil,
-		},
-		{
-			name:     "empty data",
-			input:    []byte(`data:`),
-			expected: nil, // TrimSpace returns nil for empty input
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := proxy.ExtractSSEData(tt.input)
-			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

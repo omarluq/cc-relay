@@ -17,8 +17,10 @@ import (
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/omarluq/cc-relay/internal/proxy"
+	"github.com/omarluq/cc-relay/internal/router"
 )
 
 // Integration tests require ANTHROPIC_API_KEY environment variable
@@ -28,6 +30,42 @@ const (
 	testProxyAPIKey = "test-proxy-key"
 	testModel       = "claude-sonnet-4-5-20250929"
 )
+
+// setupLiveRoutes builds an HTTP handler using the live key-pool route builder.
+// It replaces the legacy single-provider route builder for integration tests.
+func setupLiveRoutes(
+	t *testing.T,
+	cfg *config.Config,
+	provider providers.Provider,
+	providerKey string,
+	pool *keypool.KeyPool,
+) (http.Handler, error) {
+	t.Helper()
+
+	routerInstance, err := router.NewRouter(router.StrategyRoundRobin, 5*time.Second)
+	if err != nil {
+		t.Fatalf("Failed to create router: %v", err)
+	}
+
+	return proxy.SetupRoutesWithLiveKeyPools(&proxy.RoutesOptions{
+		ConfigProvider:     config.NewRuntime(cfg),
+		Provider:           provider,
+		ProviderInfosFunc:  func() []router.ProviderInfo { return nil },
+		ProviderRouter:     routerInstance,
+		ProviderKey:        providerKey,
+		Pool:               pool,
+		GetProviderPools:   nil,
+		GetProviderKeys:    nil,
+		AllProviders:       []providers.Provider{provider},
+		HealthTracker:      nil,
+		SignatureCache:     nil,
+		ProviderPools:      nil,
+		ProviderKeys:       nil,
+		GetAllProviders:    nil,
+		ConcurrencyLimiter: nil,
+		ProviderInfos:      nil,
+	})
+}
 
 // setupTestProxy creates a test HTTP server with the proxy configured.
 func setupTestProxy(t *testing.T) *httptest.Server {
@@ -56,7 +94,7 @@ func setupTestProxy(t *testing.T) *httptest.Server {
 	provider := providers.NewAnthropicProvider("test", "https://api.anthropic.com", nil, nil)
 
 	// Setup routes
-	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, providerKey, nil, nil)
+	handler, err := setupLiveRoutes(t, cfg, provider, providerKey, nil)
 	if err != nil {
 		t.Fatalf("Failed to setup routes: %v", err)
 	}
@@ -592,7 +630,7 @@ func errorFormatCases() []errorFormatCase {
 
 				provider := providers.NewAnthropicProvider("test", "http://localhost:1", nil, nil)
 
-				handler, err := proxy.SetupRoutesWithProviders(cfg, provider, providerKey, nil, nil)
+				handler, err := setupLiveRoutes(t, cfg, provider, providerKey, nil)
 				if err != nil {
 					t.Fatalf("Failed to setup routes: %v", err)
 				}

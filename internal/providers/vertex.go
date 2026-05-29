@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"golang.org/x/oauth2"
@@ -195,36 +194,6 @@ func (p *VertexProvider) TransformRequest(
 // Model is removed from body and added to URL path.
 func (p *VertexProvider) RequiresBodyTransform() bool {
 	return true
-}
-
-// RefreshToken forces a token refresh. Useful before long streaming requests.
-// This is a proactive refresh to avoid token expiration mid-stream.
-func (p *VertexProvider) RefreshToken(ctx context.Context) error {
-	p.tokenMu.RLock()
-	tokenSource := p.tokenSource
-	p.tokenMu.RUnlock()
-
-	if tokenSource == nil {
-		return fmt.Errorf("vertex: no token source configured")
-	}
-
-	// TokenSource automatically handles refresh, just request a new token
-	token, err := tokenSource.Token()
-	if err != nil {
-		return fmt.Errorf("vertex: refresh failed: %w", err)
-	}
-
-	log.Ctx(ctx).Debug().
-		Time("new_expiry", token.Expiry).
-		Dur("valid_for", time.Until(token.Expiry)).
-		Msg("refreshed Vertex AI OAuth token")
-
-	return nil
-}
-
-// GetProjectID returns the configured GCP project ID.
-func (p *VertexProvider) GetProjectID() string {
-	return p.projectID
 }
 
 // GetRegion returns the configured GCP region.

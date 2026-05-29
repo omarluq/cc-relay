@@ -9,11 +9,9 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/omarluq/cc-relay/internal/providers"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 )
@@ -155,62 +153,6 @@ func logRequestBody(
 	}
 
 	logEvent.Msg("request details")
-}
-
-// LogResponseDetails logs response headers and streaming event count in debug mode.
-func LogResponseDetails(
-	ctx context.Context,
-	headers http.Header,
-	statusCode, eventCount int,
-	opts config.DebugOptions,
-) {
-	if !opts.LogResponseHeaders {
-		return
-	}
-
-	logger := zerolog.Ctx(ctx)
-	if logger.GetLevel() > zerolog.DebugLevel {
-		return
-	}
-
-	// Extract usage tokens from headers if present
-	usageTokens := headers.Get("X-Anthropic-Usage")
-	contentType := headers.Get("Content-Type")
-
-	logEvent := logger.Debug().
-		Int("status", statusCode).
-		Str("content_type", contentType)
-
-	if usageTokens != "" {
-		logEvent.Str("usage_tokens", usageTokens)
-	}
-
-	// If SSE streaming, log event count
-	if strings.Contains(contentType, providers.ContentTypeSSE) && eventCount > 0 {
-		logEvent.Int("streaming_events", eventCount)
-	}
-
-	// Log selected headers (not all - too verbose)
-	importantHeaders := []string{
-		"X-Anthropic-Model",
-		"X-Anthropic-Stop-Reason",
-		"X-Request-Id",
-		"Cache-Control",
-	}
-	headerData := lo.SliceToMap(
-		lo.FilterMap(importantHeaders, func(key string, _ int) (lo.Entry[string, string], bool) {
-			val := headers.Get(key)
-			return lo.Entry[string, string]{Key: key, Value: val}, val != ""
-		}),
-		func(entry lo.Entry[string, string]) (string, string) {
-			return entry.Key, entry.Value
-		},
-	)
-	if len(headerData) > 0 {
-		logEvent.Interface("headers", headerData)
-	}
-
-	logEvent.Msg("response details")
 }
 
 // LogTLSMetrics logs TLS connection metrics in debug mode.
