@@ -587,56 +587,6 @@ func processToolUseBlock(block *gjson.Result, _ string) any {
 	return result
 }
 
-// ProcessResponseSignature handles signature_delta events from upstream.
-// Extracts signature, caches it, and transforms to include modelGroup prefix.
-// Returns the modified event data with prefixed signature.
-func ProcessResponseSignature(
-	ctx context.Context,
-	eventData []byte,
-	thinkingText string,
-	modelName string,
-	cache *SignatureCache,
-) []byte {
-	// Extract signature from event data
-	signature := gjson.GetBytes(eventData, "delta.signature").String()
-	if signature == "" {
-		signature = gjson.GetBytes(eventData, "signature").String()
-	}
-
-	if signature == "" {
-		return eventData
-	}
-
-	// Cache the signature
-	if cache != nil && thinkingText != "" {
-		cache.Set(ctx, modelName, thinkingText, signature)
-	}
-
-	// Add model group prefix to signature
-	prefixedSig := FormatSignature(modelName, signature)
-
-	// Update signature in event data
-	var modifiedData []byte
-	var err error
-
-	if gjson.GetBytes(eventData, "delta.signature").Exists() {
-		modifiedData, err = sjson.SetBytes(eventData, "delta.signature", prefixedSig)
-	} else {
-		modifiedData, err = sjson.SetBytes(eventData, "signature", prefixedSig)
-	}
-
-	if err != nil {
-		return eventData
-	}
-
-	return modifiedData
-}
-
-// FormatSignature adds modelGroup prefix: "claude#abc123...".
-func FormatSignature(modelName, signature string) string {
-	return fmt.Sprintf("%s#%s", GetModelGroup(modelName), signature)
-}
-
 // ParseSignature extracts modelGroup and raw signature from prefixed format.
 // Returns modelGroup, signature, ok.
 func ParseSignature(prefixed string) (modelGroup, signature string, ok bool) {
@@ -645,53 +595,4 @@ func ParseSignature(prefixed string) (modelGroup, signature string, ok bool) {
 		return "", "", false
 	}
 	return before, after, true
-}
-
-// ProcessNonStreamingResponse processes thinking blocks in a non-streaming response.
-// Extracts and caches signatures, adds modelGroup prefix to signatures.
-func ProcessNonStreamingResponse(
-	ctx context.Context,
-	body []byte,
-	modelName string,
-	cache *SignatureCache,
-) []byte {
-	content := gjson.GetBytes(body, "content")
-	if !content.Exists() || !content.IsArray() {
-		return body
-	}
-
-	modifiedBody := body
-
-	content.ForEach(func(key, block gjson.Result) bool {
-		blockType := block.Get("type").String()
-		if blockType != blockTypeThinking {
-			return true
-		}
-
-		thinkingText := block.Get(blockTypeThinking).String()
-		signature := block.Get("signature").String()
-
-		if signature == "" {
-			return true
-		}
-
-		// Cache the signature
-		if cache != nil && thinkingText != "" {
-			cache.Set(ctx, modelName, thinkingText, signature)
-		}
-
-		// Add model group prefix
-		prefixedSig := FormatSignature(modelName, signature)
-		path := fmt.Sprintf("content.%d.signature", key.Int())
-
-		var err error
-		modifiedBody, err = sjson.SetBytes(modifiedBody, path, prefixedSig)
-		if err != nil {
-			return true // Continue on error
-		}
-
-		return true
-	})
-
-	return modifiedBody
 }

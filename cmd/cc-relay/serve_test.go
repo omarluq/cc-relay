@@ -19,60 +19,6 @@ const (
 	serveConfigFileName = "config.yaml"
 )
 
-func TestFindConfigFile(t *testing.T) {
-	t.Parallel()
-
-	// Create temp directory with config.yaml
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, serveConfigFileName)
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test finding config in given directory
-	found := findConfigIn(tmpDir)
-	if found != filepath.Join(tmpDir, defaultConfigFile) {
-		t.Errorf("Expected config in tmpDir, got %q", found)
-	}
-}
-
-func TestFindConfigFileNotFound(t *testing.T) {
-	t.Parallel()
-
-	// Empty temp directory - no config file
-	tmpDir := t.TempDir()
-
-	// Should return default when not found
-	found := findConfigIn(tmpDir)
-	if found != defaultConfigFile {
-		t.Errorf("Expected %q default, got %q", defaultConfigFile, found)
-	}
-}
-
-func TestFindConfigFileInHomeDir(t *testing.T) {
-	t.Parallel()
-
-	// Create temp directories
-	tmpDir := t.TempDir()
-	workDir := t.TempDir()
-
-	// Create config in HOME/.config/cc-relay/
-	configDir := filepath.Join(tmpDir, ".config", "cc-relay")
-	if err := os.MkdirAll(configDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	configPath := filepath.Join(configDir, serveConfigFileName)
-	if err := os.WriteFile(configPath, []byte("server:\n  listen: localhost:8787\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Should find config in HOME/.config/cc-relay/
-	found := findConfigInWithHome(workDir, tmpDir)
-	if found != configPath {
-		t.Errorf("Expected %q, got %q", configPath, found)
-	}
-}
-
 func TestRunServeInvalidConfigPath(t *testing.T) {
 	t.Parallel()
 

@@ -104,29 +104,3 @@ func findConfigFileForValidate() string {
 
 	return defaultConfigFile
 }
-
-// findConfigIn searches for defaultConfigFile in workDir, returning full path
-// if found, or just the default name if not found. For testing without global state.
-func findConfigIn(workDir string) string {
-	p := filepath.Join(workDir, defaultConfigFile)
-	if _, err := os.Stat(p); err == nil {
-		return p
-	}
-	return defaultConfigFile
-}
-
-// findConfigInWithHome searches for defaultConfigFile in workDir then
-// homeDir/.config/cc-relay/. For testing without global state.
-func findConfigInWithHome(workDir, homeDir string) string {
-	// Check current directory
-	p := filepath.Join(workDir, defaultConfigFile)
-	if _, err := os.Stat(p); err == nil {
-		return p
-	}
-	// Check homeDir/.config/cc-relay/
-	homeConfig := filepath.Join(homeDir, ".config", "cc-relay", defaultConfigFile)
-	if _, err := os.Stat(homeConfig); err == nil {
-		return homeConfig
-	}
-	return defaultConfigFile
-}

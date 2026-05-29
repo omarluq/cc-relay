@@ -10,9 +10,6 @@ const (
 	// HTTP header names.
 	testHeaderAuth = "Authorization"
 
-	// API keys / shared secrets used by tests.
-	testAPIKeyValue = "test-api-key"
-
 	// Provider names used across test fixtures.
 	testProvider1         = "provider1"
 	testProvider2         = "provider2"

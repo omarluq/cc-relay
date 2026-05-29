@@ -4,8 +4,6 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,46 +20,6 @@ import (
 
 const authSucceededMsg = "authentication succeeded"
 
-// AuthMiddleware creates middleware that validates x-api-key header.
-// Uses constant-time comparison to prevent timing attacks.
-//
-// Security note: SHA-256 is appropriate for API key hashing because:
-// - API keys are high-entropy secrets (32+ random characters), not passwords
-// - SHA-256 provides sufficient pre-image resistance for high-entropy inputs
-// - Pre-hashing at middleware creation prevents per-request hash computation
-// - Constant-time comparison (subtle.ConstantTimeCompare) prevents timing attacks.
-func AuthMiddleware(expectedAPIKey string) func(http.Handler) http.Handler {
-	// Pre-hash expected key at creation time (not per-request)
-	expectedHash := sha256.Sum256([]byte(expectedAPIKey))
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			providedKey := request.Header.Get("x-api-key")
-
-			if providedKey == "" {
-				failAuth(writer, request, "missing x-api-key header")
-				return
-			}
-
-			providedHash := sha256.Sum256([]byte(providedKey))
-
-			// CRITICAL: Constant-time comparison prevents timing attacks
-			if subtle.ConstantTimeCompare(providedHash[:], expectedHash[:]) != 1 {
-				failAuth(writer, request, "invalid x-api-key")
-				return
-			}
-
-			zerolog.Ctx(request.Context()).Debug().Msg(authSucceededMsg)
-			next.ServeHTTP(writer, request)
-		})
-	}
-}
-
-func failAuth(writer http.ResponseWriter, request *http.Request, reason string) {
-	zerolog.Ctx(request.Context()).Warn().Msg("authentication failed: " + reason)
-	WriteError(writer, http.StatusUnauthorized, "authentication_error", reason)
-}
-
 func handleAuthResult(ctx context.Context, writer http.ResponseWriter, result auth.Result) bool {
 	if !result.Valid {
 		zerolog.Ctx(ctx).Warn().
@@ -76,46 +34,6 @@ func handleAuthResult(ctx context.Context, writer http.ResponseWriter, result au
 		Str("auth_type", string(result.Type)).
 		Msg(authSucceededMsg)
 	return true
-}
-
-// MultiAuthMiddleware creates middleware supporting multiple authentication methods.
-// Supports both x-api-key and Authorization: Bearer token authentication.
-// If authConfig has no methods enabled, all requests pass through.
-func MultiAuthMiddleware(authConfig *config.AuthConfig) func(http.Handler) http.Handler {
-	// Build the authenticator chain based on config
-	var authenticators []auth.Authenticator
-
-	// Bearer token auth (checked first as it's more specific)
-	// IsBearerEnabled() returns true for both AllowBearer and AllowSubscription
-	if authConfig.IsBearerEnabled() {
-		authenticators = append(authenticators, auth.NewBearerAuthenticator(authConfig.BearerSecret))
-	}
-
-	// API key auth
-	if authConfig.APIKey != "" {
-		authenticators = append(authenticators, auth.NewAPIKeyAuthenticator(authConfig.APIKey))
-	}
-
-	// If no auth configured, return pass-through middleware
-	if len(authenticators) == 0 {
-		return func(next http.Handler) http.Handler {
-			return next
-		}
-	}
-
-	chainAuth := auth.NewChainAuthenticator(authenticators...)
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			result := chainAuth.Validate(request)
-
-			if !handleAuthResult(request.Context(), writer, result) {
-				return
-			}
-
-			next.ServeHTTP(writer, request)
-		})
-	}
 }
 
 // DebugOptionsProvider returns current debug options for live-config logging.
@@ -234,12 +152,6 @@ func LoggingMiddlewareWithProvider(provider DebugOptionsProvider) func(http.Hand
 			logRequestCompletion(request.Context(), request, wrapped, time.Since(start), shortID)
 		})
 	}
-}
-
-// LoggingMiddleware logs each request with method, path, and duration.
-// If debugOpts has debug logging enabled, logs additional request/response details.
-func LoggingMiddleware(debugOpts config.DebugOptions) func(http.Handler) http.Handler {
-	return LoggingMiddlewareWithProvider(func() config.DebugOptions { return debugOpts })
 }
 
 type authCache struct {

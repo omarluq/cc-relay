@@ -14,18 +14,6 @@ import (
 // modelContextKey is used for storing the extracted model name in request context.
 type modelContextKey struct{}
 
-// ExtractModelFromRequest reads the model field from the request body.
-// Returns mo.None if body is missing, malformed, or has no model field.
-// Returns mo.Some with the model name if extraction succeeds.
-// The request body is restored for subsequent reads.
-//
-// If the body exceeds max_body_bytes limit (set via http.MaxBytesReader),
-// returns mo.None. Use ExtractModelWithBodyCheck for explicit error detection.
-func ExtractModelFromRequest(r *http.Request) mo.Option[string] {
-	model, _ := ExtractModelWithBodyCheck(r)
-	return model
-}
-
 // ExtractModelWithBodyCheck reads the model field and reports body size errors.
 // Returns:
 //   - mo.Some[string] if model extraction succeeds
@@ -72,11 +60,4 @@ func ExtractModelWithBodyCheck(request *http.Request) (model mo.Option[string], 
 // This avoids re-reading the body when the model is needed again (e.g., for rewriting).
 func CacheModelInContext(ctx context.Context, model string) context.Context {
 	return context.WithValue(ctx, modelContextKey{}, model)
-}
-
-// GetModelFromContext retrieves the cached model name from the context.
-// Returns the model and true if found, empty string and false otherwise.
-func GetModelFromContext(ctx context.Context) (string, bool) {
-	model, ok := ctx.Value(modelContextKey{}).(string)
-	return model, ok
 }

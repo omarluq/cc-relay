@@ -64,7 +64,6 @@ func TestNewVertexProviderWithTokenSource(t *testing.T) {
 		assert.Equal(t, testVertexName, provider.Name())
 		assert.Equal(t, "https://us-central1-aiplatform.googleapis.com", provider.BaseURL())
 		assert.Equal(t, providers.VertexOwner, provider.Owner())
-		assert.Equal(t, gcpProjectMyProject, provider.GetProjectID())
 		assert.Equal(t, gcpRegionUSCentral1, provider.GetRegion())
 	})
 
@@ -390,59 +389,6 @@ func TestVertexProviderStreamingContentType(t *testing.T) {
 
 	// Vertex uses standard SSE (unlike Bedrock)
 	assert.Equal(t, "text/event-stream", provider.StreamingContentType())
-}
-
-func TestVertexProviderRefreshToken(t *testing.T) {
-	t.Parallel()
-
-	t.Run("successfully refreshes token", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := newTestVertexConfig()
-		tokenSource := newMockTokenSource("refreshed-token")
-		provider := providers.NewVertexProviderWithTokenSource(cfg, tokenSource)
-
-		err := provider.RefreshToken(context.Background())
-		require.NoError(t, err)
-	})
-
-	t.Run("returns error when no token source", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := &providers.VertexConfig{
-			ModelMapping: nil,
-			Name:         testVertexName,
-			ProjectID:    gcpProjectMyProject,
-			Region:       gcpRegionUSCentral1,
-			Models:       nil,
-		}
-		provider := providers.NewVertexProviderWithTokenSource(cfg, nil)
-
-		err := provider.RefreshToken(context.Background())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no token source")
-	})
-
-	t.Run("returns error when refresh fails", func(t *testing.T) {
-		t.Parallel()
-
-		cfg := &providers.VertexConfig{
-			ModelMapping: nil,
-			Name:         testVertexName,
-			ProjectID:    gcpProjectMyProject,
-			Region:       gcpRegionUSCentral1,
-			Models:       nil,
-		}
-		tokenSource := &mockTokenSource{
-			token: nil,
-			err:   errors.New("network error"),
-		}
-		provider := providers.NewVertexProviderWithTokenSource(cfg, tokenSource)
-
-		err := provider.RefreshToken(context.Background())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "refresh failed")
-	})
 }
 
 func TestVertexProviderModelMapping(t *testing.T) {

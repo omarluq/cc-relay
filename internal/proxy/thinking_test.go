@@ -284,28 +284,6 @@ func TestProcessRequestThinkingBlockReordering(t *testing.T) {
 	assert.True(t, thinkingCtx.ReorderedBlocks, "should record reordering")
 }
 
-func TestFormatSignature(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		modelName string
-		signature string
-		expected  string
-	}{
-		{"claude-sonnet-4", testCommitSHA, "claude#abc123"},
-		{"gpt-4-turbo", "xyz789", "gpt#xyz789"},
-		{"gemini-pro", "sig", "gemini#sig"},
-		{testModelUnknown, "sig", "unknown-model#sig"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.modelName, func(t *testing.T) {
-			t.Parallel()
-			got := proxy.FormatSignature(tt.modelName, tt.signature)
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
 func TestParseSignature(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -383,69 +361,6 @@ func TestProcessRequestThinkingPreservesUnknownFields(t *testing.T) {
 	redactedField := gjson.GetBytes(modifiedBody, "messages.0.content.1.redacted_thinking")
 	assert.True(t, redactedField.Exists(), "redacted_thinking field should be preserved")
 	assert.True(t, redactedField.Bool(), "redacted_thinking should be true")
-}
-
-func TestProcessResponseSignature(t *testing.T) {
-	t.Parallel()
-	sigCache, cleanup := proxy.NewTestSignatureCache(t)
-	defer cleanup()
-
-	ctx := context.Background()
-
-	thinkingText := "Let me analyze this..."
-	signature := "original_signature_that_is_long_enough_for_caching_validation"
-
-	eventData := `{"type": "content_block_delta", "delta": ` +
-		`{"type": "signature_delta", "signature": "` + signature + `"}}`
-
-	modifiedData := proxy.ProcessResponseSignature(ctx, []byte(eventData), thinkingText, "claude-sonnet-4", sigCache)
-
-	// Verify signature was prefixed
-	var result map[string]any
-	err := json.Unmarshal(modifiedData, &result)
-	require.NoError(t, err)
-
-	delta, ok := result["delta"].(map[string]any)
-	require.True(t, ok, "delta should be a map")
-	assert.Equal(t, "claude#"+signature, delta["signature"])
-
-	// Wait for Ristretto async set
-	time.Sleep(10 * time.Millisecond)
-
-	// Verify signature was cached
-	cached := sigCache.Get(ctx, "claude-sonnet-4", thinkingText)
-	assert.Equal(t, signature, cached, "signature should be cached")
-}
-
-func TestProcessNonStreamingResponse(t *testing.T) {
-	t.Parallel()
-	sigCache, cleanup := proxy.NewTestSignatureCache(t)
-	defer cleanup()
-
-	ctx := context.Background()
-
-	signature := "response_signature_that_is_long_enough_for_validation"
-	thinkingText := "Deep thinking here..."
-
-	body := `{
-		"content": [
-			{"type": "thinking", "thinking": "` + thinkingText + `", "signature": "` + signature + `"},
-			{"type": "text", "text": "Result"}
-		]
-	}`
-
-	modifiedBody := proxy.ProcessNonStreamingResponse(ctx, []byte(body), "claude-sonnet-4", sigCache)
-
-	// Verify signature was prefixed
-	sig := gjson.GetBytes(modifiedBody, "content.0.signature").String()
-	assert.Equal(t, "claude#"+signature, sig)
-
-	// Wait for Ristretto async set
-	time.Sleep(10 * time.Millisecond)
-
-	// Verify signature was cached
-	cached := sigCache.Get(ctx, "claude-sonnet-4", thinkingText)
-	assert.Equal(t, signature, cached)
 }
 
 func BenchmarkHasThinkingBlocks(b *testing.B) {

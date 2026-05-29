@@ -786,10 +786,6 @@ func GetHTTPServer(s *Server) *http.Server {
 // Exported for testing in proxy_test package.
 var TLSVersionString = tlsVersionString
 
-// ExtractSSEData extracts data from SSE event lines.
-// Exported for testing in proxy_test package.
-var ExtractSSEData = extractSSEData
-
 // FindProviderForModel finds the provider for a model using the model mapping.
 // Exported for testing in proxy_test package.
 var FindProviderForModel = findProviderForModel

@@ -14,7 +14,6 @@ import (
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/keypool"
 	"github.com/omarluq/cc-relay/internal/providers"
-	"github.com/omarluq/cc-relay/internal/proxy"
 )
 
 const (
@@ -57,7 +56,7 @@ func newHandlerWithPool(t *testing.T, backendURL string, pool *keypool.KeyPool) 
 		},
 	}
 
-	handler, err := proxy.SetupRoutesWithProviders(cfg, provider, "", pool, nil)
+	handler, err := setupLiveRoutes(t, cfg, provider, "", pool)
 	if err != nil {
 		t.Fatalf("Failed to setup routes: %v", err)
 	}

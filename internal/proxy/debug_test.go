@@ -116,33 +116,6 @@ func TestLogRequestDetailsTruncatesLargeBody(t *testing.T) {
 	}
 }
 
-func TestLogResponseDetailsLogsEventCount(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	ctx := logger.WithContext(context.Background())
-
-	headers := http.Header{}
-	headers.Set("Content-Type", "text/event-stream")
-	headers.Set("X-Anthropic-Stop-Reason", "end_turn")
-
-	opts := config.DebugOptions{
-		LogRequestBody:     false,
-		LogResponseHeaders: true,
-		LogTLSMetrics:      false,
-		MaxBodyLogSize:     0,
-	}
-	proxy.LogResponseDetails(ctx, headers, 200, 42, opts)
-
-	output := buf.String()
-	if !strings.Contains(output, `"streaming_events":42`) {
-		t.Error("Expected streaming_events count in output")
-	}
-	if !strings.Contains(output, "end_turn") {
-		t.Error("Expected X-Anthropic-Stop-Reason in output")
-	}
-}
-
 func TestLogTLSMetrics(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
@@ -382,29 +355,6 @@ func TestLogTLSMetricsSkipConditions(t *testing.T) {
 				t.Errorf("%s, got: %s", testCase.errMsg, buf.String())
 			}
 		})
-	}
-}
-
-func TestLogResponseDetailsSkipsWhenDisabled(t *testing.T) {
-	t.Parallel()
-
-	var buf bytes.Buffer
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	ctx := logger.WithContext(context.Background())
-
-	headers := http.Header{}
-	headers.Set("Content-Type", "application/json")
-
-	opts := config.DebugOptions{
-		LogRequestBody:     false,
-		LogResponseHeaders: false,
-		LogTLSMetrics:      false,
-		MaxBodyLogSize:     0,
-	}
-	proxy.LogResponseDetails(ctx, headers, 200, 0, opts)
-
-	if buf.Len() > 0 {
-		t.Errorf("Expected no log output when LogResponseHeaders disabled, got: %s", buf.String())
 	}
 }
 

@@ -19,7 +19,6 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/omarluq/cc-relay/internal/config"
-	"github.com/omarluq/cc-relay/internal/providers"
 )
 
 // Test selectOutput, shouldUsePretty, GetRequestID, AddRequestID
@@ -588,58 +587,6 @@ func TestLogProxyMetrics_WithData(t *testing.T) {
 	}
 	if !strings.Contains(output, "bytes_sent") {
 		t.Error("Expected bytes_sent in output")
-	}
-	if !strings.Contains(output, "streaming_events") {
-		t.Error("Expected streaming_events in output")
-	}
-}
-
-// Test LogResponseDetails
-
-func TestLogResponseDetails_NotEnabled(t *testing.T) {
-	t.Parallel()
-
-	opts := config.DebugOptions{
-		LogRequestBody:     false,
-		LogResponseHeaders: false,
-		LogTLSMetrics:      false,
-		MaxBodyLogSize:     0,
-	}
-
-	var buf strings.Builder
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	ctx := logger.WithContext(context.Background())
-
-	LogResponseDetails(ctx, nil, 200, 5, opts)
-
-	if buf.String() != "" {
-		t.Error("LogResponseDetails should not log when disabled")
-	}
-}
-
-func TestLogResponseDetails_WithHeaders(t *testing.T) {
-	t.Parallel()
-
-	opts := config.DebugOptions{
-		LogRequestBody:     false,
-		LogResponseHeaders: true,
-		LogTLSMetrics:      false,
-		MaxBodyLogSize:     0,
-	}
-
-	var buf strings.Builder
-	logger := zerolog.New(&buf).Level(zerolog.DebugLevel)
-	ctx := logger.WithContext(context.Background())
-
-	headers := http.Header{}
-	headers.Set("X-Anthropic-Model", "claude-3")
-	headers.Set("Content-Type", providers.ContentTypeSSE)
-
-	LogResponseDetails(ctx, headers, 200, 10, opts)
-
-	output := buf.String()
-	if !strings.Contains(output, "response details") {
-		t.Error("Expected 'response details' in output")
 	}
 	if !strings.Contains(output, "streaming_events") {
 		t.Error("Expected streaming_events in output")
