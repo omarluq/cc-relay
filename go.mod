@@ -15,7 +15,7 @@ require (
 	github.com/olric-data/olric v0.7.4
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/rs/zerolog v1.35.1
-	github.com/samber/do/v2 v2.0.0
+	github.com/samber/do/v2 v2.1.0
 	github.com/samber/lo v1.53.0
 	github.com/samber/mo v1.17.0
 	github.com/sony/gobreaker/v2 v2.4.0
