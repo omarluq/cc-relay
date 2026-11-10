@@ -240,3 +240,51 @@ func TestRegistryRejectsInvalidSetting(t *testing.T) {
 	assert.NotContains(t, err.Error(), secretValue)
 	assert.Equal(t, 0, registry.Len())
 }
+
+func TestIsLocalHost(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]bool{
+		"localhost":            true,
+		"LOCALHOST":            true,
+		"ollama.localhost":     true,
+		"127.0.0.1":            true,
+		"::1":                  true,
+		"169.254.169.254":      true, // AWS IMDS
+		"169.254.170.2":        true, // ECS task credentials
+		"fe80::1":              true,
+		"api.anthropic.com":    false,
+		"10.0.0.5":             false,
+		"192.168.1.10":         false,
+		"localhost.example.io": false,
+	}
+
+	for host, want := range tests {
+		t.Run(host, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, want, outbound.IsLocalHost(host))
+		})
+	}
+}
+
+func TestProxyTransportSkipsLocalDestinations(t *testing.T) {
+	t.Parallel()
+
+	registry := outbound.NewRegistry()
+	transport, err := registry.Transport(socksProxy)
+	require.NoError(t, err)
+	httpTransport, isHTTP := transport.(*http.Transport)
+	require.True(t, isHTTP)
+
+	for _, target := range []string{
+		"http://169.254.169.254/latest/api/token",
+		"http://localhost:11434/v1/messages",
+		"http://127.0.0.1:8080/",
+	} {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
+		require.NoError(t, err)
+		proxyURL, err := httpTransport.Proxy(req)
+		require.NoError(t, err)
+		assert.Nil(t, proxyURL, "%s must connect directly", target)
+	}
+}

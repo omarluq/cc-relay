@@ -6,12 +6,14 @@
 //     HTTPS_PROXY and NO_PROXY environment variables.
 //   - "direct": connect directly, ignoring every proxy setting including
 //     the environment.
-//   - a proxy URL with scheme http, https, socks5 or socks5h.
+//   - a proxy URL with scheme http, https, socks5 or socks5h. Requests to
+//     localhost, loopback and link-local addresses still connect directly.
 package outbound
 
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -194,6 +196,33 @@ func newTransport(key string) (*http.Transport, error) {
 	if err != nil {
 		return nil, err
 	}
-	transport.Proxy = http.ProxyURL(proxyURL)
+	transport.Proxy = proxyFunc(proxyURL)
 	return transport, nil
+}
+
+// proxyFunc routes requests through proxyURL, except requests to local
+// destinations. Like http.ProxyFromEnvironment, localhost and loopback
+// addresses always connect directly; link-local addresses do too, so cloud
+// metadata endpoints (e.g. AWS IMDS at 169.254.169.254, used for Bedrock
+// credentials) keep working when a proxy is configured.
+func proxyFunc(proxyURL *url.URL) func(*http.Request) (*url.URL, error) {
+	return func(req *http.Request) (*url.URL, error) {
+		if IsLocalHost(req.URL.Hostname()) {
+			return nil, nil // A nil URL means "no proxy" for http.Transport.Proxy.
+		}
+		return proxyURL, nil
+	}
+}
+
+// IsLocalHost reports whether host is localhost or a loopback or link-local
+// address. Such destinations bypass a configured outbound proxy.
+func IsLocalHost(host string) bool {
+	if strings.EqualFold(host, "localhost") || strings.HasSuffix(strings.ToLower(host), ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast()
 }
