@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
+
+	"github.com/omarluq/cc-relay/internal/outbound"
 )
 
 // Provider type constants.
@@ -123,6 +125,10 @@ func validateServer(cfg *Config, errs *ValidationError) {
 	if cfg.Server.MaxBodyBytes < 0 {
 		errs.Add("server.max_body_bytes must be >= 0")
 	}
+
+	if err := outbound.Validate(cfg.Server.OutboundProxy); err != nil {
+		errs.Addf("server.outbound_proxy: %v", err)
+	}
 }
 
 // validateListenAddress validates a listen address in host:port format.
@@ -203,6 +209,10 @@ func validateProvider(provider *ProviderConfig, index int, seenNames map[string]
 	// Validate pooling strategy if set
 	if provider.Pooling.Strategy != "" && !validPoolingStrategies[provider.Pooling.Strategy] {
 		errs.Addf("%s is invalid (got %q)", prefix("pooling.strategy"), provider.Pooling.Strategy)
+	}
+
+	if err := outbound.Validate(provider.OutboundProxy); err != nil {
+		errs.Addf("%s: %v", prefix("outbound_proxy"), err)
 	}
 }
 

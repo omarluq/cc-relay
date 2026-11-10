@@ -13,6 +13,25 @@ type Model struct {
 	Created  int64  `json:"created"`
 }
 
+// OutboundTransporter is implemented by providers that carry a dedicated
+// transport for upstream requests (for example, one using an outbound proxy).
+// Every provider embedding BaseProvider implements it.
+type OutboundTransporter interface {
+	// OutboundTransport returns the transport to use, or nil for http.DefaultTransport.
+	OutboundTransport() http.RoundTripper
+}
+
+// TransportFor returns the upstream transport for a provider,
+// falling back to http.DefaultTransport.
+func TransportFor(provider Provider) http.RoundTripper {
+	if transporter, ok := provider.(OutboundTransporter); ok {
+		if transport := transporter.OutboundTransport(); transport != nil {
+			return transport
+		}
+	}
+	return http.DefaultTransport
+}
+
 // Provider defines the interface for LLM backend providers.
 // All provider implementations must implement this interface to be compatible with cc-relay.
 type Provider interface {

@@ -904,6 +904,7 @@ func TestNewBedrockProvider_MissingRegion(t *testing.T) {
 	t.Parallel()
 
 	_, err := providers.NewBedrockProvider(t.Context(), &providers.BedrockConfig{
+		Transport:    nil,
 		ModelMapping: nil,
 		Name:         testStringValue,
 		Region:       "",
@@ -919,6 +920,7 @@ func TestNewVertexProvider_MissingProjectID(t *testing.T) {
 	t.Parallel()
 
 	_, err := providers.NewVertexProvider(t.Context(), &providers.VertexConfig{
+		Transport:    nil,
 		ModelMapping: nil,
 		Name:         testStringValue,
 		ProjectID:    "",
@@ -933,6 +935,7 @@ func TestNewVertexProvider_MissingRegion(t *testing.T) {
 	t.Parallel()
 
 	_, err := providers.NewVertexProvider(t.Context(), &providers.VertexConfig{
+		Transport:    nil,
 		ModelMapping: nil,
 		Name:         testStringValue,
 		ProjectID:    gcpProjectMyProject,

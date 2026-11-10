@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync/atomic"
 
 	"github.com/rs/zerolog/log"
 	"github.com/samber/do/v2"
 
 	"github.com/omarluq/cc-relay/internal/config"
+	"github.com/omarluq/cc-relay/internal/outbound"
 	"github.com/omarluq/cc-relay/internal/providers"
 )
 
@@ -26,6 +28,8 @@ type providerMapData struct {
 type ProviderMapService struct {
 	data   atomic.Pointer[providerMapData]
 	cfgSvc *ConfigService
+	// transports holds the shared outbound transports, one per proxy setting.
+	transports *outbound.Registry
 
 	// For backward compatibility
 	PrimaryProvider providers.Provider
@@ -80,6 +84,41 @@ func (s *ProviderMapService) GetProvider(name string) (providers.Provider, bool)
 	return prov, ok
 }
 
+// buildProvider creates a provider with the outbound transport its config resolves to.
+// It also returns the resolved outbound proxy setting so unused transports can be released.
+func (s *ProviderMapService) buildProvider(
+	ctx context.Context,
+	cfg *config.Config,
+	providerCfg *config.ProviderConfig,
+) (providers.Provider, string, error) {
+	if s.transports == nil {
+		s.transports = outbound.NewRegistry()
+	}
+
+	setting := providerCfg.GetEffectiveOutboundProxy(cfg.Server.OutboundProxy)
+
+	// Unset keeps today's behavior: http.DefaultTransport and SDK defaults,
+	// which honor HTTP_PROXY / HTTPS_PROXY / NO_PROXY.
+	var transport http.RoundTripper
+	if setting != "" {
+		var err error
+		transport, err = s.transports.Transport(setting)
+		if err != nil {
+			return nil, "", fmt.Errorf("provider %s: %w", providerCfg.Name, err)
+		}
+		log.Info().
+			Str("provider", providerCfg.Name).
+			Str("outbound_proxy", outbound.Redact(setting)).
+			Msg("outbound proxy configured")
+	}
+
+	prov, err := createProvider(ctx, providerCfg, transport)
+	if err != nil {
+		return nil, "", err
+	}
+	return prov, setting, nil
+}
+
 // RebuildFrom rebuilds the provider map from the given config.
 // Called from reload callbacks to create providers for newly enabled ones.
 // Reuses existing providers when possible to preserve state.
@@ -90,6 +129,7 @@ func (s *ProviderMapService) RebuildFrom(cfg *config.Config) error {
 	var allProviders []providers.Provider
 	var primaryProvider providers.Provider
 	var primaryKey string
+	var outboundSettings []string
 
 	for idx := range cfg.Providers {
 		providerCfg := &cfg.Providers[idx]
@@ -97,7 +137,7 @@ func (s *ProviderMapService) RebuildFrom(cfg *config.Config) error {
 			continue
 		}
 
-		prov, err := createProvider(ctx, providerCfg)
+		prov, setting, err := s.buildProvider(ctx, cfg, providerCfg)
 		if errors.Is(err, ErrUnknownProviderType) {
 			log.Warn().
 				Str("provider", providerCfg.Name).
@@ -110,6 +150,7 @@ func (s *ProviderMapService) RebuildFrom(cfg *config.Config) error {
 			continue // Log and skip, don't fail the entire reload
 		}
 
+		outboundSettings = append(outboundSettings, setting)
 		providerMap[providerCfg.Name] = prov
 		allProviders = append(allProviders, prov)
 
@@ -139,6 +180,11 @@ func (s *ProviderMapService) RebuildFrom(cfg *config.Config) error {
 	s.PrimaryKey = primaryKey
 	s.AllProviders = allProviders
 
+	// Release transports for proxy settings no provider uses anymore
+	// (e.g. a proxy URL or its credentials changed). Requests still in
+	// flight on them finish normally; only idle connections are closed.
+	s.transports.Retain(outboundSettings)
+
 	return nil
 }
 
@@ -166,6 +212,7 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 	svc := &ProviderMapService{
 		data:            atomic.Pointer[providerMapData]{},
 		cfgSvc:          cfgSvc,
+		transports:      outbound.NewRegistry(),
 		Providers:       make(map[string]providers.Provider),
 		PrimaryProvider: nil,
 		PrimaryKey:      "",
@@ -183,7 +230,7 @@ func NewProviderMap(i do.Injector) (*ProviderMapService, error) {
 			continue
 		}
 
-		prov, err := createProvider(ctx, providerCfg)
+		prov, _, err := svc.buildProvider(ctx, cfg, providerCfg)
 		if errors.Is(err, ErrUnknownProviderType) {
 			continue // Skip unknown provider types
 		}

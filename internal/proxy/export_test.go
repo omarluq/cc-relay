@@ -416,6 +416,7 @@ func testLoggingConfig() config.LoggingConfig {
 // All fields are explicitly initialized to satisfy exhaustruct linter.
 func testServerConfig(apiKey string) config.ServerConfig {
 	return config.ServerConfig{
+		OutboundProxy: "",
 		Listen:        "",
 		APIKey:        apiKey,
 		Auth:          testAuthConfig(),
@@ -510,6 +511,7 @@ func testConfigWithAuth(authCfg config.AuthConfig) *config.Config {
 	return &config.Config{
 		Providers: nil,
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        "",
 			APIKey:        "",
 			Auth:          authCfg,
