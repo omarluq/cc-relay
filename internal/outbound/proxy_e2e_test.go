@@ -34,6 +34,7 @@ const (
 	proxiedHeaderValue = "via-proxy"
 	proxiedHeader      = "X-Proxied"
 	socksUser          = "alice"
+	upstreamTestHost   = "upstream.test"
 )
 
 var errSOCKSRejected = errors.New("socks request rejected")
@@ -113,7 +114,7 @@ func (s *socks5Server) handle(conn net.Conn) {
 	s.mu.Unlock()
 
 	dialer := net.Dialer{}
-	upstream, err := dialer.Dial("tcp", target)
+	upstream, err := dialer.Dial("tcp", resolveTestHost(target))
 	if err != nil {
 		writeReply(conn, socksReplyFailure)
 		return
@@ -311,9 +312,9 @@ func TestSOCKS5ProxyWithCredentials(t *testing.T) {
 	transport, err := registry.Transport("socks5://" + socksUser + ":" + secretValue + "@" + socks.addr())
 	require.NoError(t, err)
 
-	_, body := getThrough(t, transport, upstream.URL)
+	_, body := getThrough(t, transport, viaTestHost(t, upstream))
 	assert.Equal(t, upstreamBody, body)
-	assert.Equal(t, []string{upstream.Listener.Addr().String()}, socks.connectTargets())
+	assert.Equal(t, []string{testHostAddr(t, upstream)}, socks.connectTargets())
 }
 
 func TestSOCKS5ProxyRejectsWrongCredentials(t *testing.T) {
@@ -326,7 +327,7 @@ func TestSOCKS5ProxyRejectsWrongCredentials(t *testing.T) {
 	transport, err := registry.Transport("socks5h://" + socksUser + ":wrong-pass@" + socks.addr())
 	require.NoError(t, err)
 
-	err = tryGet(t, transport, upstream.URL)
+	err = tryGet(t, transport, viaTestHost(t, upstream))
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "wrong-pass", "transport errors must not echo proxy credentials")
 	assert.Empty(t, socks.connectTargets())
@@ -373,4 +374,44 @@ func TestDirectConnectsWithoutProxy(t *testing.T) {
 
 	_, body := getThrough(t, transport, upstream.URL)
 	assert.Equal(t, upstreamBody, body)
+}
+
+// resolveTestHost maps upstreamTestHost to the loopback address the test
+// upstream listens on. Proxied requests use the hostname because requests to
+// loopback addresses bypass the proxy.
+func resolveTestHost(target string) string {
+	host, port, err := net.SplitHostPort(target)
+	if err != nil || host != upstreamTestHost {
+		return target
+	}
+	return net.JoinHostPort("127.0.0.1", port)
+}
+
+// testHostAddr returns upstreamTestHost:port for the test upstream.
+func testHostAddr(t *testing.T, upstream *httptest.Server) string {
+	t.Helper()
+	_, port, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	require.NoError(t, err)
+	return net.JoinHostPort(upstreamTestHost, port)
+}
+
+// viaTestHost returns the test upstream URL using upstreamTestHost.
+func viaTestHost(t *testing.T, upstream *httptest.Server) string {
+	t.Helper()
+	return "http://" + testHostAddr(t, upstream)
+}
+
+func TestProxyBypassedForLoopbackUpstream(t *testing.T) {
+	t.Parallel()
+
+	upstream := newUpstream(t)
+	socks := startSOCKS5(t, "", "")
+
+	registry := outbound.NewRegistry()
+	transport, err := registry.Transport("socks5://" + socks.addr())
+	require.NoError(t, err)
+
+	_, body := getThrough(t, transport, upstream.URL)
+	assert.Equal(t, upstreamBody, body)
+	assert.Empty(t, socks.connectTargets(), "loopback upstreams must not go through the proxy")
 }
