@@ -59,8 +59,9 @@ func MustTestConfig() config.Config {
 			},
 		},
 		Server: config.ServerConfig{
-			Listen: ":8787",
-			APIKey: "",
+			OutboundProxy: "",
+			Listen:        ":8787",
+			APIKey:        "",
 			Auth: config.AuthConfig{
 				APIKey:            "",
 				BearerSecret:      "",
@@ -110,6 +111,7 @@ func MustTestRoutingConfig(strategy string) config.RoutingConfig {
 // mustTestProviderConfig creates a minimal ProviderConfig for testing.
 func MustTestProviderConfig(name, pType, baseURL string, keys []config.KeyConfig) config.ProviderConfig {
 	return config.ProviderConfig{
+		OutboundProxy:      "",
 		ModelMapping:       map[string]string{},
 		AWSRegion:          "",
 		GCPProjectID:       "",
@@ -163,8 +165,9 @@ func MustTestHealthConfig() health.Config {
 // mustTestServerConfig creates a minimal ServerConfig for testing.
 func MustTestServerConfig(listen string) config.ServerConfig {
 	return config.ServerConfig{
-		Listen: listen,
-		APIKey: "",
+		OutboundProxy: "",
+		Listen:        listen,
+		APIKey:        "",
 		Auth: config.AuthConfig{
 			APIKey:            "",
 			BearerSecret:      "",
@@ -244,6 +247,7 @@ func NewConfigServiceWithNilWatcher(cfg *config.Config) *ConfigService {
 // or rely on the legacy Providers field fallback.
 func NewProviderMapServiceWithConfigService(cfgSvc *ConfigService) *ProviderMapService {
 	return &ProviderMapService{
+		transports:      nil,
 		data:            atomic.Pointer[providerMapData]{},
 		cfgSvc:          cfgSvc,
 		PrimaryProvider: nil,
@@ -251,6 +255,14 @@ func NewProviderMapServiceWithConfigService(cfgSvc *ConfigService) *ProviderMapS
 		PrimaryKey:      "",
 		AllProviders:    nil,
 	}
+}
+
+// OutboundTransportCount returns how many outbound proxy transports the service holds.
+func (s *ProviderMapService) OutboundTransportCount() int {
+	if s.transports == nil {
+		return 0
+	}
+	return s.transports.Len()
 }
 
 // NewProviderInfoService creates a ProviderInfoService with all dependencies.

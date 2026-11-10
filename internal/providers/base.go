@@ -15,6 +15,7 @@ const ContentTypeSSE = "text/event-stream"
 // BaseProvider provides common functionality for Anthropic-compatible providers.
 // It implements the shared methods that are identical across Anthropic and Z.AI.
 type BaseProvider struct {
+	transport    http.RoundTripper
 	modelMapping map[string]string
 	name         string
 	baseURL      string
@@ -29,12 +30,25 @@ func NewBaseProviderWithMapping(
 	modelMapping map[string]string,
 ) BaseProvider {
 	return BaseProvider{
+		transport:    nil,
 		name:         name,
 		baseURL:      baseURL,
 		owner:        owner,
 		models:       models,
 		modelMapping: modelMapping,
 	}
+}
+
+// OutboundTransport returns the transport for upstream requests to this provider.
+// Nil means the caller should use http.DefaultTransport.
+func (p *BaseProvider) OutboundTransport() http.RoundTripper {
+	return p.transport
+}
+
+// SetOutboundTransport sets the transport for upstream requests to this provider.
+// It must be called before the provider is shared between goroutines.
+func (p *BaseProvider) SetOutboundTransport(transport http.RoundTripper) {
+	p.transport = transport
 }
 
 // Name returns the provider identifier.

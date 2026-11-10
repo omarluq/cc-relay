@@ -3,6 +3,7 @@ package di
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/omarluq/cc-relay/internal/config"
 	"github.com/omarluq/cc-relay/internal/providers"
@@ -25,8 +26,18 @@ const (
 // supportedProviderTypes is the list of supported provider types for error messages.
 const supportedProviderTypes = "anthropic, zai, minimax, ollama, bedrock, vertex, azure"
 
+// outboundTransportSetter is implemented by providers embedding providers.BaseProvider.
+type outboundTransportSetter interface {
+	SetOutboundTransport(transport http.RoundTripper)
+}
+
 // createCloudProvider creates a cloud provider (bedrock, vertex, azure) with validation.
-func createCloudProvider(ctx context.Context, providerConfig *config.ProviderConfig) (providers.Provider, error) {
+// A nil transport keeps the SDK and http.DefaultTransport defaults.
+func createCloudProvider(
+	ctx context.Context,
+	providerConfig *config.ProviderConfig,
+	transport http.RoundTripper,
+) (providers.Provider, error) {
 	if err := providerConfig.ValidateCloudConfig(); err != nil {
 		return nil, fmt.Errorf("%s provider %s: %w", providerConfig.Type, providerConfig.Name, err)
 	}
@@ -38,6 +49,7 @@ func createCloudProvider(ctx context.Context, providerConfig *config.ProviderCon
 			Region:       providerConfig.AWSRegion,
 			Models:       providerConfig.Models,
 			ModelMapping: providerConfig.ModelMapping,
+			Transport:    transport,
 		})
 	case ProviderTypeVertex:
 		return providers.NewVertexProvider(ctx, &providers.VertexConfig{
@@ -46,6 +58,7 @@ func createCloudProvider(ctx context.Context, providerConfig *config.ProviderCon
 			Region:       providerConfig.GCPRegion,
 			Models:       providerConfig.Models,
 			ModelMapping: providerConfig.ModelMapping,
+			Transport:    transport,
 		})
 	case ProviderTypeAzure:
 		return providers.NewAzureProvider(&providers.AzureConfig{
@@ -63,8 +76,28 @@ func createCloudProvider(ctx context.Context, providerConfig *config.ProviderCon
 }
 
 // createProvider creates a provider instance from configuration.
+// The transport carries the provider's outbound proxy; nil means http.DefaultTransport.
 // Returns ErrUnknownProviderType for unknown provider types.
-func createProvider(ctx context.Context, providerConfig *config.ProviderConfig) (providers.Provider, error) {
+func createProvider(
+	ctx context.Context,
+	providerConfig *config.ProviderConfig,
+	transport http.RoundTripper,
+) (providers.Provider, error) {
+	prov, err := newProvider(ctx, providerConfig, transport)
+	if err != nil {
+		return nil, err
+	}
+	if setter, ok := prov.(outboundTransportSetter); ok {
+		setter.SetOutboundTransport(transport)
+	}
+	return prov, nil
+}
+
+func newProvider(
+	ctx context.Context,
+	providerConfig *config.ProviderConfig,
+	transport http.RoundTripper,
+) (providers.Provider, error) {
 	switch providerConfig.Type {
 	case ProviderTypeAnthropic:
 		return providers.NewAnthropicProvider(
@@ -83,7 +116,7 @@ func createProvider(ctx context.Context, providerConfig *config.ProviderConfig) 
 			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
 	case ProviderTypeBedrock, ProviderTypeVertex, ProviderTypeAzure:
-		return createCloudProvider(ctx, providerConfig)
+		return createCloudProvider(ctx, providerConfig, transport)
 	default:
 		return nil, ErrUnknownProviderType
 	}

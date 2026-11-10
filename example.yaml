@@ -20,6 +20,13 @@ server:
   # HTTP/2 provides improved performance for Claude Code's concurrent tool calls
   enable_http2: true
 
+  # Outbound proxy for upstream (provider-bound) traffic (optional)
+  # Unset: use HTTP_PROXY / HTTPS_PROXY / NO_PROXY from the environment
+  # "direct": bypass all proxies, including the environment
+  # Otherwise an http://, https://, socks5:// or socks5h:// URL
+  # Providers can override this with their own outbound_proxy.
+  # outbound_proxy: "socks5://${PROXY_USER}:${PROXY_PASS}@127.0.0.1:1080"
+
   # --------------------------------------------------------------------------
   # Authentication
   # --------------------------------------------------------------------------
@@ -159,6 +166,9 @@ providers:
     type: "ollama"
     enabled: true
     base_url: "http://localhost:11434"
+
+    # Skip server.outbound_proxy for this local provider (optional)
+    # outbound_proxy: "direct"
 
     model_mapping:
       "claude-opus-4-6": "qwen3:72b"

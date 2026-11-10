@@ -14,6 +14,7 @@ import (
 // top of this base to avoid repeating the full struct literal.
 func baseProviderConfig(name, pType string) config.ProviderConfig {
 	return config.ProviderConfig{
+		OutboundProxy:      "",
 		ModelMapping:       map[string]string{},
 		AWSRegion:          "",
 		GCPProjectID:       "",
@@ -109,7 +110,7 @@ func runCloudProviderValidation(
 			ctx := context.Background()
 
 			cfg := testCase.cfg
-			prov, err := di.CreateCloudProvider(ctx, &cfg)
+			prov, err := di.CreateCloudProvider(ctx, &cfg, nil)
 
 			if testCase.wantErr != "" {
 				assert.Error(t, err)
@@ -225,7 +226,7 @@ func TestCreateCloudProviderAzureValidation(t *testing.T) {
 // Unknown/NonCloud tests to keep assertion shape identical.
 func assertUnknownProviderType(t *testing.T, cfg *config.ProviderConfig) {
 	t.Helper()
-	prov, err := di.CreateCloudProvider(context.Background(), cfg)
+	prov, err := di.CreateCloudProvider(context.Background(), cfg, nil)
 	assert.ErrorIs(t, err, di.ErrUnknownProviderType)
 	assert.Nil(t, prov)
 }

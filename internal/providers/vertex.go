@@ -53,10 +53,13 @@ type VertexProvider struct {
 // VertexConfig holds Vertex AI-specific configuration.
 type VertexConfig struct {
 	ModelMapping map[string]string
-	Name         string
-	ProjectID    string // GCP project ID
-	Region       string // GCP region (e.g., "us-central1")
-	Models       []string
+	// Transport is used for Vertex AI API calls and OAuth token fetches.
+	// Nil uses http.DefaultTransport.
+	Transport http.RoundTripper
+	Name      string
+	ProjectID string // GCP project ID
+	Region    string // GCP region (e.g., "us-central1")
+	Models    []string
 }
 
 // NewVertexProvider creates a new Vertex AI provider instance.
@@ -70,14 +73,11 @@ func NewVertexProvider(ctx context.Context, cfg *VertexConfig) (*VertexProvider,
 		return nil, fmt.Errorf("vertex: region is required")
 	}
 
-	models := cfg.Models
-	if len(models) == 0 {
-		models = DefaultVertexModels
+	if cfg.Transport != nil {
+		// The oauth2 package fetches tokens with the client stored in the context.
+		// The token source keeps this context, so refreshes use the same transport.
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{Transport: cfg.Transport})
 	}
-
-	// Construct base URL for Vertex AI
-	// Format: https://{region}-aiplatform.googleapis.com
-	baseURL := fmt.Sprintf("https://%s-aiplatform.googleapis.com", cfg.Region)
 
 	// Get Google credentials with cloud-platform scope
 	creds, err := google.FindDefaultCredentials(ctx, vertexScope)
@@ -85,13 +85,7 @@ func NewVertexProvider(ctx context.Context, cfg *VertexConfig) (*VertexProvider,
 		return nil, fmt.Errorf("vertex: failed to find credentials: %w", err)
 	}
 
-	return &VertexProvider{
-		BaseProvider: NewBaseProviderWithMapping(cfg.Name, baseURL, VertexOwner, models, cfg.ModelMapping),
-		projectID:    cfg.ProjectID,
-		region:       cfg.Region,
-		tokenSource:  creds.TokenSource,
-		tokenMu:      sync.RWMutex{},
-	}, nil
+	return NewVertexProviderWithTokenSource(cfg, creds.TokenSource), nil
 }
 
 // NewVertexProviderWithTokenSource creates a Vertex provider with a custom token source.
@@ -102,15 +96,19 @@ func NewVertexProviderWithTokenSource(cfg *VertexConfig, tokenSource oauth2.Toke
 		models = DefaultVertexModels
 	}
 
+	// Construct base URL for Vertex AI
+	// Format: https://{region}-aiplatform.googleapis.com
 	baseURL := fmt.Sprintf("https://%s-aiplatform.googleapis.com", cfg.Region)
 
-	return &VertexProvider{
+	provider := &VertexProvider{
 		BaseProvider: NewBaseProviderWithMapping(cfg.Name, baseURL, VertexOwner, models, cfg.ModelMapping),
 		projectID:    cfg.ProjectID,
 		region:       cfg.Region,
 		tokenSource:  tokenSource,
 		tokenMu:      sync.RWMutex{},
 	}
+	provider.SetOutboundTransport(cfg.Transport)
+	return provider
 }
 
 // Authenticate adds OAuth Bearer token to the request.
