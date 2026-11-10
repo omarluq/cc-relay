@@ -79,7 +79,8 @@ func emptyKeyConfig(key string) config.KeyConfig {
 
 func emptyProviderConfig() config.ProviderConfig {
 	return config.ProviderConfig{
-		ModelMapping: nil, AWSRegion: "",
+		OutboundProxy: "",
+		ModelMapping:  nil, AWSRegion: "",
 		GCPProjectID: "", AzureAPIVersion: "",
 		Name: "", Type: "", BaseURL: "",
 		AzureDeploymentID: "", AWSAccessKeyID: "",
@@ -105,6 +106,7 @@ func TestValidateConfigValid(t *testing.T) {
 		Health:  emptyHealthConfig(),
 		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        defaultListenAddr,
 			APIKey:        defaultAPIKey,
 			Auth:          emptyAuthConfig(),
@@ -130,6 +132,7 @@ func TestValidateConfigNoListen(t *testing.T) {
 		Health:  emptyHealthConfig(),
 		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        "",
 			APIKey:        defaultAPIKey,
 			Auth:          emptyAuthConfig(),
@@ -160,6 +163,7 @@ func TestValidateConfigNoAPIKey(t *testing.T) {
 		Health:  emptyHealthConfig(),
 		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        defaultListenAddr,
 			APIKey:        "",
 			Auth:          emptyAuthConfig(),
@@ -194,6 +198,7 @@ func TestValidateConfigNoEnabledProvider(t *testing.T) {
 		Health:  emptyHealthConfig(),
 		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        defaultListenAddr,
 			APIKey:        defaultAPIKey,
 			Auth:          emptyAuthConfig(),
@@ -229,6 +234,7 @@ func TestValidateConfigProviderNoKeys(t *testing.T) {
 		Health:  emptyHealthConfig(),
 		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        defaultListenAddr,
 			APIKey:        defaultAPIKey,
 			Auth:          emptyAuthConfig(),
@@ -267,6 +273,7 @@ func TestValidateConfigMultipleProviders(t *testing.T) {
 		Health:  emptyHealthConfig(),
 		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        defaultListenAddr,
 			APIKey:        defaultAPIKey,
 			Auth:          emptyAuthConfig(),
@@ -292,6 +299,7 @@ func TestValidateConfigEmptyProviders(t *testing.T) {
 		Health:  emptyHealthConfig(),
 		Cache:   emptyCacheConfig(),
 		Server: config.ServerConfig{
+			OutboundProxy: "",
 			Listen:        defaultListenAddr,
 			APIKey:        defaultAPIKey,
 			Auth:          emptyAuthConfig(),

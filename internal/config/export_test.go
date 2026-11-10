@@ -54,6 +54,7 @@ func MakeTestConfig() *Config {
 // MakeTestServerConfig returns a minimal ServerConfig with all fields set.
 func MakeTestServerConfig() ServerConfig {
 	return ServerConfig{
+		OutboundProxy: "",
 		Listen:        "127.0.0.1:8787",
 		APIKey:        "",
 		Auth:          MakeTestAuthConfig(),
@@ -77,6 +78,7 @@ func MakeTestAuthConfig() AuthConfig {
 // MakeTestProviderConfig returns a minimal ProviderConfig with all fields set.
 func MakeTestProviderConfig() ProviderConfig {
 	return ProviderConfig{
+		OutboundProxy:      "",
 		ModelMapping:       map[string]string{},
 		AWSRegion:          "",
 		GCPProjectID:       "",

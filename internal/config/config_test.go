@@ -12,8 +12,9 @@ import (
 // zeroServerConfig returns a ServerConfig with all fields zeroed.
 func zeroServerConfig() config.ServerConfig {
 	return config.ServerConfig{
-		Listen: "",
-		APIKey: "",
+		OutboundProxy: "",
+		Listen:        "",
+		APIKey:        "",
 		Auth: config.AuthConfig{
 			APIKey: "", BearerSecret: "",
 			AllowBearer: false, AllowSubscription: false,
@@ -33,7 +34,8 @@ func zeroRoutingConfig() config.RoutingConfig {
 // zeroProviderConfig returns a ProviderConfig with all fields zeroed.
 func zeroProviderConfig() config.ProviderConfig {
 	return config.ProviderConfig{
-		ModelMapping: nil, AWSRegion: "", GCPProjectID: "",
+		OutboundProxy: "",
+		ModelMapping:  nil, AWSRegion: "", GCPProjectID: "",
 		AzureAPIVersion: "", Name: "", Type: "", BaseURL: "",
 		AzureDeploymentID: "", AWSAccessKeyID: "", AzureResourceName: "",
 		AWSSecretAccessKey: "", GCPRegion: "",

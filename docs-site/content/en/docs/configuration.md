@@ -450,6 +450,68 @@ enable_http2 = true
   {{< /tab >}}
 {{< /tabs >}}
 
+### Outbound Proxy
+
+Route upstream traffic (from cc-relay to providers) through an HTTP, HTTPS or SOCKS5 proxy. Set a default with `server.outbound_proxy` and override it per provider with `outbound_proxy`. A provider-level value always wins.
+
+| Value | Behavior |
+|-------|----------|
+| *(unset)* | Use `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` from the environment (the default) |
+| `direct` | Connect directly, ignoring all proxy settings, including the environment |
+| `http://host:port` | HTTP proxy (`CONNECT` for HTTPS upstreams) |
+| `https://host:port` | HTTP proxy reached over TLS |
+| `socks5://host:port` | SOCKS5 proxy. Hostnames are resolved by the proxy |
+| `socks5h://host:port` | Same as `socks5` |
+
+Credentials go in the URL (`socks5://user:pass@host:1080`). Use `${VAR}` expansion to keep them out of the file. cc-relay masks proxy credentials in its logs and validation errors.
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+server:
+  outbound_proxy: "socks5://${PROXY_USER}:${PROXY_PASS}@127.0.0.1:1080"
+
+providers:
+  - name: "anthropic"
+    type: "anthropic"
+    # Inherits server.outbound_proxy
+
+  - name: "ollama"
+    type: "ollama"
+    base_url: "http://localhost:11434"
+    outbound_proxy: "direct"   # Local provider: skip the proxy
+
+  - name: "zai"
+    type: "zai"
+    outbound_proxy: "http://corp-proxy:3128"   # Different proxy for this provider
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[server]
+outbound_proxy = "socks5://${PROXY_USER}:${PROXY_PASS}@127.0.0.1:1080"
+
+[[providers]]
+name = "anthropic"
+type = "anthropic"
+# Inherits server.outbound_proxy
+
+[[providers]]
+name = "ollama"
+type = "ollama"
+base_url = "http://localhost:11434"
+outbound_proxy = "direct"  # Local provider: skip the proxy
+
+[[providers]]
+name = "zai"
+type = "zai"
+outbound_proxy = "http://corp-proxy:3128"  # Different proxy for this provider
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+For Bedrock and Vertex AI, the proxy also covers AWS credential and Google OAuth token requests. Proxy changes take effect on config hot reload. Requests already in flight finish on the previous connection.
+
 ## Transparent Authentication
 
 cc-relay automatically detects how to handle authentication based on what the client sends:

@@ -28,6 +28,7 @@ func (p *AzureProvider) AzureDeploymentID() string {
 // NewBaseProviderForTest creates a BaseProvider for testing.
 func NewBaseProviderForTest(baseURL string, modelMapping map[string]string) *BaseProvider {
 	return &BaseProvider{
+		transport:    nil,
 		modelMapping: modelMapping,
 		name:         "",
 		baseURL:      baseURL,

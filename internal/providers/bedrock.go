@@ -63,9 +63,12 @@ type BedrockProvider struct {
 // BedrockConfig holds Bedrock-specific configuration.
 type BedrockConfig struct {
 	ModelMapping map[string]string
-	Name         string
-	Region       string // AWS region (e.g., "us-east-1")
-	Models       []string
+	// Transport is used for Bedrock API calls and AWS credential fetches.
+	// Nil uses http.DefaultTransport.
+	Transport http.RoundTripper
+	Name      string
+	Region    string // AWS region (e.g., "us-east-1")
+	Models    []string
 }
 
 // NewBedrockProvider creates a new Bedrock provider instance.
@@ -75,33 +78,18 @@ func NewBedrockProvider(ctx context.Context, cfg *BedrockConfig) (*BedrockProvid
 		return nil, fmt.Errorf("bedrock: region is required")
 	}
 
-	models := cfg.Models
-	if len(models) == 0 {
-		models = DefaultBedrockModels
-	}
-
 	// Load AWS config with default credential chain
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.Region))
+	loadOpts := []func(*config.LoadOptions) error{config.WithRegion(cfg.Region)}
+	if cfg.Transport != nil {
+		// Route credential fetches (STS, SSO, ...) through the same outbound transport.
+		loadOpts = append(loadOpts, config.WithHTTPClient(&http.Client{Transport: cfg.Transport}))
+	}
+	awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("bedrock: failed to load AWS config: %w", err)
 	}
 
-	// Construct base URL for Bedrock
-	// Format: https://bedrock-runtime.{region}.amazonaws.com
-	baseURL := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", cfg.Region)
-
-	return &BedrockProvider{
-		BaseProvider: NewBaseProviderWithMapping(
-			cfg.Name,
-			baseURL,
-			BedrockOwner,
-			models,
-			cfg.ModelMapping,
-		),
-		region:      cfg.Region,
-		credentials: awsCfg.Credentials,
-		signer:      v4.NewSigner(),
-	}, nil
+	return NewBedrockProviderWithCredentials(cfg, awsCfg.Credentials), nil
 }
 
 // NewBedrockProviderWithCredentials creates a Bedrock provider with explicit credentials.
@@ -115,9 +103,11 @@ func NewBedrockProviderWithCredentials(
 		models = DefaultBedrockModels
 	}
 
+	// Construct base URL for Bedrock
+	// Format: https://bedrock-runtime.{region}.amazonaws.com
 	baseURL := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", cfg.Region)
 
-	return &BedrockProvider{
+	provider := &BedrockProvider{
 		BaseProvider: NewBaseProviderWithMapping(
 			cfg.Name,
 			baseURL,
@@ -129,6 +119,8 @@ func NewBedrockProviderWithCredentials(
 		credentials: credentials,
 		signer:      v4.NewSigner(),
 	}
+	provider.SetOutboundTransport(cfg.Transport)
+	return provider
 }
 
 // Authenticate adds AWS SigV4 authentication to the request.
