@@ -72,7 +72,8 @@ func emptyAuthConfig() config.AuthConfig {
 func emptyKeyConfig(key string) config.KeyConfig {
 	return config.KeyConfig{
 		Key: key, RPMLimit: 0, ITPMLimit: 0,
-		OTPMLimit: 0, Priority: 0, Weight: 0, TPMLimit: 0,
+		OTPMLimit: 0, Priority: 0, Weight: 0,
+		TPMLimit: 0, //nolint:staticcheck // exhaustruct requires the deprecated field
 	}
 }
 

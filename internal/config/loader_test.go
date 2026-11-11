@@ -548,37 +548,39 @@ func TestDetectFormat(t *testing.T) {
 	tests := []struct {
 		path     string
 		expected string
-		wantErr  bool
 	}{
-		{"config.yaml", configFormatYAML, false},
-		{"config.yml", configFormatYAML, false},
-		{"config.YAML", configFormatYAML, false},
-		{"config.YML", configFormatYAML, false},
-		{"config.toml", configFormatTOML, false},
-		{"config.TOML", configFormatTOML, false},
-		{"/path/to/config.yaml", configFormatYAML, false},
-		{"/path/to/config.toml", configFormatTOML, false},
-		{"config.json", "", true},
-		{"config.xml", "", true},
-		{"config", "", true},
-		{"", "", true},
+		{"config.yaml", configFormatYAML},
+		{"config.yml", configFormatYAML},
+		{"config.YAML", configFormatYAML},
+		{"config.YML", configFormatYAML},
+		{"config.toml", configFormatTOML},
+		{"config.TOML", configFormatTOML},
+		{"/path/to/config.yaml", configFormatYAML},
+		{"/path/to/config.toml", configFormatTOML},
 	}
 
 	for _, testCase := range tests {
 		t.Run(testCase.path, func(t *testing.T) {
 			t.Parallel()
 			format, err := config.DetectFormat(testCase.path)
-			if testCase.wantErr {
-				if err == nil {
-					t.Errorf("config.DetectFormat(%q) expected error, got nil", testCase.path)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("config.DetectFormat(%q) unexpected error: %v", testCase.path, err)
-				}
-				if format != testCase.expected {
-					t.Errorf("config.DetectFormat(%q) = %v, want %v", testCase.path, format, testCase.expected)
-				}
+			if err != nil {
+				t.Errorf("config.DetectFormat(%q) unexpected error: %v", testCase.path, err)
+			}
+			if format != testCase.expected {
+				t.Errorf("config.DetectFormat(%q) = %v, want %v", testCase.path, format, testCase.expected)
+			}
+		})
+	}
+}
+
+func TestDetectFormatUnsupported(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"config.json", "config.xml", "config", ""} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			if _, err := config.DetectFormat(path); err == nil {
+				t.Errorf("config.DetectFormat(%q) expected error, got nil", path)
 			}
 		})
 	}
