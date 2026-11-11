@@ -62,3 +62,6 @@ func ExportWriteExceptionEvent(
 ) (bool, error) {
 	return writeExceptionEvent(w, f, exceptionType, payload)
 }
+
+// LoadBedrockAWSConfigForTest exports loadBedrockAWSConfig for testing.
+var LoadBedrockAWSConfigForTest = loadBedrockAWSConfig
