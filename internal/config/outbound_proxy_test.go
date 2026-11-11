@@ -161,7 +161,7 @@ func TestValidateOutboundProxyRejects(t *testing.T) {
 			if !strings.Contains(err.Error(), testCase.wantErrField) {
 				t.Errorf("expected error for %s, got: %v", testCase.wantErrField, err)
 			}
-			if strings.Contains(err.Error(), testProxySecret) {
+			if strings.Contains(err.Error(), testProxySecret) || strings.Contains(err.Error(), "alice") {
 				t.Errorf("validation error leaks proxy credentials: %v", err)
 			}
 		})
