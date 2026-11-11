@@ -141,7 +141,7 @@ func MustTestKeyConfig(key string) config.KeyConfig {
 		OTPMLimit: 0,
 		Priority:  0,
 		Weight:    0,
-		TPMLimit:  0,
+		TPMLimit:  0, //nolint:staticcheck // exhaustruct requires the deprecated field
 	}
 }
 
