@@ -71,8 +71,10 @@ func parseProxyURL(raw string) (*url.URL, error) {
 	}
 	scheme := strings.ToLower(proxyURL.Scheme)
 	if !supportedSchemes[scheme] || proxyURL.Opaque != "" {
-		return nil, fmt.Errorf("%w: unsupported scheme %q (valid: http, https, socks5, socks5h, or %q)",
-			ErrInvalidProxy, proxyURL.Scheme, Direct)
+		// Do not echo the parsed scheme: for values such as "user:pass@host:port"
+		// url.Parse treats the username as the scheme.
+		return nil, fmt.Errorf("%w: unsupported or missing scheme (valid: http, https, socks5, socks5h, or %q)",
+			ErrInvalidProxy, Direct)
 	}
 	if proxyURL.Hostname() == "" {
 		return nil, fmt.Errorf("%w: missing host", ErrInvalidProxy)

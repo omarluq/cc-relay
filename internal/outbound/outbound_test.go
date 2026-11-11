@@ -18,7 +18,8 @@ const (
 	httpProxy      = "http://proxy.internal:3128"
 	secretValue    = "s3cret"
 
-	msgUnsupportedScheme = "unsupported scheme"
+	msgUnsupportedScheme = "unsupported or missing scheme"
+	userValue            = "alice"
 	msgMissingHost       = "missing host"
 	testTargetURL        = "https://api.anthropic.com/v1/messages"
 	ftpWithCreds         = "ftp://alice:" + secretValue + "@proxy:21"
@@ -97,7 +98,8 @@ func TestValidateRejects(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, errors.Is(err, outbound.ErrInvalidProxy))
 			assert.Contains(t, err.Error(), testCase.wantMsg)
-			assert.NotContains(t, err.Error(), secretValue, "error must not leak credentials")
+			assert.NotContains(t, err.Error(), secretValue, "error must not leak the password")
+			assert.NotContains(t, err.Error(), userValue, "error must not leak the username")
 		})
 	}
 }
