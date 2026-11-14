@@ -24,7 +24,7 @@ require (
 	github.com/tidwall/gjson v1.20.3
 	github.com/tidwall/sjson v1.2.9
 	golang.org/x/oauth2 v0.38.0
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
