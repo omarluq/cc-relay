@@ -61,6 +61,8 @@ func NewProviderProxy(
 	}
 
 	providerProxy.Proxy = &httputil.ReverseProxy{
+		// Provider-specific transport (outbound proxy), or http.DefaultTransport.
+		Transport:      providers.TransportFor(provider),
 		Rewrite:        providerProxy.rewrite,
 		FlushInterval:  -1, // Immediate flush for SSE
 		ModifyResponse: providerProxy.modifyResponse,

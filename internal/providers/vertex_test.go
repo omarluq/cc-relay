@@ -43,6 +43,7 @@ func newMockTokenSource(accessToken string) *mockTokenSource {
 // newTestVertexConfig creates a default VertexConfig for testing.
 func newTestVertexConfig() *providers.VertexConfig {
 	return &providers.VertexConfig{
+		Transport:    nil,
 		ModelMapping: nil,
 		Name:         testVertexName,
 		ProjectID:    gcpProjectMyProject,
@@ -317,6 +318,7 @@ func TestVertexTransformRequestURLConstruction(t *testing.T) {
 		t.Parallel()
 
 		cfgSpecial := &providers.VertexConfig{
+			Transport:    nil,
 			ModelMapping: nil,
 			Name:         testVertexName,
 			ProjectID:    "my-project-123",
@@ -342,6 +344,7 @@ func TestVertexTransformRequestModelMapping(t *testing.T) {
 		t.Parallel()
 
 		cfgWithMapping := &providers.VertexConfig{
+			Transport: nil,
 			ModelMapping: map[string]string{
 				modelClaude4: "claude-sonnet-4-5@20250514",
 			},
@@ -395,6 +398,7 @@ func TestVertexProviderModelMapping(t *testing.T) {
 	t.Parallel()
 
 	cfg := &providers.VertexConfig{
+		Transport: nil,
 		ModelMapping: map[string]string{
 			modelClaude4:  "claude-sonnet-4-5@20250514",
 			"claude-opus": "claude-opus-4-5@20250514",

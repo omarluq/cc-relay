@@ -28,6 +28,7 @@ func (p *AzureProvider) AzureDeploymentID() string {
 // NewBaseProviderForTest creates a BaseProvider for testing.
 func NewBaseProviderForTest(baseURL string, modelMapping map[string]string) *BaseProvider {
 	return &BaseProvider{
+		transport:    nil,
 		modelMapping: modelMapping,
 		name:         "",
 		baseURL:      baseURL,
@@ -61,3 +62,6 @@ func ExportWriteExceptionEvent(
 ) (bool, error) {
 	return writeExceptionEvent(w, f, exceptionType, payload)
 }
+
+// LoadBedrockAWSConfigForTest exports loadBedrockAWSConfig for testing.
+var LoadBedrockAWSConfigForTest = loadBedrockAWSConfig

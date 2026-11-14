@@ -44,6 +44,7 @@ func newMockCredentialsProvider(accessKey, secretKey string) *mockCredentialsPro
 // Use opts to override specific fields for testing.
 func testBedrockConfig(opts func(*providers.BedrockConfig)) *providers.BedrockConfig {
 	cfg := &providers.BedrockConfig{
+		Transport:    nil,
 		ModelMapping: nil,
 		Name:         "test-bedrock",
 		Region:       awsRegionUSEast1,
@@ -479,6 +480,7 @@ func TestBedrockProviderRequiresBodyTransform(t *testing.T) {
 func TestBedrockProviderSupportsStreaming(t *testing.T) {
 	t.Parallel()
 	cfg := &providers.BedrockConfig{
+		Transport:    nil,
 		ModelMapping: nil,
 		Name:         "test-bedrock",
 		Region:       awsRegionUSEast1,

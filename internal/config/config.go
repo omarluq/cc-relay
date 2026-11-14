@@ -8,6 +8,7 @@ import (
 
 	"github.com/omarluq/cc-relay/internal/cache"
 	"github.com/omarluq/cc-relay/internal/health"
+	"github.com/omarluq/cc-relay/internal/outbound"
 	"github.com/rs/zerolog"
 	"github.com/samber/mo"
 )
@@ -102,9 +103,15 @@ func (r *RoutingConfig) IsDebugEnabled() bool {
 }
 
 // ServerConfig defines server-level settings.
+//
+// OutboundProxy is the default proxy for upstream (provider-bound) traffic.
+// Empty uses HTTP_PROXY/HTTPS_PROXY/NO_PROXY from the environment, "direct"
+// bypasses all proxies, otherwise an http, https, socks5 or socks5h URL.
+// Providers can override it with their own outbound_proxy.
 type ServerConfig struct {
 	Listen        string     `yaml:"listen" toml:"listen"`
 	APIKey        string     `json:"-" yaml:"api_key" toml:"api_key"` // Legacy: use Auth.APIKey instead
+	OutboundProxy string     `yaml:"outbound_proxy" toml:"outbound_proxy"`
 	Auth          AuthConfig `yaml:"auth" toml:"auth"`
 	TimeoutMS     int        `yaml:"timeout_ms" toml:"timeout_ms"`
 	MaxConcurrent int        `yaml:"max_concurrent" toml:"max_concurrent"`
@@ -165,6 +172,7 @@ type ProviderConfig struct {
 	AzureResourceName  string            `yaml:"azure_resource_name" toml:"azure_resource_name"`
 	AWSSecretAccessKey string            `yaml:"aws_secret_access_key" toml:"aws_secret_access_key"`
 	GCPRegion          string            `yaml:"gcp_region" toml:"gcp_region"`
+	OutboundProxy      string            `yaml:"outbound_proxy" toml:"outbound_proxy"` // Overrides server's
 	Keys               []KeyConfig       `yaml:"keys" toml:"keys"`
 	Models             []string          `yaml:"models" toml:"models"`
 	Pooling            PoolingConfig     `yaml:"pooling" toml:"pooling"`
@@ -193,6 +201,12 @@ func (p *ProviderConfig) IsPoolingEnabled() bool {
 	}
 	// Default: enable if multiple keys
 	return len(p.Keys) > 1
+}
+
+// GetEffectiveOutboundProxy returns the outbound proxy setting for this provider,
+// falling back to the global server.outbound_proxy when the provider sets none.
+func (p *ProviderConfig) GetEffectiveOutboundProxy(global string) string {
+	return outbound.Resolve(global, p.OutboundProxy)
 }
 
 // GetAzureAPIVersion returns the Azure API version with default fallback.
