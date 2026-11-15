@@ -119,6 +119,17 @@ func (s *ProviderMapService) buildProvider(
 	return prov, setting, nil
 }
 
+// releaseTransportsIfUnchanged drops transports added by a reload that kept
+// the previous providers (e.g. every new provider failed to build).
+func (s *ProviderMapService) releaseTransportsIfUnchanged(
+	previousData *providerMapData,
+	previousSettings []string,
+) {
+	if s.data.Load() == previousData {
+		s.transports.Retain(previousSettings)
+	}
+}
+
 // RebuildFrom rebuilds the provider map from the given config.
 // Called from reload callbacks to create providers for newly enabled ones.
 // Reuses existing providers when possible to preserve state.
@@ -130,6 +141,11 @@ func (s *ProviderMapService) RebuildFrom(cfg *config.Config) error {
 	var primaryProvider providers.Provider
 	var primaryKey string
 	var outboundSettings []string
+
+	if s.transports == nil {
+		s.transports = outbound.NewRegistry()
+	}
+	defer s.releaseTransportsIfUnchanged(s.data.Load(), s.transports.Settings())
 
 	for idx := range cfg.Providers {
 		providerCfg := &cfg.Providers[idx]

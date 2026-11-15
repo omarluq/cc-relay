@@ -114,3 +114,29 @@ func TestProviderMapReloadSwapsOutboundProxy(t *testing.T) {
 
 	assert.Equal(t, 1, svc.OutboundTransportCount(), "the unused SOCKS transport must be released")
 }
+
+func TestProviderMapFailedReloadReleasesNewOutboundProxy(t *testing.T) {
+	t.Parallel()
+
+	cfgA := outboundTestConfig(testOutboundSocks, "", "")
+	svc := di.NewProviderMapServiceWithConfigService(di.NewConfigServiceWithConfig(cfgA))
+	require.NoError(t, svc.RebuildFrom(cfgA))
+
+	oldTransport, oldProxy := proxyFor(t, svc, "anthropic")
+	require.Equal(t, testOutboundSocks, oldProxy)
+	require.Equal(t, 1, svc.OutboundTransportCount())
+
+	// Reload with a new proxy, but the only provider fails after its
+	// transport is created (bedrock without aws_region).
+	cfgB := di.MustTestConfig()
+	cfgB.Server.OutboundProxy = testOutboundHTTP
+	cfgB.Providers = []config.ProviderConfig{
+		di.MustTestProviderConfig("bedrock", "bedrock", "", nil),
+	}
+	require.NoError(t, svc.RebuildFrom(&cfgB))
+
+	keptTransport, keptProxy := proxyFor(t, svc, "anthropic")
+	assert.Equal(t, testOutboundSocks, keptProxy, "a failed reload must keep the current providers")
+	assert.Same(t, oldTransport, keptTransport)
+	assert.Equal(t, 1, svc.OutboundTransportCount(), "the failed reload's transport must be released")
+}

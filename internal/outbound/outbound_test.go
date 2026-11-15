@@ -233,6 +233,26 @@ func TestRegistryRetainReleasesUnusedTransports(t *testing.T) {
 	assert.NotSame(t, oldTransport, recreated, "released transport must not be reused")
 }
 
+func TestRegistrySettingsSnapshot(t *testing.T) {
+	t.Parallel()
+
+	registry := outbound.NewRegistry()
+	assert.Empty(t, registry.Settings())
+
+	_, err := registry.Transport(httpProxy)
+	require.NoError(t, err)
+	_, err = registry.Transport(" DIRECT ")
+	require.NoError(t, err)
+	_, err = registry.Transport("")
+	require.NoError(t, err)
+
+	settings := registry.Settings()
+	assert.ElementsMatch(t, []string{httpProxy, outbound.Direct}, settings)
+
+	registry.Retain(settings)
+	assert.Equal(t, 2, registry.Len(), "retaining a snapshot keeps every transport")
+}
+
 func TestRegistryRejectsInvalidSetting(t *testing.T) {
 	t.Parallel()
 
@@ -255,6 +275,7 @@ func TestIsLocalHost(t *testing.T) {
 		"169.254.169.254":      true, // AWS IMDS
 		"169.254.170.2":        true, // ECS task credentials
 		"fe80::1":              true,
+		"fe80::1%eth0":         true, // IPv6 zone from url.URL.Hostname
 		"api.anthropic.com":    false,
 		"10.0.0.5":             false,
 		"192.168.1.10":         false,
@@ -282,6 +303,7 @@ func TestProxyTransportSkipsLocalDestinations(t *testing.T) {
 		"http://169.254.169.254/latest/api/token",
 		"http://localhost:11434/v1/messages",
 		"http://127.0.0.1:8080/",
+		"http://[fe80::1%25eth0]:8080/",
 	} {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
 		require.NoError(t, err)
