@@ -465,7 +465,7 @@ Route upstream traffic (from cc-relay to providers) through an HTTP, HTTPS or SO
 
 Credentials go in the URL (`socks5://user:pass@host:1080`). Use `${VAR}` expansion to keep them out of the file. cc-relay masks proxy credentials in its logs and validation errors.
 
-Requests to `localhost`, loopback and link-local addresses always connect directly, even when a proxy URL is set. This matches how `HTTP_PROXY` behaves and keeps cloud metadata endpoints (such as the AWS instance metadata service used for Bedrock credentials) reachable.
+With an explicit outbound proxy URL, requests to `localhost`, loopback and link-local addresses connect directly. Environment proxies do not skip link-local addresses by default. Add `169.254.0.0/16` to `NO_PROXY` if cloud metadata requests need to stay direct.
 
 {{< tabs items="YAML,TOML" >}}
   {{< tab >}}

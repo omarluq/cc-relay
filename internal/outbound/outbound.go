@@ -174,6 +174,18 @@ func (r *Registry) Len() int {
 	return len(r.transports)
 }
 
+// Settings returns a snapshot of the registered proxy settings.
+func (r *Registry) Settings() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	settings := make([]string, 0, len(r.transports))
+	for setting := range r.transports {
+		settings = append(settings, setting)
+	}
+	return settings
+}
+
 func normalize(setting string) string {
 	setting = strings.TrimSpace(setting)
 	if IsDirect(setting) {
@@ -222,6 +234,7 @@ func IsLocalHost(host string) bool {
 	if strings.EqualFold(host, "localhost") || strings.HasSuffix(strings.ToLower(host), ".localhost") {
 		return true
 	}
+	host, _, _ = strings.Cut(host, "%")
 	ip := net.ParseIP(host)
 	if ip == nil {
 		return false
