@@ -383,6 +383,11 @@ type responseWriter struct {
 	isStreaming bool
 }
 
+// Unwrap lets http.ResponseController reach the underlying writer for streaming flushes.
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
+
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	// Check if this is a streaming response
