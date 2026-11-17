@@ -248,7 +248,7 @@ func TestValidateValidProviderTypes(t *testing.T) {
 	t.Parallel()
 
 	validTypes := []string{
-		testProviderType, providerTypeZAI, "minimax", "ollama",
+		testProviderType, providerTypeZAI, "minimax", "moonshot", "ollama",
 		testTypeBedrock, testTypeVertex, testTypeAzure,
 	}
 
