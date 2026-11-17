@@ -2,6 +2,7 @@ package di_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -928,30 +928,63 @@ func TestHealthTrackerService(t *testing.T) {
 	})
 }
 
-func TestCheckerService(t *testing.T) {
+func TestHealthTrackerRebuildFromAppliesCircuitBreakerConfig(t *testing.T) {
 	t.Parallel()
-	runShutdownerTest(t, shutdownerTest{
-		name: "checker",
-		invokeAndGet: func(_ *testing.T, injector *do.RootScope) (interface{ Shutdown() error }, error) {
-			svc, err := do.Invoke[*di.CheckerService](injector)
-			if err != nil {
-				return nil, err
-			}
-			assert.NotNil(t, svc.Checker)
-			return svc, nil
-		},
-		nilShutdown: func(t *testing.T) {
-			t.Helper()
-			// Use injector to get a checker service, then verify shutdown is safe
-			injector := createTestInjector(t, singleKeyConfig)
-			defer shutdownInjector(t, injector)
-			checkerSvc, err := do.Invoke[*di.CheckerService](injector)
-			require.NoError(t, err)
-			// Shutdown should be safe to call
-			err = checkerSvc.Shutdown()
-			assert.NoError(t, err)
-		},
-	})
+
+	injector := createTestInjector(t, singleKeyConfig)
+	defer shutdownInjector(t, injector)
+
+	trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
+	require.NoError(t, err)
+	tracker := trackerSvc.Tracker
+	upstreamErr := errors.New("upstream 500")
+
+	// Default threshold is 5, so one failure keeps the circuit closed.
+	tracker.RecordFailure("before", upstreamErr)
+	assert.Equal(t, health.StateClosed, tracker.GetState("before"))
+
+	cfg := di.MustTestConfig()
+	cfg.Health.CircuitBreaker.FailureThreshold = 1
+	trackerSvc.RebuildFrom(&cfg)
+
+	assert.Same(t, tracker, trackerSvc.Tracker, "handlers keep the same tracker pointer")
+	tracker.RecordFailure("after", upstreamErr)
+	assert.Equal(t, health.StateOpen, tracker.GetState("after"), "new threshold must apply")
+
+	trackerSvc.RebuildFrom(nil) // no-op
+}
+
+func TestHealthTrackerReloadsCircuitBreakerConfig(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, configFileName)
+	require.NoError(t, os.WriteFile(path, []byte(singleKeyConfig), 0o600))
+
+	injector := newInjectorWithConfigPath(path)
+	defer shutdownInjector(t, injector)
+
+	cfgSvc, err := do.Invoke[*di.ConfigService](injector)
+	require.NoError(t, err)
+	trackerSvc, err := do.Invoke[*di.HealthTrackerService](injector)
+	require.NoError(t, err)
+	tracker := trackerSvc.Tracker
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfgSvc.StartWatching(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	reloaded := singleKeyConfig + "health:\n  circuit_breaker:\n    failure_threshold: 1\n"
+	require.NoError(t, os.WriteFile(path, []byte(reloaded), 0o600))
+
+	// With threshold 1, a single failure opens the circuit once the reload lands.
+	var probe atomic.Int32
+	assert.Eventually(t, func() bool {
+		name := fmt.Sprintf("probe-%d", probe.Add(1))
+		tracker.RecordFailure(name, errors.New("upstream 500"))
+		return tracker.GetState(name) == health.StateOpen
+	}, 3*time.Second, 50*time.Millisecond, "circuit_breaker changes must apply on reload")
 }
 
 func TestNewProxyHandlerWithHealthTracker(t *testing.T) {
@@ -967,46 +1000,4 @@ func TestNewProxyHandlerWithHealthTracker(t *testing.T) {
 		assert.NotNil(t, handlerSvc)
 		assert.NotNil(t, handlerSvc.Handler)
 	})
-}
-
-func TestCheckerStartsAndStopsWithContainer(t *testing.T) {
-	t.Parallel()
-
-	cfg := di.MustTestConfig()
-	cfg.Providers = []config.ProviderConfig{
-		di.MustTestProviderConfig(testProviderName, "anthropic", "http://localhost:9999",
-			[]config.KeyConfig{di.MustTestKeyConfig(testKey)}),
-	}
-
-	// Create test container with pre-configured services
-	container := do.New()
-	nopLogger := zerolog.Nop()
-	cfgSvc := di.NewConfigServiceWithConfig(&cfg)
-	loggerSvc := &di.LoggerService{Logger: &nopLogger}
-	do.ProvideValue(container, cfgSvc)
-	do.ProvideValue(container, loggerSvc)
-	do.Provide(container, di.NewHealthTracker)
-	do.Provide(container, di.NewChecker)
-
-	// Get checker and verify provider was registered
-	checkerSvc := do.MustInvoke[*di.CheckerService](container)
-	require.NotNil(t, checkerSvc.Checker, "Checker should be created")
-
-	// Start the checker
-	checkerSvc.Start()
-
-	// Give it time to run at least one check cycle
-	time.Sleep(150 * time.Millisecond)
-
-	// Shutdown via container (tests graceful shutdown path)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err := container.ShutdownWithContext(ctx)
-	// Note: ShutdownWithContext may return errors for services that weren't invoked
-	// but this doesn't indicate a problem with the Checker lifecycle
-	if err != nil {
-		t.Logf("di.Container shutdown returned (may include uninvoked services): %v", err)
-	}
-
-	// If we got here without deadlock or panic, the lifecycle works
 }

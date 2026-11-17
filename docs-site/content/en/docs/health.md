@@ -58,13 +58,6 @@ Configure health tracking in your config file:
   {{< tab >}}
 ```yaml
 health:
-  # Health check settings
-  health_check:
-    # Enable periodic health checks (default: true)
-    enabled: true
-    # Check interval in milliseconds (default: 10000 = 10s)
-    interval_ms: 10000
-
   # Circuit breaker settings
   circuit_breaker:
     # Consecutive failures before opening circuit (default: 5)
@@ -80,12 +73,6 @@ health:
   {{< tab >}}
 ```toml
 [health]
-
-[health.health_check]
-# Enable periodic health checks (default: true)
-enabled = true
-# Check interval in milliseconds (default: 10000 = 10s)
-interval_ms = 10000
 
 [health.circuit_breaker]
 # Consecutive failures before opening circuit (default: 5)
@@ -104,8 +91,6 @@ half_open_probes = 3
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `health_check.enabled` | `true` | Enable periodic health checks for open circuits |
-| `health_check.interval_ms` | `10000` | Milliseconds between health check probes |
 | `circuit_breaker.failure_threshold` | `5` | Consecutive failures before opening circuit |
 | `circuit_breaker.open_duration_ms` | `30000` | Milliseconds circuit stays open before half-open |
 | `circuit_breaker.half_open_probes` | `3` | Successful probes needed to close circuit |
@@ -143,15 +128,6 @@ Client errors (4xx except 429) indicate problems with the request itself, not pr
 ### Success Resets
 
 When a request succeeds, the failure counter resets to zero. This means occasional failures won't trigger the circuit breaker as long as successes intersperse.
-
-### Health Check Probes
-
-When a circuit is in OPEN state, cc-relay runs periodic health checks to detect recovery faster than waiting for the full timeout:
-
-1. Health checks run every `health_check.interval_ms` milliseconds
-2. Checks only target providers with OPEN circuits (not CLOSED or HALF-OPEN)
-3. A successful health check transitions the circuit to HALF-OPEN
-4. Health checks use lightweight HTTP connectivity tests, not full API calls
 
 ## Integration with Routing
 
@@ -272,25 +248,6 @@ circuit_breaker:
 ```toml
 [circuit_breaker]
 open_duration_ms = 15000  # 15 seconds instead of 30
-```
-  {{< /tab >}}
-{{< /tabs >}}
-
-2. **Enable faster health checks:**
-
-{{< tabs items="YAML,TOML" >}}
-  {{< tab >}}
-```yaml
-health_check:
-  enabled: true
-  interval_ms: 5000  # Check every 5 seconds
-```
-  {{< /tab >}}
-  {{< tab >}}
-```toml
-[health_check]
-enabled = true
-interval_ms = 5000  # Check every 5 seconds
 ```
   {{< /tab >}}
 {{< /tabs >}}

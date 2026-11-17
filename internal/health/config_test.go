@@ -137,98 +137,15 @@ func TestCircuitBreakerConfigGetOpenDuration(t *testing.T) {
 	}
 }
 
-func TestCheckConfigGetInterval(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		config   health.CheckConfig
-		expected time.Duration
-	}{
-		{
-			name:     "zero value returns default 10s",
-			config:   health.CheckConfig{Enabled: nil, IntervalMS: 0},
-			expected: 10 * time.Second,
-		},
-		{
-			name:     "custom value 5000ms returns 5s",
-			config:   health.CheckConfig{Enabled: nil, IntervalMS: 5000},
-			expected: 5 * time.Second,
-		},
-		{
-			name:     "custom value 30000ms returns 30s",
-			config:   health.CheckConfig{Enabled: nil, IntervalMS: 30000},
-			expected: 30 * time.Second,
-		},
-		{
-			name:     "negative value returns default 10s",
-			config:   health.CheckConfig{Enabled: nil, IntervalMS: -500},
-			expected: 10 * time.Second,
-		},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			got := testCase.config.GetInterval()
-			if got != testCase.expected {
-				t.Errorf("GetInterval() = %v, want %v", got, testCase.expected)
-			}
-		})
-	}
-}
-
-func TestCheckConfigIsEnabled(t *testing.T) {
-	t.Parallel()
-
-	boolPtr := func(b bool) *bool { return &b }
-
-	tests := []struct {
-		name     string
-		config   health.CheckConfig
-		expected bool
-	}{
-		{
-			name:     "default (nil) returns true",
-			config:   health.CheckConfig{Enabled: nil, IntervalMS: 0},
-			expected: true,
-		},
-		{
-			name:     "explicit true returns true",
-			config:   health.CheckConfig{Enabled: boolPtr(true), IntervalMS: 0},
-			expected: true,
-		},
-		{
-			name:     "explicit false returns false",
-			config:   health.CheckConfig{Enabled: boolPtr(false), IntervalMS: 0},
-			expected: false,
-		},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			got := testCase.config.IsEnabled()
-			if got != testCase.expected {
-				t.Errorf("IsEnabled() = %v, want %v", got, testCase.expected)
-			}
-		})
-	}
-}
-
 func TestConfigStructComposition(t *testing.T) {
 	t.Parallel()
 
-	// Test that Config properly composes CircuitBreakerConfig and CheckConfig
+	// Test that Config properly composes CircuitBreakerConfig
 	cfg := health.Config{
 		CircuitBreaker: health.CircuitBreakerConfig{
 			FailureThreshold: 10,
 			OpenDurationMS:   60000,
 			HalfOpenProbes:   5,
-		},
-		HealthCheck: health.CheckConfig{
-			Enabled:    nil,
-			IntervalMS: 15000,
 		},
 	}
 
@@ -241,9 +158,6 @@ func TestConfigStructComposition(t *testing.T) {
 	}
 	if got := cfg.CircuitBreaker.GetHalfOpenProbes(); got != 5 {
 		t.Errorf("CircuitBreaker.GetHalfOpenProbes() = %v, want 5", got)
-	}
-	if got := cfg.HealthCheck.GetInterval(); got != 15*time.Second {
-		t.Errorf("HealthCheck.GetInterval() = %v, want 15s", got)
 	}
 }
 
@@ -259,8 +173,6 @@ func TestDefaults(t *testing.T) {
 		{got: health.DefaultFailureThreshold, expected: 5, name: "health.DefaultFailureThreshold"},
 		{got: health.DefaultOpenDurationMS, expected: 30000, name: "health.DefaultOpenDurationMS"},
 		{got: health.DefaultHalfOpenProbes, expected: 3, name: "health.DefaultHalfOpenProbes"},
-		{got: health.DefaultHealthCheckMS, expected: 10000, name: "health.DefaultHealthCheckMS"},
-		{got: health.DefaultHealthEnabled, expected: true, name: "health.DefaultHealthEnabled"},
 	}
 
 	for _, testCase := range tests {

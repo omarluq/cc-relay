@@ -154,10 +154,6 @@ func MakeTestRoutingConfig() RoutingConfig {
 // MakeTestHealthConfig returns a minimal health.Config with all fields set.
 func MakeTestHealthConfig() health.Config {
 	return health.Config{
-		HealthCheck: health.CheckConfig{
-			Enabled:    new(true),
-			IntervalMS: 10000,
-		},
 		CircuitBreaker: health.CircuitBreakerConfig{
 			OpenDurationMS:   30000,
 			FailureThreshold: 5,

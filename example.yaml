@@ -327,16 +327,9 @@ metrics:
   prometheus_listen: "127.0.0.1:9100"
 
 # ============================================================================
-# Health Checking
+# Health Tracking (circuit breaker)
 # ============================================================================
 health:
-  # Health check settings
-  health_check:
-    # Enable periodic health checks (default: true)
-    enabled: true
-    # Check interval in milliseconds (default: 10000 = 10s)
-    interval_ms: 10000
-
   # Circuit breaker settings
   circuit_breaker:
     # Number of consecutive failures before opening circuit (default: 5)

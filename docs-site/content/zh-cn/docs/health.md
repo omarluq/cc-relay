@@ -58,13 +58,6 @@ stateDiagram-v2
   {{< tab >}}
 ```yaml
 health:
-  # 健康检查设置
-  health_check:
-    # 启用定期健康检查（默认: true）
-    enabled: true
-    # 检查间隔（毫秒，默认: 10000 = 10秒）
-    interval_ms: 10000
-
   # 熔断器设置
   circuit_breaker:
     # 熔断器打开前的连续故障次数（默认: 5）
@@ -80,12 +73,6 @@ health:
   {{< tab >}}
 ```toml
 [health]
-
-[health.health_check]
-# Enable periodic health checks (default: true)
-enabled = true
-# Check interval in milliseconds (default: 10000 = 10s)
-interval_ms = 10000
 
 [health.circuit_breaker]
 # Consecutive failures before opening circuit (default: 5)
@@ -104,8 +91,6 @@ half_open_probes = 3
 
 | 选项 | 默认值 | 描述 |
 |------|--------|------|
-| `health_check.enabled` | `true` | 为打开的熔断器启用定期健康检查 |
-| `health_check.interval_ms` | `10000` | 健康检查探测之间的毫秒数 |
 | `circuit_breaker.failure_threshold` | `5` | 熔断器打开前的连续故障次数 |
 | `circuit_breaker.open_duration_ms` | `30000` | 熔断器在半开之前保持打开的毫秒数 |
 | `circuit_breaker.half_open_probes` | `3` | 关闭熔断器所需的成功探测次数 |
@@ -143,15 +128,6 @@ half_open_probes = 3
 ### 成功重置
 
 当请求成功时，故障计数器重置为零。这意味着只要成功穿插其中，偶发的故障不会触发熔断器。
-
-### 健康检查探测
-
-当熔断器处于 OPEN 状态时，cc-relay 运行定期健康检查，以比等待完整超时更快地检测恢复：
-
-1. 健康检查每 `health_check.interval_ms` 毫秒运行一次
-2. 检查仅针对具有 OPEN 熔断器的供应商（不是 CLOSED 或 HALF-OPEN）
-3. 成功的健康检查将熔断器转换为 HALF-OPEN
-4. 健康检查使用轻量级 HTTP 连接测试，而不是完整的 API 调用
 
 ## 与路由的集成
 
@@ -272,25 +248,6 @@ circuit_breaker:
 ```toml
 [circuit_breaker]
 open_duration_ms = 15000  # 15 seconds instead of 30
-```
-  {{< /tab >}}
-{{< /tabs >}}
-
-2. **启用更快的健康检查:**
-
-{{< tabs items="YAML,TOML" >}}
-  {{< tab >}}
-```yaml
-health_check:
-  enabled: true
-  interval_ms: 5000  # 每 5 秒检查一次
-```
-  {{< /tab >}}
-  {{< tab >}}
-```toml
-[health_check]
-enabled = true
-interval_ms = 5000  # Check every 5 seconds
 ```
   {{< /tab >}}
 {{< /tabs >}}

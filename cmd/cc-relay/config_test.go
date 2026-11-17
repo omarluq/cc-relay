@@ -40,7 +40,6 @@ func emptyLoggingConfig() config.LoggingConfig {
 
 func emptyHealthConfig() health.Config {
 	return health.Config{
-		HealthCheck: health.CheckConfig{Enabled: nil, IntervalMS: 0},
 		CircuitBreaker: health.CircuitBreakerConfig{
 			OpenDurationMS: 0, FailureThreshold: 0, HalfOpenProbes: 0,
 		},

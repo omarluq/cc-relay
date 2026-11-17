@@ -9,8 +9,6 @@ import (
 	"github.com/omarluq/cc-relay/internal/health"
 )
 
-const testProviderName = "test-provider"
-
 func TestNewCircuitBreakerDefaultSettings(t *testing.T) {
 	t.Parallel()
 
