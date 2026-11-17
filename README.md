@@ -30,7 +30,7 @@
   <strong>💰 Save money</strong> by routing simple tasks to lighter models<br>
   <strong>🛡️ Never get stuck</strong> with automatic failover between providers<br>
   <strong>🏢 Use your company's Bedrock/Azure/Vertex</strong> alongside personal API keys<br>
-  <strong>🆕 Add Anthropic-compatible providers</strong> like MiniMax, Z.AI, Ollama
+  <strong>🆕 Add Anthropic-compatible providers</strong> like Moonshot (Kimi), MiniMax, Z.AI, Ollama
 </p>
 
 <p>

@@ -159,6 +159,29 @@ providers:
       "claude-haiku-4-5": "MiniMax-M2.1-highspeed"
 
   # --------------------------------------------------------------------------
+  # Moonshot AI / Kimi (platform API key, not a Kimi Code subscription)
+  # --------------------------------------------------------------------------
+  - name: "kimi"
+    type: "moonshot"
+    enabled: false
+    # base_url: "https://api.moonshot.ai/anthropic"  # default
+
+    models:
+      - "kimi-k3.1-pro"
+      - "kimi-k3.1-pro-highspeed"
+      - "kimi-k3"
+
+    keys:
+      - key: "${MOONSHOT_API_KEY}"
+
+    model_mapping:
+      "claude-opus-4-6": "kimi-k3.1-pro"
+      "claude-sonnet-4-5-20250514": "kimi-k3.1-pro"
+      "claude-sonnet-4-5": "kimi-k3.1-pro"
+      "claude-haiku-4-5-20251001": "kimi-k3"
+      "claude-haiku-4-5": "kimi-k3"
+
+  # --------------------------------------------------------------------------
   # Ollama (Local models)
   # Note: Limited feature support (no prompt caching, no extended thinking)
   # --------------------------------------------------------------------------

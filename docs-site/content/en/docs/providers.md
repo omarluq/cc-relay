@@ -1,6 +1,6 @@
 ---
 title: "Providers"
-description: "Configure Anthropic, Z.AI, MiniMax, and Ollama providers in cc-relay"
+description: "Configure Anthropic, Z.AI, MiniMax, Moonshot (Kimi), and Ollama providers in cc-relay"
 weight: 5
 ---
 
@@ -15,6 +15,7 @@ CC-Relay acts as a proxy between Claude Code and various LLM backends. All provi
 | Anthropic | `anthropic` | Direct Anthropic API access | Standard Anthropic pricing |
 | Z.AI | `zai` | Zhipu AI GLM models, Anthropic-compatible | ~1/7 of Anthropic pricing |
 | MiniMax | `minimax` | MiniMax models, Anthropic-compatible | MiniMax pricing |
+| Moonshot AI (Kimi) | `moonshot` | Kimi models, Anthropic-compatible | Moonshot platform pricing |
 | Ollama | `ollama` | Local LLM inference | Free (local compute) |
 | AWS Bedrock | `bedrock` | Claude via AWS with SigV4 auth | AWS Bedrock pricing |
 | Azure AI Foundry | `azure` | Claude via Azure MAAS | Azure AI pricing |
@@ -719,6 +720,59 @@ model_mapping:
   {{< /tab >}}
 {{< /tabs >}}
 
+
+## Moonshot AI (Kimi) Provider
+
+Use `type: moonshot` to call Kimi models through Moonshot's Anthropic-compatible Messages API. Requests use Bearer authentication with your Moonshot platform API key.
+
+This setup is for the **Moonshot API Platform**, not a Kimi Code subscription. Kimi Code uses separate credentials, endpoints, and model names.
+
+### Configuration
+
+Create a platform key and set `MOONSHOT_API_KEY` in your environment:
+
+{{< tabs items="YAML,TOML" >}}
+  {{< tab >}}
+```yaml
+providers:
+  - name: "kimi"
+    type: "moonshot"
+    enabled: true
+    # base_url: "https://api.moonshot.ai/anthropic"  # default
+    keys:
+      - key: "${MOONSHOT_API_KEY}"
+    model_mapping:
+      "claude-opus-4-6": "kimi-k3.1-pro"
+      "claude-sonnet-4-5-20250514": "kimi-k3.1-pro"
+      "claude-haiku-4-5-20251001": "kimi-k3"
+```
+  {{< /tab >}}
+  {{< tab >}}
+```toml
+[[providers]]
+name = "kimi"
+type = "moonshot"
+enabled = true
+# base_url = "https://api.moonshot.ai/anthropic"  # default
+
+[[providers.keys]]
+key = "${MOONSHOT_API_KEY}"
+
+[providers.model_mapping]
+"claude-opus-4-6" = "kimi-k3.1-pro"
+"claude-sonnet-4-5-20250514" = "kimi-k3.1-pro"
+"claude-haiku-4-5-20251001" = "kimi-k3"
+```
+  {{< /tab >}}
+{{< /tabs >}}
+
+### Models and behavior
+
+The default model list is `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`, and `kimi-k3`. Set `models` to replace that list, and map the Claude model names your client sends to models available on your Moonshot account.
+
+The provider passes through Anthropic-style messages, tool calls, and SSE responses without converting them to OpenAI's format. Model-specific thinking and request options still need to match Moonshot's supported settings. It also uses the existing key pools, outbound proxy settings, and config hot reload.
+
+See Moonshot's [API overview](https://platform.kimi.ai/docs/api/overview) and [Messages API reference](https://platform.kimi.ai/docs/api/messages) for current models and supported options.
 
 ## Cloud Provider Comparison
 
