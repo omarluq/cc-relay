@@ -97,10 +97,6 @@ func runServeWithConfig(configPath string) error {
 		return err
 	}
 
-	// Start health checker (after all DI services initialized)
-	checkerSvc := di.MustInvoke[*di.CheckerService](container)
-	checkerSvc.Start()
-
 	// Start config file watcher for hot-reload support
 	// The watcher context is tied to container shutdown
 	watchCtx, watchCancel := context.WithCancel(context.Background())

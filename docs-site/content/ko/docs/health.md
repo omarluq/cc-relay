@@ -58,13 +58,6 @@ stateDiagram-v2
   {{< tab >}}
 ```yaml
 health:
-  # 헬스 체크 설정
-  health_check:
-    # 주기적 헬스 체크 활성화 (기본값: true)
-    enabled: true
-    # 체크 간격 (밀리초, 기본값: 10000 = 10초)
-    interval_ms: 10000
-
   # 서킷 브레이커 설정
   circuit_breaker:
     # 서킷이 열리기 전 연속 장애 횟수 (기본값: 5)
@@ -80,12 +73,6 @@ health:
   {{< tab >}}
 ```toml
 [health]
-
-[health.health_check]
-# Enable periodic health checks (default: true)
-enabled = true
-# Check interval in milliseconds (default: 10000 = 10s)
-interval_ms = 10000
 
 [health.circuit_breaker]
 # Consecutive failures before opening circuit (default: 5)
@@ -104,8 +91,6 @@ half_open_probes = 3
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `health_check.enabled` | `true` | 열린 서킷에 대한 주기적 헬스 체크 활성화 |
-| `health_check.interval_ms` | `10000` | 헬스 체크 프로브 간의 밀리초 |
 | `circuit_breaker.failure_threshold` | `5` | 서킷이 열리기 전 연속 장애 횟수 |
 | `circuit_breaker.open_duration_ms` | `30000` | 반열림 전 서킷이 열려 있는 밀리초 |
 | `circuit_breaker.half_open_probes` | `3` | 서킷을 닫는 데 필요한 성공 프로브 수 |
@@ -143,15 +128,6 @@ half_open_probes = 3
 ### 성공 시 리셋
 
 요청이 성공하면 장애 카운터가 0으로 리셋됩니다. 이는 성공이 중간에 있는 한 가끔의 장애로는 서킷 브레이커가 트리거되지 않음을 의미합니다.
-
-### 헬스 체크 프로브
-
-서킷이 OPEN 상태일 때 cc-relay는 전체 타임아웃을 기다리는 것보다 빠르게 복구를 감지하기 위해 주기적인 헬스 체크를 실행합니다:
-
-1. 헬스 체크는 `health_check.interval_ms` 밀리초마다 실행됩니다
-2. 체크는 OPEN 서킷이 있는 프로바이더만 대상으로 합니다 (CLOSED 또는 HALF-OPEN이 아닌)
-3. 성공적인 헬스 체크는 서킷을 HALF-OPEN으로 전환합니다
-4. 헬스 체크는 전체 API 호출이 아닌 경량 HTTP 연결 테스트를 사용합니다
 
 ## 라우팅과의 통합
 
@@ -272,25 +248,6 @@ circuit_breaker:
 ```toml
 [circuit_breaker]
 open_duration_ms = 15000  # 15 seconds instead of 30
-```
-  {{< /tab >}}
-{{< /tabs >}}
-
-2. **더 빠른 헬스 체크 활성화:**
-
-{{< tabs items="YAML,TOML" >}}
-  {{< tab >}}
-```yaml
-health_check:
-  enabled: true
-  interval_ms: 5000  # 5초마다 체크
-```
-  {{< /tab >}}
-  {{< tab >}}
-```toml
-[health_check]
-enabled = true
-interval_ms = 5000  # Check every 5 seconds
 ```
   {{< /tab >}}
 {{< /tabs >}}

@@ -58,13 +58,6 @@ stateDiagram-v2
   {{< tab >}}
 ```yaml
 health:
-  # ヘルスチェック設定
-  health_check:
-    # 定期的なヘルスチェックを有効化（デフォルト: true）
-    enabled: true
-    # チェック間隔（ミリ秒、デフォルト: 10000 = 10秒）
-    interval_ms: 10000
-
   # サーキットブレーカー設定
   circuit_breaker:
     # サーキットが開くまでの連続障害回数（デフォルト: 5）
@@ -80,12 +73,6 @@ health:
   {{< tab >}}
 ```toml
 [health]
-
-[health.health_check]
-# Enable periodic health checks (default: true)
-enabled = true
-# Check interval in milliseconds (default: 10000 = 10s)
-interval_ms = 10000
 
 [health.circuit_breaker]
 # Consecutive failures before opening circuit (default: 5)
@@ -104,8 +91,6 @@ half_open_probes = 3
 
 | オプション | デフォルト | 説明 |
 |-----------|----------|------|
-| `health_check.enabled` | `true` | 開いているサーキットの定期的なヘルスチェックを有効化 |
-| `health_check.interval_ms` | `10000` | ヘルスチェックプローブ間のミリ秒 |
 | `circuit_breaker.failure_threshold` | `5` | サーキットが開くまでの連続障害回数 |
 | `circuit_breaker.open_duration_ms` | `30000` | 半開になるまでサーキットが開いているミリ秒 |
 | `circuit_breaker.half_open_probes` | `3` | サーキットを閉じるために必要な成功プローブ数 |
@@ -143,15 +128,6 @@ half_open_probes = 3
 ### 成功でリセット
 
 リクエストが成功すると、障害カウンターはゼロにリセットされます。これは、成功が間に挟まっている限り、たまの障害ではサーキットブレーカーがトリガーされないことを意味します。
-
-### ヘルスチェックプローブ
-
-サーキットが OPEN 状態の場合、cc-relay は完全なタイムアウトを待つよりも早く回復を検出するために定期的なヘルスチェックを実行します：
-
-1. ヘルスチェックは `health_check.interval_ms` ミリ秒ごとに実行されます
-2. チェックは OPEN サーキットを持つプロバイダーのみを対象とします（CLOSED や HALF-OPEN ではない）
-3. 成功したヘルスチェックはサーキットを HALF-OPEN に遷移させます
-4. ヘルスチェックは完全な API 呼び出しではなく、軽量な HTTP 接続テストを使用します
 
 ## ルーティングとの統合
 
@@ -272,25 +248,6 @@ circuit_breaker:
 ```toml
 [circuit_breaker]
 open_duration_ms = 15000  # 15 seconds instead of 30
-```
-  {{< /tab >}}
-{{< /tabs >}}
-
-2. **より速いヘルスチェックを有効化:**
-
-{{< tabs items="YAML,TOML" >}}
-  {{< tab >}}
-```yaml
-health_check:
-  enabled: true
-  interval_ms: 5000  # 5秒ごとにチェック
-```
-  {{< /tab >}}
-  {{< tab >}}
-```toml
-[health_check]
-enabled = true
-interval_ms = 5000  # Check every 5 seconds
 ```
   {{< /tab >}}
 {{< /tabs >}}

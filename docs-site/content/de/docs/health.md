@@ -58,13 +58,6 @@ Konfigurieren Sie das Gesundheits-Tracking in Ihrer Konfigurationsdatei:
   {{< tab >}}
 ```yaml
 health:
-  # Health-Check-Einstellungen
-  health_check:
-    # Periodische Health-Checks aktivieren (Standard: true)
-    enabled: true
-    # Check-Intervall in Millisekunden (Standard: 10000 = 10s)
-    interval_ms: 10000
-
   # Circuit-Breaker-Einstellungen
   circuit_breaker:
     # Aufeinanderfolgende Fehler vor Oeffnung des Circuits (Standard: 5)
@@ -80,12 +73,6 @@ health:
   {{< tab >}}
 ```toml
 [health]
-
-[health.health_check]
-# Enable periodic health checks (default: true)
-enabled = true
-# Check interval in milliseconds (default: 10000 = 10s)
-interval_ms = 10000
 
 [health.circuit_breaker]
 # Consecutive failures before opening circuit (default: 5)
@@ -104,8 +91,6 @@ half_open_probes = 3
 
 | Option | Standard | Beschreibung |
 |--------|----------|--------------|
-| `health_check.enabled` | `true` | Periodische Health-Checks fuer offene Circuits aktivieren |
-| `health_check.interval_ms` | `10000` | Millisekunden zwischen Health-Check-Probes |
 | `circuit_breaker.failure_threshold` | `5` | Aufeinanderfolgende Fehler vor Oeffnung des Circuits |
 | `circuit_breaker.open_duration_ms` | `30000` | Millisekunden, die der Circuit offen bleibt vor Half-Open |
 | `circuit_breaker.half_open_probes` | `3` | Erfolgreiche Probes, die zum Schliessen des Circuits benoetigt werden |
@@ -143,15 +128,6 @@ Client-Fehler (4xx ausser 429) zeigen Probleme mit der Anfrage selbst an, nicht 
 ### Erfolg setzt zurueck
 
 Wenn eine Anfrage erfolgreich ist, wird der Fehlerzaehler auf Null zurueckgesetzt. Das bedeutet, dass gelegentliche Fehler den Circuit Breaker nicht ausloesen, solange Erfolge dazwischen liegen.
-
-### Health-Check-Probes
-
-Wenn ein Circuit im OPEN-Zustand ist, fuehrt cc-relay periodische Health-Checks durch, um eine Erholung schneller zu erkennen als durch Warten auf den vollen Timeout:
-
-1. Health-Checks laufen alle `health_check.interval_ms` Millisekunden
-2. Checks zielen nur auf Provider mit OPEN Circuits (nicht CLOSED oder HALF-OPEN)
-3. Ein erfolgreicher Health-Check versetzt den Circuit in den HALF-OPEN-Zustand
-4. Health-Checks verwenden leichte HTTP-Konnektivitaetstests, keine vollstaendigen API-Aufrufe
 
 ## Integration mit Routing
 
@@ -272,25 +248,6 @@ circuit_breaker:
 ```toml
 [circuit_breaker]
 open_duration_ms = 15000  # 15 seconds instead of 30
-```
-  {{< /tab >}}
-{{< /tabs >}}
-
-2. **Schnellere Health-Checks aktivieren:**
-
-{{< tabs items="YAML,TOML" >}}
-  {{< tab >}}
-```yaml
-health_check:
-  enabled: true
-  interval_ms: 5000  # Alle 5 Sekunden pruefen
-```
-  {{< /tab >}}
-  {{< tab >}}
-```toml
-[health_check]
-enabled = true
-interval_ms = 5000  # Check every 5 seconds
 ```
   {{< /tab >}}
 {{< /tabs >}}

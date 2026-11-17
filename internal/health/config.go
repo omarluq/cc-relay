@@ -2,7 +2,6 @@
 //
 // The package implements:
 //   - Circuit breaker state machine (CLOSED -> OPEN -> HALF-OPEN -> CLOSED)
-//   - Provider health checks with configurable intervals
 //   - Failure tracking and automatic recovery probing
 //
 // Circuit breaker prevents cascading failures by temporarily blocking requests
@@ -16,8 +15,6 @@ const (
 	DefaultFailureThreshold = 5     // consecutive failures to open circuit
 	DefaultOpenDurationMS   = 30000 // 30 seconds before half-open
 	DefaultHalfOpenProbes   = 3     // probes allowed in half-open state
-	DefaultHealthCheckMS    = 10000 // 10 seconds between health checks
-	DefaultHealthEnabled    = true  // health checks enabled by default
 )
 
 // CircuitBreakerConfig defines circuit breaker behavior.
@@ -52,32 +49,11 @@ func (c *CircuitBreakerConfig) GetHalfOpenProbes() uint32 {
 	return c.HalfOpenProbes
 }
 
-// CheckConfig defines health check behavior.
-type CheckConfig struct {
-	Enabled    *bool `yaml:"enabled" toml:"enabled"`
-	IntervalMS int   `yaml:"interval_ms" toml:"interval_ms"`
-}
-
-// GetInterval returns the health check interval as time.Duration.
-// Returns default 10s if not set or negative.
-func (c *CheckConfig) GetInterval() time.Duration {
-	if c.IntervalMS <= 0 {
-		return time.Duration(DefaultHealthCheckMS) * time.Millisecond
-	}
-	return time.Duration(c.IntervalMS) * time.Millisecond
-}
-
-// IsEnabled returns whether health checks are enabled.
-// Returns true by default if not explicitly set.
-func (c *CheckConfig) IsEnabled() bool {
-	if c.Enabled == nil {
-		return DefaultHealthEnabled
-	}
-	return *c.Enabled
-}
-
-// Config combines circuit breaker and health check configuration.
+// Config holds the health tracking configuration.
+//
+// The former health_check section is no longer read: its periodic checks
+// could not change circuit state, so they were removed. Config files that
+// still contain it load fine, because unknown keys are ignored.
 type Config struct {
-	HealthCheck    CheckConfig          `yaml:"health_check" toml:"health_check"`
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker" toml:"circuit_breaker"`
 }

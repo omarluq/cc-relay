@@ -454,10 +454,6 @@ func testAuthConfig() config.AuthConfig {
 // All fields are explicitly initialized to satisfy exhaustruct linter.
 func testHealthConfig() health.Config {
 	return health.Config{
-		HealthCheck: health.CheckConfig{
-			Enabled:    nil,
-			IntervalMS: 0,
-		},
 		CircuitBreaker: health.CircuitBreakerConfig{
 			OpenDurationMS:   0,
 			FailureThreshold: 0,

@@ -48,10 +48,6 @@ func MustTestConfig() config.Config {
 			},
 		},
 		Health: health.Config{
-			HealthCheck: health.CheckConfig{
-				Enabled:    nil,
-				IntervalMS: 0,
-			},
 			CircuitBreaker: health.CircuitBreakerConfig{
 				OpenDurationMS:   0,
 				FailureThreshold: 0,
@@ -150,10 +146,6 @@ func MustTestKeyConfig(key string) config.KeyConfig {
 // mustTestHealthConfig creates a minimal health.Config for testing.
 func MustTestHealthConfig() health.Config {
 	return health.Config{
-		HealthCheck: health.CheckConfig{
-			Enabled:    nil,
-			IntervalMS: 0,
-		},
 		CircuitBreaker: health.CircuitBreakerConfig{
 			OpenDurationMS:   0,
 			FailureThreshold: 0,

@@ -47,9 +47,9 @@ type Config struct {
 	Providers []ProviderConfig `yaml:"providers" toml:"providers"`
 	Routing   RoutingConfig    `yaml:"routing" toml:"routing"`
 	Logging   LoggingConfig    `yaml:"logging" toml:"logging"`
-	Health    health.Config    `yaml:"health" toml:"health"`
 	Server    ServerConfig     `yaml:"server" toml:"server"`
 	Cache     cache.Config     `yaml:"cache" toml:"cache"`
+	Health    health.Config    `yaml:"health" toml:"health"`
 }
 
 // RoutingConfig defines provider-level routing strategy behavior.

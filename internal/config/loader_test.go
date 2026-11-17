@@ -604,3 +604,65 @@ listen = "127.0.0.1:8787
 		t.Errorf("Expected parse error message, got: %v", err)
 	}
 }
+
+// Config files written for older versions may still contain the removed
+// health.health_check section. They must keep loading.
+func TestLoadIgnoresRemovedHealthCheckSection(t *testing.T) {
+	t.Parallel()
+
+	yamlContent := `server:
+  listen: "` + defaultListenAddr + `"
+providers:
+  - name: "` + testProviderType + `"
+    type: "` + testProviderType + `"
+    enabled: true
+    keys:
+      - key: "sk-ant-test"
+health:
+  health_check:
+    enabled: true
+    interval_ms: 5000
+  circuit_breaker:
+    failure_threshold: 7
+`
+	tomlContent := `[server]
+listen = "` + defaultListenAddr + `"
+
+[[providers]]
+name = "` + testProviderType + `"
+type = "` + testProviderType + `"
+enabled = true
+
+[[providers.keys]]
+key = "sk-ant-test"
+
+[health.health_check]
+enabled = true
+interval_ms = 5000
+
+[health.circuit_breaker]
+failure_threshold = 7
+`
+
+	loaders := map[string]func() (*config.Config, error){
+		"yaml": func() (*config.Config, error) {
+			return config.LoadFromReaderForTest(strings.NewReader(yamlContent))
+		},
+		"toml": func() (*config.Config, error) {
+			return config.LoadFromReaderWithFormatForTest(strings.NewReader(tomlContent), config.TestFormatTOML)
+		},
+	}
+
+	for name, load := range loaders {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg, err := load()
+			if err != nil {
+				t.Fatalf("config with health_check failed to load: %v", err)
+			}
+			if got := cfg.Health.CircuitBreaker.FailureThreshold; got != 7 {
+				t.Errorf("circuit_breaker.failure_threshold = %d, want 7", got)
+			}
+		})
+	}
+}

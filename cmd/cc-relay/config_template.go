@@ -121,11 +121,9 @@ cache:
   #   buffer_items: 64
 
 # ============================================================================
-# Health Checking
+# Health Tracking (circuit breaker)
 # ============================================================================
 health:
-  check_interval_seconds: 30
-
   circuit_breaker:
     failure_threshold: 5
     recovery_timeout_seconds: 60
