@@ -17,6 +17,7 @@ const (
 	ProviderTypeAnthropic = "anthropic"
 	ProviderTypeZAI       = "zai"
 	ProviderTypeMiniMax   = "minimax"
+	ProviderTypeMoonshot  = "moonshot"
 	ProviderTypeOllama    = "ollama"
 	ProviderTypeBedrock   = "bedrock"
 	ProviderTypeVertex    = "vertex"
@@ -24,7 +25,7 @@ const (
 )
 
 // supportedProviderTypes is the list of supported provider types for error messages.
-const supportedProviderTypes = "anthropic, zai, minimax, ollama, bedrock, vertex, azure"
+const supportedProviderTypes = "anthropic, zai, minimax, moonshot, ollama, bedrock, vertex, azure"
 
 // outboundTransportSetter is implemented by providers embedding providers.BaseProvider.
 type outboundTransportSetter interface {
@@ -109,6 +110,10 @@ func newProvider(
 		), nil
 	case ProviderTypeMiniMax:
 		return providers.NewMiniMaxProvider(
+			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
+		), nil
+	case ProviderTypeMoonshot:
+		return providers.NewMoonshotProvider(
 			providerConfig.Name, providerConfig.BaseURL, providerConfig.Models, providerConfig.ModelMapping,
 		), nil
 	case ProviderTypeOllama:

@@ -59,6 +59,7 @@ var validProviderTypes = map[string]bool{
 	"anthropic":     true,
 	"zai":           true,
 	"minimax":       true,
+	"moonshot":      true,
 	"ollama":        true,
 	ProviderBedrock: true,
 	ProviderVertex:  true,
@@ -194,7 +195,7 @@ func validateProvider(provider *ProviderConfig, index int, seenNames map[string]
 	if provider.Type == "" {
 		errs.Addf("%s is required", prefix("type"))
 	} else if !validProviderTypes[provider.Type] {
-		errs.Addf("%s is invalid (got %q, valid: anthropic, zai, ollama, bedrock, vertex, azure)",
+		errs.Addf("%s is invalid (got %q, valid: anthropic, zai, minimax, moonshot, ollama, bedrock, vertex, azure)",
 			prefix("type"), provider.Type)
 	}
 
