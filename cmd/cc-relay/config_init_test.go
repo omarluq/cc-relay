@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
+
+	"github.com/omarluq/cc-relay/internal/config"
 )
 
 const (
@@ -71,7 +75,7 @@ func TestRunConfigInitDefaultPath(t *testing.T) {
 }
 
 func TestRunConfigInitCustomPath(t *testing.T) {
-	t.Parallel()
+	t.Setenv("ANTHROPIC_API_KEY", "")
 
 	// Create a temp directory
 	tmpDir := t.TempDir()
@@ -89,9 +93,9 @@ func TestRunConfigInitCustomPath(t *testing.T) {
 		t.Fatalf(runConfigInitErrFmt, err)
 	}
 
-	// Verify config file was created at custom path
-	if _, err := os.Stat(customPath); os.IsNotExist(err) {
-		t.Errorf("Expected config.yaml to be created at %s", customPath)
+	assertKnownConfigFields(t, customPath)
+	if err := validateConfigAtPath(customPath); err != nil {
+		t.Fatalf("validate generated config: %v", err)
 	}
 }
 
@@ -188,5 +192,24 @@ func TestRunConfigInitCreatesDirectory(t *testing.T) {
 	// Verify config file was created
 	if _, err := os.Stat(nestedPath); os.IsNotExist(err) {
 		t.Error("Expected config.yaml to be created")
+	}
+}
+
+func TestExampleConfigKnownFields(t *testing.T) {
+	t.Parallel()
+	assertKnownConfigFields(t, filepath.Join("..", "..", "example.yaml"))
+}
+
+func assertKnownConfigFields(t *testing.T, path string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	var cfg config.Config
+	if err := decoder.Decode(&cfg); err != nil {
+		t.Fatalf("strict decode %s: %v", path, err)
 	}
 }
