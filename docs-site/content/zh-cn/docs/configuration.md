@@ -1116,7 +1116,6 @@ ERR failed to reload config path=/path/to/config.yaml error="validation error"
 ### 限制
 
 - **监听地址**：更改 `server.listen` 需要重启
-- **gRPC 地址**：更改 `grpc.listen` 需要重启
 
 可以热重载的配置选项：
 - 日志级别和格式
@@ -1124,7 +1123,7 @@ ERR failed to reload config path=/path/to/config.yaml error="validation error"
 - 提供者启用/禁用、基础 URL、模型映射
 - 密钥池策略、密钥权重、单个密钥限制
 - 最大并发请求数与最大请求体大小
-- 健康检查间隔与断路器阈值
+- 断路器设置
 
 ### 热重载保证
 

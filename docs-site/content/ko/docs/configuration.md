@@ -1099,7 +1099,6 @@ ERR failed to reload config path=/path/to/config.yaml error="validation error"
 ### 제한 사항
 
 - **리슨 주소**: `server.listen` 변경은 재시작 필요
-- **gRPC 주소**: `grpc.listen` 변경은 재시작 필요
 
 핫 리로드 가능한 설정 옵션:
 - 로그 레벨 및 형식
@@ -1107,7 +1106,7 @@ ERR failed to reload config path=/path/to/config.yaml error="validation error"
 - 프로바이더 활성화/비활성화, 베이스 URL, 모델 매핑
 - 키풀 전략, 키 가중치, 키별 제한
 - 최대 동시 요청 수 및 최대 바디 크기
-- 헬스 체크 간격 및 서킷 브레이커 임계값
+- 서킷 브레이커 설정
 
 ### 핫 리로드 보장 사항
 

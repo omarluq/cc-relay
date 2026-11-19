@@ -1277,7 +1277,6 @@ Invalid configurations are rejected and the proxy continues with the previous va
 ### Limitations
 
 - **Listen address**: Changing `server.listen` requires a restart
-- **gRPC address**: Changing `grpc.listen` requires a restart
 
 Configuration options that can be hot-reloaded:
 - Logging level and format
@@ -1285,7 +1284,7 @@ Configuration options that can be hot-reloaded:
 - Provider enable/disable, base URL, and model mapping
 - Keypool strategy, key weights, and per-key limits
 - Max concurrent requests and max body size
-- Health check intervals and circuit breaker thresholds
+- Circuit breaker settings
 
 ### Hot-reload guarantees
 

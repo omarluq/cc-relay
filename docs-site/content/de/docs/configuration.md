@@ -1128,7 +1128,6 @@ Ungueltige Konfigurationen werden abgelehnt und der Proxy laeuft mit der vorheri
 ### Einschraenkungen
 
 - **Listen-Adresse**: Aendern von `server.listen` erfordert einen Neustart
-- **gRPC-Adresse**: Aendern von `grpc.listen` erfordert einen Neustart
 
 Konfigurationsoptionen, die hot-reloadbar sind:
 - Logging-Level und Format
@@ -1136,7 +1135,7 @@ Konfigurationsoptionen, die hot-reloadbar sind:
 - Provider-Aktivierung, Base-URL und Model-Mapping
 - Keypool-Strategie, Key-Gewichte und Limits pro Key
 - Maximale gleichzeitige Requests und maximale Body-Groesse
-- Health-Check-Intervalle und Circuit-Breaker-Schwellenwerte
+- Circuit-Breaker-Einstellungen
 
 ### Hot-Reload-Garantien
 
