@@ -85,11 +85,6 @@ providers:
   #     "claude-sonnet-4-5-20250929": "qwen3:32b"
   #     "claude-haiku-4-5-20251001": "qwen3:8b"
 
-# ============================================================================
-# gRPC Management API (for TUI/CLI)
-# ============================================================================
-grpc:
-  listen: "127.0.0.1:9090"
 
 # ============================================================================
 # Logging
@@ -98,13 +93,6 @@ logging:
   level: "info"          # Options: debug, info, warn, error
   format: "text"         # Options: json, text
 
-# ============================================================================
-# Metrics
-# ============================================================================
-metrics:
-  enabled: true
-  prometheus_endpoint: "/metrics"
-  prometheus_listen: "127.0.0.1:9100"
 
 # ============================================================================
 # Cache Configuration
@@ -126,9 +114,6 @@ cache:
 health:
   circuit_breaker:
     failure_threshold: 5
-    recovery_timeout_seconds: 60
-    triggers:
-      rate_limit_errors: 3
-      timeout_errors: 2
-      server_errors: 3
+    open_duration_ms: 30000
+    half_open_probes: 3
 `
