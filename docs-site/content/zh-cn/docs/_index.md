@@ -36,6 +36,7 @@ CC-Relay 正在积极开发中。当前已实现的功能：
 - 每个 API 密钥的速率限制
 - 熔断器和健康追踪
 - gRPC 管理 API
+- Prometheus 指标
 - TUI 仪表盘
 - 更多供应商（Ollama、Bedrock、Azure、Vertex）
 

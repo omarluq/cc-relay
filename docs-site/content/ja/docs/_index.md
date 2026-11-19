@@ -36,6 +36,7 @@ CC-Relay は活発に開発中です。現在実装されている機能：
 - API キーごとのレート制限
 - サーキットブレーカーとヘルストラッキング
 - gRPC 管理 API
+- Prometheus メトリクス
 - TUI ダッシュボード
 - 追加プロバイダー（Ollama、Bedrock、Azure、Vertex）
 
