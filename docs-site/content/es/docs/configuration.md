@@ -1130,7 +1130,6 @@ Las configuraciones invalidas se rechazan y el proxy continua con la configuraci
 ### Limitaciones
 
 - **Direccion de escucha**: Cambiar `server.listen` requiere reinicio
-- **Direccion gRPC**: Cambiar `grpc.listen` requiere reinicio
 
 Opciones de configuracion que pueden recargarse en caliente:
 - Nivel y formato de registro
@@ -1138,7 +1137,7 @@ Opciones de configuracion que pueden recargarse en caliente:
 - Activacion de providers, base URL y mapeo de modelos
 - Estrategia de keypool, pesos de claves y limites por clave
 - Maximo de solicitudes concurrentes y tamano maximo del body
-- Intervalos de salud y umbrales del circuit breaker
+- Configuracion del circuit breaker
 
 ### Garantias de hot-reload
 

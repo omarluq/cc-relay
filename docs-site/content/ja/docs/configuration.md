@@ -1113,7 +1113,6 @@ ERR failed to reload config path=/path/to/config.yaml error="validation error"
 ### 制限事項
 
 - **リッスンアドレス**: `server.listen` の変更には再起動が必要
-- **gRPCアドレス**: `grpc.listen` の変更には再起動が必要
 
 ホットリロード可能な設定オプション：
 - ログレベルとフォーマット
@@ -1121,7 +1120,7 @@ ERR failed to reload config path=/path/to/config.yaml error="validation error"
 - プロバイダーの有効/無効、ベースURL、モデルマッピング
 - キープール戦略、キーの重み、キーごとの制限
 - 最大同時リクエスト数と最大ボディサイズ
-- ヘルスチェック間隔とサーキットブレーカー閾値
+- サーキットブレーカー設定
 
 ### ホットリロードの保証
 
