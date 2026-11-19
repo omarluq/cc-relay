@@ -122,68 +122,6 @@ func TestValidateConfigValid(t *testing.T) {
 	}
 }
 
-func TestValidateConfigNoListen(t *testing.T) {
-	t.Parallel()
-
-	cfg := &config.Config{
-		Routing: emptyRoutingConfig(),
-		Logging: emptyLoggingConfig(),
-		Health:  emptyHealthConfig(),
-		Cache:   emptyCacheConfig(),
-		Server: config.ServerConfig{
-			OutboundProxy: "",
-			Listen:        "",
-			APIKey:        defaultAPIKey,
-			Auth:          emptyAuthConfig(),
-			TimeoutMS:     0,
-			MaxConcurrent: 0,
-			MaxBodyBytes:  0,
-			EnableHTTP2:   false,
-		},
-		Providers: nil,
-	}
-
-	err := validateConfig(cfg)
-	if err == nil {
-		t.Error("Expected error for missing listen address")
-	}
-
-	if err != nil && err.Error() != "server.listen is required" {
-		t.Errorf(unexpectedErrFmt, err)
-	}
-}
-
-func TestValidateConfigNoAPIKey(t *testing.T) {
-	t.Parallel()
-
-	cfg := &config.Config{
-		Routing: emptyRoutingConfig(),
-		Logging: emptyLoggingConfig(),
-		Health:  emptyHealthConfig(),
-		Cache:   emptyCacheConfig(),
-		Server: config.ServerConfig{
-			OutboundProxy: "",
-			Listen:        defaultListenAddr,
-			APIKey:        "",
-			Auth:          emptyAuthConfig(),
-			TimeoutMS:     0,
-			MaxConcurrent: 0,
-			MaxBodyBytes:  0,
-			EnableHTTP2:   false,
-		},
-		Providers: nil,
-	}
-
-	err := validateConfig(cfg)
-	if err == nil {
-		t.Error("Expected error for missing API key")
-	}
-
-	if err != nil && err.Error() != "server.api_key is required" {
-		t.Errorf(unexpectedErrFmt, err)
-	}
-}
-
 func TestValidateConfigNoEnabledProvider(t *testing.T) {
 	t.Parallel()
 
@@ -246,8 +184,8 @@ func TestValidateConfigProviderNoKeys(t *testing.T) {
 	}
 
 	err := validateConfig(cfg)
-	if err == nil {
-		t.Error("Expected error for provider with no keys")
+	if err != nil {
+		t.Errorf(unexpectedErrFmt, err)
 	}
 }
 
@@ -319,29 +257,26 @@ func TestValidateConfigEmptyProviders(t *testing.T) {
 func TestRunConfigValidateValidConfig(t *testing.T) {
 	t.Parallel()
 
-	// Create a valid config file
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, configFileName)
-	configContent := `
-server:
-  listen: "` + localListenAddr + `"
-  api_key: "` + defaultAPIKey + `"
-providers:
-  - name: "` + providerAnthropic + `"
-    type: "` + providerAnthropic + `"
+	for name, auth := range map[string]string{
+		"legacy API key": "  api_key: test-key\n",
+		"nested API key": "  auth:\n    api_key: test-key\n",
+		"no API key":     "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			configPath := filepath.Join(t.TempDir(), configFileName)
+			content := "server:\n  listen: " + localListenAddr + "\n" + auth + `providers:
+  - name: anthropic
+    type: anthropic
     enabled: true
-    base_url: "https://api.anthropic.com"
-    keys:
-      - key: "test-api-key"
 `
-	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// validateConfigAtPath should succeed
-	err := validateConfigAtPath(configPath)
-	if err != nil {
-		t.Errorf("Expected valid config, got error: %v", err)
+			if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateConfigAtPath(configPath); err != nil {
+				t.Fatalf("validate config: %v", err)
+			}
+		})
 	}
 }
 

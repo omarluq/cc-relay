@@ -55,36 +55,16 @@ func validateConfigAtPath(configPath string) error {
 	return validateConfig(cfg)
 }
 
-// validateConfig performs semantic validation beyond YAML parsing.
+// validateConfig checks the CLI's enabled-provider requirement after config.Load
+// has performed schema validation.
 func validateConfig(cfg *config.Config) error {
-	// Check server config
-	if cfg.Server.Listen == "" {
-		return fmt.Errorf("server.listen is required")
-	}
-
-	if cfg.Server.APIKey == "" {
-		return fmt.Errorf("server.api_key is required")
-	}
-
-	// Check at least one enabled provider
-	hasEnabledProvider := false
-
 	for i := range cfg.Providers {
-		p := &cfg.Providers[i]
-		if p.Enabled {
-			hasEnabledProvider = true
-			// Check provider has at least one key
-			if len(p.Keys) == 0 {
-				return fmt.Errorf("provider %s has no API keys configured", p.Name)
-			}
+		if cfg.Providers[i].Enabled {
+			return nil
 		}
 	}
 
-	if !hasEnabledProvider {
-		return fmt.Errorf("no enabled providers configured")
-	}
-
-	return nil
+	return fmt.Errorf("no enabled providers configured")
 }
 
 // findConfigFileForValidate searches for config file in default locations.
