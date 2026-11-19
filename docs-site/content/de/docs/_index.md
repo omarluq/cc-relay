@@ -36,6 +36,7 @@ CC-Relay befindet sich in aktiver Entwicklung. Aktuell implementierte Funktionen
 - Rate-Limiting pro API-Schluessel
 - Circuit Breaker und Health-Tracking
 - gRPC-Management-API
+- Prometheus-Metriken
 - TUI-Dashboard
 - Zusaetzliche Provider (Ollama, Bedrock, Azure, Vertex)
 

@@ -36,6 +36,7 @@ CC-Relay는 활발하게 개발 중입니다. 현재 구현된 기능:
 - API 키별 요청 제한
 - 서킷 브레이커 및 상태 추적
 - gRPC 관리 API
+- Prometheus 메트릭
 - TUI 대시보드
 - 추가 프로바이더 (Ollama, Bedrock, Azure, Vertex)
 
