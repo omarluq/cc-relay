@@ -316,15 +316,6 @@ cache:
   #   # Distributed map name (default: "cc-relay")
   #   dmap_name: "cc-relay"
 
-# ============================================================================
-# gRPC Management API
-# ============================================================================
-grpc:
-  # gRPC server for TUI/CLI management
-  listen: "127.0.0.1:9090"
-
-  # Optional: grpc-web for browser-based WebUI
-  # web_listen: "127.0.0.1:9091"
 
 # ============================================================================
 # Logging
@@ -339,15 +330,6 @@ logging:
   # Log file (optional, defaults to stdout)
   # file: "/var/log/cc-relay/relay.log"
 
-# ============================================================================
-# Metrics
-# ============================================================================
-metrics:
-  enabled: true
-
-  # Prometheus metrics endpoint
-  prometheus_endpoint: "/metrics"
-  prometheus_listen: "127.0.0.1:9100"
 
 # ============================================================================
 # Health Tracking (circuit breaker)
