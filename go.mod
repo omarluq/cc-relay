@@ -21,7 +21,7 @@ require (
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
-	github.com/tidwall/gjson v1.20.4
+	github.com/tidwall/gjson v1.20.5
 	github.com/tidwall/sjson v1.2.10
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/time v0.16.0
