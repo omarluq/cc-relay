@@ -174,9 +174,7 @@ type providerProxyInit struct {
 
 func initProviderProxies(handler *Handler, init *providerProxyInit) error {
 	if len(init.initialInfos) == 0 {
-		providerProxy, err := NewProviderProxy(init.provider, init.apiKey,
-			init.pool, init.debugOpts, handler.modifyResponse,
-		)
+		providerProxy, err := handler.newProviderProxy(init.provider, init.apiKey, init.pool, init.debugOpts)
 		if err != nil {
 			return err
 		}
@@ -195,7 +193,7 @@ func initProviderProxies(handler *Handler, init *providerProxyInit) error {
 			provPool = init.providerPools[prov.Name()]
 		}
 
-		providerProxy, err := NewProviderProxy(prov, key, provPool, init.debugOpts, handler.modifyResponse)
+		providerProxy, err := handler.newProviderProxy(prov, key, provPool, init.debugOpts)
 		if err != nil {
 			return fmt.Errorf("failed to create proxy for %s: %w", prov.Name(), err)
 		}
@@ -307,6 +305,34 @@ func (h *Handler) reportOutcome(resp *http.Response) {
 	}
 }
 
+// reportTransportFailure records an upstream failure that produced no response.
+// Key pool state is left alone: there are no response headers to learn from.
+func (h *Handler) reportTransportFailure(ctx context.Context, err error) {
+	providerName, ok := ctx.Value(providerNameContextKey).(string)
+	if !ok || providerName == "" || !health.ShouldCountAsFailure(0, err) {
+		return
+	}
+	h.healthTracker.RecordFailure(providerName, err)
+}
+
+// newProviderProxy creates a provider proxy that reports its outcomes to the handler.
+// Responses are reported through modifyResponse, failed round trips through the transport.
+func (h *Handler) newProviderProxy(
+	prov providers.Provider, key string, pool *keypool.KeyPool, debugOpts config.DebugOptions,
+) (*ProviderProxy, error) {
+	providerProxy, err := NewProviderProxy(prov, key, pool, debugOpts, h.modifyResponse)
+	if err != nil {
+		return nil, err
+	}
+	if h.healthTracker != nil {
+		providerProxy.Proxy.Transport = &failureReportingTransport{
+			next:   providerProxy.Proxy.Transport,
+			report: h.reportTransportFailure,
+		}
+	}
+	return providerProxy, nil
+}
+
 // getOrCreateProxy returns the proxy for the given provider, creating it lazily if needed.
 // This allows newly enabled providers (after config reload) to become routable without
 // handler recreation. Uses double-checked locking for efficiency.
@@ -341,7 +367,7 @@ func (h *Handler) getOrCreateProxy(prov providers.Provider) (*ProviderProxy, err
 	key, pool = h.preserveProxyAuthInputs(providerProxy, key, pool, keys, pools)
 
 	// (Re)create proxy if provider instance or auth inputs changed
-	providerProxy, err := NewProviderProxy(prov, key, pool, h.getDebugOptions(), h.modifyResponse)
+	providerProxy, err := h.newProviderProxy(prov, key, pool, h.getDebugOptions())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy for %s: %w", provName, err)
 	}
