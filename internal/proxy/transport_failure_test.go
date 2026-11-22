@@ -10,6 +10,7 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 const (
 	failureTestProvider   = "primary"
 	failureTestBackup     = "backup"
-	refusedUpstreamURL    = "http://127.0.0.1:1"
 	unresolvedUpstreamURL = "http://upstream.invalid"
 	upgradeHeader         = "Upgrade"
 	connectionHeader      = "Connection"
@@ -117,18 +117,32 @@ func http2Upstream(t *testing.T, handle http.HandlerFunc) testUpstream {
 	return testUpstream{transport: server.Client().Transport, url: server.URL}
 }
 
-func refusedUpstream(*testing.T) testUpstream {
-	return testUpstream{transport: nil, url: refusedUpstreamURL}
+// refusingTransport refuses every dial, so no local listener can affect the test.
+// Each dial must target wantAddr.
+func refusingTransport(t *testing.T, wantAddr string) *http.Transport {
+	t.Helper()
+	base, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok)
+	transport := base.Clone()
+	transport.Proxy = nil
+	transport.DialContext = func(_ context.Context, network, addr string) (net.Conn, error) {
+		assert.Equal(t, wantAddr, addr, "dial target")
+		return nil, &net.OpError{Op: "dial", Net: network, Source: nil, Addr: nil, Err: syscall.ECONNREFUSED}
+	}
+	return transport
+}
+
+func refusedUpstream(t *testing.T) testUpstream {
+	t.Helper()
+	return testUpstream{transport: refusingTransport(t, "upstream.invalid:80"), url: unresolvedUpstreamURL}
 }
 
 func refusedProxyUpstream(t *testing.T) testUpstream {
 	t.Helper()
-	proxyURL, err := url.Parse(refusedUpstreamURL)
+	proxyURL, err := url.Parse("http://proxy.invalid:3128")
 	require.NoError(t, err)
 
-	base, ok := http.DefaultTransport.(*http.Transport)
-	require.True(t, ok)
-	transport := base.Clone()
+	transport := refusingTransport(t, "proxy.invalid:3128")
 	transport.Proxy = http.ProxyURL(proxyURL)
 	return testUpstream{transport: transport, url: "https://upstream.invalid"}
 }
@@ -354,10 +368,22 @@ func TestErrorAfterResponseIsNotATransportFailure(t *testing.T) {
 	assert.Equal(t, health.StateClosed, tracker.GetState(failureTestProvider))
 }
 
-func TestTransportFailureFailsOverAndRecovers(t *testing.T) {
+func TestTransportFailureFailsOver(t *testing.T) {
 	t.Parallel()
 
-	const openFor = 500 * time.Millisecond
+	backup := plainUpstream(t, respondOK)
+	tracker := newFailureTracker(2, time.Minute)
+	handler := newFailoverHandler(t, tracker,
+		plainUpstream(t, abortResponse).provider(failureTestProvider), backup.provider(failureTestBackup))
+
+	assert.Equal(t, http.StatusBadGateway, serveMessage(t.Context(), handler, nil))
+	assert.Equal(t, http.StatusBadGateway, serveMessage(t.Context(), handler, nil))
+	assert.Equal(t, http.StatusOK, serveMessage(t.Context(), handler, nil), "open circuit must route to the backup")
+}
+
+func TestTransportFailureRecovers(t *testing.T) {
+	t.Parallel()
+
 	const recoveredStatus = http.StatusAccepted
 
 	recovered := make(chan struct{})
@@ -369,15 +395,10 @@ func TestTransportFailureFailsOverAndRecovers(t *testing.T) {
 			abortResponse(writer, request)
 		}
 	})
-	backup := plainUpstream(t, respondOK)
-	tracker := newFailureTracker(2, openFor)
-	handler := newFailoverHandler(t, tracker,
-		primary.provider(failureTestProvider), backup.provider(failureTestBackup))
+	tracker := newFailureTracker(1, 100*time.Millisecond)
+	handler := newFailoverHandler(t, tracker, primary.provider(failureTestProvider))
 
 	assert.Equal(t, http.StatusBadGateway, serveMessage(t.Context(), handler, nil))
-	assert.Equal(t, http.StatusBadGateway, serveMessage(t.Context(), handler, nil))
-	assert.Equal(t, http.StatusOK, serveMessage(t.Context(), handler, nil), "open circuit must route to the backup")
-
 	close(recovered)
 	require.Eventually(t, func() bool {
 		return tracker.GetState(failureTestProvider) == health.StateHalfOpen
@@ -385,6 +406,49 @@ func TestTransportFailureFailsOverAndRecovers(t *testing.T) {
 
 	assert.Equal(t, recoveredStatus, serveMessage(t.Context(), handler, nil), "recovered primary must get traffic")
 	assert.Equal(t, health.StateClosed, tracker.GetState(failureTestProvider))
+}
+
+// net/http can report a connection the upstream closed before the request was
+// written. Those errors count; other errors in that window are local.
+func TestConnectionErrorBeforeWriteOpensCircuit(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		err      error
+		wantOpen bool
+	}{
+		"EOF":                      {err: io.EOF, wantOpen: true},
+		"unexpected EOF":           {err: io.ErrUnexpectedEOF, wantOpen: true},
+		"server closed connection": {err: errors.New("http: server closed idle connection"), wantOpen: true},
+		"connection reset": {err: &net.OpError{
+			Op: "read", Net: "tcp", Source: nil, Addr: nil, Err: syscall.ECONNRESET,
+		}, wantOpen: true},
+		"local request error": {err: errors.New("invalid request header"), wantOpen: false},
+	}
+
+	for name, testCase := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			upstream := testUpstream{
+				url: unresolvedUpstreamURL,
+				transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					trace := httptrace.ContextClientTrace(request.Context())
+					trace.GetConn(request.URL.Host)
+					trace.GotConn(httptrace.GotConnInfo{Conn: nil, Reused: false, WasIdle: false, IdleTime: 0})
+					return nil, testCase.err
+				}),
+			}
+			tracker := newFailureTracker(1, time.Minute)
+			handler := newFailoverHandler(t, tracker, upstream.provider(failureTestProvider))
+
+			assert.Equal(t, http.StatusBadGateway, serveMessage(t.Context(), handler, nil))
+			want := health.StateClosed
+			if testCase.wantOpen {
+				want = health.StateOpen
+			}
+			assert.Equal(t, want, tracker.GetState(failureTestProvider))
+		})
+	}
 }
 
 func TestTransportFailureSingleProviderReturnsUnavailable(t *testing.T) {
