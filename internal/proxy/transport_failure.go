@@ -2,10 +2,17 @@ package proxy
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"sync/atomic"
 )
+
+// errServerClosedIdle matches the message of net/http's unexported error for a
+// connection the server closed before the request could be written.
+const errServerClosedIdle = "http: server closed idle connection"
 
 // failureReportingTransport reports round trips that failed because of the
 // upstream or the network path to it.
@@ -30,7 +37,7 @@ func (t *failureReportingTransport) RoundTrip(request *http.Request) (*http.Resp
 
 	// A done context means the client went away. Trailers come from the client
 	// and can be rejected locally after the headers were written.
-	if request.Context().Err() == nil && len(request.Trailer) == 0 && progress.upstreamAtFault() {
+	if request.Context().Err() == nil && len(request.Trailer) == 0 && progress.upstreamAtFault(err) {
 		t.report(request.Context(), err)
 	}
 	return response, err
@@ -59,9 +66,24 @@ func (p *roundTripProgress) trace() *httptrace.ClientTrace {
 // connection or failed after the request started to be written. net/http
 // rejects bad requests outside those two windows: before it asks for a
 // connection, or (HTTP/2 header checks) before it writes the first header.
-func (p *roundTripProgress) upstreamAtFault() bool {
+// Between getting a connection and writing to it, only errors that show the
+// connection itself failed count.
+func (p *roundTripProgress) upstreamAtFault(err error) bool {
 	if !p.connecting.Load() {
 		return false
 	}
-	return !p.connected.Load() || p.writeStarted.Load()
+	if !p.connected.Load() || p.writeStarted.Load() {
+		return true
+	}
+	return isConnectionError(err)
+}
+
+// isConnectionError reports whether err shows the connection failed, as
+// opposed to net/http rejecting the request locally.
+func isConnectionError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		err.Error() == errServerClosedIdle
 }
