@@ -34,7 +34,11 @@ type RoutesOptions struct {
 	AllProviders       []providers.Provider
 }
 
-const routesOptionsRequiredMsg = "routes options are required"
+const (
+	routesOptionsRequiredMsg = "routes options are required"
+	messagesPath             = "/v1/messages"
+	countTokensPath          = "/v1/messages/count_tokens" //nolint:gosec // API path, not a credential
+)
 
 // SetupRoutesWithLiveKeyPools creates the HTTP handler with full hot-reload support.
 // Provides live key pool accessors, enabling:
@@ -43,6 +47,7 @@ const routesOptionsRequiredMsg = "routes options are required"
 // - Hot-reloadable key pools (newly enabled providers get keys immediately)
 // Routes:
 //   - POST /v1/messages - Proxy to backend provider with router-based selection
+//   - POST /v1/messages/count_tokens - Proxy token counting the same way
 //   - GET /v1/models - List available models from all providers (no auth required)
 //   - GET /v1/providers - List active providers with metadata (no auth required)
 //   - GET /health - Health check endpoint (no auth required)
@@ -56,7 +61,8 @@ func SetupRoutesWithLiveKeyPools(opts *RoutesOptions) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	mux.Handle("POST /v1/messages", messagesHandler)
+	mux.Handle("POST "+messagesPath, messagesHandler)
+	mux.Handle("POST "+countTokensPath, messagesHandler)
 
 	providersGetter := liveProvidersGetter(opts)
 	mux.Handle("GET /v1/models", NewModelsHandler(providersGetter))

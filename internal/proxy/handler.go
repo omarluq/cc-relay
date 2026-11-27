@@ -605,6 +605,14 @@ func (h *Handler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		defer release()
 	}
 
+	if request.URL.Path == countTokensPath && selected.Provider.RequiresBodyTransform() {
+		// Bedrock and Vertex build an inference URL from the body and drop the
+		// request path, so forwarding would run a full model call instead of a count.
+		WriteError(writer, http.StatusNotFound, "not_found_error",
+			fmt.Sprintf("token counting is not supported for provider %s", selected.Provider.Name()))
+		return
+	}
+
 	proxyCtx, requestOK := h.prepareProxyRequest(writer, request, selected.Provider)
 	if !requestOK {
 		return
