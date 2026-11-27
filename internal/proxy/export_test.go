@@ -29,7 +29,6 @@ const (
 	anthropicBaseURL              = "https://api.anthropic.com"
 	anthropicVersion2024          = "2024-01-01"
 	anthropicBetaExtendedThinking = "extended-thinking-2024-01-01"
-	messagesPath                  = "/v1/messages"
 	apiKeyHeader                  = "x-api-key"
 	contentTypeHeader             = "Content-Type"
 	jsonContentType               = "application/json"
@@ -54,6 +53,8 @@ const (
 	AnthropicBetaExtendedThinking = anthropicBetaExtendedThinking
 	// MessagesPath is the messages API endpoint path.
 	MessagesPath = messagesPath
+	// CountTokensPath is the token counting API endpoint path.
+	CountTokensPath = countTokensPath
 	// APIKeyHeader is the API key header name.
 	APIKeyHeader = apiKeyHeader
 	// ContentTypeHeader is the content type header name.

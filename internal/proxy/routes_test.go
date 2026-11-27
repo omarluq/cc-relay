@@ -2,7 +2,10 @@
 package proxy_test
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,4 +147,67 @@ func newLiveKeyPoolsHandler(
 	require.NoError(t, err)
 
 	return handler
+}
+
+func TestSetupRoutesWithLiveKeyPoolsForwardsCountTokens(t *testing.T) {
+	t.Parallel()
+
+	var gotPath string
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
+		gotPath = req.URL.Path
+		writer.Header().Set(proxy.ContentTypeHeader, proxy.JSONContentType)
+		if _, err := writer.Write([]byte(`{"input_tokens":42}`)); err != nil {
+			return
+		}
+	}))
+	t.Cleanup(backend.Close)
+
+	provider := proxy.NewTestProvider(backend.URL)
+	providerInfos := []router.ProviderInfo{
+		proxy.TestProviderInfoWithHealth(provider, func() bool { return true }),
+	}
+	handler := newLiveKeyPoolsHandler(t, config.NewRuntime(proxy.TestConfig("")), provider, providerInfos)
+
+	rec := proxy.ServeRequest(t, handler, newCountTokensRequest())
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, proxy.CountTokensPath, gotPath)
+	assert.JSONEq(t, `{"input_tokens":42}`, rec.Body.String())
+}
+
+// bodyTransformProvider stands in for Bedrock/Vertex, which rebuild the upstream URL from the body.
+type bodyTransformProvider struct {
+	providers.Provider
+}
+
+func (bodyTransformProvider) RequiresBodyTransform() bool { return true }
+
+func TestSetupRoutesWithLiveKeyPoolsRejectsCountTokensForBodyTransformProviders(t *testing.T) {
+	t.Parallel()
+
+	backendHit := false
+	backend := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		backendHit = true
+		writer.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(backend.Close)
+
+	provider := bodyTransformProvider{Provider: proxy.NewTestProvider(backend.URL)}
+	providerInfos := []router.ProviderInfo{
+		proxy.TestProviderInfoWithHealth(provider, func() bool { return true }),
+	}
+	handler := newLiveKeyPoolsHandler(t, config.NewRuntime(proxy.TestConfig("")), provider, providerInfos)
+
+	rec := proxy.ServeRequest(t, handler, newCountTokensRequest())
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), "not_found_error")
+	assert.False(t, backendHit, "count_tokens must not reach an inference endpoint")
+}
+
+func newCountTokensRequest() *http.Request {
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, proxy.CountTokensPath,
+		strings.NewReader(`{"model":"test","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("anthropic-version", proxy.AnthropicVersion)
+	return req
 }
